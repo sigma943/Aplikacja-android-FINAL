@@ -7,7 +7,7 @@ import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
 import { buildDevicePermissions, type DeviceRole } from '@/lib/admin/rbac';
 import { agentLog } from '@/lib/debug-agent-log';
-import { RefreshCw, Wrench } from 'lucide-react';
+import { ClockAlert, RefreshCw, Wrench } from 'lucide-react';
 
 export type { DeviceRole };
 
@@ -117,6 +117,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [device, setDevice] = useState<DeviceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const [checkingMaintenance, setCheckingMaintenance] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceLatched, setMaintenanceLatched] = useState(false);
@@ -393,6 +394,19 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const shouldShowMaintenance = (maintenanceMode || maintenanceLatched) && device?.role === 'user';
   const shouldHoldInitialRender = loading || (!isPrivilegedDevice && settingsLoading);
 
+  useEffect(() => {
+    if (!shouldHoldInitialRender) {
+      setConnectionTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setConnectionTimedOut(true);
+    }, 30_000);
+
+    return () => window.clearTimeout(timer);
+  }, [shouldHoldInitialRender]);
+
   const refreshMaintenanceStatus = async () => {
     if (checkingMaintenance) return;
     setCheckingMaintenance(true);
@@ -411,8 +425,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs }}>
-      {shouldHoldInitialRender ? (
-        <div className="min-h-screen bg-[#05070b]" aria-hidden="true" />
+      {connectionTimedOut ? (
+        <ConnectionTimeoutScreen />
+      ) : shouldHoldInitialRender ? (
+        <LoadingScreen />
       ) : isBanned && device ? (
         <BanScreen device={device} />
       ) : shouldShowMaintenance ? (
@@ -424,15 +440,133 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+function getStoredThemeMode() {
+  if (typeof window === 'undefined') return 'dark';
+  const savedTheme = localStorage.getItem('mks_app_theme') || 'system';
+  if (savedTheme === 'system') {
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return savedTheme;
+}
+
+function themeShell() {
+  const themeMode = getStoredThemeMode();
+  const isWarm = themeMode === 'light-warm';
+  const isLight = themeMode === 'light' || isWarm;
+  const isOled = themeMode === 'dark-oled';
+  const isAurora = themeMode === 'dark-aurora';
+
+  if (isWarm) {
+    return {
+      page: 'bg-[#f2ede1] text-[#272116]',
+      glow: 'bg-[radial-gradient(circle_at_50%_12%,rgba(245,158,11,0.18),transparent_38%),radial-gradient(circle_at_16%_80%,rgba(0,163,162,0.09),transparent_34%)]',
+      grid: 'bg-[linear-gradient(rgba(93,79,50,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(93,79,50,0.045)_1px,transparent_1px)]',
+      card: 'border-[#d8cdb2] bg-[#faf7ef]/86 shadow-[0_24px_70px_rgba(93,79,50,0.16)]',
+      main: 'text-[#272116]',
+      sub: 'text-[#746a58]',
+      spinner: '#00A3A2',
+    };
+  }
+
+  if (isLight) {
+    return {
+      page: 'bg-slate-50 text-slate-950',
+      glow: 'bg-[radial-gradient(circle_at_50%_12%,rgba(0,163,162,0.14),transparent_38%),radial-gradient(circle_at_16%_80%,rgba(99,102,241,0.10),transparent_34%)]',
+      grid: 'bg-[linear-gradient(rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.04)_1px,transparent_1px)]',
+      card: 'border-slate-200 bg-white/86 shadow-[0_24px_70px_rgba(15,23,42,0.12)]',
+      main: 'text-slate-950',
+      sub: 'text-slate-500',
+      spinner: '#00A3A2',
+    };
+  }
+
+  if (isOled) {
+    return {
+      page: 'bg-black text-white',
+      glow: 'bg-[radial-gradient(circle_at_50%_12%,rgba(0,163,162,0.14),transparent_38%)]',
+      grid: 'bg-[linear-gradient(rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)]',
+      card: 'border-white/10 bg-[#050505]/86 shadow-[0_24px_70px_rgba(0,0,0,0.55)]',
+      main: 'text-white',
+      sub: 'text-slate-500',
+      spinner: '#22d3ee',
+    };
+  }
+
+  if (isAurora) {
+    return {
+      page: 'bg-[#06130f] text-white',
+      glow: 'bg-[radial-gradient(circle_at_44%_10%,rgba(16,185,129,0.22),transparent_34%),radial-gradient(circle_at_78%_72%,rgba(59,130,246,0.16),transparent_36%)]',
+      grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
+      card: 'border-emerald-300/10 bg-[#0b1b16]/82 shadow-[0_24px_70px_rgba(0,0,0,0.42)]',
+      main: 'text-white',
+      sub: 'text-emerald-100/55',
+      spinner: '#34d399',
+    };
+  }
+
+  return {
+    page: 'bg-[#111027] text-white',
+    glow: 'bg-[radial-gradient(circle_at_50%_15%,rgba(129,107,255,0.18),transparent_38%),radial-gradient(circle_at_18%_78%,rgba(0,163,162,0.08),transparent_34%)]',
+    grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
+    card: 'border-white/10 bg-[#17162f]/80 shadow-black/30',
+    main: 'text-white',
+    sub: 'text-slate-400',
+    spinner: '#22d3ee',
+  };
+}
+
+function LoadingScreen() {
+  const [theme] = useState(themeShell);
+
+  return (
+    <div className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
+      <div className={`absolute inset-0 ${theme.glow}`} />
+      <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />
+      <div className="relative z-10 flex flex-col items-center gap-5">
+        <div
+          className="h-14 w-14 rounded-full border-4 animate-spin"
+          style={{ borderColor: `${theme.spinner}35`, borderTopColor: theme.spinner }}
+        />
+        <p className={`text-base font-black tracking-tight ${theme.main}`}>Ładowanie</p>
+      </div>
+    </div>
+  );
+}
+
+function ConnectionTimeoutScreen() {
+  const [theme] = useState(themeShell);
+
+  return (
+    <div className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
+      <div className={`absolute inset-0 ${theme.glow}`} />
+      <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />
+      <div className={`relative z-10 w-full max-w-md rounded-3xl border ${theme.card} p-8 text-center shadow-2xl backdrop-blur-2xl`}>
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-red-400/20 bg-red-500/12 text-red-400 shadow-[0_0_45px_rgba(248,113,113,0.18)]">
+          <ClockAlert size={38} strokeWidth={2.4} />
+        </div>
+        <h1 className={`text-2xl font-black tracking-tight ${theme.main}`}>Przekroczono czas połączenia</h1>
+        <p className={`mx-auto mt-5 max-w-xs text-sm leading-6 ${theme.sub}`}>
+          Wystąpił błąd podczas łączenia z serwerem.
+          <br />
+          Szczegóły błędu:
+        </p>
+        <p className="mt-5 font-mono text-base font-bold text-red-400">Invalid Time Error</p>
+        <div className="my-7 h-px w-full bg-white/10" />
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mx-auto inline-flex h-12 min-w-56 items-center justify-center gap-3 rounded-2xl border border-emerald-400/35 bg-emerald-500/15 px-6 text-sm font-black text-emerald-50 shadow-[0_0_26px_rgba(16,185,129,0.18)] transition-all hover:bg-emerald-500/25 active:scale-95"
+        >
+          <RefreshCw size={20} />
+          Załaduj ponownie
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Promise<void>; checking: boolean }) {
-  const [themeMode] = useState(() => {
-    if (typeof window === 'undefined') return 'dark';
-    const savedTheme = localStorage.getItem('mks_app_theme') || 'system';
-    if (savedTheme === 'system') {
-      return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return savedTheme;
-  });
+  const [themeMode] = useState(getStoredThemeMode);
   const isWarm = themeMode === 'light-warm';
   const isLight = themeMode === 'light' || isWarm;
   const isOled = themeMode === 'dark-oled';

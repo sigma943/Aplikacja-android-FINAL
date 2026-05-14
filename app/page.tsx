@@ -373,12 +373,22 @@ export default function Home() {
         lastVehiclesRef.current = newDataStr;
       }
       setError(null);
+      if (isOffline) setIsOffline(false);
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.warn('Fetch vehicles aborted (timeout or navigation)');
+        setIsOffline(true);
         return;
       }
       console.error('Fetch vehicles error:', err);
+      if (
+        err.message === 'Failed to fetch' ||
+        err.name === 'AbortError' ||
+        String(err.message || '').toLowerCase().includes('network') ||
+        (typeof navigator !== 'undefined' && !navigator.onLine)
+      ) {
+        setIsOffline(true);
+      }
       if (vehicles.length === 0 || force) {
         if (err.message === 'Failed to fetch') {
           setError('Brak połączenia z internetem lub serwerem');
@@ -431,11 +441,22 @@ export default function Home() {
       setIsOffline(false);
       fetchVehicles(showInactive, true);
     };
+    const syncOnlineState = () => {
+      if (typeof navigator !== 'undefined') {
+        setIsOffline(!navigator.onLine);
+      }
+    };
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
+    window.addEventListener('focus', syncOnlineState);
+    document.addEventListener('visibilitychange', syncOnlineState);
+    const onlineStateTimer = window.setInterval(syncOnlineState, 2500);
     return () => {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('focus', syncOnlineState);
+      document.removeEventListener('visibilitychange', syncOnlineState);
+      window.clearInterval(onlineStateTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
