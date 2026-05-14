@@ -1,0 +1,57 @@
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import firebaseConfig from '../firebase-applet-config.json';
+import { agentLog } from '@/lib/debug-agent-log';
+
+type FirebaseClientConfig = typeof firebaseConfig & { firestoreDatabaseId?: string };
+
+const app = initializeApp(firebaseConfig);
+const cfg = firebaseConfig as FirebaseClientConfig;
+export const db = cfg.firestoreDatabaseId
+  ? getFirestore(app, cfg.firestoreDatabaseId)
+  : getFirestore(app);
+export const auth = getAuth(app);
+export const functions = getFunctions(app);
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  const dbInfo = cfg.firestoreDatabaseId ? `db=${cfg.firestoreDatabaseId}` : 'db=(default)';
+  console.info(`[firebase] project=${cfg.projectId} ${dbInfo}`);
+  // #region agent log
+  agentLog(
+    'lib/firebase.ts:init',
+    'Firebase client init',
+    { projectId: cfg.projectId, firestoreDatabaseId: cfg.firestoreDatabaseId ?? '(default)' },
+    'H3',
+  );
+  // #endregion
+
+  const host = process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_HOST;
+  if (host) {
+    const [h, pRaw] = host.split(':');
+    const port = Number(pRaw);
+    if (h && Number.isFinite(port)) {
+      try {
+        connectFunctionsEmulator(functions, h, port);
+        // #region agent log
+        agentLog(
+          'lib/firebase.ts:functionsEmulator',
+          'Connected to functions emulator',
+          { host: h, port },
+          'H2',
+        );
+        // #endregion
+      } catch (e: unknown) {
+        // #region agent log
+        agentLog(
+          'lib/firebase.ts:functionsEmulator:err',
+          'Failed to connect functions emulator',
+          { message: String(e).slice(0, 240) },
+          'H2',
+        );
+        // #endregion
+      }
+    }
+  }
+}

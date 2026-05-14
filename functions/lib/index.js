@@ -1,0 +1,556 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.clearAdminLogs = exports.unblockDevice = exports.blockDevice = exports.setOperatorRole = exports.einfoProxyGet = exports.listDevicesForAdmin = exports.registerDeviceIdentity = void 0;
+const app_1 = require("firebase-admin/app");
+const firestore_1 = require("firebase-admin/firestore");
+const https_1 = require("firebase-functions/v2/https");
+(0, app_1.initializeApp)();
+const db = (0, firestore_1.getFirestore)();
+const requireAuth = (uid) => {
+    if (!uid) {
+        throw new https_1.HttpsError('unauthenticated', 'Auth required.');
+    }
+    return uid;
+};
+const getCaller = async (uid) => {
+    const callerSnap = await db.collection('devices').doc(uid).get();
+    if (!callerSnap.exists) {
+        throw new https_1.HttpsError('permission-denied', 'Caller device not registered.');
+    }
+    return callerSnap.data();
+};
+const canManageRoles = (caller) => caller.role === 'owner' ||
+    (caller.role === 'admin' && caller.permissions?.canChangeRoles);
+const canManageBans = (caller) => caller.role === 'owner' ||
+    (caller.role === 'admin' && (caller.permissions?.canBan || caller.permissions?.ban));
+const writeAudit = async (title, description, iconType, actorId) => {
+    await db.collection('admin_logs').add({
+        title,
+        description,
+        iconType,
+        category: 'OPERATOR',
+        actorId,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+};
+const targetLabelForAudit = (id, data) => {
+    const role = String(data?.role || 'user');
+    const displayName = String(data?.displayName || '').trim();
+    if ((role === 'owner' || role === 'admin') && displayName)
+        return displayName.slice(0, 120);
+    const info = String(data?.deviceInfo || '').trim();
+    if (info) {
+        const main = info.split(';')[0]?.trim() || info;
+        return `${main} (${id.slice(0, 8)})`;
+    }
+    return `Urzadzenie (${id.slice(0, 8)})`;
+};
+const hasAnyTrue = (value, keys) => {
+    if (!value || typeof value !== 'object')
+        return false;
+    const o = value;
+    return keys.some((k) => o[k] === true);
+};
+const canReadDevicesList = (caller) => {
+    if (caller?.role === 'owner')
+        return true;
+    if (caller?.role !== 'admin')
+        return false;
+    const perms = caller?.permissions;
+    return hasAnyTrue(perms, ['monitor', 'canViewList']);
+};
+const PERMISSION_KEYS = [
+    'monitor',
+    'shield',
+    'users',
+    'group',
+    'logs',
+    'ban',
+    'canChangeRoles',
+    'disableMap',
+    'disableStops',
+    'globalSettings',
+    'globalSettingsEdit',
+    'canBan',
+    'canViewList',
+];
+const permissionKeySet = new Set(PERMISSION_KEYS);
+const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const assertValidDeviceId = (id) => {
+    if (!id || id.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+        throw new https_1.HttpsError('invalid-argument', 'Invalid target device id.');
+    }
+};
+const callerHasPermission = (caller, key) => {
+    if (caller?.role === 'owner')
+        return true;
+    if (caller?.role !== 'admin' || !isPlainObject(caller?.permissions))
+        return false;
+    const perms = caller.permissions;
+    if (key === 'canBan')
+        return perms.canBan === true || perms.ban === true;
+    if (key === 'canViewList')
+        return perms.canViewList === true || perms.monitor === true;
+    return perms[key] === true;
+};
+const sanitizePermissionsForRole = (requested, role, caller) => {
+    if (requested != null && !isPlainObject(requested)) {
+        throw new https_1.HttpsError('invalid-argument', 'permissions must be an object.');
+    }
+    const req = (requested || {});
+    for (const key of Object.keys(req)) {
+        if (!permissionKeySet.has(key) || typeof req[key] !== 'boolean') {
+            throw new https_1.HttpsError('invalid-argument', `Invalid permission field: ${key}`);
+        }
+    }
+    if (role === 'owner') {
+        if (caller?.role !== 'owner') {
+            throw new https_1.HttpsError('permission-denied', 'Only owner can assign owner role.');
+        }
+        return permissionsForRole('owner');
+    }
+    const base = permissionsForRole(role);
+    if (role === 'user') {
+        if (caller?.role === 'owner') {
+            return {
+                ...base,
+                disableMap: req.disableMap === true,
+                disableStops: req.disableMap === true ? false : req.disableStops === true,
+            };
+        }
+        for (const key of Object.keys(req)) {
+            if (req[key] === true) {
+                throw new https_1.HttpsError('permission-denied', 'Admin cannot grant user restrictions or elevated permissions.');
+            }
+        }
+        return base;
+    }
+    const result = {
+        ...base,
+        monitor: true,
+        canViewList: true,
+        disableMap: false,
+        disableStops: false,
+    };
+    for (const key of PERMISSION_KEYS) {
+        if (key === 'monitor' || key === 'canViewList' || key === 'disableMap' || key === 'disableStops')
+            continue;
+        if (typeof req[key] !== 'boolean')
+            continue;
+        if (caller?.role !== 'owner' && req[key] === true && !callerHasPermission(caller, key)) {
+            throw new https_1.HttpsError('permission-denied', `Cannot grant permission above caller rights: ${key}`);
+        }
+        result[key] = req[key] === true;
+    }
+    result.canBan = result.ban || result.canBan;
+    return result;
+};
+const sanitizeDisplayName = (raw) => {
+    if (raw == null)
+        return null;
+    if (typeof raw !== 'string')
+        throw new https_1.HttpsError('invalid-argument', 'displayName must be a string.');
+    const value = raw.trim().slice(0, 120);
+    return value || null;
+};
+const normalizeInstallationId = (raw) => {
+    const v = String(raw || '').trim().slice(0, 128);
+    if (!v)
+        return '';
+    return v.replace(/[^a-zA-Z0-9_-]/g, '');
+};
+const normalizeDeviceInfo = (raw) => String(raw || '').trim().slice(0, 200);
+const blockedInstallationRef = (installationId) => db.collection('blocked_installations').doc(installationId);
+const permissionsForRole = (role) => {
+    if (role === 'owner') {
+        return {
+            monitor: true,
+            shield: true,
+            users: true,
+            group: true,
+            logs: true,
+            ban: true,
+            canChangeRoles: true,
+            disableMap: false,
+            disableStops: false,
+            globalSettings: true,
+            globalSettingsEdit: true,
+            canBan: true,
+            canViewList: true,
+        };
+    }
+    if (role === 'admin') {
+        return {
+            monitor: true,
+            shield: false,
+            users: false,
+            group: false,
+            logs: false,
+            ban: true,
+            canChangeRoles: false,
+            disableMap: false,
+            disableStops: false,
+            globalSettings: false,
+            globalSettingsEdit: false,
+            canBan: true,
+            canViewList: true,
+        };
+    }
+    return {
+        monitor: false,
+        shield: false,
+        users: false,
+        group: false,
+        logs: false,
+        ban: false,
+        canChangeRoles: false,
+        disableMap: false,
+        disableStops: false,
+        globalSettings: false,
+        globalSettingsEdit: false,
+        canBan: false,
+        canViewList: false,
+    };
+};
+const isAllFalsePermissions = (value) => {
+    if (!value || typeof value !== 'object')
+        return true;
+    const keys = [
+        'monitor',
+        'shield',
+        'users',
+        'group',
+        'logs',
+        'ban',
+        'globalSettings',
+        'globalSettingsEdit',
+        'canBan',
+        'canViewList',
+        'canChangeRoles',
+    ];
+    return keys.every((k) => value[k] !== true);
+};
+const toHttpsError = (err, fallbackMessage) => {
+    if (err instanceof https_1.HttpsError)
+        return err;
+    const message = err instanceof Error ? err.message : String(err);
+    return new https_1.HttpsError('internal', `${fallbackMessage}: ${message}`);
+};
+const toClientDeviceItem = (id, data) => {
+    const lastSeenMs = typeof data.lastSeenAt?.toMillis === 'function'
+        ? data.lastSeenAt.toMillis()
+        : typeof data.lastSeenAt?._seconds === 'number'
+            ? data.lastSeenAt._seconds * 1000
+            : null;
+    return {
+        id,
+        deviceInfo: typeof data.deviceInfo === 'string' ? data.deviceInfo : '',
+        displayName: typeof data.displayName === 'string' ? data.displayName : undefined,
+        role: (data.role || 'user'),
+        firstLogin: typeof data.firstLogin === 'string' ? data.firstLogin : '',
+        status: data.status === 'banned' ? 'banned' : 'active',
+        permissions: data.permissions && typeof data.permissions === 'object' ? data.permissions : {},
+        banDetails: data.banDetails && typeof data.banDetails === 'object' ? data.banDetails : undefined,
+        installationId: typeof data.installationId === 'string' ? data.installationId : undefined,
+        identityVersion: typeof data.identityVersion === 'number' ? data.identityVersion : undefined,
+        lastSeenAtMs: lastSeenMs,
+    };
+};
+exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
+    try {
+        const uid = requireAuth(request.auth?.uid);
+        const installationId = normalizeInstallationId(request.data?.installationId);
+        const deviceInfo = normalizeDeviceInfo(request.data?.deviceInfo);
+        if (!installationId) {
+            throw new https_1.HttpsError('invalid-argument', 'installationId is required.');
+        }
+        const deviceRef = db.collection('devices').doc(uid);
+        const now = firestore_1.FieldValue.serverTimestamp();
+        const installationRef = db.collection('installations').doc(installationId);
+        const [existingSnap, blockedSnap, installationSnap] = await Promise.all([
+            deviceRef.get(),
+            blockedInstallationRef(installationId).get(),
+            installationRef.get(),
+        ]);
+        const blocked = blockedSnap.exists ? blockedSnap.data() : null;
+        const isBlocked = blocked?.active === true;
+        const status = isBlocked ? 'banned' : 'active';
+        const patch = {
+            installationId,
+            identityVersion: 2,
+            deviceInfo,
+            lastSeenAt: now,
+            status,
+            updatedAt: now,
+        };
+        const installation = installationSnap.exists ? installationSnap.data() : null;
+        const lastUid = String(installation?.lastUid || '').trim();
+        // If UID changed (e.g. different web port / fresh install), inherit role/permissions/displayName
+        // from the last known UID for this installationId to avoid losing access.
+        if (!existingSnap.exists && lastUid && lastUid !== uid) {
+            const prevSnap = await db.collection('devices').doc(lastUid).get();
+            if (prevSnap.exists) {
+                const prev = prevSnap.data();
+                const prevRole = (prev?.role || 'user');
+                patch.role = prevRole;
+                patch.permissions = prev?.permissions && typeof prev.permissions === 'object'
+                    ? prev.permissions
+                    : permissionsForRole(prevRole);
+                if (typeof prev.displayName === 'string' && prev.displayName.trim()) {
+                    patch.displayName = prev.displayName.trim().slice(0, 120);
+                }
+            }
+        }
+        if (!existingSnap.exists) {
+            if (!('role' in patch))
+                patch.role = 'user';
+            patch.firstLogin = new Date().toISOString();
+            if (!('permissions' in patch))
+                patch.permissions = permissionsForRole(patch.role);
+        }
+        else {
+            const existing = existingSnap.data();
+            const existingRole = (existing?.role || 'user');
+            if ((existingRole === 'admin' || existingRole === 'owner') &&
+                isAllFalsePermissions(existing?.permissions)) {
+                patch.permissions = permissionsForRole(existingRole);
+            }
+        }
+        if (isBlocked) {
+            patch.banDetails = {
+                reason: String(blocked?.reason || 'Blokada instalacji'),
+                expiresAt: String(blocked?.expiresAt || ''),
+                gifUrl: 'https://media.giphy.com/media/3oEjI67Egb8G9jqs3m/giphy.gif',
+            };
+        }
+        await deviceRef.set(patch, { merge: true });
+        await installationRef.set({
+            installationId,
+            knownUids: firestore_1.FieldValue.arrayUnion(uid),
+            lastUid: uid,
+            lastSeenAt: now,
+            updatedAt: now,
+        }, { merge: true });
+        return { ok: true, installationId, status };
+    }
+    catch (err) {
+        throw toHttpsError(err, 'registerDeviceIdentity failed');
+    }
+});
+exports.listDevicesForAdmin = (0, https_1.onCall)(async (request) => {
+    try {
+        const uid = requireAuth(request.auth?.uid);
+        const caller = await getCaller(uid);
+        if (!canReadDevicesList(caller)) {
+            throw new https_1.HttpsError('permission-denied', 'Insufficient permissions to list devices.');
+        }
+        const snap = await db.collection('devices').limit(500).get();
+        const items = snap.docs.map((d) => toClientDeviceItem(d.id, d.data()));
+        return { ok: true, items };
+    }
+    catch (err) {
+        throw toHttpsError(err, 'listDevicesForAdmin failed');
+    }
+});
+const UPSTREAM = 'http://einfo.zgpks.rzeszow.pl/api';
+const UPSTREAM_HEADERS = {
+    Accept: 'application/json',
+    'Accept-Language': 'pl,en;q=0.9',
+    Referer: 'http://einfo.zgpks.rzeszow.pl/',
+    Origin: 'http://einfo.zgpks.rzeszow.pl',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+};
+exports.einfoProxyGet = (0, https_1.onCall)(async (request) => {
+    const path = String(request.data?.path || '').replace(/^\//, '');
+    const query = String(request.data?.query || '');
+    if (!path)
+        throw new https_1.HttpsError('invalid-argument', 'path is required');
+    if (path.includes('..'))
+        throw new https_1.HttpsError('invalid-argument', 'invalid path');
+    const url = `${UPSTREAM}/${path}${query && query.startsWith('?') ? query : query ? `?${query}` : ''}`;
+    const res = await fetch(url, { headers: UPSTREAM_HEADERS });
+    const text = await res.text();
+    if (!res.ok) {
+        throw new https_1.HttpsError('unavailable', `Upstream ${res.status}: ${text.slice(0, 300)}`);
+    }
+    try {
+        return { ok: true, data: JSON.parse(text) };
+    }
+    catch {
+        throw new https_1.HttpsError('unavailable', `Invalid JSON: ${text.slice(0, 300)}`);
+    }
+});
+exports.setOperatorRole = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (!canManageRoles(caller)) {
+        throw new https_1.HttpsError('permission-denied', 'Insufficient permissions.');
+    }
+    const targetDeviceId = String(request.data?.targetDeviceId || '');
+    const role = request.data?.role;
+    const requestedPermissions = request.data?.permissions || {};
+    if (!targetDeviceId || !['owner', 'admin', 'user'].includes(role)) {
+        throw new https_1.HttpsError('invalid-argument', 'Invalid role update payload.');
+    }
+    assertValidDeviceId(targetDeviceId);
+    if (targetDeviceId === uid) {
+        throw new https_1.HttpsError('permission-denied', 'Cannot change own role or permissions.');
+    }
+    const targetRef = db.collection('devices').doc(targetDeviceId);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Target device not found.');
+    }
+    const target = targetSnap.data();
+    if (caller.role !== 'owner' && target.role !== 'user') {
+        throw new https_1.HttpsError('permission-denied', 'Only owner can manage owners and admins.');
+    }
+    if (caller.role !== 'owner' && role === 'owner') {
+        throw new https_1.HttpsError('permission-denied', 'Admin cannot assign owner role.');
+    }
+    const permissions = sanitizePermissionsForRole(requestedPermissions, role, caller);
+    const displayName = sanitizeDisplayName(request.data?.displayName);
+    const patch = {
+        role,
+        permissions,
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedBy: uid,
+    };
+    if (displayName)
+        patch.displayName = displayName;
+    await targetRef.set(patch, { merge: true });
+    const installationId = normalizeInstallationId(target.installationId);
+    if (installationId) {
+        await db.collection('installations').doc(installationId).set({
+            installationId,
+            role,
+            permissions,
+            ...(displayName ? { displayName } : {}),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedBy: uid,
+        }, { merge: true });
+    }
+    await writeAudit('Zmieniono role operatora', `${targetLabelForAudit(targetDeviceId, target)} -> ${role}`, 'role_change', uid);
+    return { ok: true };
+});
+exports.blockDevice = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (!canManageBans(caller)) {
+        throw new https_1.HttpsError('permission-denied', 'Insufficient permissions.');
+    }
+    const targetDeviceId = String(request.data?.targetDeviceId || '');
+    const reason = String(request.data?.reason || 'Naruszenie regulaminu').trim().slice(0, 300);
+    const expiresAt = request.data?.expiresAt ? String(request.data.expiresAt) : '';
+    if (!targetDeviceId) {
+        throw new https_1.HttpsError('invalid-argument', 'targetDeviceId is required.');
+    }
+    assertValidDeviceId(targetDeviceId);
+    if (targetDeviceId === uid) {
+        throw new https_1.HttpsError('permission-denied', 'Cannot ban own device.');
+    }
+    if (expiresAt && Number.isNaN(new Date(expiresAt).getTime())) {
+        throw new https_1.HttpsError('invalid-argument', 'Invalid expiresAt.');
+    }
+    const targetRef = db.collection('devices').doc(targetDeviceId);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Target device not found.');
+    }
+    const target = targetSnap.data();
+    if (caller.role !== 'owner' && target.role !== 'user') {
+        throw new https_1.HttpsError('permission-denied', 'Only owner can ban owners and admins.');
+    }
+    if (target.status === 'banned') {
+        return { ok: true, alreadyBanned: true };
+    }
+    const targetLabel = targetLabelForAudit(targetDeviceId, target);
+    const installationId = normalizeInstallationId(target.installationId);
+    const gifUrl = typeof request.data?.gifUrl === 'string' ? request.data.gifUrl.trim().slice(0, 500) : '';
+    const silent = request.data?.silent === true;
+    await targetRef.set({
+        status: 'banned',
+        banDetails: {
+            reason,
+            expiresAt,
+            gifUrl,
+            silent,
+            bannedAt: new Date().toISOString(),
+        },
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedBy: uid,
+    }, { merge: true });
+    if (installationId) {
+        await blockedInstallationRef(installationId).set({
+            active: true,
+            reason,
+            expiresAt,
+            silent,
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedBy: uid,
+        }, { merge: true });
+    }
+    await writeAudit('Nadano bana urzadzeniu', `${targetLabel}. Powod: ${reason}`, 'ban', uid);
+    return { ok: true };
+});
+exports.unblockDevice = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (!canManageBans(caller)) {
+        throw new https_1.HttpsError('permission-denied', 'Insufficient permissions.');
+    }
+    const targetDeviceId = String(request.data?.targetDeviceId || '');
+    if (!targetDeviceId) {
+        throw new https_1.HttpsError('invalid-argument', 'targetDeviceId is required.');
+    }
+    assertValidDeviceId(targetDeviceId);
+    if (targetDeviceId === uid) {
+        throw new https_1.HttpsError('permission-denied', 'Cannot unblock own device.');
+    }
+    const targetRef = db.collection('devices').doc(targetDeviceId);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Target device not found.');
+    }
+    const target = targetSnap.data();
+    if (caller.role !== 'owner' && target.role !== 'user') {
+        throw new https_1.HttpsError('permission-denied', 'Only owner can unblock owners and admins.');
+    }
+    const targetLabel = targetLabelForAudit(targetDeviceId, target);
+    const installationId = normalizeInstallationId(target.installationId);
+    await targetRef.set({
+        status: 'active',
+        banDetails: firestore_1.FieldValue.delete(),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedBy: uid,
+    }, { merge: true });
+    if (installationId) {
+        await blockedInstallationRef(installationId).set({
+            active: false,
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedBy: uid,
+        }, { merge: true });
+    }
+    await writeAudit('Zdjeto blokade urzadzenia', `Odblokowano: ${targetLabel}`, 'edit_role', uid);
+    return { ok: true };
+});
+exports.clearAdminLogs = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (caller.role !== 'owner') {
+        throw new https_1.HttpsError('permission-denied', 'Only owner can clear logs.');
+    }
+    let deleted = 0;
+    for (;;) {
+        const snap = await db.collection('admin_logs').limit(400).get();
+        if (snap.empty)
+            break;
+        const batch = db.batch();
+        snap.docs.forEach((logDoc) => batch.delete(logDoc.ref));
+        await batch.commit();
+        deleted += snap.size;
+        if (snap.size < 400)
+            break;
+    }
+    return { ok: true, deleted };
+});

@@ -1,0 +1,16 @@
+node_modules/
+functions/node_modules/
+.next/
+out/
+www/
+*.log
+tsconfig.tsbuildinfo
+
+# Android / Gradle generated output
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/public/
+
+# Local editor state
+.cursor/
