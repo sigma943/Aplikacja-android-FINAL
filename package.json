@@ -12,7 +12,7 @@
     "android:sync": "npm run build:android:web && npx cap sync android",
     "android:copy": "npx cap copy android",
     "android:open": "npx cap open android",
-    "android:assets": "npx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor #00A3A2 --iconBackgroundColorDark #05070b --splashBackgroundColor #05070b --splashBackgroundColorDark #05070b",
+    "android:assets": "npx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor \"#00A3A2\" --iconBackgroundColorDark \"#05070b\" --splashBackgroundColor \"#05070b\" --splashBackgroundColorDark \"#05070b\"",
     "android:build:debug": "cd android && gradlew.bat assembleDebug",
     "android:build:release": "cd android && gradlew.bat bundleRelease"
   },
