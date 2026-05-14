@@ -222,7 +222,11 @@ service cloud.firestore {
         // Heartbeat only for own doc.
         (
           isOwner(deviceId) &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['lastSeenAt'])
+          incoming().diff(existing()).affectedKeys().hasOnly(['lastSeenAt', 'deviceInfo']) &&
+          (
+            !incoming().diff(existing()).affectedKeys().hasAny(['deviceInfo']) ||
+            (incoming().deviceInfo is string && incoming().deviceInfo.size() <= 200)
+          )
         ) ||
 
         // Own display name only.

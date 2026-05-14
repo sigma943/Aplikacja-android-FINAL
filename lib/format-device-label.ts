@@ -1,4 +1,3 @@
-/** Calendar day in Europe/Warsaw as YYYY-MM-DD (for comparisons). */
 export function warsawDateKey(ms: number): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Warsaw',
@@ -15,7 +14,7 @@ function pickBrowser(ua: string): string {
   if (u.includes('firefox')) return 'Firefox';
   if (u.includes('safari') && !u.includes('chrome')) return 'Safari';
   if (u.includes('chrome')) return 'Chrome';
-  return 'Przeglądarka';
+  return 'Przegladarka';
 }
 
 function pickOs(ua: string): string {
@@ -28,13 +27,27 @@ function pickOs(ua: string): string {
   return 'System';
 }
 
-/** One short line for subtitle (device table second line), not full UA. */
+function parseStoredDeviceInfo(deviceInfo: string): { model: string; os: string } | null {
+  const parts = (deviceInfo || '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const model = parts[0] || '';
+  if (!model || /mozilla|applewebkit|chrome|safari|mobile/i.test(model)) return null;
+  return {
+    model,
+    os: parts.slice(1).join(' | '),
+  };
+}
+
 export function formatDeviceOsSummary(deviceInfo: string): string {
   const ua = (deviceInfo || '').trim();
-  if (!ua) return '—';
+  if (!ua) return '-';
+  const parsed = parseStoredDeviceInfo(ua);
+  if (parsed?.os) return parsed.os;
   const bracket = /\(([^)]+)\)/.exec(ua)?.[1]?.trim();
   if (bracket && bracket.length <= 80) return bracket;
-  return `${pickBrowser(ua)} · ${pickOs(ua)}`;
+  return `${pickBrowser(ua)} - ${pickOs(ua)}`;
 }
 
 export interface FormatDeviceLabelInput {
@@ -43,10 +56,6 @@ export interface FormatDeviceLabelInput {
   deviceId: string;
 }
 
-/**
- * Prefer Firestore `displayName`, else parenthetical hint from UA, else short browser/OS + short id.
- */
-/** Data i godzina w strefie Europe/Warsaw (spójne z filtrowaniem logów). */
 export function formatWarsawDateTimeParts(ms: number): { date: string; time: string } {
   const d = new Date(ms);
   const date = new Intl.DateTimeFormat('pl-PL', {
@@ -65,17 +74,15 @@ export function formatWarsawDateTimeParts(ms: number): { date: string; time: str
   return { date, time };
 }
 
-/** Krótki opis „ile temu” po polsku (dla logów — bez mylącego stałego „teraz”). */
 export function formatRelativeTimePl(fromMs: number, nowMs = Date.now()): string {
   const diff = Math.max(0, nowMs - fromMs);
-  if (diff < 45_000) return 'przed chwilą';
+  if (diff < 45_000) return 'przed chwila';
   if (diff < 3600_000) return `${Math.max(1, Math.floor(diff / 60_000))} min temu`;
   if (diff < 86400_000) return `${Math.max(1, Math.floor(diff / 3600_000))} godz. temu`;
   if (diff < 7 * 86400_000) return `${Math.floor(diff / 86400_000)} dni temu`;
   return '';
 }
 
-/** Inicjały z imienia i nazwiska (2 litery). */
 export function initialsFromPersonName(name: string, fallback: string): string {
   const fb = (fallback || '??').slice(0, 2).toUpperCase();
   const t = (name || '').trim();
@@ -98,21 +105,25 @@ export function formatDeviceLabel(input: FormatDeviceLabelInput): string {
   if (name) return name;
 
   const ua = (input.deviceInfo || '').trim();
+  const parsed = parseStoredDeviceInfo(ua);
+  if (parsed?.model) return parsed.model;
+
   const fromParen = ua ? /\(([^)]+)\)/.exec(ua)?.[1]?.trim() : '';
   if (fromParen && fromParen.length <= 60 && !/win64|wow64|nt \d/i.test(fromParen)) {
     return fromParen;
   }
 
   const shortId = (input.deviceId || '').slice(0, 8);
-  if (!ua) return shortId ? `Urządzenie ${shortId}` : 'Nieznane';
+  if (!ua) return shortId ? `Urzadzenie ${shortId}` : 'Nieznane';
 
-  return `${pickBrowser(ua)} · ${pickOs(ua)}${shortId ? ` · ${shortId}` : ''}`;
+  return `${pickBrowser(ua)} - ${pickOs(ua)}${shortId ? ` - ${shortId}` : ''}`;
 }
 
-/** Technical device label used in device tables and admin actions. */
 export function formatDeviceTechnicalLabel(deviceInfo: string, deviceId: string): string {
   const ua = (deviceInfo || '').trim();
   const shortId = (deviceId || '').slice(0, 8);
-  if (!ua) return shortId ? `Urządzenie ${shortId}` : 'Nieznane';
-  return `${pickBrowser(ua)} · ${pickOs(ua)}${shortId ? ` · ${shortId}` : ''}`;
+  if (!ua) return shortId ? `Urzadzenie ${shortId}` : 'Nieznane';
+  const parsed = parseStoredDeviceInfo(ua);
+  if (parsed?.model) return `${parsed.model}${shortId ? ` - ${shortId}` : ''}`;
+  return `${pickBrowser(ua)} - ${pickOs(ua)}${shortId ? ` - ${shortId}` : ''}`;
 }

@@ -49,6 +49,18 @@ interface FirebaseContextType {
   localLastSeenMs: number | null;
 }
 
+type NavigatorWithUAData = Navigator & {
+  userAgentData?: {
+    platform?: string;
+    getHighEntropyValues?: (hints: string[]) => Promise<{
+      model?: string;
+      platform?: string;
+      platformVersion?: string;
+      uaFullVersion?: string;
+    }>;
+  };
+};
+
 const FirebaseContext = createContext<FirebaseContextType>({
   user: null,
   device: null,
@@ -59,6 +71,45 @@ const FirebaseContext = createContext<FirebaseContextType>({
 
 export function useFirebase() {
   return useContext(FirebaseContext);
+}
+
+async function getClientDeviceInfo(): Promise<string> {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { Device } = await import('@capacitor/device');
+      const info = await Device.getInfo();
+      const model = [info.manufacturer, info.model]
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const os = [info.operatingSystem, info.osVersion]
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const label = [model, os].filter(Boolean).join(' | ');
+      if (label) return label.slice(0, 200);
+    } catch (err) {
+      console.warn('Native device info unavailable', err);
+    }
+  }
+
+  try {
+    const uaData = (navigator as NavigatorWithUAData).userAgentData;
+    const high = uaData?.getHighEntropyValues
+      ? await uaData.getHighEntropyValues(['model', 'platform', 'platformVersion', 'uaFullVersion'])
+      : null;
+    const model = String(high?.model || '').trim();
+    const platform = String(high?.platform || uaData?.platform || '').trim();
+    const version = String(high?.platformVersion || '').trim();
+    const label = [model, [platform, version].filter(Boolean).join(' ')].filter(Boolean).join(' | ');
+    if (label) return label.slice(0, 200);
+  } catch {}
+
+  return ua.substring(0, 200);
 }
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
@@ -152,6 +203,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       );
       // #endregion
       try {
+        const deviceInfo = await getClientDeviceInfo();
         const existing = await getDoc(deviceRef);
         if (!existing.exists()) {
           const installationSnap = await getDoc(installationRef);
@@ -174,7 +226,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           const createPayload: Record<string, unknown> = {
             installationId: instId,
             identityVersion: 2,
-            deviceInfo: navigator.userAgent.substring(0, 200),
+            deviceInfo,
             role: roleFromProfile,
             firstLogin: new Date().toISOString(),
             status: 'active',
@@ -199,7 +251,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           );
         } else {
           // Existing device docs can only update allowed heartbeat fields from client rules.
-          await updateDoc(deviceRef, { lastSeenAt: serverTimestamp() });
+          await updateDoc(deviceRef, { lastSeenAt: serverTimestamp(), deviceInfo }).catch(async () => {
+            await updateDoc(deviceRef, { lastSeenAt: serverTimestamp() });
+          });
           const existingData = existing.data() as DeviceData;
           const role = existingData.role === 'owner' || existingData.role === 'admin' ? existingData.role : 'user';
           const perms =
@@ -308,10 +362,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     setSettingsLoading(true);
+    const timeout = window.setTimeout(() => setSettingsLoading(false), 1500);
 
     const unsub = onSnapshot(
       doc(db, 'admin_settings', 'security'),
       (snapshot) => {
+        window.clearTimeout(timeout);
         const data = snapshot.exists() ? snapshot.data() : {};
         const enabled = Boolean(data.maintenanceMode);
         setMaintenanceMode(enabled);
@@ -319,13 +375,17 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         setSettingsLoading(false);
       },
       (err) => {
+        window.clearTimeout(timeout);
         console.error('Global settings snapshot error', err);
         setMaintenanceMode(false);
         setSettingsLoading(false);
       },
     );
 
-    return () => unsub();
+    return () => {
+      window.clearTimeout(timeout);
+      unsub();
+    };
   }, [user]);
 
   const isBanned = device?.status === 'banned';
