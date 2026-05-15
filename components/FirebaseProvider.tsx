@@ -18,12 +18,14 @@ export interface DeviceData {
   role: DeviceRole;
   firstLogin: string;
   status: 'active' | 'banned';
+  verified?: boolean;
   permissions?: ReturnType<typeof buildDevicePermissions>;
   banDetails?: {
     expiresAt: string;
     reason: string;
     gifUrl: string;
     silent?: boolean;
+    autoBan?: boolean;
     bannedBy?: string;
     bannedAt?: string;
   };
@@ -38,6 +40,9 @@ interface InstallationProfile {
   role?: DeviceRole;
   permissions?: ReturnType<typeof buildDevicePermissions>;
   displayName?: string;
+  status?: 'active' | 'banned';
+  verified?: boolean;
+  banDetails?: DeviceData['banDetails'];
 }
 
 interface FirebaseContextType {
@@ -126,6 +131,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [checkingMaintenance, setCheckingMaintenance] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceLatched, setMaintenanceLatched] = useState(false);
+  const [autoBanUnverified, setAutoBanUnverified] = useState(false);
   const [localLastSeenMs, setLocalLastSeenMs] = useState<number | null>(null);
 
   useEffect(() => {
@@ -175,6 +181,16 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', syncOnlineState);
     };
   }, []);
+
+  const buildAutoBanDetails = () => ({
+    reason: 'Urządzenie niezweryfikowane',
+    expiresAt: '',
+    gifUrl: '',
+    silent: true,
+    autoBan: true,
+    bannedBy: 'Auto-ban',
+    bannedAt: new Date().toISOString(),
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -282,6 +298,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             installationProfile.role === 'owner' || installationProfile.role === 'admin'
               ? installationProfile.role
               : 'user';
+          const verifiedFromProfile =
+            roleFromProfile === 'owner' || roleFromProfile === 'admin' || installationProfile.verified === true;
           const permissionsFromProfile =
             installationProfile.permissions && typeof installationProfile.permissions === 'object'
               ? installationProfile.permissions
@@ -290,6 +308,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             typeof installationProfile.displayName === 'string' && installationProfile.displayName.trim()
               ? installationProfile.displayName.trim().slice(0, 120)
               : undefined;
+          const securitySnap = await getDoc(doc(db, 'admin_settings', 'security')).catch(() => null);
+          const autoBanEnabled = Boolean(securitySnap?.exists() ? securitySnap.data()?.autoBan : false);
+          const shouldAutoBan =
+            roleFromProfile === 'user' &&
+            !verifiedFromProfile &&
+            (installationProfile.status === 'banned' || autoBanEnabled);
 
           const createPayload: Record<string, unknown> = {
             installationId: instId,
@@ -297,11 +321,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             deviceInfo,
             role: roleFromProfile,
             firstLogin: new Date().toISOString(),
-            status: 'active',
+            status: shouldAutoBan ? 'banned' : (installationProfile.status === 'banned' ? 'banned' : 'active'),
+            verified: verifiedFromProfile,
             permissions: permissionsFromProfile,
             lastSeenAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
+          if (shouldAutoBan || installationProfile.status === 'banned') {
+            createPayload.banDetails = installationProfile.banDetails || buildAutoBanDetails();
+          }
           if (displayNameFromProfile) createPayload.displayName = displayNameFromProfile;
           await setDoc(deviceRef, createPayload, { merge: true });
           // Ensure installation profile exists even for first-time user.
@@ -311,6 +339,11 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               installationId: instId,
               role: roleFromProfile,
               permissions: permissionsFromProfile,
+              status: shouldAutoBan ? 'banned' : (installationProfile.status === 'banned' ? 'banned' : 'active'),
+              verified: verifiedFromProfile,
+              ...(shouldAutoBan || installationProfile.status === 'banned'
+                ? { banDetails: installationProfile.banDetails || buildAutoBanDetails() }
+                : {}),
               ...(displayNameFromProfile ? { displayName: displayNameFromProfile } : {}),
               updatedAt: serverTimestamp(),
               updatedBy: user.uid,
@@ -324,6 +357,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           });
           const existingData = existing.data() as DeviceData;
           const role = existingData.role === 'owner' || existingData.role === 'admin' ? existingData.role : 'user';
+          const verified = role === 'owner' || role === 'admin' || existingData.verified === true;
           const perms =
             existingData.permissions && typeof existingData.permissions === 'object'
               ? existingData.permissions
@@ -334,6 +368,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               installationId: instId,
               role,
               permissions: perms,
+              status: existingData.status || 'active',
+              verified,
+              ...(existingData.banDetails ? { banDetails: existingData.banDetails } : {}),
               ...(existingData.displayName ? { displayName: existingData.displayName } : {}),
               updatedAt: serverTimestamp(),
               updatedBy: user.uid,
@@ -371,6 +408,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       if (snapshot.exists()) {
         const data = snapshot.data() as DeviceData;
+        if ((data.role === 'owner' || data.role === 'admin') && data.verified !== true) {
+          data.verified = true;
+        }
         data.permissions = buildDevicePermissions(data.role, data.permissions);
         // #region agent log
         const p = data.permissions as Record<string, unknown> | undefined;
@@ -450,6 +490,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         window.clearTimeout(timeout);
         const data = snapshot.exists() ? snapshot.data() : {};
         const enabled = Boolean(data.maintenanceMode);
+        setAutoBanUnverified(Boolean(data.autoBan));
         setMaintenanceMode(enabled);
         if (enabled) setMaintenanceLatched(true);
         setSettingsLoading(false);
@@ -467,6 +508,36 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       unsub();
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.uid || !device || !autoBanUnverified) return;
+    if (device.role !== 'user' || device.verified === true || device.status === 'banned') return;
+
+    const banDetails = buildAutoBanDetails();
+    const deviceRef = doc(db, 'devices', user.uid);
+    const instId = String(device.installationId || '').trim();
+    updateDoc(deviceRef, {
+      status: 'banned',
+      verified: false,
+      banDetails,
+    }).catch((err) => console.error('Auto-ban update failed', err));
+    if (instId) {
+      setDoc(
+        doc(db, 'installations', instId),
+        {
+          installationId: instId,
+          role: 'user',
+          permissions: buildDevicePermissions('user'),
+          status: 'banned',
+          verified: false,
+          banDetails,
+          updatedAt: serverTimestamp(),
+          updatedBy: user.uid,
+        },
+        { merge: true },
+      ).catch(() => {});
+    }
+  }, [autoBanUnverified, device, user?.uid]);
 
   const isBanned = device?.status === 'banned';
   const isPrivilegedDevice = device?.role === 'owner' || device?.role === 'admin';

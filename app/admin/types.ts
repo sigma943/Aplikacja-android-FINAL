@@ -15,6 +15,7 @@ export interface Device {
   role: Role;
   rawRole?: 'owner' | 'admin' | 'user';
   status: Status;
+  verified?: boolean;
   iconType: IconType;
   /** Tekst „ostatnio online” (Europe/Warsaw) lub brak danych */
   lastSeenLabel?: string;
@@ -76,6 +77,7 @@ export interface Ban {
   expireIn: string;
   reason: string;
   bannedBy: string;
+  autoBan?: boolean;
   /** Fixed ban issue datetime (formatted once from stored timestamp). */
   date: string;
 }

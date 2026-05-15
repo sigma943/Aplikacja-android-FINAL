@@ -268,29 +268,28 @@ export default function BusMap({
 
   const routeGlowOpts = { color: '#ffffff', weight: 12, opacity: 0.22, lineCap: 'round', lineJoin: 'round', noClip: true, smoothFactor: 0 } as L.PolylineOptions;
   const routePolylineOpts = { color: themeColor, weight: 7, opacity: 0.92, lineCap: 'round', lineJoin: 'round', noClip: true, smoothFactor: 0 } as L.PolylineOptions;
+  const routeKey = selectedVehicle ? `${selectedVehicle.id}_${routeStopIdsKey}` : '';
 
   useEffect(() => {
     if (!selectedVehicle || !stopsData) {
-      if (snappedRoute.length > 0) {
-        setTimeout(() => setSnappedRoute([]), 0);
-        lastFetchedRouteKeyRef.current = '';
-      }
+      setSnappedRoute([]);
+      lastFetchedRouteKeyRef.current = '';
       return;
     }
 
-    const routeKey = `${selectedVehicle.id}_${routeStopIdsKey}`;
-    if (lastFetchedRouteKeyRef.current === routeKey && snappedRoute.length > 0) {
+    if (lastFetchedRouteKeyRef.current === routeKey) {
       // Already fetched and route hasn't changed
       return;
     }
 
     lastFetchedRouteKeyRef.current = routeKey;
+    setSnappedRoute([]);
 
     const tripId = String(selectedVehicle.tripId || '').trim();
-    const controller = new AbortController();
+    let cancelled = false;
     fetchRouteShapeClient(tripId, routeStopIds, stopsData)
       .then((points) => {
-        if (lastFetchedRouteKeyRef.current !== routeKey) return;
+        if (cancelled || lastFetchedRouteKeyRef.current !== routeKey) return;
         if (points.length > 1) {
           setSnappedRoute(points);
           return;
@@ -298,12 +297,14 @@ export default function BusMap({
         setSnappedRoute([]);
       })
       .catch(() => {
-        if (controller.signal.aborted || lastFetchedRouteKeyRef.current !== routeKey) return;
+        if (cancelled || lastFetchedRouteKeyRef.current !== routeKey) return;
         setSnappedRoute([]);
       });
 
-    return () => controller.abort();
-  }, [selectedVehicle?.id, selectedVehicle?.tripId, routeStopIdsKey, stopsData, snappedRoute.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVehicle?.tripId, routeKey, routeStopIdsKey, stopsData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 

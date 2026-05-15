@@ -712,8 +712,8 @@ function GlobalPermissionsModal({
 
           <div className="flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
             <div>
-              <div className="text-base font-bold text-white mb-0.5">Automatyczne bany API</div>
-              <div className="text-xs text-slate-500">Ochrona przed spoofingiem</div>
+              <div className="text-base font-bold text-white mb-0.5">Auto-ban niezweryfikowanych</div>
+              <div className="text-xs text-slate-500">Cichy ban na zawsze dla urządzeń bez weryfikacji</div>
             </div>
             <button
               type="button"

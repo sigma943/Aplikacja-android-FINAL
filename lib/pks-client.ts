@@ -6,7 +6,8 @@ type ShapePoint = [number, number];
 
 let stopsDictionaryPromise: Promise<Record<string, string>> | null = null;
 let shapeIndexPromise: Promise<Record<string, string>> | null = null;
-let shapePointsPromise: Promise<Record<string, ShapePoint[]>> | null = null;
+let routeStopShapeIndexPromise: Promise<Record<string, string>> | null = null;
+const shapePointsCache = new Map<string, Promise<ShapePoint[]>>();
 
 const isNative = () => Capacitor.isNativePlatform();
 const EINFO_DIRECT = 'http://einfo.zgpks.rzeszow.pl/api';
@@ -69,11 +70,31 @@ async function loadShapeIndex() {
   return shapeIndexPromise;
 }
 
-async function loadShapePoints() {
-  if (!shapePointsPromise) {
-    shapePointsPromise = fetch('/data/shape-points.json', {cache: 'force-cache'}).then((res) => res.json());
+async function loadRouteStopShapeIndex() {
+  if (!routeStopShapeIndexPromise) {
+    routeStopShapeIndexPromise = fetch('/data/route-stop-shape-index.json', {cache: 'force-cache'})
+      .then((res) => (res.ok ? res.json() : {}))
+      .catch(() => ({}));
   }
-  return shapePointsPromise;
+  return routeStopShapeIndexPromise;
+}
+
+function safeShapeId(shapeId: string) {
+  return String(shapeId || '').trim().replace(/[^a-zA-Z0-9_.+-]/g, '_');
+}
+
+async function loadShapePoints(shapeId: string) {
+  const safeId = safeShapeId(shapeId);
+  if (!safeId) return [];
+  if (!shapePointsCache.has(safeId)) {
+    shapePointsCache.set(
+      safeId,
+      fetch(`/data/route-shapes/${encodeURIComponent(safeId)}.json`, {cache: 'force-cache'})
+        .then((res) => (res.ok ? res.json() : []))
+        .catch(() => []),
+    );
+  }
+  return shapePointsCache.get(safeId)!;
 }
 
 function toTitleCase(str: string) {
@@ -427,69 +448,28 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
   };
 }
 
-export async function fetchRouteShapeClient(tripId: string, fallbackStops: number[], stopsData?: Record<string, {lat: number; lon: number}> | null) {
+export async function fetchRouteShapeClient(tripId: string, fallbackStops: number[], _stopsData?: Record<string, {lat: number; lon: number}> | null) {
   const tripIdBase = String(tripId || '').trim().split('_')[0];
+  const normalizedStops = fallbackStops
+    .map((id) => String(id || '').trim())
+    .filter(Boolean);
+
   if (tripIdBase) {
     try {
-      const [shapeIndex, shapePoints] = await Promise.all([loadShapeIndex(), loadShapePoints()]);
+      const shapeIndex = await loadShapeIndex();
       const shapeId = shapeIndex?.[tripIdBase];
-      const points = shapeId ? shapePoints?.[shapeId] || [] : [];
+      const points = shapeId ? await loadShapePoints(shapeId) : [];
       if (points.length > 1) return points;
     } catch {}
   }
 
-  const routeCoords: [number, number][] = [];
-  for (const stopId of fallbackStops) {
-    const stop = stopsData?.[String(stopId)];
-    if (stop) routeCoords.push([stop.lat, stop.lon]);
+  if (normalizedStops.length > 1) {
+    try {
+      const stopShapeIndex = await loadRouteStopShapeIndex();
+      const shapeId = stopShapeIndex[normalizedStops.join('-')];
+      const points = shapeId ? await loadShapePoints(shapeId) : [];
+      if (points.length > 1) return points;
+    } catch {}
   }
-  const roadRoute = await fetchRoadRouteForStops(routeCoords).catch(() => []);
-  if (roadRoute.length > 1) return roadRoute;
-  return routeCoords;
-}
-
-async function fetchRoadRouteForStops(coords: [number, number][]) {
-  const cleanCoords = coords.filter(
-    ([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon),
-  );
-  if (cleanCoords.length < 2) return [];
-
-  const chunks: [number, number][][] = [];
-  const maxPoints = 24;
-  for (let start = 0; start < cleanCoords.length - 1; start += maxPoints - 1) {
-    chunks.push(cleanCoords.slice(start, Math.min(cleanCoords.length, start + maxPoints)));
-  }
-
-  const merged: [number, number][] = [];
-  const appendPoints = (points: [number, number][]) => {
-    for (const point of points) {
-      const last = merged[merged.length - 1];
-      if (last && Math.abs(last[0] - point[0]) < 0.000001 && Math.abs(last[1] - point[1]) < 0.000001) {
-        continue;
-      }
-      merged.push(point);
-    }
-  };
-
-  const fetchOsrmRoute = async (chunk: [number, number][]) => {
-    const coordString = chunk.map(([lat, lon]) => `${lon},${lat}`).join(';');
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false`;
-    const data = await requestJson<{ routes?: Array<{ geometry?: { coordinates?: [number, number][] } }> }>(url);
-    return data.routes?.[0]?.geometry?.coordinates?.map(([lon, lat]) => [lat, lon] as [number, number]) || [];
-  };
-
-  for (const chunk of chunks) {
-    if (chunk.length < 2) continue;
-    const points = await fetchOsrmRoute(chunk).catch(() => []);
-    if (points.length > 1) {
-      appendPoints(points);
-      continue;
-    }
-
-    for (let i = 0; i < chunk.length - 1; i++) {
-      const segment = await fetchOsrmRoute([chunk[i], chunk[i + 1]]).catch(() => []);
-      appendPoints(segment.length > 1 ? segment : [chunk[i], chunk[i + 1]]);
-    }
-  }
-  return merged;
+  return [];
 }

@@ -1,4 +1,4 @@
-import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown, Pencil, X } from 'lucide-react';
+import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown, Pencil, X, CheckCircle2 } from 'lucide-react';
 import { Badge } from './Badge';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
@@ -235,6 +235,11 @@ export function DeviceTable({
           >
             <Pencil size={compact ? 13 : 12} />
           </button>
+        )}
+        {device.verified && (
+          <span title="Zweryfikowane" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/12 text-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.16)]">
+            <CheckCircle2 size={13} strokeWidth={2.6} />
+          </span>
         )}
       </div>
     </div>

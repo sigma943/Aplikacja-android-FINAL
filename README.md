@@ -233,7 +233,8 @@ W katalogu `public/data` znajdują się pliki pomocnicze:
 
 - `stops-dictionary.json` - lokalny słownik nazw przystanków,
 - `trip-shape-index.json` - indeks tras,
-- `shape-points.json` - punkty przebiegu tras.
+- `route-stop-shape-index.json` - indeks przebiegów po sekwencji przystanków,
+- `route-shapes/*.json` - małe pliki z punktami pojedynczych przebiegów tras.
 
 Służą jako cache/fallback oraz do rysowania przebiegu tras.
 

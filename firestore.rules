@@ -79,6 +79,21 @@ service cloud.firestore {
       return isCallerOwner() || hasAdminPerm('globalSettingsEdit');
     }
 
+    function autoBanUnverifiedEnabled() {
+      return exists(/databases/$(database)/documents/admin_settings/security) &&
+             get(/databases/$(database)/documents/admin_settings/security).data.autoBan == true;
+    }
+
+    function hasAutoBanDetails(data) {
+      return data.banDetails is map &&
+             data.banDetails.get('silent', false) == true &&
+             data.banDetails.get('autoBan', false) == true &&
+             data.banDetails.get('expiresAt', 'x') == '' &&
+             data.banDetails.get('reason', '') is string &&
+             data.banDetails.get('reason', '').size() > 0 &&
+             data.banDetails.get('reason', '').size() <= 160;
+    }
+
     function incomingPermEnabled(key) {
       return incoming().permissions is map && incoming().permissions.get(key, false) == true;
     }
@@ -167,6 +182,30 @@ service cloud.firestore {
              data.permissions.get('canViewList', false) != true;
     }
 
+    function userInstallationCreateAllowed(data) {
+      return data.role == 'user' &&
+             (!(data.verified is bool) || data.verified == false) &&
+             userPermissionsAreSafe(data) &&
+             (
+               !(data.status is string) ||
+               (data.status == 'active' && !autoBanUnverifiedEnabled()) ||
+               (data.status == 'banned' && hasAutoBanDetails(data))
+             );
+    }
+
+    function userInstallationUpdateAllowed(data) {
+      return callerDeviceExists() &&
+             callerDeviceData().role == 'user' &&
+             data.role == 'user' &&
+             (!(data.verified is bool) || data.verified == false) &&
+             userPermissionsAreSafe(data) &&
+             (
+               !(data.status is string) ||
+               data.status == existing().status ||
+               (data.status == 'banned' && autoBanUnverifiedEnabled() && hasAutoBanDetails(data))
+             );
+    }
+
     function keepsTabAccessRestrictionsUnchanged() {
       return !(incoming().permissions is map) ||
              (
@@ -184,8 +223,11 @@ service cloud.firestore {
       let validKeys = data.keys().hasAll(['deviceInfo', 'role', 'firstLogin', 'status']);
       let validTypes = data.deviceInfo is string && data.deviceInfo.size() <= 200 &&
                        data.status in ['active', 'banned'] &&
-                       data.role == 'user';
-      return validKeys && validTypes;
+                       data.role == 'user' &&
+                       (!(data.verified is bool) || data.verified == false);
+      let activeAllowed = data.status == 'active' && !autoBanUnverifiedEnabled();
+      let autoBannedAllowed = data.status == 'banned' && data.verified == false && hasAutoBanDetails(data);
+      return validKeys && validTypes && (activeAllowed || autoBannedAllowed);
     }
 
     function canCreateDeviceFromInstallationProfile(data) {
@@ -196,6 +238,13 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/installations/$(instId)) &&
              data.role in ['owner', 'admin', 'user'] &&
              data.role == profile.role &&
+             (
+               !(data.verified is bool) ||
+               data.verified == profile.verified ||
+               (!(profile.verified is bool) && data.verified == false) ||
+               data.role in ['owner', 'admin']
+             ) &&
+             (!(data.status is string) || !(profile.status is string) || data.status == profile.status) &&
              data.permissions is map &&
              (
                profile.role == 'user' ||
@@ -223,6 +272,7 @@ service cloud.firestore {
         (
           isOwner(deviceId) &&
           incoming().diff(existing()).affectedKeys().hasOnly(['lastSeenAt', 'deviceInfo']) &&
+          !(autoBanUnverifiedEnabled() && existing().role == 'user' && existing().verified != true && existing().status == 'active') &&
           (
             !incoming().diff(existing()).affectedKeys().hasAny(['deviceInfo']) ||
             (incoming().deviceInfo is string && incoming().deviceInfo.size() <= 200)
@@ -237,14 +287,33 @@ service cloud.firestore {
           incoming().displayName.size() <= 120
         ) ||
 
+        // Own auto-ban when global verification enforcement is enabled.
+        (
+          isOwner(deviceId) &&
+          autoBanUnverifiedEnabled() &&
+          existing().role == 'user' &&
+          existing().verified != true &&
+          existing().status == 'active' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'banDetails', 'verified']) &&
+          incoming().status == 'banned' &&
+          incoming().verified == false &&
+          hasAutoBanDetails(incoming())
+        ) ||
+
         // Ban / unban for others.
         (
           request.auth.uid != deviceId &&
           (isCallerOwner() || hasAdminPerm('canBan')) &&
           (!(existing().role in ['owner', 'admin']) || isCallerOwner()) &&
           incoming().diff(existing()).affectedKeys().hasAny(['status', 'banDetails']) &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'banDetails']) &&
-          incoming().status in ['active', 'banned']
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'banDetails', 'verified']) &&
+          incoming().status in ['active', 'banned'] &&
+          (
+            !incoming().diff(existing()).affectedKeys().hasAny(['verified']) ||
+            isCallerOwner() ||
+            (incoming().status == 'banned' && incoming().verified == existing().verified) ||
+            (existing().status == 'banned' && incoming().status == 'active' && incoming().verified == true)
+          )
         ) ||
 
         // Role / permissions / displayName edits for others.
@@ -253,11 +322,16 @@ service cloud.firestore {
           (isCallerOwner() || hasAdminPerm('canChangeRoles')) &&
           (isCallerOwner() || keepsTabAccessRestrictionsUnchanged()) &&
           (!(existing().role in ['owner', 'admin']) || isCallerOwner()) &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['role', 'permissions', 'displayName']) &&
-          incoming().diff(existing()).affectedKeys().hasAny(['role', 'permissions', 'displayName']) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['role', 'permissions', 'displayName', 'verified']) &&
+          incoming().diff(existing()).affectedKeys().hasAny(['role', 'permissions', 'displayName', 'verified']) &&
           incoming().role in ['owner', 'admin', 'user'] &&
           incomingPermissionsKnown() &&
           adminPermissionGrantAllowed() &&
+          (
+            !incoming().diff(existing()).affectedKeys().hasAny(['verified']) ||
+            isCallerOwner() ||
+            (incoming().role in ['owner', 'admin'] && incoming().verified == true)
+          ) &&
           (
             !incoming().diff(existing()).affectedKeys().hasAny(['displayName']) ||
             !('displayName' in incoming()) ||
@@ -276,8 +350,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidId(installationId) &&
                     incoming().installationId == installationId &&
                     incoming().updatedBy == request.auth.uid &&
-                    incoming().role == 'user' &&
-                    userPermissionsAreSafe(incoming());
+                    userInstallationCreateAllowed(incoming());
       allow update: if isSignedIn() && isValidId(installationId) &&
                     incoming().installationId == installationId &&
                     incoming().updatedBy == request.auth.uid &&
@@ -290,11 +363,12 @@ service cloud.firestore {
                         adminPermissionGrantAllowed()
                       ) ||
                       (
-                        callerDeviceExists() &&
-                        callerDeviceData().role == 'user' &&
-                        incoming().role == 'user' &&
-                        userPermissionsAreSafe(incoming())
-                      )
+                        hasAdminPerm('canBan') &&
+                        incoming().role == existing().role &&
+                        incoming().permissions == existing().permissions &&
+                        incoming().status in ['active', 'banned']
+                      ) ||
+                      userInstallationUpdateAllowed(incoming())
                     );
       allow delete: if false;
     }

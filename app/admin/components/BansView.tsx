@@ -181,6 +181,12 @@ function BanCard({ ban, canBan, onUnblock }: { ban: Ban; canBan: boolean; onUnbl
                 <span className="min-w-0 break-all">ID: {ban.deviceId}</span>
                 <span className="w-1 h-1 rounded-full bg-slate-700" />
                 <span className="flex min-w-0 items-center gap-1 break-words"><MapPin size={10} className="shrink-0" /> {ban.location}</span>
+                {ban.autoBan && (
+                  <>
+                    <span className="w-1 h-1 rounded-full bg-slate-700" />
+                    <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[9px] uppercase tracking-widest text-amber-300">Auto-ban</span>
+                  </>
+                )}
               </div>
             </div>
           </div>

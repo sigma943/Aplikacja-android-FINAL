@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 
 const gtfsDir = path.join(process.cwd(), 'tmp_gtfs_pks');
-const outDir = path.join(process.cwd(), 'app', 'api', 'route-shape');
+const publicDataDir = path.join(process.cwd(), 'public', 'data');
+const shapeOutDir = path.join(publicDataDir, 'route-shapes');
 
 function parseCsvLine(line) {
   return line.split(',');
@@ -63,20 +64,63 @@ function buildShapePoints() {
   return shapePoints;
 }
 
-fs.mkdirSync(outDir, { recursive: true });
+function buildRouteStopShapeIndex(tripShapeIndex) {
+  const stopTimesPath = path.join(gtfsDir, 'stop_times.txt');
+  if (!fs.existsSync(stopTimesPath)) return {};
+
+  const lines = readLines('stop_times.txt');
+  const header = parseCsvLine(lines.shift());
+  const tripIdx = header.indexOf('trip_id');
+  const stopIdx = header.indexOf('stop_id');
+  const seqIdx = header.indexOf('stop_sequence');
+  const grouped = new Map();
+
+  for (const line of lines) {
+    const cols = parseCsvLine(line);
+    const baseTripId = String(cols[tripIdx] || '').split('_')[0];
+    const stopId = String(cols[stopIdx] || '').trim();
+    if (!baseTripId || !stopId) continue;
+    const stops = grouped.get(baseTripId) || [];
+    stops.push([Number(cols[seqIdx]), stopId]);
+    grouped.set(baseTripId, stops);
+  }
+
+  const index = {};
+  for (const [tripId, stops] of grouped) {
+    const shapeId = tripShapeIndex[tripId];
+    if (!shapeId) continue;
+    stops.sort((a, b) => a[0] - b[0]);
+    const key = stops.map(([, stopId]) => stopId).join('-');
+    if (key && !index[key]) index[key] = shapeId;
+  }
+  return index;
+}
+
+function safeShapeId(shapeId) {
+  return String(shapeId || '').trim().replace(/[^a-zA-Z0-9_.+-]/g, '_');
+}
+
+fs.mkdirSync(publicDataDir, { recursive: true });
+fs.rmSync(shapeOutDir, { recursive: true, force: true });
+fs.mkdirSync(shapeOutDir, { recursive: true });
 
 const tripShapeIndex = buildTripShapeIndex();
 const shapePoints = buildShapePoints();
+const routeStopShapeIndex = buildRouteStopShapeIndex(tripShapeIndex);
 
-fs.writeFileSync(path.join(outDir, 'trip-shape-index.json'), JSON.stringify(tripShapeIndex));
-fs.writeFileSync(path.join(outDir, 'shape-points.json'), JSON.stringify(shapePoints));
+fs.writeFileSync(path.join(publicDataDir, 'trip-shape-index.json'), JSON.stringify(tripShapeIndex));
+fs.writeFileSync(path.join(publicDataDir, 'route-stop-shape-index.json'), JSON.stringify(routeStopShapeIndex));
+for (const [shapeId, points] of Object.entries(shapePoints)) {
+  fs.writeFileSync(path.join(shapeOutDir, `${safeShapeId(shapeId)}.json`), JSON.stringify(points));
+}
 
 console.log(
   JSON.stringify(
     {
       tripCount: Object.keys(tripShapeIndex).length,
       shapeCount: Object.keys(shapePoints).length,
-      outDir,
+      routeStopShapeCount: Object.keys(routeStopShapeIndex).length,
+      outDir: shapeOutDir,
     },
     null,
     2

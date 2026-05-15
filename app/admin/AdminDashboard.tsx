@@ -215,7 +215,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
   const [globalSettings, setGlobalSettings] = useState({
     loginEnabled: true,
     maintenanceMode: false,
-    autoBan: true,
+    autoBan: false,
   });
 
   const [activeView, setActiveView] = useState('devices');
@@ -427,6 +427,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     role: mapRole(d.role),
     rawRole: d.role,
     status: mapStatus(d.status),
+    verified: d.role === 'owner' || d.role === 'admin' || d.verified === true,
     iconType: determineIconType(d.deviceInfo),
     lastSeenLabel: lastSeenInfoFor(d).label,
     lastSeenOnline: lastSeenInfoFor(d).online,
@@ -474,6 +475,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
         expireIn: hasExpiry ? new Date(expiresAt).toLocaleString('pl-PL') : 'Na zawsze',
         reason: d.banDetails?.reason || 'Naruszenie regulaminu',
         bannedBy: String((d.banDetails as any)?.bannedBy || '').trim() || 'Administrator',
+        autoBan: Boolean((d.banDetails as any)?.autoBan),
         date: bannedAt ? new Date(bannedAt).toLocaleString('pl-PL') : 'Brak danych',
       };
     });
@@ -550,6 +552,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     role: DeviceRole,
     permissions: Record<string, boolean>,
     displayName?: string,
+    extras: Partial<Pick<DeviceData, 'status' | 'verified' | 'banDetails'>> = {},
   ) => {
     const inst = String(installationId || '').trim();
     if (!inst) return;
@@ -557,15 +560,78 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       installationId: inst,
       role,
       permissions,
+      status: extras.status || 'active',
+      verified: role === 'owner' || role === 'admin' || extras.verified === true,
       updatedAt: serverTimestamp(),
       updatedBy: user?.uid || null,
     };
+    if (extras.banDetails) {
+      patch.banDetails = extras.banDetails;
+    } else {
+      patch.banDetails = deleteField();
+    }
     if (typeof displayName === 'string' && displayName.trim()) {
       patch.displayName = displayName.trim().slice(0, 120);
     } else {
       patch.displayName = deleteField();
     }
     await setDoc(doc(db, 'installations', inst), patch, { merge: true });
+  };
+
+  const buildUnverifiedAutoBanDetails = (): NonNullable<DeviceData['banDetails']> => ({
+    reason: 'Urządzenie niezweryfikowane',
+    expiresAt: '',
+    gifUrl: '',
+    silent: true,
+    autoBan: true,
+    bannedBy: currentUser.name || 'Auto-ban',
+    bannedAt: new Date().toISOString(),
+  });
+
+  const enforceAutoBanForUnverifiedDevices = async (sourceDevices = devicesData) => {
+    const targets = sourceDevices.filter(
+      (d) => d.role === 'user' && d.status !== 'banned' && d.verified !== true,
+    );
+    if (targets.length === 0) return;
+
+    let batch = writeBatch(db);
+    let writes = 0;
+    const commitIfNeeded = async (force = false) => {
+      if (writes === 0 || (!force && writes < 380)) return;
+      await batch.commit();
+      batch = writeBatch(db);
+      writes = 0;
+    };
+
+    for (const target of targets) {
+      const banDetails = buildUnverifiedAutoBanDetails();
+      batch.update(doc(db, 'devices', target.id), {
+        status: 'banned',
+        verified: false,
+        banDetails,
+      });
+      writes += 1;
+      const instId = String(target.installationId || '').trim();
+      if (instId) {
+        batch.set(
+          doc(db, 'installations', instId),
+          {
+            installationId: instId,
+            role: 'user',
+            permissions: buildDevicePermissions('user'),
+            status: 'banned',
+            verified: false,
+            banDetails,
+            updatedAt: serverTimestamp(),
+            updatedBy: user?.uid || null,
+          },
+          { merge: true },
+        );
+        writes += 1;
+      }
+      await commitIfNeeded();
+    }
+    await commitIfNeeded(true);
   };
 
   const saveDeviceModelAlias = async (device: Device, label: string) => {
@@ -597,7 +663,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     return false;
   };
 
-  const handleUpdateUser = async (_name: string, role: string, permissions: Record<string, boolean>, displayName?: string) => {
+  const handleUpdateUser = async (_name: string, role: string, permissions: Record<string, boolean>, displayName?: string, verifiedFromForm?: boolean) => {
     if (!selectedDeviceForRole) return;
     if (!assertNotSelf(selectedDeviceForRole.id)) return;
 
@@ -626,8 +692,10 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     try {
       const normalized = normalizeAdminPermissions(permissions, fbRole);
       if (fbRole === 'owner' || fbRole === 'admin') normalized.monitor = true;
+      const verified = fbRole === 'owner' || fbRole === 'admin' || verifiedFromForm === true;
       const patch: Record<string, unknown> = {
         role: fbRole,
+        verified,
         permissions: {
           ...normalized,
           ...toLegacyPermissions({ ...permissions, ...normalized }),
@@ -648,6 +716,11 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           ...toLegacyPermissions({ ...permissions, ...normalized }),
         },
         trimmedDisplay || targetRow?.displayName,
+        {
+          status: targetRow?.status || 'active',
+          verified,
+          banDetails: targetRow?.banDetails,
+        },
       );
       const whoLabel = formatDeviceLabel({
         displayName: trimmedDisplay || selectedDeviceForRole.displayName,
@@ -698,35 +771,62 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       const deviceLabel = formatAdminTargetLabel(freshTarget, device.id);
 
       if (freshTarget?.status === 'banned') {
+        const banDetails = {
+          reason: String(reason || freshTarget.banDetails?.reason || 'Naruszenie regulaminu').trim(),
+          expiresAt: freshTarget.banDetails?.expiresAt || (expiryDate ? new Date(expiryDate).toISOString() : ''),
+          gifUrl: freshTarget.banDetails?.gifUrl || gifUrl || '',
+          silent: Boolean(freshTarget.banDetails?.silent ?? silent),
+          autoBan: Boolean(freshTarget.banDetails?.autoBan),
+          bannedBy: currentUser.name,
+          bannedAt: freshTarget.banDetails?.bannedAt || new Date().toISOString(),
+        };
         await updateDoc(targetRef, {
           status: 'banned',
-          banDetails: {
-            reason: String(reason || freshTarget.banDetails?.reason || 'Naruszenie regulaminu').trim(),
-            expiresAt: freshTarget.banDetails?.expiresAt || (expiryDate ? new Date(expiryDate).toISOString() : ''),
-            gifUrl: freshTarget.banDetails?.gifUrl || gifUrl || '',
-            silent: Boolean(freshTarget.banDetails?.silent ?? silent),
-            bannedBy: currentUser.name,
-            bannedAt: freshTarget.banDetails?.bannedAt || new Date().toISOString(),
-          },
+          verified: freshTarget.role === 'owner' || freshTarget.role === 'admin' || freshTarget.verified === true,
+          banDetails,
         });
+        await syncInstallationProfile(
+          freshTarget.installationId,
+          freshTarget.role || 'user',
+          buildDevicePermissions(freshTarget.role || 'user', freshTarget.permissions),
+          freshTarget.displayName,
+          {
+            status: 'banned',
+            verified: freshTarget.role === 'owner' || freshTarget.role === 'admin' || freshTarget.verified === true,
+            banDetails,
+          },
+        );
         addToast('Blokada utrwalona', `${deviceLabel}.`, 'ban');
         setSelectedDeviceForBan(null);
         return;
       }
 
       const reasonText = String(reason || 'Naruszenie regulaminu').trim();
+      const banDetails = {
+        reason: reasonText,
+        expiresAt: expiryDate ? new Date(expiryDate).toISOString() : '',
+        gifUrl: gifUrl || '',
+        silent: Boolean(silent),
+        bannedBy: currentUser.name,
+        bannedAt: new Date().toISOString(),
+      };
 
       await updateDoc(targetRef, {
         status: 'banned',
-        banDetails: {
-          reason: reasonText,
-          expiresAt: expiryDate ? new Date(expiryDate).toISOString() : '',
-          gifUrl: gifUrl || '',
-          silent: Boolean(silent),
-          bannedBy: currentUser.name,
-          bannedAt: new Date().toISOString(),
-        },
+        verified: freshTarget?.role === 'owner' || freshTarget?.role === 'admin' || freshTarget?.verified === true,
+        banDetails,
       });
+      await syncInstallationProfile(
+        freshTarget?.installationId,
+        freshTarget?.role || 'user',
+        buildDevicePermissions(freshTarget?.role || 'user', freshTarget?.permissions),
+        freshTarget?.displayName,
+        {
+          status: 'banned',
+          verified: freshTarget?.role === 'owner' || freshTarget?.role === 'admin' || freshTarget?.verified === true,
+          banDetails,
+        },
+      );
       await writeAuditLog({
         title: 'Zablokowano urządzenie',
         description: deviceLabel,
@@ -752,8 +852,19 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       const target = devicesData.find((x) => x.id === banId);
       await updateDoc(doc(db, 'devices', banId), {
         status: 'active',
+        verified: true,
         banDetails: deleteField(),
       });
+      await syncInstallationProfile(
+        target?.installationId,
+        target?.role || 'user',
+        buildDevicePermissions(target?.role || 'user', target?.permissions),
+        target?.displayName,
+        {
+          status: 'active',
+          verified: true,
+        },
+      );
       await writeAuditLog({
         title: 'Zdjęto blokadę urządzenia',
         description: formatAdminTargetLabel(target, banId),
@@ -792,8 +903,10 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     try {
       const normalized = normalizeAdminPermissions(permissions, fbRole);
       if (fbRole === 'owner' || fbRole === 'admin') normalized.monitor = true;
+      const verified = fbRole === 'owner' || fbRole === 'admin' || target?.verified === true;
       await updateDoc(doc(db, 'devices', operatorId), {
         role: fbRole,
+        verified,
         permissions: {
           ...normalized,
           ...toLegacyPermissions({ ...permissions, ...normalized }),
@@ -808,6 +921,11 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           ...toLegacyPermissions({ ...permissions, ...normalized }),
         },
         opRow?.displayName,
+        {
+          status: opRow?.status || 'active',
+          verified,
+          banDetails: opRow?.banDetails,
+        },
       );
       const opLabel = formatDeviceLabel({
         displayName: opRow?.displayName,
@@ -1115,6 +1233,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
             }
             await updateDoc(doc(db, 'devices', operatorId), {
               role: 'user',
+              verified: target?.verified === true,
               permissions: buildDevicePermissions('user'),
             });
             await syncInstallationProfile(
@@ -1122,6 +1241,11 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
               'user',
               buildDevicePermissions('user'),
               target?.displayName,
+              {
+                status: target?.status || 'active',
+                verified: target?.verified === true,
+                banDetails: target?.banDetails,
+              },
             );
             await writeAuditLog({
               title: 'Usunięto operatora',
@@ -1140,6 +1264,9 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
               return;
             }
             await setDoc(doc(db, 'admin_settings', 'security'), settings, { merge: true });
+            if (settings.autoBan) {
+              await enforceAutoBanForUnverifiedDevices();
+            }
             const desc = [
               settings.loginEnabled ? 'logowanie włączone' : 'logowanie wyłączone',
               settings.maintenanceMode ? 'konserwacja włączona' : 'konserwacja wyłączona',
@@ -1187,7 +1314,8 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           isSelfTarget={Boolean(uid && selectedDeviceForRole.id === uid)}
           onClose={() => setSelectedDeviceForRole(null)}
           onUpdateUser={() => {}}
-          onSave={(r, perms, dn) => handleUpdateUser('Admin', r, perms, dn)}
+          onSave={(r, perms, dn, verified) => handleUpdateUser('Admin', r, perms, dn, verified)}
+          canManageVerification={currentDevice.role === 'owner'}
         />
       )}
 

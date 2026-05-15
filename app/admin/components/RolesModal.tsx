@@ -8,9 +8,10 @@ interface RolesModalProps {
   device: Device;
   onClose: () => void;
   onUpdateUser: (name: string, role: string) => void;
-  onSave?: (role: string, permissions: Record<string, boolean>, displayName?: string) => void;
+  onSave?: (role: string, permissions: Record<string, boolean>, displayName?: string, verified?: boolean) => void;
   canAssignOwner?: boolean;
   canManageTabAccess?: boolean;
+  canManageVerification?: boolean;
   isSelfTarget?: boolean;
 }
 
@@ -21,6 +22,7 @@ export function RolesModal({
   onSave,
   canAssignOwner = false,
   canManageTabAccess = false,
+  canManageVerification = false,
   isSelfTarget = false,
 }: RolesModalProps) {
   const roleLabelFromDevice = () => {
@@ -29,9 +31,11 @@ export function RolesModal({
     return 'UŻYTKOWNIK';
   };
   const initialRole = roleLabelFromDevice();
+  const verifiedFromRole = (r: string) => r.includes('CICIEL') || r === 'ADMIN';
                       
   const [role, setRole] = useState(initialRole);
   const [name, setName] = useState('');
+  const [verified, setVerified] = useState(verifiedFromRole(initialRole) || device.verified === true);
   
   // Set default permissions based on role
   const getInitialPermissions = (r: string) => {
@@ -96,6 +100,7 @@ export function RolesModal({
   const handleRoleChange = (newRole: string) => {
     setRole(newRole);
     setPermissions(getInitialPermissions(newRole));
+    if (verifiedFromRole(newRole)) setVerified(true);
   };
 
   const isOwnerRole = role.includes('CICIEL');
@@ -108,6 +113,7 @@ export function RolesModal({
     const r = roleLabelFromDevice();
     setRole(r);
     setPermissions(mergeStoredPermissions(r));
+    setVerified(verifiedFromRole(r) || device.verified === true);
   }, [device.id, device.displayName, device.role]);
 
   // Handle immediate update when typing
@@ -313,6 +319,39 @@ export function RolesModal({
             </div>
           )}
 
+          {canManageVerification && !isSelfTarget && (
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 block px-1">Weryfikacja</label>
+              <button
+                type="button"
+                disabled={isOwnerRole || isAdminRole}
+                onClick={() => !(isOwnerRole || isAdminRole) && setVerified((prev) => !prev)}
+                className={cn(
+                  'flex w-full items-center justify-between gap-4 rounded-2xl border p-4 text-left transition-all',
+                  verified ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-white/5 bg-[#111623]',
+                  isOwnerRole || isAdminRole ? 'cursor-not-allowed opacity-60 grayscale-[0.25]' : 'cursor-pointer active:scale-[0.98]',
+                )}
+              >
+                <div className="min-w-0">
+                  <div className={cn('text-sm font-black', verified ? 'text-emerald-300' : 'text-slate-200')}>Zweryfikowane</div>
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    Owner i admin są zawsze zweryfikowani. Użytkownika można odznaczyć ręcznie.
+                  </div>
+                </div>
+                <span
+                  role="switch"
+                  aria-checked={verified}
+                  className={cn(
+                    'flex h-7 w-12 shrink-0 items-center rounded-full border px-1 transition-all',
+                    verified ? 'justify-end border-emerald-500/50 bg-emerald-500/25' : 'justify-start border-white/10 bg-white/5',
+                  )}
+                >
+                  <span className={cn('h-5 w-5 rounded-full shadow-lg transition-all', verified ? 'bg-emerald-400' : 'bg-slate-600')} />
+                </span>
+              </button>
+            </div>
+          )}
+
         </div>
 
         <div className="p-6 border-t border-white/5 bg-[#0a0f18]/80 backdrop-blur-xl shrink-0">
@@ -330,7 +369,7 @@ export function RolesModal({
                     : role === 'ADMIN'
                       ? { ...permissions, monitor: true }
                       : { ...permissions, canChangeRoles: false };
-                await onSave(role, nextPermissions, name.trim());
+                await onSave(role, nextPermissions, name.trim(), verifiedFromRole(role) || verified);
               }
             }}
             className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-sm font-black transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)] active:scale-[0.98] cursor-pointer uppercase tracking-widest"
