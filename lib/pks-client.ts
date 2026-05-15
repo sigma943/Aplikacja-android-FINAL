@@ -428,6 +428,11 @@ export async function fetchStopsClient(): Promise<StopsMap> {
 
 function isJourneyRunning(legends: string[], dateIso: string) {
   if (!legends || legends.length === 0) return true;
+  const normalizedLegends = legends.map((legend) =>
+    String(legend || '')
+      .trim()
+      .replace('6Ĺ›', '6ś'),
+  );
   const dt = new Date(dateIso);
   const day = dt.getDay();
   const month = dt.getMonth() + 1;
@@ -441,16 +446,16 @@ function isJourneyRunning(legends: string[], dateIso: string) {
   const isSundayOrHoliday = day === 0 || isHoliday;
   const isWeekendOrHoliday = day === 0 || day === 6 || isHoliday;
   const baseLegends = ['D', '(D)', 'S', 'E', 'C', '+', '6ś', '6', '7', '1-4', '2-5', '5', '5/6', '6/7'];
-  const hasBaseLegend = legends.some((legend) => baseLegends.includes(legend));
+  const hasBaseLegend = normalizedLegends.some((legend) => baseLegends.includes(legend) || legend === '6ś');
   if (!hasBaseLegend) return true;
 
   let runs = false;
-  for (const legend of legends) {
+  for (const legend of normalizedLegends) {
     if ((legend === 'D' || legend === '(D)' || legend === 'S') && !isWeekendOrHoliday) runs = true;
     if (legend === 'E' && !isSundayOrHoliday) runs = true;
     if (legend === 'C' && isWeekendOrHoliday) runs = true;
     if (legend === '6ś' && day === 6 && !isHoliday) runs = true;
-    if (legend === '6' && day === 6) runs = true;
+    if ((legend === '6' || legend === '6ś') && day === 6) runs = true;
     if ((legend === '+' || legend === '7') && isSundayOrHoliday) runs = true;
     if (legend === '5' && day === 5 && !isHoliday) runs = true;
     if (legend === '1-4' && day >= 1 && day <= 4 && !isHoliday) runs = true;
@@ -598,14 +603,14 @@ export async function fetchRouteShapeClient(tripId: string, fallbackStops: numbe
     .map((stop) => [stop.lat, stop.lon] as ShapePoint);
   if (stopCoords.length > 1) {
     try {
-      const shapeId = findBestShapeByStops(stopCoords, await loadRouteShapeMetadata());
-      const points = shapeId ? await loadShapePoints(shapeId) : [];
-      if (points.length > 1) return points;
+      const roadRoute = await fetchRoadRouteForStops(stopCoords, normalizedStops.join('-'));
+      if (roadRoute.length > 1) return roadRoute;
     } catch {}
 
     try {
-      const roadRoute = await fetchRoadRouteForStops(stopCoords, normalizedStops.join('-'));
-      if (roadRoute.length > 1) return roadRoute;
+      const shapeId = findBestShapeByStops(stopCoords, await loadRouteShapeMetadata());
+      const points = shapeId ? await loadShapePoints(shapeId) : [];
+      if (points.length > 1) return points;
     } catch {}
   }
   return [];

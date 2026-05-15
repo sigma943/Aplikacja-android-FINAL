@@ -242,6 +242,8 @@ export default function Home() {
         let stopInfo: any = null;
         let minDiff = Infinity;
         let sameLineCandidates = 0;
+        const routeCandidates: any[] = [];
+        const selectedStopKey = String(selectedStopId);
         const normalizeDirection = (value: unknown) =>
           String(value || '')
             .trim()
@@ -252,10 +254,12 @@ export default function Home() {
         vehicles.forEach(v => {
             if (normLine(v.routeShortName) === journeyLineNorm) {
                 sameLineCandidates += 1;
+                const routeHasStop = (v.routePath || []).some((id: any) => String(id) === selectedStopKey);
+                if (routeHasStop) routeCandidates.push(v);
                 const s = v.schedule?.find((x: any) => String(x.id) === String(selectedStopId));
                 if (s && s.planned) {
                     const diff = Math.abs(new Date(s.planned).getTime() - journeyPlannedMs);
-                    if (diff < 600000 && diff < minDiff) { 
+                    if (diff < 1800000 && diff < minDiff) {
                         minDiff = diff;
                         liveMatch = v;
                         stopInfo = s;
@@ -267,6 +271,8 @@ export default function Home() {
         if (!liveMatch) {
             vehicles.forEach(v => {
                 if (normLine(v.routeShortName) !== journeyLineNorm) return;
+                const routeHasStop = (v.routePath || []).some((id: any) => String(id) === selectedStopKey);
+                if (!routeHasStop) return;
                 const delaySec = Number(v.delay);
                 if (!Number.isFinite(delaySec) || delaySec === 0 || Math.abs(delaySec) > 18000) return;
                 if (v.status === 'break' || v.status === 'inactive') return;
@@ -279,6 +285,20 @@ export default function Home() {
                   liveMatch = v;
                 }
             });
+        }
+
+        if (!liveMatch && routeCandidates.length === 1) {
+            const candidate = routeCandidates[0];
+            const delaySec = Number(candidate.delay);
+            if (
+              candidate.status !== 'break' &&
+              candidate.status !== 'inactive' &&
+              Number.isFinite(delaySec) &&
+              delaySec !== 0 &&
+              Math.abs(delaySec) <= 18000
+            ) {
+              liveMatch = candidate;
+            }
         }
 
         if (liveMatch) {
@@ -347,6 +367,7 @@ export default function Home() {
                isTomorrow,
                dateStr,
                isDelayed,
+               plannedTimeMs: journeyPlannedMs,
                depTimeMs: Number.isFinite(actualDepTimeMs) ? actualDepTimeMs : journeyPlannedMs
            };
         } else if (liveMatch) {
@@ -357,11 +378,16 @@ export default function Home() {
            acc[uniqKey].isTomorrow = isTomorrow;
            acc[uniqKey].dateStr = dateStr;
            acc[uniqKey].vehicleNum = vehicleNum;
+           acc[uniqKey].plannedTimeMs = journeyPlannedMs;
            acc[uniqKey].bus.model = liveMatch.model;
            acc[uniqKey].bus.id = 'LIVE';
         }
         return acc;
-    }, {})).filter((a: any) => Number.isFinite(a.diffMin) && a.diffMin >= -15 && a.diffMin <= 2880).sort((a: any, b: any) => a.diffMin - b.diffMin);
+    }, {})).filter((a: any) => Number.isFinite(a.diffMin) && a.diffMin >= -15 && a.diffMin <= 2880).sort((a: any, b: any) => {
+      const aPlanned = Number.isFinite(a.plannedTimeMs) ? a.plannedTimeMs : a.depTimeMs;
+      const bPlanned = Number.isFinite(b.plannedTimeMs) ? b.plannedTimeMs : b.depTimeMs;
+      return aPlanned - bPlanned;
+    });
 
     return results;
   }, [stopDepartures, vehicles, selectedStopId, now]);
@@ -1294,7 +1320,7 @@ export default function Home() {
                                              const todayStr = new Date(now).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
                                              
                                              processedDepartures.slice(0, 40).forEach((inc: any, idx: number) => {
-                                                const d = new Date(inc.depTimeMs);
+                                                const d = new Date(Number.isFinite(inc.plannedTimeMs) ? inc.plannedTimeMs : inc.depTimeMs);
                                                 const dayStr = d.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
                                                 
                                                 if (dayStr !== lastDayStr && dayStr !== todayStr.toUpperCase()) {
@@ -1537,7 +1563,7 @@ export default function Home() {
                            let currentDayStr = '';
                            
                            incoming.forEach((inc: any, i: number) => {
-                               const d = new Date(inc.depTimeMs);
+                               const d = new Date(Number.isFinite(inc.plannedTimeMs) ? inc.plannedTimeMs : inc.depTimeMs);
                                const dayStr = d.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
                                
                                if (dayStr !== currentDayStr) {
