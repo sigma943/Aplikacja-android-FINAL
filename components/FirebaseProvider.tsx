@@ -149,10 +149,24 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const getOrCreateInstallationId = () => {
+  const getOrCreateInstallationId = async () => {
     const key = 'pks_installation_id';
     const cookieKey = 'pks_installation_id';
     const isWeb = typeof window !== 'undefined' && !Capacitor.isNativePlatform();
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Device } = await import('@capacitor/device');
+        const id = await Device.getId();
+        const nativeId = String(id.identifier || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+        if (nativeId) {
+          localStorage.setItem(key, nativeId);
+          return nativeId;
+        }
+      } catch (err) {
+        console.warn('Native installation id unavailable', err);
+      }
+    }
 
     const readCookie = () => {
       const m = document.cookie.match(new RegExp(`(?:^|; )${cookieKey}=([^;]*)`));
@@ -187,11 +201,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     const deviceRef = doc(db, 'devices', user.uid);
-    const installationRef = doc(db, 'installations', getOrCreateInstallationId());
     let cancelled = false;
 
     (async () => {
-      const instId = getOrCreateInstallationId();
+      const instId = await getOrCreateInstallationId();
       // #region agent log
       agentLog(
         'FirebaseProvider.tsx:registerIdentity:before',
@@ -205,6 +218,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       // #endregion
       try {
         const deviceInfo = await getClientDeviceInfo();
+        const installationRef = doc(db, 'installations', instId);
         const existing = await getDoc(deviceRef);
         if (!existing.exists()) {
           const installationSnap = await getDoc(installationRef);
@@ -442,11 +456,23 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
 function getStoredThemeMode() {
   if (typeof window === 'undefined') return 'dark';
-  const savedTheme = localStorage.getItem('mks_app_theme') || 'system';
-  if (savedTheme === 'system') {
+  const savedTheme = (localStorage.getItem('mks_app_theme') || 'system').trim().toLowerCase();
+  const normalizedTheme =
+    savedTheme === 'amoled' || savedTheme === 'oled' || savedTheme === 'dark_oled' || savedTheme === 'darkoled'
+      ? 'dark-oled'
+      : savedTheme;
+  if (normalizedTheme === 'system') {
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  return savedTheme;
+  return normalizedTheme;
+}
+
+function themeBackground(themeMode: string) {
+  if (themeMode === 'light') return '#f8fafc';
+  if (themeMode === 'light-warm') return '#f2ede1';
+  if (themeMode === 'dark-oled') return '#000000';
+  if (themeMode === 'dark-aurora') return '#06130f';
+  return '#111027';
 }
 
 function themeShell() {
@@ -455,14 +481,19 @@ function themeShell() {
   const isLight = themeMode === 'light' || isWarm;
   const isOled = themeMode === 'dark-oled';
   const isAurora = themeMode === 'dark-aurora';
+  const pageStyle = {
+    backgroundColor: themeBackground(themeMode),
+  } as React.CSSProperties;
 
   if (isWarm) {
     return {
       page: 'bg-[#f2ede1] text-[#272116]',
+      pageStyle,
       glow: 'bg-[radial-gradient(circle_at_50%_12%,rgba(245,158,11,0.18),transparent_38%),radial-gradient(circle_at_16%_80%,rgba(0,163,162,0.09),transparent_34%)]',
       grid: 'bg-[linear-gradient(rgba(93,79,50,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(93,79,50,0.045)_1px,transparent_1px)]',
       card: 'border-[#d8cdb2] bg-[#faf7ef]/86 shadow-[0_24px_70px_rgba(93,79,50,0.16)]',
       main: 'text-[#272116]',
+      mainStyle: { color: '#272116' } as React.CSSProperties,
       sub: 'text-[#746a58]',
       spinner: '#00A3A2',
     };
@@ -471,10 +502,12 @@ function themeShell() {
   if (isLight) {
     return {
       page: 'bg-slate-50 text-slate-950',
+      pageStyle,
       glow: 'bg-[radial-gradient(circle_at_50%_12%,rgba(0,163,162,0.14),transparent_38%),radial-gradient(circle_at_16%_80%,rgba(99,102,241,0.10),transparent_34%)]',
       grid: 'bg-[linear-gradient(rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.04)_1px,transparent_1px)]',
       card: 'border-slate-200 bg-white/86 shadow-[0_24px_70px_rgba(15,23,42,0.12)]',
       main: 'text-slate-950',
+      mainStyle: { color: '#020617' } as React.CSSProperties,
       sub: 'text-slate-500',
       spinner: '#00A3A2',
     };
@@ -482,12 +515,14 @@ function themeShell() {
 
   if (isOled) {
     return {
-      page: 'bg-black text-white',
-      glow: 'bg-[radial-gradient(circle_at_50%_12%,rgba(0,163,162,0.14),transparent_38%)]',
-      grid: 'bg-[linear-gradient(rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)]',
-      card: 'border-white/10 bg-[#050505]/86 shadow-[0_24px_70px_rgba(0,0,0,0.55)]',
+      page: 'bg-[#000000] text-white',
+      pageStyle,
+      glow: '',
+      grid: '',
+      card: 'border-white/10 bg-[#050505] shadow-[0_24px_70px_rgba(0,0,0,0.55)]',
       main: 'text-white',
-      sub: 'text-slate-500',
+      mainStyle: { color: '#ffffff' } as React.CSSProperties,
+      sub: 'text-slate-400',
       spinner: '#22d3ee',
     };
   }
@@ -495,10 +530,12 @@ function themeShell() {
   if (isAurora) {
     return {
       page: 'bg-[#06130f] text-white',
+      pageStyle,
       glow: 'bg-[radial-gradient(circle_at_44%_10%,rgba(16,185,129,0.22),transparent_34%),radial-gradient(circle_at_78%_72%,rgba(59,130,246,0.16),transparent_36%)]',
       grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
       card: 'border-emerald-300/10 bg-[#0b1b16]/82 shadow-[0_24px_70px_rgba(0,0,0,0.42)]',
       main: 'text-white',
+      mainStyle: { color: '#ffffff' } as React.CSSProperties,
       sub: 'text-emerald-100/55',
       spinner: '#34d399',
     };
@@ -506,28 +543,65 @@ function themeShell() {
 
   return {
     page: 'bg-[#111027] text-white',
+    pageStyle,
     glow: 'bg-[radial-gradient(circle_at_50%_15%,rgba(129,107,255,0.18),transparent_38%),radial-gradient(circle_at_18%_78%,rgba(0,163,162,0.08),transparent_34%)]',
     grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
     card: 'border-white/10 bg-[#17162f]/80 shadow-black/30',
     main: 'text-white',
+    mainStyle: { color: '#ffffff' } as React.CSSProperties,
     sub: 'text-slate-400',
     spinner: '#22d3ee',
   };
 }
 
 function LoadingScreen() {
-  const [theme] = useState(themeShell);
+  const [theme, setTheme] = useState(themeShell);
+
+  useEffect(() => {
+    const next = themeShell();
+    const mode = getStoredThemeMode();
+    const bg = themeBackground(mode);
+    document.documentElement.style.setProperty('--pks-initial-bg', bg);
+    document.documentElement.style.backgroundColor = bg;
+    document.body.style.backgroundColor = bg;
+    setTheme(next);
+  }, []);
 
   return (
-    <div className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
-      <div className={`absolute inset-0 ${theme.glow}`} />
-      <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />
+    <div className={`pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`} style={theme.pageStyle}>
+      {theme.glow && <div className={`absolute inset-0 ${theme.glow}`} />}
+      {theme.grid && <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />}
       <div className="relative z-10 flex flex-col items-center gap-5">
-        <div
-          className="h-14 w-14 rounded-full border-4 animate-spin"
-          style={{ borderColor: `${theme.spinner}35`, borderTopColor: theme.spinner }}
-        />
-        <p className={`text-base font-black tracking-tight ${theme.main}`}>Ładowanie</p>
+        <svg className="h-16 w-16" viewBox="0 0 64 64" aria-hidden="true">
+          <circle
+            cx="32"
+            cy="32"
+            r="26"
+            fill="none"
+            stroke={`${theme.spinner}35`}
+            strokeWidth="5"
+          />
+          <circle
+            cx="32"
+            cy="32"
+            r="26"
+            fill="none"
+            stroke={theme.spinner}
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeDasharray="72 164"
+          >
+            <animateTransform
+              attributeName="transform"
+              type="rotate"
+              from="0 32 32"
+              to="360 32 32"
+              dur="0.9s"
+              repeatCount="indefinite"
+            />
+          </circle>
+        </svg>
+        <p className={`text-base font-black tracking-tight ${theme.main}`} style={theme.mainStyle}>Ładowanie</p>
       </div>
     </div>
   );
@@ -538,8 +612,8 @@ function ConnectionTimeoutScreen() {
 
   return (
     <div className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
-      <div className={`absolute inset-0 ${theme.glow}`} />
-      <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />
+      {theme.glow && <div className={`absolute inset-0 ${theme.glow}`} />}
+      {theme.grid && <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />}
       <div className={`relative z-10 w-full max-w-md rounded-3xl border ${theme.card} p-8 text-center shadow-2xl backdrop-blur-2xl`}>
         <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-red-400/20 bg-red-500/12 text-red-400 shadow-[0_0_45px_rgba(248,113,113,0.18)]">
           <ClockAlert size={38} strokeWidth={2.4} />

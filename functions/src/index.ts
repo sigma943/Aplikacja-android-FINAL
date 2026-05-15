@@ -527,13 +527,28 @@ export const blockDevice = onCall(async (request) => {
   if (caller.role !== 'owner' && target.role !== 'user') {
     throw new HttpsError('permission-denied', 'Only owner can ban owners and admins.');
   }
-  if (target.status === 'banned') {
-    return { ok: true, alreadyBanned: true };
-  }
   const targetLabel = targetLabelForAudit(targetDeviceId, target);
   const installationId = normalizeInstallationId(target.installationId);
   const gifUrl = typeof request.data?.gifUrl === 'string' ? request.data.gifUrl.trim().slice(0, 500) : '';
   const silent = request.data?.silent === true;
+
+  if (target.status === 'banned') {
+    if (installationId) {
+      await blockedInstallationRef(installationId).set(
+        {
+          active: true,
+          reason,
+          expiresAt,
+          gifUrl,
+          silent,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: uid,
+        },
+        { merge: true },
+      );
+    }
+    return { ok: true, alreadyBanned: true };
+  }
 
   await targetRef.set(
     {
@@ -557,6 +572,7 @@ export const blockDevice = onCall(async (request) => {
         active: true,
         reason,
         expiresAt,
+        gifUrl,
         silent,
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: uid,

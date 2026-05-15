@@ -215,8 +215,27 @@ export function DeviceTable({
           <Pencil size={14} />
         </button>
       )}
-      <div className={cn('truncate text-white transition-colors group-hover:text-emerald-400 font-bold', compact ? 'text-base leading-none' : 'text-sm')}>
-        {device.name}
+      <div className="flex min-w-0 items-center gap-2">
+        <div className={cn('min-w-0 truncate text-white transition-colors group-hover:text-emerald-400 font-bold', compact ? 'text-base leading-none' : 'text-sm')}>
+          {device.name}
+        </div>
+        {canRenameModels && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openRename(device);
+            }}
+            title="Zmień nazwę modelu"
+            aria-label="Zmień nazwę modelu"
+            className={cn(
+              'flex shrink-0 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400 active:scale-95',
+              compact ? 'h-7 w-7' : 'h-6 w-6',
+            )}
+          >
+            <Pencil size={compact ? 13 : 12} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -383,7 +402,6 @@ export function DeviceTable({
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
                 <div className="flex items-center justify-between relative z-10 gap-3">
                   <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <RenameButton device={device} compact />
                     <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center shrink-0 shadow-lg group-hover:scale-105 transition-transform">{getIcon(device.iconType)}</div>
                     <div className="min-w-0 flex-1">
                       <DeviceName device={device} compact />
@@ -461,7 +479,6 @@ export function DeviceTable({
                       <td className="px-6 py-4 min-w-[200px]">
                         <div className="flex items-center gap-4 min-w-0">
                           <div className="flex shrink-0 items-center gap-2">
-                            <RenameButton device={device} />
                             <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center">{getIcon(device.iconType)}</div>
                           </div>
                           <div className="min-w-0">

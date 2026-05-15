@@ -95,8 +95,17 @@ export default function Home() {
   // Customization States
   const [themeColor, setThemeColor] = useState('#00A3A2');
   const [showInactive, setShowInactive] = useState(false);
-  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'>('system');
-  const [systemIsDark, setSystemIsDark] = useState<boolean>(false);
+  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'>(() => {
+    if (typeof window === 'undefined') return 'system';
+    const raw = (localStorage.getItem('mks_app_theme') || 'system').trim().toLowerCase();
+    if (raw === 'amoled' || raw === 'oled' || raw === 'dark_oled' || raw === 'darkoled') return 'dark-oled';
+    if (raw === 'light' || raw === 'light-warm' || raw === 'dark' || raw === 'dark-oled' || raw === 'dark-aurora') return raw;
+    return 'system';
+  });
+  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  });
   const [transparentUI, setTransparentUI] = useState(true);
 
   // Stops States
@@ -313,7 +322,7 @@ export default function Home() {
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
     const sAppTheme = localStorage.getItem('mks_app_theme') as any;
-    if (sAppTheme) setTimeout(() => setAppTheme(sAppTheme), 0);
+    if (sAppTheme) setAppTheme(sAppTheme);
     const sTrans = localStorage.getItem('mks_transparent');
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
     const favs = localStorage.getItem('mks_fav_stops');
@@ -321,7 +330,7 @@ export default function Home() {
     
     // Check system preference
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    setTimeout(() => setSystemIsDark(mediaQuery.matches), 0);
+    setSystemIsDark(mediaQuery.matches);
     
     const handler = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
     mediaQuery.addEventListener('change', handler);
@@ -331,7 +340,24 @@ export default function Home() {
 
   const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex); };
   const saveInactive = (val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); };
-  const saveAppTheme = (val: any) => { setAppTheme(val); localStorage.setItem('mks_app_theme', val); };
+  const saveAppTheme = (val: any) => {
+    setAppTheme(val);
+    localStorage.setItem('mks_app_theme', val);
+    const actual = val === 'system' ? (systemIsDark ? 'dark' : 'light') : val;
+    const bg =
+      actual === 'light'
+        ? '#f8fafc'
+        : actual === 'light-warm'
+          ? '#f2ede1'
+          : actual === 'dark-oled'
+            ? '#000000'
+            : actual === 'dark-aurora'
+              ? '#06130f'
+              : '#111027';
+    document.documentElement.style.setProperty('--pks-initial-bg', bg);
+    document.documentElement.style.backgroundColor = bg;
+    document.body.style.backgroundColor = bg;
+  };
   const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val)); };
 
   const deferredFilterRoute = useDeferredValue(filterRoute);
@@ -678,7 +704,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div className={`fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col transition-colors duration-500 ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
+    <div className={`fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -961,13 +987,13 @@ export default function Home() {
                               <Navigation className="w-3 h-3 md:w-3.5 md:h-3.5" /> Prędkość
                            </div>
                            <span className={`text-base md:text-lg font-medium tracking-tight ${textMain}`}>
-                              {selectedBus.status === 'break'
-                                ? <span className="text-amber-500">Przerwa</span>
-                                : selectedBus.status === 'cached'
-                                  ? <span className="text-slate-500">Ostatnia pozycja</span>
-                                  : selectedBus.speed === 0 || !selectedBus.speed
-                                    ? '0 km/h'
-                                    : `${Math.round(selectedBus.speed)} km/h`}
+                              {selectedBus.status === 'break' ||
+                              selectedBus.statusText?.toLowerCase().includes('postoj') ||
+                              selectedBus.statusText?.toLowerCase().includes('przerwa') ||
+                              selectedBus.speed === 0 ||
+                              !selectedBus.speed
+                                ? '0 km/h'
+                                : `${Math.round(selectedBus.speed)} km/h`}
                            </span>
                         </div>
                         

@@ -132,7 +132,7 @@ export function Sidebar({
               <button
                 onClick={onEditProfile}
                 title="Zmień wyświetlaną nazwę"
-                className="shrink-0 ml-2 p-1.5 rounded-xl text-slate-500 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                className="order-first mr-2 shrink-0 rounded-xl p-1.5 text-slate-500 transition-all hover:bg-white/10 hover:text-white lg:order-none lg:ml-2 lg:mr-0 cursor-pointer"
               >
                 <Pencil size={14} />
               </button>

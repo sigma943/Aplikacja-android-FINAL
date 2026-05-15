@@ -11,7 +11,6 @@ let shapePointsPromise: Promise<Record<string, ShapePoint[]>> | null = null;
 const isNative = () => Capacitor.isNativePlatform();
 const EINFO_DIRECT = 'http://einfo.zgpks.rzeszow.pl/api';
 
-/** Browser requests use the Firebase proxy first; native Android can call einfo directly. */
 function einfoFallbackUrl(pathAndOptionalQuery: string) {
   const trimmed = pathAndOptionalQuery.replace(/^\//, '');
   return `${EINFO_DIRECT}/${trimmed}`;
@@ -53,21 +52,7 @@ async function requestJson<T>(url: string, init?: RequestInit & {headers?: Recor
 }
 
 async function requestEinfoJson<T>(pathAndOptionalQuery: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
-  if (isNative()) {
-    return requestJson<T>(einfoFallbackUrl(pathAndOptionalQuery), init);
-  }
-
-  try {
-    const trimmed = pathAndOptionalQuery.replace(/^\//, '');
-    const [path, query = ''] = trimmed.split('?');
-    const { functions } = await import('@/lib/firebase');
-    const { httpsCallable } = await import('firebase/functions');
-    const call = httpsCallable<{ path: string; query?: string }, { ok: boolean; data: unknown }>(functions, 'einfoProxyGet');
-    const resp = await call({ path, query: query ? `?${query}` : '' });
-    return resp.data.data as T;
-  } catch {
-    return requestJson<T>(einfoFallbackUrl(pathAndOptionalQuery), init);
-  }
+  return requestJson<T>(einfoFallbackUrl(pathAndOptionalQuery), init);
 }
 
 async function loadStopsDictionary() {

@@ -1,5 +1,25 @@
 @import "tailwindcss";
 
+:root {
+  --pks-initial-bg: #000000;
+  background: var(--pks-initial-bg);
+}
+
+html,
+body {
+  min-height: 100%;
+  background: var(--pks-initial-bg);
+}
+
+.pks-loading-screen {
+  background: var(--pks-initial-bg) !important;
+  color: var(--pks-loading-text, #ffffff) !important;
+}
+
+.pks-loading-screen * {
+  color: inherit;
+}
+
 /* Leaflet overrides for Geometric Balance theme */
 .leaflet-popup-content-wrapper {
   padding: 0 !important;
