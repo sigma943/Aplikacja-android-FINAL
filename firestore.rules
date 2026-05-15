@@ -316,6 +316,18 @@ service cloud.firestore {
           )
         ) ||
 
+        // Owner-only verification toggle for normal devices.
+        (
+          request.auth.uid != deviceId &&
+          isCallerOwner() &&
+          existing().role == 'user' &&
+          incoming().role == existing().role &&
+          incoming().status == existing().status &&
+          incoming().permissions == existing().permissions &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['verified']) &&
+          incoming().verified is bool
+        ) ||
+
         // Role / permissions / displayName edits for others.
         (
           request.auth.uid != deviceId &&

@@ -67,7 +67,7 @@ type AdminLogRaw = {
 function lastSeenInfoFromMs(ms: number | null | undefined, nowMs = Date.now()): { label: string; online: boolean } {
   if (!ms || Number.isNaN(ms)) return { label: 'Brak sygnału', online: false };
   const diff = Math.max(0, nowMs - ms);
-  if (diff <= 60_000) return { label: 'teraz', online: true };
+  if (diff <= 150_000) return { label: 'teraz', online: true };
   if (diff < 3600_000) return { label: `${Math.max(1, Math.floor(diff / 60_000))} min temu`, online: false };
   const hours = Math.max(1, Math.floor(diff / 3600_000));
   return { label: `${hours} godz. temu`, online: false };
@@ -688,6 +688,15 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     await commitIfNeeded(true);
   };
 
+  useEffect(() => {
+    if (!globalSettings.autoBan) return;
+    if (currentDevice.role !== 'owner' && !globalSettingsCanSave) return;
+    enforceAutoBanForUnverifiedDevices().catch((err) => {
+      console.error('Auto-ban enforcement failed', err);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalSettings.autoBan, devicesData.length]);
+
   const saveDeviceModelAlias = async (device: Device, label: string) => {
     if (currentDevice.role !== 'owner') {
       throw new Error('Tylko właściciel może zmieniać nazwy urządzeń.');
@@ -744,6 +753,38 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     const trimmedDisplay = (displayName ?? '').trim().slice(0, 120);
 
     try {
+      const onlyVerificationChanged =
+        currentDevice.role === 'owner' &&
+        targetRow?.role === 'user' &&
+        targetRow.role === fbRole &&
+        Boolean(targetRow.verified) !== Boolean(verifiedFromForm) &&
+        JSON.stringify(effectiveAdminPermissionsForDisplay(targetRow.role, targetRow.permissions)) ===
+          JSON.stringify(effectiveAdminPermissionsForDisplay(fbRole, permissions)) &&
+        (trimmedDisplay || '') === String(targetRow.displayName || '');
+
+      if (onlyVerificationChanged) {
+        const verified = verifiedFromForm === true;
+        await updateDoc(doc(db, 'devices', selectedDeviceForRole.id), { verified });
+        await syncInstallationProfile(
+          targetRow.installationId,
+          targetRow.role,
+          buildDevicePermissions(targetRow.role, targetRow.permissions),
+          targetRow.displayName,
+          {
+            status: targetRow.status || 'active',
+            verified,
+            banDetails: targetRow.banDetails,
+          },
+        );
+        addToast(
+          verified ? 'Urządzenie zweryfikowane' : 'Wyłączono weryfikację',
+          `${selectedDeviceForRole.name}.`,
+          'role_change',
+        );
+        setSelectedDeviceForRole(null);
+        return;
+      }
+
       const normalized = normalizeAdminPermissions(permissions, fbRole);
       if (fbRole === 'owner' || fbRole === 'admin') normalized.monitor = true;
       const verified = fbRole === 'owner' || fbRole === 'admin' || verifiedFromForm === true;

@@ -467,7 +467,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     };
 
     ping();
-    const interval = window.setInterval(ping, 120_000);
+    const interval = window.setInterval(ping, 30_000);
     const onVis = () => {
       if (document.visibilityState === 'visible') ping();
     };
