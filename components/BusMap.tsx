@@ -23,6 +23,40 @@ function MapStateTracker({ onInteraction }: { onInteraction: (active: boolean) =
   return null;
 }
 
+function buildLocalRoutePreview(stopIds: number[], stopsData?: Record<string, StopData> | null) {
+  if (!stopsData || stopIds.length < 2) return [];
+  const coords = stopIds
+    .map((id) => stopsData[String(id)])
+    .filter((stop): stop is StopData => Boolean(stop) && Number.isFinite(stop.lat) && Number.isFinite(stop.lon))
+    .map((stop) => [stop.lat, stop.lon] as [number, number]);
+  if (coords.length < 2) return [];
+
+  const points: [number, number][] = [];
+  for (let i = 0; i < coords.length - 1; i++) {
+    const [lat1, lon1] = coords[i];
+    const [lat2, lon2] = coords[i + 1];
+    const dLat = lat2 - lat1;
+    const dLon = lon2 - lon1;
+    const length = Math.hypot(dLat, dLon) || 1;
+    const steps = Math.max(6, Math.min(22, Math.ceil(length / 0.002)));
+    const wiggle = Math.min(0.00032, Math.max(0.00008, length * 0.035));
+
+    for (let step = 0; step < steps; step++) {
+      if (i > 0 && step === 0) continue;
+      const t = step / steps;
+      const ease = t * t * (3 - 2 * t);
+      const curve = Math.sin(Math.PI * t) * wiggle * (i % 2 === 0 ? 1 : -1);
+      points.push([
+        lat1 + dLat * ease + (dLon / length) * curve,
+        lon1 + dLon * ease - (dLat / length) * curve,
+      ]);
+    }
+  }
+
+  points.push(coords[coords.length - 1]);
+  return points;
+}
+
 const formatDelay = (delaySec: number | undefined) => {
   if (delaySec === undefined) return null;
   if (Math.abs(delaySec) > 18000) return null; // Ignore absurd delays > 5 hours
@@ -283,7 +317,8 @@ export default function BusMap({
     }
 
     lastFetchedRouteKeyRef.current = routeKey;
-    setSnappedRoute([]);
+    const previewRoute = buildLocalRoutePreview(routeStopIds, stopsData);
+    setSnappedRoute(previewRoute);
 
     const tripId = String(selectedVehicle.tripId || '').trim();
     let cancelled = false;
@@ -294,11 +329,11 @@ export default function BusMap({
           setSnappedRoute(points);
           return;
         }
-        setSnappedRoute([]);
+        setSnappedRoute(previewRoute);
       })
       .catch(() => {
         if (cancelled || lastFetchedRouteKeyRef.current !== routeKey) return;
-        setSnappedRoute([]);
+        setSnappedRoute(previewRoute);
       });
 
     return () => {

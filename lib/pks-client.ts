@@ -214,6 +214,39 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
   return routePromise;
 }
 
+function buildSmoothFallbackRoute(coords: ShapePoint[]) {
+  const cleanCoords = coords.filter(
+    ([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon),
+  );
+  if (cleanCoords.length < 2) return [];
+
+  const points: ShapePoint[] = [];
+  for (let i = 0; i < cleanCoords.length - 1; i++) {
+    const [lat1, lon1] = cleanCoords[i];
+    const [lat2, lon2] = cleanCoords[i + 1];
+    const steps = Math.max(
+      4,
+      Math.min(18, Math.ceil(Math.hypot(lat2 - lat1, lon2 - lon1) / 0.0025)),
+    );
+
+    for (let step = 0; step < steps; step++) {
+      if (i > 0 && step === 0) continue;
+      const t = step / steps;
+      const curve = Math.sin(Math.PI * t) * 0.00018;
+      const dLat = lat2 - lat1;
+      const dLon = lon2 - lon1;
+      const length = Math.hypot(dLat, dLon) || 1;
+      points.push([
+        lat1 + dLat * t + (dLon / length) * curve,
+        lon1 + dLon * t - (dLat / length) * curve,
+      ]);
+    }
+  }
+
+  points.push(cleanCoords[cleanCoords.length - 1]);
+  return points;
+}
+
 function toTitleCase(str: string) {
   if (!str) return '';
   return str
@@ -612,6 +645,9 @@ export async function fetchRouteShapeClient(tripId: string, fallbackStops: numbe
       const points = shapeId ? await loadShapePoints(shapeId) : [];
       if (points.length > 1) return points;
     } catch {}
+
+    const fallbackRoute = buildSmoothFallbackRoute(stopCoords);
+    if (fallbackRoute.length > 1) return fallbackRoute;
   }
   return [];
 }

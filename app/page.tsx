@@ -86,6 +86,7 @@ export default function Home() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [appLoadTimedOut, setAppLoadTimedOut] = useState(false);
   const [filterRoute, setFilterRoute] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [selectedBus, setSelectedBus] = useState<Vehicle | null>(null);
@@ -132,6 +133,16 @@ export default function Home() {
   const [favsState, setFavsState] = useState<string[]>([]);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [departuresLineFilter, setDeparturesLineFilter] = useState('');
+
+  useEffect(() => {
+    if (!isLoading) {
+      setAppLoadTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setAppLoadTimedOut(true), 30_000);
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
 
   const closeMapPanelsForSearch = useCallback(() => {
     if (selectedBus || selectedStopId) {
@@ -242,8 +253,6 @@ export default function Home() {
         let stopInfo: any = null;
         let minDiff = Infinity;
         let sameLineCandidates = 0;
-        const routeCandidates: any[] = [];
-        const selectedStopKey = String(selectedStopId);
         const normalizeDirection = (value: unknown) =>
           String(value || '')
             .trim()
@@ -254,12 +263,10 @@ export default function Home() {
         vehicles.forEach(v => {
             if (normLine(v.routeShortName) === journeyLineNorm) {
                 sameLineCandidates += 1;
-                const routeHasStop = (v.routePath || []).some((id: any) => String(id) === selectedStopKey);
-                if (routeHasStop) routeCandidates.push(v);
                 const s = v.schedule?.find((x: any) => String(x.id) === String(selectedStopId));
                 if (s && s.planned) {
                     const diff = Math.abs(new Date(s.planned).getTime() - journeyPlannedMs);
-                    if (diff < 1800000 && diff < minDiff) {
+                    if (diff < 600000 && diff < minDiff) {
                         minDiff = diff;
                         liveMatch = v;
                         stopInfo = s;
@@ -271,8 +278,6 @@ export default function Home() {
         if (!liveMatch) {
             vehicles.forEach(v => {
                 if (normLine(v.routeShortName) !== journeyLineNorm) return;
-                const routeHasStop = (v.routePath || []).some((id: any) => String(id) === selectedStopKey);
-                if (!routeHasStop) return;
                 const delaySec = Number(v.delay);
                 if (!Number.isFinite(delaySec) || delaySec === 0 || Math.abs(delaySec) > 18000) return;
                 if (v.status === 'break' || v.status === 'inactive') return;
@@ -285,20 +290,6 @@ export default function Home() {
                   liveMatch = v;
                 }
             });
-        }
-
-        if (!liveMatch && routeCandidates.length === 1) {
-            const candidate = routeCandidates[0];
-            const delaySec = Number(candidate.delay);
-            if (
-              candidate.status !== 'break' &&
-              candidate.status !== 'inactive' &&
-              Number.isFinite(delaySec) &&
-              delaySec !== 0 &&
-              Math.abs(delaySec) <= 18000
-            ) {
-              liveMatch = candidate;
-            }
         }
 
         if (liveMatch) {
@@ -917,6 +908,35 @@ export default function Home() {
         .theme-warm .bg-slate-800\\/50:not(.mks-bus-marker *) { background-color: rgba(218,212,182,0.5) !important; }
         .theme-warm .bg-slate-800\\/40:not(.mks-bus-marker *) { background-color: rgba(218,212,182,0.4) !important; }
       `}</style>
+      <AnimatePresence>
+        {appLoadTimedOut && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`fixed inset-0 z-[10000] flex items-center justify-center p-6 ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-950'}`}
+          >
+            <div className={`w-full max-w-md rounded-3xl border p-8 text-center shadow-2xl ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/12 text-rose-500">
+                <CloudOff size={38} strokeWidth={2.4} />
+              </div>
+              <h1 className="text-2xl font-black tracking-tight">Przekroczono czas połączenia</h1>
+              <p className={`mx-auto mt-4 max-w-xs text-sm leading-6 ${textSub}`}>
+                Aplikacja ładuje dane zbyt długo. Sprawdź internet albo spróbuj ponownie.
+              </p>
+              <p className="mt-5 font-mono text-base font-bold text-rose-500">Interval Time Error</p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mx-auto mt-7 inline-flex h-12 min-w-56 items-center justify-center gap-3 rounded-2xl bg-emerald-500 px-6 text-sm font-black text-white shadow-lg transition-all active:scale-95"
+              >
+                <RefreshCw size={20} />
+                Załaduj ponownie
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Main Content Area */}
       <div className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
          
@@ -1188,11 +1208,20 @@ export default function Home() {
                           <div className="flex flex-col gap-0 relative">
                              <div className={`absolute left-[9px] top-4 bottom-4 w-0.5 ${mapDetailLine}`}></div>
                              {selectedBus.schedule.map((sch: any, idx: number) => {
-                                const realTimeRaw = sch.real ? new Date(sch.real) : null;
-                                const plannedTime = sch.planned ? new Date(sch.planned) : null;
-                                let delayMin = 0; if (realTimeRaw && plannedTime) { delayMin = Math.round((realTimeRaw.getTime() - plannedTime.getTime()) / 60000); }
-                                else if (plannedTime && selectedBus.delay) { delayMin = Math.round(selectedBus.delay / 60); }
-                                const realTime = realTimeRaw || (plannedTime && selectedBus.delay ? new Date(plannedTime.getTime() + (selectedBus.delay * 1000)) : realTimeRaw);
+                                const parsedRealTime = sch.real ? new Date(sch.real) : null;
+                                const realTimeRaw = parsedRealTime && !Number.isNaN(parsedRealTime.getTime()) ? parsedRealTime : null;
+                                const parsedPlannedTime = sch.planned ? new Date(sch.planned) : null;
+                                const plannedTime = parsedPlannedTime && !Number.isNaN(parsedPlannedTime.getTime()) ? parsedPlannedTime : null;
+                                const busDelaySec = Number(selectedBus.delay);
+                                const canUseBusDelay =
+                                   selectedBus.status !== 'break' &&
+                                   selectedBus.status !== 'inactive' &&
+                                   Number.isFinite(busDelaySec) &&
+                                   Math.abs(busDelaySec) <= 18000;
+                                const realTime = realTimeRaw || (plannedTime && canUseBusDelay && busDelaySec !== 0 ? new Date(plannedTime.getTime() + (busDelaySec * 1000)) : null);
+                                const displayTime = realTime || plannedTime;
+                                let delayMin = 0;
+                                if (realTime && plannedTime) delayMin = Math.round((realTime.getTime() - plannedTime.getTime()) / 60000);
                                 const formatTime = (time: Date) => {
                                    const isTomorrow = time.getDate() !== new Date().getDate();
                                    const mm = time.getMinutes().toString().padStart(2, '0');
@@ -1204,8 +1233,7 @@ export default function Home() {
                                    }
                                    return `${hh}:${mm}`;
                                 };
-                                const timeStr = realTime ? formatTime(realTime) : '--:--';
-                                const plannedStr = plannedTime ? formatTime(plannedTime) : null;
+                                const timeStr = displayTime ? formatTime(displayTime) : '--:--';
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = selectedBus.lastStopId && sch.id === selectedBus.lastStopId;
                                 return (
@@ -1218,9 +1246,7 @@ export default function Home() {
                                      <div className={`flex flex-col flex-1 pb-2 border-b ${mapDetailDivider} ${isHighlighted ? 'border-transparent' : ''}`}>
                                         <span className={`text-[13px] font-semibold leading-tight pr-2 ${textMain}`}>{formatScheduleStopName(sch.name)}</span>
                                         <div className="flex items-center gap-2 mt-1">
-                                           <span className={`text-xs font-bold font-mono ${delayMin > 0 ? 'text-rose-500' : delayMin < 0 ? 'text-emerald-500' : textMain}`}>{timeStr}</span>
-                                           {/* removed plannedStr */}
-                                           {/* removed delay pill */}
+                                           <span className={`text-xs font-bold font-mono ${delayMin > 0 ? 'text-rose-500' : textMain}`}>{timeStr}</span>
                                         </div>
                                      </div>
                                   </div>

@@ -587,7 +587,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       {shouldShowInitialOffline ? (
         <ConnectionTimeoutScreen />
       ) : connectionTimedOut ? (
-        <ConnectionTimeoutScreen />
+        <ConnectionTimeoutScreen timeout />
       ) : shouldHoldInitialRender ? (
         <LoadingScreen />
       ) : isBanned && device ? (
@@ -769,7 +769,7 @@ function LoadingScreen() {
   );
 }
 
-function ConnectionTimeoutScreen() {
+function ConnectionTimeoutScreen({ timeout = false }: { timeout?: boolean }) {
   const [theme] = useState(themeShell);
 
   return (
@@ -780,13 +780,17 @@ function ConnectionTimeoutScreen() {
         <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-red-400/20 bg-red-500/12 text-red-400 shadow-[0_0_45px_rgba(248,113,113,0.18)]">
           <CloudOff size={38} strokeWidth={2.4} />
         </div>
-        <h1 className={`text-2xl font-black tracking-tight ${theme.main}`}>Brak połączenia z internetem</h1>
+        <h1 className={`text-2xl font-black tracking-tight ${theme.main}`}>
+          {timeout ? 'Przekroczono czas połączenia' : 'Brak połączenia z internetem'}
+        </h1>
         <p className={`mx-auto mt-5 max-w-xs text-sm leading-6 ${theme.sub}`}>
-          Aplikacja nie może wystartować bez internetu.
+          {timeout ? 'Aplikacja ładuje się zbyt długo.' : 'Aplikacja nie może wystartować bez internetu.'}
           <br />
           Szczegóły błędu:
         </p>
-        <p className="mt-5 font-mono text-base font-bold text-red-400">Network Connection Error</p>
+        <p className="mt-5 font-mono text-base font-bold text-red-400">
+          {timeout ? 'Interval Time Error' : 'Network Connection Error'}
+        </p>
         <div className="my-7 h-px w-full bg-white/10" />
         <button
           type="button"
