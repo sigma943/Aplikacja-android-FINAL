@@ -475,14 +475,25 @@ function themeBackground(themeMode: string) {
   return '#111027';
 }
 
+function themeTextColor(themeMode: string) {
+  if (themeMode === 'light') return '#020617';
+  if (themeMode === 'light-warm') return '#272116';
+  return '#ffffff';
+}
+
 function themeShell() {
   const themeMode = getStoredThemeMode();
   const isWarm = themeMode === 'light-warm';
   const isLight = themeMode === 'light' || isWarm;
   const isOled = themeMode === 'dark-oled';
   const isAurora = themeMode === 'dark-aurora';
+  const mainStyle = {
+    color: themeTextColor(themeMode),
+  } as React.CSSProperties;
   const pageStyle = {
     backgroundColor: themeBackground(themeMode),
+    color: themeTextColor(themeMode),
+    ['--pks-loading-text' as string]: themeTextColor(themeMode),
   } as React.CSSProperties;
 
   if (isWarm) {
@@ -493,7 +504,7 @@ function themeShell() {
       grid: 'bg-[linear-gradient(rgba(93,79,50,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(93,79,50,0.045)_1px,transparent_1px)]',
       card: 'border-[#d8cdb2] bg-[#faf7ef]/86 shadow-[0_24px_70px_rgba(93,79,50,0.16)]',
       main: 'text-[#272116]',
-      mainStyle: { color: '#272116' } as React.CSSProperties,
+      mainStyle,
       sub: 'text-[#746a58]',
       spinner: '#00A3A2',
     };
@@ -507,7 +518,7 @@ function themeShell() {
       grid: 'bg-[linear-gradient(rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.04)_1px,transparent_1px)]',
       card: 'border-slate-200 bg-white/86 shadow-[0_24px_70px_rgba(15,23,42,0.12)]',
       main: 'text-slate-950',
-      mainStyle: { color: '#020617' } as React.CSSProperties,
+      mainStyle,
       sub: 'text-slate-500',
       spinner: '#00A3A2',
     };
@@ -521,7 +532,7 @@ function themeShell() {
       grid: '',
       card: 'border-white/10 bg-[#050505] shadow-[0_24px_70px_rgba(0,0,0,0.55)]',
       main: 'text-white',
-      mainStyle: { color: '#ffffff' } as React.CSSProperties,
+      mainStyle,
       sub: 'text-slate-400',
       spinner: '#22d3ee',
     };
@@ -535,7 +546,7 @@ function themeShell() {
       grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
       card: 'border-emerald-300/10 bg-[#0b1b16]/82 shadow-[0_24px_70px_rgba(0,0,0,0.42)]',
       main: 'text-white',
-      mainStyle: { color: '#ffffff' } as React.CSSProperties,
+      mainStyle,
       sub: 'text-emerald-100/55',
       spinner: '#34d399',
     };
@@ -548,7 +559,7 @@ function themeShell() {
     grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
     card: 'border-white/10 bg-[#17162f]/80 shadow-black/30',
     main: 'text-white',
-    mainStyle: { color: '#ffffff' } as React.CSSProperties,
+    mainStyle,
     sub: 'text-slate-400',
     spinner: '#22d3ee',
   };
@@ -561,9 +572,13 @@ function LoadingScreen() {
     const next = themeShell();
     const mode = getStoredThemeMode();
     const bg = themeBackground(mode);
+    const text = themeTextColor(mode);
     document.documentElement.style.setProperty('--pks-initial-bg', bg);
+    document.documentElement.style.setProperty('--pks-loading-text', text);
     document.documentElement.style.backgroundColor = bg;
+    document.documentElement.style.color = text;
     document.body.style.backgroundColor = bg;
+    document.body.style.color = text;
     setTheme(next);
   }, []);
 
