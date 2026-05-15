@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
+import { Capacitor } from '@capacitor/core';
 import { Bus, Search, RefreshCw, AlertCircle, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, ChevronRight, Eye, Palette, ArrowLeft, Star, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
@@ -465,24 +466,62 @@ export default function Home() {
   }, [refreshInterval, showInactive, isOffline]);
 
   useEffect(() => {
-    if (typeof navigator !== 'undefined') {
-      setTimeout(() => setIsOffline(!navigator.onLine), 0);
+    let cancelled = false;
+    let nativeListenerPromise: Promise<{ remove: () => Promise<void> }> | null = null;
+
+    const readOfflineState = async () => {
+      let offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Network } = await import('@capacitor/network');
+          const status = await Network.getStatus();
+          offline = !status.connected;
+        } catch (err) {
+          console.warn('Native network status unavailable', err);
+        }
+      }
+
+      return offline;
+    };
+
+    const applyOnlineState = async () => {
+      const offline = await readOfflineState();
+      if (!cancelled) setIsOffline(offline);
+      return offline;
+    };
+
+    applyOnlineState();
+
+    if (Capacitor.isNativePlatform()) {
+      nativeListenerPromise = import('@capacitor/network').then(({ Network }) =>
+        Network.addListener('networkStatusChange', (status) => {
+          setIsOffline(!status.connected);
+          if (status.connected) fetchVehicles(showInactive, true);
+        }),
+      );
     }
-    const handleOffline = () => setIsOffline(true);
+
+    const handleOffline = () => {
+      setIsOffline(true);
+      applyOnlineState();
+    };
     const handleOnline = () => {
       setIsOffline(false);
       fetchVehicles(showInactive, true);
+      applyOnlineState().then((offline) => {
+        if (!offline) fetchVehicles(showInactive, true);
+      });
     };
-    const syncOnlineState = () => {
-      if (typeof navigator !== 'undefined') {
-        const online = navigator.onLine;
-        setIsOffline((wasOffline) => {
-          if (wasOffline && online) {
-            fetchVehicles(showInactive, true);
-          }
-          return !online;
-        });
-      }
+    const syncOnlineState = async () => {
+      const offline = await readOfflineState();
+      if (cancelled) return;
+      setIsOffline((wasOffline) => {
+        if (wasOffline && !offline) {
+          fetchVehicles(showInactive, true);
+        }
+        return offline;
+      });
     };
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
@@ -490,6 +529,8 @@ export default function Home() {
     document.addEventListener('visibilitychange', syncOnlineState);
     const onlineStateTimer = window.setInterval(syncOnlineState, 2500);
     return () => {
+      cancelled = true;
+      nativeListenerPromise?.then((listener) => listener.remove()).catch(() => {});
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('focus', syncOnlineState);

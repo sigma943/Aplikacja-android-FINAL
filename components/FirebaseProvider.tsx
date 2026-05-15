@@ -119,6 +119,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const [browserOffline, setBrowserOffline] = useState(false);
+  const [networkStatusReady, setNetworkStatusReady] = useState(
+    () => typeof window === 'undefined' || !Capacitor.isNativePlatform(),
+  );
   const [initialRenderReleased, setInitialRenderReleased] = useState(false);
   const [checkingMaintenance, setCheckingMaintenance] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -126,17 +129,46 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [localLastSeenMs, setLocalLastSeenMs] = useState<number | null>(null);
 
   useEffect(() => {
-    const syncOnlineState = () => {
-      if (typeof navigator !== 'undefined') {
-        setBrowserOffline(!navigator.onLine);
+    let cancelled = false;
+    let nativeListenerPromise: Promise<{ remove: () => Promise<void> }> | null = null;
+
+    const syncOnlineState = async () => {
+      let isOffline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Network } = await import('@capacitor/network');
+          const status = await Network.getStatus();
+          isOffline = !status.connected;
+        } catch (err) {
+          console.warn('Native network status unavailable', err);
+        }
+      }
+
+      if (!cancelled) {
+        setBrowserOffline(isOffline);
+        setNetworkStatusReady(true);
       }
     };
+
     syncOnlineState();
+
+    if (Capacitor.isNativePlatform()) {
+      nativeListenerPromise = import('@capacitor/network').then(({ Network }) =>
+        Network.addListener('networkStatusChange', (status) => {
+          setBrowserOffline(!status.connected);
+          setNetworkStatusReady(true);
+        }),
+      );
+    }
+
     window.addEventListener('online', syncOnlineState);
     window.addEventListener('offline', syncOnlineState);
     window.addEventListener('focus', syncOnlineState);
     document.addEventListener('visibilitychange', syncOnlineState);
     return () => {
+      cancelled = true;
+      nativeListenerPromise?.then((listener) => listener.remove()).catch(() => {});
       window.removeEventListener('online', syncOnlineState);
       window.removeEventListener('offline', syncOnlineState);
       window.removeEventListener('focus', syncOnlineState);
@@ -439,8 +471,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const isBanned = device?.status === 'banned';
   const isPrivilegedDevice = device?.role === 'owner' || device?.role === 'admin';
   const shouldShowMaintenance = (maintenanceMode || maintenanceLatched) && device?.role === 'user';
+  const shouldShowInitialOffline = !initialRenderReleased && networkStatusReady && browserOffline;
   const shouldHoldInitialRender =
-    !initialRenderReleased && (browserOffline || loading || (!isPrivilegedDevice && settingsLoading));
+    !initialRenderReleased && (!networkStatusReady || browserOffline || loading || (!isPrivilegedDevice && settingsLoading));
 
   useEffect(() => {
     if (!shouldHoldInitialRender && !initialRenderReleased) {
@@ -480,7 +513,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs }}>
-      {connectionTimedOut ? (
+      {shouldShowInitialOffline ? (
+        <ConnectionTimeoutScreen />
+      ) : connectionTimedOut ? (
         <ConnectionTimeoutScreen />
       ) : shouldHoldInitialRender ? (
         <LoadingScreen />
