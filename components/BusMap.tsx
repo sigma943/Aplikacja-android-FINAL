@@ -354,7 +354,7 @@ export default function BusMap({
         <ZoomControl position="bottomright" />
         <TileLayer
           attribution='Map tiles by Google'
-          url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" 
+          url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}"
           maxZoom={19}
         />
 

@@ -192,7 +192,15 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
     for (const chunk of chunks) {
       if (chunk.length < 2) continue;
       const points = await fetchOsrmRoute(chunk).catch(() => []);
-      if (points.length > 1) appendPoints(points);
+      if (points.length > 1) {
+        appendPoints(points);
+        continue;
+      }
+
+      for (let i = 0; i < chunk.length - 1; i++) {
+        const segment = await fetchOsrmRoute([chunk[i], chunk[i + 1]]).catch(() => []);
+        if (segment.length > 1) appendPoints(segment);
+      }
     }
 
     return merged.length > 1 ? merged : [];
