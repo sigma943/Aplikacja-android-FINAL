@@ -1,4 +1,4 @@
-import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown, Pencil, X } from 'lucide-react';
 import { Badge } from './Badge';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
@@ -16,6 +16,7 @@ interface DeviceTableProps {
   onOpenRolesModal: (device: any) => void;
   onNavigateToBanScreen: () => void;
   onMenuClick: () => void;
+  onRenameDevice?: (device: Device, label: string) => Promise<void>;
 }
 
 type SortKey = 'firstLogin' | 'lastSeen' | 'role' | 'status';
@@ -32,6 +33,7 @@ export function DeviceTable({
   onOpenRolesModal,
   onNavigateToBanScreen: _onNavigateToBanScreen,
   onMenuClick,
+  onRenameDevice,
 }: DeviceTableProps) {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('ALL');
@@ -39,6 +41,9 @@ export function DeviceTable({
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; dir: 'desc' | 'asc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [renameDevice, setRenameDevice] = useState<Device | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameSaving, setRenameSaving] = useState(false);
   const itemsPerPage = 5;
 
   const parseDateValue = (value?: string) => {
@@ -154,9 +159,135 @@ export function DeviceTable({
 
   const banTitle = (device: Device, isSelf: boolean) => (canBanTarget(device, isSelf) ? 'Zablokuj' : undefined);
   const manageTitle = (device: Device, isSelf: boolean) => (canManageTarget(device, isSelf) ? 'Opcje' : undefined);
+  const canRenameModels = Boolean(onRenameDevice && currentDeviceRole === 'owner');
+
+  const openRename = (device: Device) => {
+    if (!canRenameModels) return;
+    setRenameDevice(device);
+    setRenameValue(device.name.replace(/\s+-\s+[A-Za-z0-9_-]{4,}$/, '').trim());
+  };
+
+  const saveRename = async () => {
+    if (!renameDevice || !onRenameDevice || renameSaving) return;
+    setRenameSaving(true);
+    try {
+      await onRenameDevice(renameDevice, renameValue);
+      setRenameDevice(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRenameSaving(false);
+    }
+  };
+
+  const RenameButton = ({ device, compact = false }: { device: Device; compact?: boolean }) => {
+    if (!canRenameModels) return null;
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          openRename(device);
+        }}
+        title="Zmień nazwę modelu"
+        className={cn(
+          'flex shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white/80 text-slate-600 shadow-lg transition-all hover:border-emerald-400/30 hover:bg-emerald-500/10 hover:text-emerald-500 active:scale-95',
+          compact ? 'h-9 w-9' : 'h-8 w-8',
+        )}
+      >
+        <Pencil size={compact ? 15 : 14} />
+      </button>
+    );
+  };
+
+  const DeviceName = ({ device, compact = false }: { device: Device; compact?: boolean }) => (
+    <div className="min-w-0">
+      {false && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            openRename(device);
+          }}
+          title="Zmień nazwę modelu"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition-all hover:border-emerald-400/30 hover:bg-emerald-500/10 hover:text-emerald-300 active:scale-95"
+        >
+          <Pencil size={14} />
+        </button>
+      )}
+      <div className={cn('truncate text-white transition-colors group-hover:text-emerald-400 font-bold', compact ? 'text-base leading-none' : 'text-sm')}>
+        {device.name}
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-[calc(env(safe-area-inset-bottom)+4rem)]">
+      <AnimatePresence>
+        {renameDevice && (
+          <motion.div
+            className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/60 p-4 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] backdrop-blur-sm sm:pb-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => !renameSaving && setRenameDevice(null)}
+          >
+            <motion.div
+              initial={{ y: 28, opacity: 0, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 28, opacity: 0, scale: 0.98 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[calc(100dvh-8rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-[#111623] p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-6"
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-black tracking-tight text-white">Nazwa modelu</h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Zapisze alias dla kodu <span className="font-mono font-bold text-emerald-300">{renameDevice.modelCode || 'nieznany'}</span>, więc inne takie same telefony też dostaną tę nazwę.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={renameSaving}
+                  onClick={() => setRenameDevice(null)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveRename();
+                }}
+                maxLength={80}
+                autoFocus
+                placeholder="np. Xiaomi POCO F7"
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none transition-colors placeholder:text-slate-600 focus:border-emerald-400/40"
+              />
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  disabled={renameSaving}
+                  onClick={() => setRenameDevice(null)}
+                  className="h-12 flex-1 rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="button"
+                  disabled={renameSaving || !renameValue.trim()}
+                  onClick={saveRename}
+                  className="h-12 flex-1 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 text-sm font-black text-emerald-50 transition-all hover:bg-emerald-500/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {renameSaving ? 'Zapisywanie...' : 'Zapisz'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="flex flex-col gap-6 mb-8">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -252,9 +383,10 @@ export function DeviceTable({
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
                 <div className="flex items-center justify-between relative z-10 gap-3">
                   <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <RenameButton device={device} compact />
                     <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center shrink-0 shadow-lg group-hover:scale-105 transition-transform">{getIcon(device.iconType)}</div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate leading-none tracking-tight text-white text-base font-bold">{primaryLabel}</div>
+                      <DeviceName device={device} compact />
                       <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{device.os}</div>
                       <div className="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-600">Ostatnio online</div>
                       <div className={cn('text-[11px] font-medium break-words', device.lastSeenOnline ? 'text-emerald-400' : 'text-slate-400')}>{device.lastSeenLabel ?? '—'}</div>
@@ -328,9 +460,12 @@ export function DeviceTable({
                     <motion.tr key={device.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ delay: idx * 0.03 }} className="group hover:bg-white/[0.02] transition-colors">
                       <td className="px-6 py-4 min-w-[200px]">
                         <div className="flex items-center gap-4 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center shrink-0">{getIcon(device.iconType)}</div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <RenameButton device={device} />
+                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center">{getIcon(device.iconType)}</div>
+                          </div>
                           <div className="min-w-0">
-                            <div className="truncate text-white transition-colors group-hover:text-emerald-400 text-sm font-bold">{device.name}</div>
+                            <DeviceName device={device} />
                             <div className="mt-0.5 text-xs text-slate-500">{device.os}</div>
                           </div>
                         </div>

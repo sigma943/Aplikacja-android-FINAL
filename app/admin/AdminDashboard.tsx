@@ -49,6 +49,8 @@ import {
   formatWarsawDateTimeParts,
   initialsFromPersonName,
   warsawDateKey,
+  extractDeviceModelCode,
+  type DeviceModelAliases,
 } from '@/lib/format-device-label';
 import { agentLog } from '@/lib/debug-agent-log';
 
@@ -209,6 +211,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [adminLogRaws, setAdminLogRaws] = useState<AdminLogRaw[]>([]);
   const [logsError, setLogsError] = useState<string | null>(null);
+  const [modelAliases, setModelAliases] = useState<DeviceModelAliases>({});
   const [globalSettings, setGlobalSettings] = useState({
     loginEnabled: true,
     maintenanceMode: false,
@@ -277,6 +280,28 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       );
       // #endregion
     });
+
+    return () => unsub();
+  }, [currentDevice, loading]);
+
+  useEffect(() => {
+    if (loading || !currentDevice) return;
+    if (!canAccessAdminDashboard(currentDevice.role, currentDevice.permissions)) return;
+
+    const unsub = onSnapshot(
+      collection(db, 'device_model_aliases'),
+      (snap) => {
+        const next: DeviceModelAliases = {};
+        snap.docs.forEach((d) => {
+          const data = d.data() as { code?: string; label?: string };
+          const code = String(data.code || d.id || '').trim().toUpperCase();
+          const label = String(data.label || '').trim().slice(0, 80);
+          if (code && label) next[code] = label;
+        });
+        setModelAliases(next);
+      },
+      (err) => console.error('[device_model_aliases]', err),
+    );
 
     return () => unsub();
   }, [currentDevice, loading]);
@@ -392,8 +417,10 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
 
   const devices: Device[] = devicesData.map((d) => ({
     id: d.id,
-    name: formatDeviceTechnicalLabel(d.deviceInfo, d.id),
-    os: formatDeviceOsSummary(d.deviceInfo),
+    name: formatDeviceTechnicalLabel(d.deviceInfo, d.id, modelAliases),
+    deviceInfo: d.deviceInfo,
+    modelCode: extractDeviceModelCode(d.deviceInfo),
+    os: formatDeviceOsSummary(d.deviceInfo, modelAliases),
     displayName: d.displayName,
     deviceId: d.id,
     firstLogin: new Date(d.firstLogin).toLocaleString('pl-PL'),
@@ -439,7 +466,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
         : '';
       return {
         id: d.id,
-        deviceName: formatDeviceTechnicalLabel(d.deviceInfo, d.id),
+        deviceName: formatDeviceTechnicalLabel(d.deviceInfo, d.id, modelAliases),
         deviceId: d.id,
         location: 'Nieznana',
         status: 'AKTYWNY' as const,
@@ -539,6 +566,29 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       patch.displayName = deleteField();
     }
     await setDoc(doc(db, 'installations', inst), patch, { merge: true });
+  };
+
+  const saveDeviceModelAlias = async (device: Device, label: string) => {
+    if (currentDevice.role !== 'owner') {
+      throw new Error('Tylko właściciel może zmieniać nazwy urządzeń.');
+    }
+    const code = String(device.modelCode || extractDeviceModelCode(device.deviceInfo || '')).trim().toUpperCase();
+    const cleanLabel = label.trim().slice(0, 80);
+    if (!code) throw new Error('Nie udało się wykryć kodu modelu tego urządzenia.');
+    if (!cleanLabel) throw new Error('Nazwa modelu nie może być pusta.');
+
+    await setDoc(doc(db, 'device_model_aliases', code), {
+      code,
+      label: cleanLabel,
+      updatedAt: serverTimestamp(),
+      updatedBy: user?.uid || null,
+    }, { merge: true });
+
+    await writeAuditLog({
+      title: 'Zmieniono nazwę modelu urządzenia',
+      description: `${code} → ${cleanLabel}`,
+      iconType: 'edit_role',
+    });
   };
 
   const assertNotSelf = (targetId: string) => {
@@ -648,12 +698,22 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       const deviceLabel = formatAdminTargetLabel(freshTarget, device.id);
 
       if (freshTarget?.status === 'banned') {
-        addToast('Urządzenie już zablokowane', `${deviceLabel}.`, 'ban');
+        await updateDoc(targetRef, {
+          status: 'banned',
+          banDetails: {
+            reason: String(reason || freshTarget.banDetails?.reason || 'Naruszenie regulaminu').trim(),
+            expiresAt: freshTarget.banDetails?.expiresAt || (expiryDate ? new Date(expiryDate).toISOString() : ''),
+            gifUrl: freshTarget.banDetails?.gifUrl || gifUrl || '',
+            silent: Boolean(freshTarget.banDetails?.silent ?? silent),
+            bannedBy: currentUser.name,
+            bannedAt: freshTarget.banDetails?.bannedAt || new Date().toISOString(),
+          },
+        });
+        addToast('Blokada utrwalona', `${deviceLabel}.`, 'ban');
         setSelectedDeviceForBan(null);
         return;
       }
 
-      const actorName = String(currentUser.name || '').trim() || 'Administrator';
       const reasonText = String(reason || 'Naruszenie regulaminu').trim();
 
       await updateDoc(targetRef, {
@@ -663,14 +723,15 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           expiresAt: expiryDate ? new Date(expiryDate).toISOString() : '',
           gifUrl: gifUrl || '',
           silent: Boolean(silent),
-          bannedBy: actorName,
+          bannedBy: currentUser.name,
           bannedAt: new Date().toISOString(),
         },
       });
       await writeAuditLog({
-        title: 'Nadano blokadę',
-        description: `${deviceLabel}. Powód: ${reasonText}`,
+        title: 'Zablokowano urządzenie',
+        description: deviceLabel,
         iconType: 'ban',
+        category: 'SYSTEM',
       });
       addToast('Blokada nadana', `${deviceLabel}.`, 'ban');
       setSelectedDeviceForBan(null);
@@ -688,16 +749,16 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       return;
     }
     try {
+      const target = devicesData.find((x) => x.id === banId);
       await updateDoc(doc(db, 'devices', banId), {
         status: 'active',
         banDetails: deleteField(),
       });
-      const unb = devicesData.find((x) => x.id === banId);
-      const unbLabel = formatAdminTargetLabel(unb, banId);
       await writeAuditLog({
         title: 'Zdjęto blokadę urządzenia',
-        description: `Odblokowano: ${unbLabel}`,
+        description: formatAdminTargetLabel(target, banId),
         iconType: 'edit_role',
+        category: 'SYSTEM',
       });
       addToast('Urządzenie odblokowane', `Urządzenie zostało odblokowane.`, 'unban');
     } catch (e: unknown) {
@@ -1027,6 +1088,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
             onOpenBanModal={(device) => setSelectedDeviceForBan(device)}
             onNavigateToBanScreen={() => setActiveView('banned')}
             onMenuClick={() => setIsSidebarOpen(true)}
+            onRenameDevice={currentDevice.role === 'owner' ? saveDeviceModelAlias : undefined}
           />
         )}
 

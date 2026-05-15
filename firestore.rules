@@ -303,9 +303,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /device_model_aliases/{modelCode} {
+      allow read: if isSignedIn() && isValidId(modelCode);
+      allow create, update: if isSignedIn() && isValidId(modelCode) &&
+        isCallerOwner() &&
+        incoming().keys().hasOnly(['code', 'label', 'updatedAt', 'updatedBy']) &&
+        incoming().code == modelCode &&
+        incoming().label is string &&
+        incoming().label.size() > 0 &&
+        incoming().label.size() <= 80 &&
+        incoming().updatedBy == request.auth.uid;
+      allow delete: if false;
+    }
+
     match /admin_logs/{logId} {
       allow read: if canReadAdminLogs();
-      allow create: if isSignedIn() && isValidId(logId) && (isCallerOwner() || hasAdminPerm('canChangeRoles') || hasAdminPerm('canBan'));
+      allow create: if isSignedIn() && isValidId(logId) && (isCallerOwner() || hasAdminPerm('canChangeRoles') || hasAdminPerm('canBan') || hasAdminPerm('globalSettingsEdit'));
       allow update: if false;
       allow delete: if isSignedIn() && isValidId(logId) && isCallerOwner();
     }

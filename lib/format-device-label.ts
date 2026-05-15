@@ -27,7 +27,16 @@ function pickOs(ua: string): string {
   return 'System';
 }
 
-function parseStoredDeviceInfo(deviceInfo: string): { model: string; os: string } | null {
+export type DeviceModelAliases = Record<string, string>;
+
+export function extractDeviceModelCode(deviceInfo: string): string {
+  const modelPart = (deviceInfo || '').split('|')[0]?.trim() || '';
+  const tokens = modelPart.split(/\s+/).map((token) => token.trim()).filter(Boolean);
+  const code = tokens.find((token) => /^(?=.*\d)[A-Z0-9_-]{5,}$/i.test(token));
+  return code ? code.toUpperCase() : '';
+}
+
+function parseStoredDeviceInfo(deviceInfo: string, aliases: DeviceModelAliases = {}): { model: string; os: string } | null {
   const parts = (deviceInfo || '')
     .split('|')
     .map((part) => part.trim())
@@ -35,15 +44,31 @@ function parseStoredDeviceInfo(deviceInfo: string): { model: string; os: string 
   const model = parts[0] || '';
   if (!model || /mozilla|applewebkit|chrome|safari|mobile/i.test(model)) return null;
   return {
-    model,
+    model: normalizeMarketingDeviceName(model, aliases),
     os: parts.slice(1).join(' | '),
   };
 }
 
-export function formatDeviceOsSummary(deviceInfo: string): string {
+const DEVICE_MARKETING_NAMES: Record<string, string> = {
+  // Xiaomi / POCO model code reported by Android Build.MODEL.
+  '25053PC47G': 'Xiaomi POCO F7',
+};
+
+function normalizeMarketingDeviceName(model: string, aliases: DeviceModelAliases = {}): string {
+  const clean = model.trim().replace(/\s+/g, ' ');
+  const tokens = clean.split(/\s+/);
+  const code = tokens.find((token) => aliases[token.toUpperCase()] || DEVICE_MARKETING_NAMES[token.toUpperCase()]);
+  if (!code) return clean;
+
+  const marketingName = aliases[code.toUpperCase()] || DEVICE_MARKETING_NAMES[code.toUpperCase()];
+  if (!marketingName) return clean;
+  return marketingName;
+}
+
+export function formatDeviceOsSummary(deviceInfo: string, aliases: DeviceModelAliases = {}): string {
   const ua = (deviceInfo || '').trim();
   if (!ua) return '-';
-  const parsed = parseStoredDeviceInfo(ua);
+  const parsed = parseStoredDeviceInfo(ua, aliases);
   if (parsed?.os) return parsed.os;
   const bracket = /\(([^)]+)\)/.exec(ua)?.[1]?.trim();
   if (bracket && bracket.length <= 80) return bracket;
@@ -54,6 +79,7 @@ export interface FormatDeviceLabelInput {
   displayName?: string | null;
   deviceInfo: string;
   deviceId: string;
+  aliases?: DeviceModelAliases;
 }
 
 export function formatWarsawDateTimeParts(ms: number): { date: string; time: string } {
@@ -105,7 +131,7 @@ export function formatDeviceLabel(input: FormatDeviceLabelInput): string {
   if (name) return name;
 
   const ua = (input.deviceInfo || '').trim();
-  const parsed = parseStoredDeviceInfo(ua);
+  const parsed = parseStoredDeviceInfo(ua, input.aliases);
   if (parsed?.model) return parsed.model;
 
   const fromParen = ua ? /\(([^)]+)\)/.exec(ua)?.[1]?.trim() : '';
@@ -119,11 +145,11 @@ export function formatDeviceLabel(input: FormatDeviceLabelInput): string {
   return `${pickBrowser(ua)} - ${pickOs(ua)}${shortId ? ` - ${shortId}` : ''}`;
 }
 
-export function formatDeviceTechnicalLabel(deviceInfo: string, deviceId: string): string {
+export function formatDeviceTechnicalLabel(deviceInfo: string, deviceId: string, aliases: DeviceModelAliases = {}): string {
   const ua = (deviceInfo || '').trim();
   const shortId = (deviceId || '').slice(0, 8);
   if (!ua) return shortId ? `Urzadzenie ${shortId}` : 'Nieznane';
-  const parsed = parseStoredDeviceInfo(ua);
+  const parsed = parseStoredDeviceInfo(ua, aliases);
   if (parsed?.model) return `${parsed.model}${shortId ? ` - ${shortId}` : ''}`;
   return `${pickBrowser(ua)} - ${pickOs(ua)}${shortId ? ` - ${shortId}` : ''}`;
 }

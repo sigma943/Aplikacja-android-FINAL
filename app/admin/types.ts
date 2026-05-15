@@ -5,6 +5,8 @@ export type IconType = 'mobile' | 'desktop' | 'tablet';
 export interface Device {
   id: string;
   name: string;
+  deviceInfo?: string;
+  modelCode?: string;
   /** Short UA / OS line for table subtitle */
   os: string;
   displayName?: string;
