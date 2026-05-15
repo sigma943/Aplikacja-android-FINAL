@@ -233,6 +233,7 @@ export default function Home() {
         let isRealtime = false;
         let vehicleNum = '';
         let isDelayed = false;
+        let actualDepTimeMs = journeyPlannedMs;
         
         const normLine = (s: any) => String(s || '').trim().toUpperCase().replace(/^MKS\s+/, '');
         const journeyLineNorm = normLine(journey.line_name);
@@ -240,9 +241,17 @@ export default function Home() {
         let liveMatch: any = null;
         let stopInfo: any = null;
         let minDiff = Infinity;
+        let sameLineCandidates = 0;
+        const normalizeDirection = (value: unknown) =>
+          String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/^mks\s+/, '')
+            .replace(/\s+/g, ' ');
         
         vehicles.forEach(v => {
             if (normLine(v.routeShortName) === journeyLineNorm) {
+                sameLineCandidates += 1;
                 const s = v.schedule?.find((x: any) => String(x.id) === String(selectedStopId));
                 if (s && s.planned) {
                     const diff = Math.abs(new Date(s.planned).getTime() - journeyPlannedMs);
@@ -255,22 +264,43 @@ export default function Home() {
             }
         });
 
-        if (liveMatch && stopInfo) {
+        if (!liveMatch) {
+            vehicles.forEach(v => {
+                if (normLine(v.routeShortName) !== journeyLineNorm) return;
+                const delaySec = Number(v.delay);
+                if (!Number.isFinite(delaySec) || delaySec === 0 || Math.abs(delaySec) > 18000) return;
+                if (v.status === 'break' || v.status === 'inactive') return;
+                const liveDirection = normalizeDirection(v.direction);
+                const journeyDirection = normalizeDirection(journey.route_description);
+                const sameDirection =
+                  Boolean(liveDirection && journeyDirection) &&
+                  (liveDirection.includes(journeyDirection) || journeyDirection.includes(liveDirection));
+                if (sameLineCandidates === 1 || sameDirection) {
+                  liveMatch = v;
+                }
+            });
+        }
+
+        if (liveMatch) {
             const liveDelaySec = Number(liveMatch.delay);
             const canUseLiveDelay =
               liveMatch.status !== 'break' &&
+              liveMatch.status !== 'inactive' &&
               Number.isFinite(liveDelaySec) &&
               liveDelaySec !== 0 &&
               Math.abs(liveDelaySec) <= 18000;
-            const realT = stopInfo.real
+            const stopPlannedMs = stopInfo?.planned ? new Date(stopInfo.planned).getTime() : NaN;
+            const basePlannedMs = Number.isFinite(stopPlannedMs) ? stopPlannedMs : journeyPlannedMs;
+            const realT = stopInfo?.real
               ? new Date((stopInfo.real || '').replace(' ', 'T'))
-              : (stopInfo.planned && canUseLiveDelay ? new Date(new Date(stopInfo.planned).getTime() + liveDelaySec * 1000) : null);
+              : (Number.isFinite(basePlannedMs) && canUseLiveDelay ? new Date(basePlannedMs + liveDelaySec * 1000) : null);
             
             if (realT && !isNaN(realT.getTime())) {
                 isRealtime = true;
-                isDelayed = canUseLiveDelay && Math.abs(liveDelaySec) > 60;
+                isDelayed = Math.abs(realT.getTime() - journeyPlannedMs) > 60_000;
                 vehicleNum = liveMatch.id;
-                diffMin = Math.floor((realT.getTime() - now) / 60000);
+                actualDepTimeMs = realT.getTime();
+                diffMin = Math.floor((actualDepTimeMs - now) / 60000);
                 actualTimeStr = realT.toTimeString().substring(0, 5);
             }
         } else if (journey.deviation !== null && journey.deviation !== undefined) {
@@ -278,7 +308,8 @@ export default function Home() {
             isDelayed = !!(Math.abs(journey.deviation) > 1);
             if (!isNaN(journeyPlannedMs)) {
                const realD = new Date(journeyPlannedMs + journey.deviation * 60000);
-               diffMin = Math.floor((realD.getTime() - now) / 60000);
+               actualDepTimeMs = realD.getTime();
+               diffMin = Math.floor((actualDepTimeMs - now) / 60000);
                actualTimeStr = realD.toTimeString().substring(0, 5);
             }
         }
@@ -316,7 +347,7 @@ export default function Home() {
                isTomorrow,
                dateStr,
                isDelayed,
-               depTimeMs: journeyPlannedMs
+               depTimeMs: Number.isFinite(actualDepTimeMs) ? actualDepTimeMs : journeyPlannedMs
            };
         } else if (liveMatch) {
            acc[uniqKey].isRealtime = true;

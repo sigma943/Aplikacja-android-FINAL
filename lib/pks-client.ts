@@ -3,11 +3,14 @@ import type {Vehicle} from '@/components/BusMap';
 
 type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: string; code?: string}>;
 type ShapePoint = [number, number];
+type ShapeMetadata = { id: string; bbox: [number, number, number, number]; samples: ShapePoint[] };
 
 let stopsDictionaryPromise: Promise<Record<string, string>> | null = null;
 let shapeIndexPromise: Promise<Record<string, string>> | null = null;
 let routeStopShapeIndexPromise: Promise<Record<string, string>> | null = null;
+let routeShapeMetadataPromise: Promise<ShapeMetadata[]> | null = null;
 const shapePointsCache = new Map<string, Promise<ShapePoint[]>>();
+const roadRouteCache = new Map<string, Promise<ShapePoint[]>>();
 
 const isNative = () => Capacitor.isNativePlatform();
 const EINFO_DIRECT = 'http://einfo.zgpks.rzeszow.pl/api';
@@ -79,6 +82,15 @@ async function loadRouteStopShapeIndex() {
   return routeStopShapeIndexPromise;
 }
 
+async function loadRouteShapeMetadata() {
+  if (!routeShapeMetadataPromise) {
+    routeShapeMetadataPromise = fetch('/data/route-shape-metadata.json', {cache: 'force-cache'})
+      .then((res) => (res.ok ? res.json() : []))
+      .catch(() => []);
+  }
+  return routeShapeMetadataPromise;
+}
+
 function safeShapeId(shapeId: string) {
   return String(shapeId || '').trim().replace(/[^a-zA-Z0-9_.+-]/g, '_');
 }
@@ -95,6 +107,103 @@ async function loadShapePoints(shapeId: string) {
     );
   }
   return shapePointsCache.get(safeId)!;
+}
+
+function nearestDistanceSq(point: ShapePoint, samples: ShapePoint[]) {
+  let best = Number.POSITIVE_INFINITY;
+  for (const sample of samples) {
+    const dLat = point[0] - sample[0];
+    const dLon = point[1] - sample[1];
+    const d = dLat * dLat + dLon * dLon;
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+function findBestShapeByStops(stops: ShapePoint[], metadata: ShapeMetadata[]) {
+  if (stops.length < 2 || metadata.length === 0) return '';
+  const minStopLat = Math.min(...stops.map(([lat]) => lat));
+  const maxStopLat = Math.max(...stops.map(([lat]) => lat));
+  const minStopLon = Math.min(...stops.map(([, lon]) => lon));
+  const maxStopLon = Math.max(...stops.map(([, lon]) => lon));
+  const pad = 0.035;
+  const maxAvgDistanceSq = 0.0000045; // roughly 200-250m around Rzeszow.
+
+  let bestId = '';
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const shape of metadata) {
+    const [minLat, minLon, maxLat, maxLon] = shape.bbox;
+    if (maxLat + pad < minStopLat || minLat - pad > maxStopLat || maxLon + pad < minStopLon || minLon - pad > maxStopLon) {
+      continue;
+    }
+
+    let total = 0;
+    let worst = 0;
+    for (const stop of stops) {
+      const d = nearestDistanceSq(stop, shape.samples);
+      total += d;
+      if (d > worst) worst = d;
+    }
+    const avg = total / stops.length;
+    const score = avg + worst * 0.45;
+    if (avg <= maxAvgDistanceSq && score < bestScore) {
+      bestScore = score;
+      bestId = shape.id;
+    }
+  }
+
+  return bestId;
+}
+
+async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
+  const cleanCoords = coords.filter(
+    ([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon),
+  );
+  if (cleanCoords.length < 2) return [];
+
+  if (roadRouteCache.has(cacheKey)) return roadRouteCache.get(cacheKey)!;
+
+  const routePromise = (async () => {
+    const chunks: ShapePoint[][] = [];
+    const maxPoints = 24;
+    for (let start = 0; start < cleanCoords.length - 1; start += maxPoints - 1) {
+      chunks.push(cleanCoords.slice(start, Math.min(cleanCoords.length, start + maxPoints)));
+    }
+
+    const merged: ShapePoint[] = [];
+    const appendPoints = (points: ShapePoint[]) => {
+      for (const point of points) {
+        const last = merged[merged.length - 1];
+        if (last && Math.abs(last[0] - point[0]) < 0.000001 && Math.abs(last[1] - point[1]) < 0.000001) {
+          continue;
+        }
+        merged.push(point);
+      }
+    };
+
+    const fetchOsrmRoute = async (chunk: ShapePoint[]) => {
+      const coordString = chunk.map(([lat, lon]) => `${lon},${lat}`).join(';');
+      const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false`;
+      const data = await requestJson<{ routes?: Array<{ geometry?: { coordinates?: [number, number][] } }> }>(url);
+      return data.routes?.[0]?.geometry?.coordinates?.map(([lon, lat]) => [lat, lon] as ShapePoint) || [];
+    };
+
+    for (const chunk of chunks) {
+      if (chunk.length < 2) continue;
+      const points = await fetchOsrmRoute(chunk).catch(() => []);
+      if (points.length > 1) appendPoints(points);
+    }
+
+    return merged.length > 1 ? merged : [];
+  })();
+
+  roadRouteCache.set(cacheKey, routePromise);
+  if (roadRouteCache.size > 80) {
+    const [firstKey] = roadRouteCache.keys();
+    roadRouteCache.delete(firstKey);
+  }
+  return routePromise;
 }
 
 function toTitleCase(str: string) {
@@ -448,7 +557,7 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
   };
 }
 
-export async function fetchRouteShapeClient(tripId: string, fallbackStops: number[], _stopsData?: Record<string, {lat: number; lon: number}> | null) {
+export async function fetchRouteShapeClient(tripId: string, fallbackStops: number[], stopsData?: Record<string, {lat: number; lon: number}> | null) {
   const tripIdBase = String(tripId || '').trim().split('_')[0];
   const normalizedStops = fallbackStops
     .map((id) => String(id || '').trim())
@@ -469,6 +578,26 @@ export async function fetchRouteShapeClient(tripId: string, fallbackStops: numbe
       const shapeId = stopShapeIndex[normalizedStops.join('-')];
       const points = shapeId ? await loadShapePoints(shapeId) : [];
       if (points.length > 1) return points;
+    } catch {}
+  }
+
+  const stopCoords = normalizedStops
+    .map((id) => stopsData?.[id])
+    .filter((stop): stop is { lat: number; lon: number } => {
+      if (!stop) return false;
+      return Number.isFinite(stop.lat) && Number.isFinite(stop.lon);
+    })
+    .map((stop) => [stop.lat, stop.lon] as ShapePoint);
+  if (stopCoords.length > 1) {
+    try {
+      const shapeId = findBestShapeByStops(stopCoords, await loadRouteShapeMetadata());
+      const points = shapeId ? await loadShapePoints(shapeId) : [];
+      if (points.length > 1) return points;
+    } catch {}
+
+    try {
+      const roadRoute = await fetchRoadRouteForStops(stopCoords, normalizedStops.join('-'));
+      if (roadRoute.length > 1) return roadRoute;
     } catch {}
   }
   return [];

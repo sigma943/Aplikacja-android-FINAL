@@ -100,6 +100,32 @@ function safeShapeId(shapeId) {
   return String(shapeId || '').trim().replace(/[^a-zA-Z0-9_.+-]/g, '_');
 }
 
+function buildShapeMetadata(shapePoints) {
+  const metadata = [];
+  for (const [shapeId, points] of Object.entries(shapePoints)) {
+    if (!Array.isArray(points) || points.length < 2) continue;
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    let minLon = Infinity;
+    let maxLon = -Infinity;
+    for (const [lat, lon] of points) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+    }
+
+    const sampleTarget = 80;
+    const step = Math.max(1, Math.floor(points.length / sampleTarget));
+    const samples = [];
+    for (let i = 0; i < points.length; i += step) samples.push(points[i]);
+    const last = points[points.length - 1];
+    if (samples[samples.length - 1] !== last) samples.push(last);
+    metadata.push({ id: safeShapeId(shapeId), bbox: [minLat, minLon, maxLat, maxLon], samples });
+  }
+  return metadata;
+}
+
 fs.mkdirSync(publicDataDir, { recursive: true });
 fs.rmSync(shapeOutDir, { recursive: true, force: true });
 fs.mkdirSync(shapeOutDir, { recursive: true });
@@ -107,9 +133,11 @@ fs.mkdirSync(shapeOutDir, { recursive: true });
 const tripShapeIndex = buildTripShapeIndex();
 const shapePoints = buildShapePoints();
 const routeStopShapeIndex = buildRouteStopShapeIndex(tripShapeIndex);
+const routeShapeMetadata = buildShapeMetadata(shapePoints);
 
 fs.writeFileSync(path.join(publicDataDir, 'trip-shape-index.json'), JSON.stringify(tripShapeIndex));
 fs.writeFileSync(path.join(publicDataDir, 'route-stop-shape-index.json'), JSON.stringify(routeStopShapeIndex));
+fs.writeFileSync(path.join(publicDataDir, 'route-shape-metadata.json'), JSON.stringify(routeShapeMetadata));
 for (const [shapeId, points] of Object.entries(shapePoints)) {
   fs.writeFileSync(path.join(shapeOutDir, `${safeShapeId(shapeId)}.json`), JSON.stringify(points));
 }
@@ -120,6 +148,7 @@ console.log(
       tripCount: Object.keys(tripShapeIndex).length,
       shapeCount: Object.keys(shapePoints).length,
       routeStopShapeCount: Object.keys(routeStopShapeIndex).length,
+      routeShapeMetadataCount: routeShapeMetadata.length,
       outDir: shapeOutDir,
     },
     null,
