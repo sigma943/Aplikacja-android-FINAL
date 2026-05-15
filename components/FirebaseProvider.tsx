@@ -7,7 +7,7 @@ import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
 import { buildDevicePermissions, type DeviceRole } from '@/lib/admin/rbac';
 import { agentLog } from '@/lib/debug-agent-log';
-import { ClockAlert, RefreshCw, Wrench } from 'lucide-react';
+import { CloudOff, RefreshCw, Wrench } from 'lucide-react';
 
 export type { DeviceRole };
 
@@ -118,10 +118,31 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
+  const [browserOffline, setBrowserOffline] = useState(false);
+  const [initialRenderReleased, setInitialRenderReleased] = useState(false);
   const [checkingMaintenance, setCheckingMaintenance] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceLatched, setMaintenanceLatched] = useState(false);
   const [localLastSeenMs, setLocalLastSeenMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    const syncOnlineState = () => {
+      if (typeof navigator !== 'undefined') {
+        setBrowserOffline(!navigator.onLine);
+      }
+    };
+    syncOnlineState();
+    window.addEventListener('online', syncOnlineState);
+    window.addEventListener('offline', syncOnlineState);
+    window.addEventListener('focus', syncOnlineState);
+    document.addEventListener('visibilitychange', syncOnlineState);
+    return () => {
+      window.removeEventListener('online', syncOnlineState);
+      window.removeEventListener('offline', syncOnlineState);
+      window.removeEventListener('focus', syncOnlineState);
+      document.removeEventListener('visibilitychange', syncOnlineState);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -341,6 +362,18 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       }
     }, (err) => {
       console.error("Snapshot error", err);
+      const code = String((err as any)?.code || '').toLowerCase();
+      const message = String((err as any)?.message || '').toLowerCase();
+      const isNetworkProblem =
+        code.includes('unavailable') ||
+        code.includes('deadline') ||
+        message.includes('network') ||
+        message.includes('offline') ||
+        (typeof navigator !== 'undefined' && !navigator.onLine);
+      if (isNetworkProblem) {
+        setBrowserOffline(true);
+        return;
+      }
       setDevice(null);
       setLoading(false);
     });
@@ -406,7 +439,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const isBanned = device?.status === 'banned';
   const isPrivilegedDevice = device?.role === 'owner' || device?.role === 'admin';
   const shouldShowMaintenance = (maintenanceMode || maintenanceLatched) && device?.role === 'user';
-  const shouldHoldInitialRender = loading || (!isPrivilegedDevice && settingsLoading);
+  const shouldHoldInitialRender =
+    !initialRenderReleased && (browserOffline || loading || (!isPrivilegedDevice && settingsLoading));
+
+  useEffect(() => {
+    if (!shouldHoldInitialRender && !initialRenderReleased) {
+      const releaseTimer = window.setTimeout(() => setInitialRenderReleased(true), 0);
+      return () => window.clearTimeout(releaseTimer);
+    }
+  }, [initialRenderReleased, shouldHoldInitialRender]);
 
   useEffect(() => {
     if (!shouldHoldInitialRender) {
@@ -616,7 +657,7 @@ function LoadingScreen() {
             />
           </circle>
         </svg>
-        <p className={`text-base font-black tracking-tight ${theme.main}`} style={theme.mainStyle}>Ładowanie</p>
+        <p className="pks-loading-label text-base font-black tracking-tight">Ładowanie aplikacji</p>
       </div>
     </div>
   );
@@ -631,15 +672,15 @@ function ConnectionTimeoutScreen() {
       {theme.grid && <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />}
       <div className={`relative z-10 w-full max-w-md rounded-3xl border ${theme.card} p-8 text-center shadow-2xl backdrop-blur-2xl`}>
         <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-red-400/20 bg-red-500/12 text-red-400 shadow-[0_0_45px_rgba(248,113,113,0.18)]">
-          <ClockAlert size={38} strokeWidth={2.4} />
+          <CloudOff size={38} strokeWidth={2.4} />
         </div>
-        <h1 className={`text-2xl font-black tracking-tight ${theme.main}`}>Przekroczono czas połączenia</h1>
+        <h1 className={`text-2xl font-black tracking-tight ${theme.main}`}>Brak połączenia z internetem</h1>
         <p className={`mx-auto mt-5 max-w-xs text-sm leading-6 ${theme.sub}`}>
-          Wystąpił błąd podczas łączenia z serwerem.
+          Aplikacja nie może wystartować bez internetu.
           <br />
           Szczegóły błędu:
         </p>
-        <p className="mt-5 font-mono text-base font-bold text-red-400">Invalid Time Error</p>
+        <p className="mt-5 font-mono text-base font-bold text-red-400">Network Connection Error</p>
         <div className="my-7 h-px w-full bg-white/10" />
         <button
           type="button"

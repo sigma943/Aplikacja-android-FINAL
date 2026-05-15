@@ -20,6 +20,13 @@ body {
   color: inherit;
 }
 
+.pks-loading-screen .pks-loading-label {
+  color: #0f172a !important;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7),
+    0 8px 26px rgba(15, 23, 42, 0.18);
+}
+
 /* Leaflet overrides for Geometric Balance theme */
 .leaflet-popup-content-wrapper {
   padding: 0 !important;

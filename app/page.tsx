@@ -245,9 +245,13 @@ export default function Home() {
            vehicleNum = journey.vehicle_id || journey.veh_id || journey.vehicle_number;
         }
 
-        const uniqKey = `${journey.line_name}_${journey.timetable_time}_${journey.route_description}`;
-        
         if (!Number.isFinite(journeyPlannedMs)) return acc;
+        const plannedMinuteBucket = Math.round(journeyPlannedMs / 60000);
+        const uniqKey = [
+          journeyLineNorm,
+          String(journey.route_description || '').trim().toUpperCase(),
+          vehicleNum ? `veh:${vehicleNum}` : `min:${plannedMinuteBucket}`,
+        ].join('|');
         const depDate = new Date(journeyPlannedMs);
         const todayDate = new Date(now);
         const isTomorrow = depDate.getDate() !== todayDate.getDate() || 
@@ -385,14 +389,15 @@ export default function Home() {
   };
 
   const fetchVehicles = async (inactive = showInactive, force = false) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      timeoutId = setTimeout(() => controller.abort(), 15000);
       const data = await Promise.race([
         fetchVehiclesClient(inactive),
         new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(Object.assign(new Error('Aborted'), {name: 'AbortError'}))))
       ]) as any;
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
       const newDataStr = JSON.stringify(data);
       if (newDataStr !== lastVehiclesRef.current) {
         setVehicles(Array.isArray(data) ? data : (data.vehicles || []));
@@ -401,6 +406,7 @@ export default function Home() {
       setError(null);
       if (isOffline) setIsOffline(false);
     } catch (err: any) {
+      if (timeoutId) clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
         console.warn('Fetch vehicles aborted (timeout or navigation)');
         setIsOffline(true);
@@ -469,7 +475,13 @@ export default function Home() {
     };
     const syncOnlineState = () => {
       if (typeof navigator !== 'undefined') {
-        setIsOffline(!navigator.onLine);
+        const online = navigator.onLine;
+        setIsOffline((wasOffline) => {
+          if (wasOffline && online) {
+            fetchVehicles(showInactive, true);
+          }
+          return !online;
+        });
       }
     };
     window.addEventListener('offline', handleOffline);
@@ -775,10 +787,10 @@ export default function Home() {
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className={`absolute top-20 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border pointer-events-auto ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                  className={`absolute top-20 left-1/2 z-[9999] flex -translate-x-1/2 items-center gap-3 rounded-2xl border px-5 py-3 shadow-xl pointer-events-auto ${isDark ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-900'}`}
                >
-                  <CloudOff className="w-5 h-5 text-rose-500 shrink-0" />
-                  <span className="font-bold tracking-tight text-sm whitespace-nowrap">Jesteś obecnie offline</span>
+                  <CloudOff className="h-5 w-5 shrink-0 text-rose-500" />
+                  <span className="whitespace-nowrap text-sm font-bold tracking-tight">Jesteś obecnie offline</span>
                </motion.div>
             )}
          </AnimatePresence>
@@ -1146,7 +1158,7 @@ export default function Home() {
                                   className="overflow-y-auto custom-scrollbar px-4 md:px-5"
                                   onPointerDown={(e) => e.stopPropagation()}
                                >
-                                  <div className="flex flex-col gap-2 pb-12 pt-5">
+                                  <div className="flex flex-col gap-2 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-5 md:pb-12">
                                      <div className={`mb-1 flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.14em] ${textSub}`}>
                                        <Clock className="h-4 w-4" />
                                        Najbliższe odjazdy
@@ -1359,7 +1371,7 @@ export default function Home() {
                         {stopsList.find(s => s.id === selectedStopId)?.name}
                      </h2>
                   </div>
-                  <div className={`flex-1 p-4 -mt-4 rounded-t-2xl relative z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] overflow-y-auto ${transparentUI ? (isDark ? 'bg-slate-900/80 backdrop-blur' : 'bg-slate-50/80 backdrop-blur') : bgMain}`}>
+                  <div className={`flex-1 p-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-4 -mt-4 rounded-t-2xl relative z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] overflow-y-auto ${transparentUI ? (isDark ? 'bg-slate-900/80 backdrop-blur' : 'bg-slate-50/80 backdrop-blur') : bgMain}`}>
                      <div className="flex justify-between items-center mt-2 mb-4 pl-1">
                         <h3 className={`text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 ${textSub}`}>
                            <Clock className="w-4 h-4" /> Najbliższe odjazdy

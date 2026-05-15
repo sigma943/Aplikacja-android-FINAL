@@ -278,7 +278,7 @@ function OperatorCard({
       <div className="flex flex-col items-end gap-2 pr-2">
         <div className="relative">
           {isSelf ? (
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 px-2 py-1 rounded-lg border border-white/10">
+            <span className="whitespace-nowrap rounded-lg border border-white/10 px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-slate-500 sm:px-2 sm:text-[10px] sm:tracking-widest">
               Twoje konto
             </span>
           ) : showActions ? (

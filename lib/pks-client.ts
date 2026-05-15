@@ -103,6 +103,28 @@ function buildSchedule(nextStopPoints: any[] | undefined, stopsDict: Record<stri
   }));
 }
 
+function buildRoutePath(route: any): number[] {
+  const fromStopPoints = Array.isArray(route?.stop_points)
+    ? route.stop_points
+        .map((sp: any) => Number(typeof sp === 'object' && sp !== null ? sp.stop_point_id : sp))
+        .filter((n: number) => Number.isFinite(n))
+    : [];
+  if (fromStopPoints.length > 1) return fromStopPoints;
+
+  const links = Array.isArray(route?.route_links)
+    ? [...route.route_links].sort((a: any, b: any) => Number(a?.index ?? 0) - Number(b?.index ?? 0))
+    : [];
+  const fromLinks: number[] = [];
+  for (const link of links) {
+    const from = Number(link?.from);
+    const to = Number(link?.to);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
+    if (fromLinks.length === 0) fromLinks.push(from);
+    if (fromLinks[fromLinks.length - 1] !== to) fromLinks.push(to);
+  }
+  return fromLinks;
+}
+
 function formatClock(ts: number) {
   if (!Number.isFinite(ts)) return '--:--';
   return new Date(ts).toLocaleTimeString('pl-PL', {hour: '2-digit', minute: '2-digit'});
@@ -175,11 +197,7 @@ function mapVehicle(v: any, now: number, includeInactive: boolean, stopsDict: Re
     delay: typeof v.delay === 'number' ? v.delay : 0,
     dataAgeSec: ageSec,
     schedule: buildSchedule(v.next_stop_points, stopsDict),
-    routePath: Array.isArray(v.journey?.route?.stop_points)
-      ? v.journey.route.stop_points
-          .map((sp: any) => Number(typeof sp === 'object' && sp !== null ? sp.stop_point_id : sp))
-          .filter((n: number) => !Number.isNaN(n))
-      : [],
+    routePath: buildRoutePath(v.journey?.route),
     model: v.model,
     lastStopDistance: typeof v.position.last_stop_point_distance === 'number' ? v.position.last_stop_point_distance : undefined,
     lastStopId: typeof v.position.last_stop_point_number === 'number' ? v.position.last_stop_point_number : undefined,
@@ -431,24 +449,47 @@ export async function fetchRouteShapeClient(tripId: string, fallbackStops: numbe
 }
 
 async function fetchRoadRouteForStops(coords: [number, number][]) {
-  if (coords.length < 2) return [];
+  const cleanCoords = coords.filter(
+    ([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon),
+  );
+  if (cleanCoords.length < 2) return [];
 
   const chunks: [number, number][][] = [];
   const maxPoints = 24;
-  for (let start = 0; start < coords.length - 1; start += maxPoints - 1) {
-    chunks.push(coords.slice(start, Math.min(coords.length, start + maxPoints)));
+  for (let start = 0; start < cleanCoords.length - 1; start += maxPoints - 1) {
+    chunks.push(cleanCoords.slice(start, Math.min(cleanCoords.length, start + maxPoints)));
   }
 
   const merged: [number, number][] = [];
+  const appendPoints = (points: [number, number][]) => {
+    for (const point of points) {
+      const last = merged[merged.length - 1];
+      if (last && Math.abs(last[0] - point[0]) < 0.000001 && Math.abs(last[1] - point[1]) < 0.000001) {
+        continue;
+      }
+      merged.push(point);
+    }
+  };
+
+  const fetchOsrmRoute = async (chunk: [number, number][]) => {
+    const coordString = chunk.map(([lat, lon]) => `${lon},${lat}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false`;
+    const data = await requestJson<{ routes?: Array<{ geometry?: { coordinates?: [number, number][] } }> }>(url);
+    return data.routes?.[0]?.geometry?.coordinates?.map(([lon, lat]) => [lat, lon] as [number, number]) || [];
+  };
+
   for (const chunk of chunks) {
     if (chunk.length < 2) continue;
-    const coordString = chunk.map(([lat, lon]) => `${lon},${lat}`).join(';');
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&continue_straight=false`;
-    const data = await requestJson<{ routes?: Array<{ geometry?: { coordinates?: [number, number][] } }> }>(url);
-    const points = data.routes?.[0]?.geometry?.coordinates?.map(([lon, lat]) => [lat, lon] as [number, number]) || [];
-    if (points.length < 2) continue;
-    if (merged.length > 0) points.shift();
-    merged.push(...points);
+    const points = await fetchOsrmRoute(chunk).catch(() => []);
+    if (points.length > 1) {
+      appendPoints(points);
+      continue;
+    }
+
+    for (let i = 0; i < chunk.length - 1; i++) {
+      const segment = await fetchOsrmRoute([chunk[i], chunk[i + 1]]).catch(() => []);
+      appendPoints(segment.length > 1 ? segment : [chunk[i], chunk[i + 1]]);
+    }
   }
   return merged;
 }
