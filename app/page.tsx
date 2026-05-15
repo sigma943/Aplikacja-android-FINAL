@@ -164,6 +164,47 @@ export default function Home() {
      return () => window.removeEventListener('popstate', handlePopState);
   }, [selectedBus, selectedStopId]);
 
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let cancelled = false;
+    let listenerPromise: Promise<{ remove: () => Promise<void> }> | null = null;
+
+    listenerPromise = import('@capacitor/app').then(({ App }) =>
+      App.addListener('backButton', () => {
+        if (cancelled) return;
+
+        if (isSettingsOpen) {
+          setIsSettingsOpen(false);
+          return;
+        }
+        if (selectedBus) {
+          setSelectedBus(null);
+          return;
+        }
+        if (selectedStopId) {
+          setSelectedStopId(null);
+          setDeparturesLineFilter('');
+          return;
+        }
+        if (activeTab === 'admin') {
+          return;
+        }
+        if (activeTab === 'stops' && !isMapTabDisabled) {
+          setActiveTab('map');
+          return;
+        }
+
+        App.exitApp();
+      }),
+    );
+
+    return () => {
+      cancelled = true;
+      listenerPromise?.then((listener) => listener.remove()).catch(() => {});
+    };
+  }, [activeTab, isMapTabDisabled, isSettingsOpen, selectedBus, selectedStopId]);
+
   const toggleFavoriteStop = (stopId: string, e: React.MouseEvent) => {
      e.stopPropagation();
      const next = favsState.includes(stopId) ? favsState.filter(s => s !== stopId) : [...favsState, stopId];
