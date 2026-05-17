@@ -189,6 +189,56 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
       return data.routes?.[0]?.geometry?.coordinates?.map(([lon, lat]) => [lat, lon] as ShapePoint) || [];
     };
 
+    const decodeValhallaShape = (shape: string) => {
+      const points: ShapePoint[] = [];
+      let index = 0;
+      let lat = 0;
+      let lon = 0;
+      const precision = 1e6;
+
+      while (index < shape.length) {
+        let result = 1;
+        let shift = 0;
+        let b = 0;
+        do {
+          b = shape.charCodeAt(index++) - 63 - 1;
+          result += b << shift;
+          shift += 5;
+        } while (b >= 0x1f && index < shape.length);
+        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+        result = 1;
+        shift = 0;
+        do {
+          b = shape.charCodeAt(index++) - 63 - 1;
+          result += b << shift;
+          shift += 5;
+        } while (b >= 0x1f && index < shape.length);
+        lon += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+        points.push([lat / precision, lon / precision]);
+      }
+
+      return points;
+    };
+
+    const fetchValhallaRoute = async (chunk: ShapePoint[]) => {
+      const query = {
+        locations: chunk.map(([lat, lon]) => ({ lat, lon, type: 'break' })),
+        costing: 'bus',
+        directions_options: { units: 'kilometers' },
+      };
+      const url = `https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(JSON.stringify(query))}`;
+      const data = await requestJson<{ trip?: { legs?: Array<{ shape?: string }> } }>(url);
+      const legs = data.trip?.legs || [];
+      const points: ShapePoint[] = [];
+      for (const leg of legs) {
+        const decoded = leg.shape ? decodeValhallaShape(leg.shape) : [];
+        for (const point of decoded) points.push(point);
+      }
+      return points;
+    };
+
     for (const chunk of chunks) {
       if (chunk.length < 2) continue;
       const points = await fetchOsrmRoute(chunk).catch(() => []);
@@ -197,9 +247,21 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
         continue;
       }
 
+      const valhallaPoints = await fetchValhallaRoute(chunk).catch(() => []);
+      if (valhallaPoints.length > 1) {
+        appendPoints(valhallaPoints);
+        continue;
+      }
+
       for (let i = 0; i < chunk.length - 1; i++) {
         const segment = await fetchOsrmRoute([chunk[i], chunk[i + 1]]).catch(() => []);
-        if (segment.length > 1) appendPoints(segment);
+        if (segment.length > 1) {
+          appendPoints(segment);
+          continue;
+        }
+
+        const valhallaSegment = await fetchValhallaRoute([chunk[i], chunk[i + 1]]).catch(() => []);
+        if (valhallaSegment.length > 1) appendPoints(valhallaSegment);
       }
     }
 
@@ -212,39 +274,6 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
     roadRouteCache.delete(firstKey);
   }
   return routePromise;
-}
-
-function buildSmoothFallbackRoute(coords: ShapePoint[]) {
-  const cleanCoords = coords.filter(
-    ([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon),
-  );
-  if (cleanCoords.length < 2) return [];
-
-  const points: ShapePoint[] = [];
-  for (let i = 0; i < cleanCoords.length - 1; i++) {
-    const [lat1, lon1] = cleanCoords[i];
-    const [lat2, lon2] = cleanCoords[i + 1];
-    const steps = Math.max(
-      4,
-      Math.min(18, Math.ceil(Math.hypot(lat2 - lat1, lon2 - lon1) / 0.0025)),
-    );
-
-    for (let step = 0; step < steps; step++) {
-      if (i > 0 && step === 0) continue;
-      const t = step / steps;
-      const curve = Math.sin(Math.PI * t) * 0.00018;
-      const dLat = lat2 - lat1;
-      const dLon = lon2 - lon1;
-      const length = Math.hypot(dLat, dLon) || 1;
-      points.push([
-        lat1 + dLat * t + (dLon / length) * curve,
-        lon1 + dLon * t - (dLat / length) * curve,
-      ]);
-    }
-  }
-
-  points.push(cleanCoords[cleanCoords.length - 1]);
-  return points;
 }
 
 function toTitleCase(str: string) {
@@ -478,26 +507,28 @@ function isJourneyRunning(legends: string[], dateIso: string) {
     (month === 12 && date === 26);
   const isSundayOrHoliday = day === 0 || isHoliday;
   const isWeekendOrHoliday = day === 0 || day === 6 || isHoliday;
-  const baseLegends = ['D', '(D)', 'S', 'E', 'C', '+', '6ś', '6', '7', '1-4', '2-5', '5', '5/6', '6/7'];
-  const hasBaseLegend = normalizedLegends.some((legend) => baseLegends.includes(legend) || legend === '6ś');
-  if (!hasBaseLegend) return true;
+  const effectiveLegends = normalizedLegends.map((legend) =>
+    legend.startsWith('6') && legend !== '6' && legend !== '6/7' ? '6\u015b' : legend,
+  );
+  const saturdaySchool = '6\u015b';
+  const effectiveBaseLegends = ['D', '(D)', 'S', 'E', 'C', '+', saturdaySchool, '6', '7', '1-4', '2-5', '5', '5/6', '6/7'];
+  if (!effectiveLegends.some((legend) => effectiveBaseLegends.includes(legend))) return true;
 
-  let runs = false;
-  for (const legend of normalizedLegends) {
-    if ((legend === 'D' || legend === '(D)' || legend === 'S') && !isWeekendOrHoliday) runs = true;
-    if (legend === 'E' && !isSundayOrHoliday) runs = true;
-    if (legend === 'C' && isWeekendOrHoliday) runs = true;
-    if (legend === '6ś' && day === 6 && !isHoliday) runs = true;
-    if ((legend === '6' || legend === '6ś') && day === 6) runs = true;
-    if ((legend === '+' || legend === '7') && isSundayOrHoliday) runs = true;
-    if (legend === '5' && day === 5 && !isHoliday) runs = true;
-    if (legend === '1-4' && day >= 1 && day <= 4 && !isHoliday) runs = true;
-    if (legend === '2-5' && day >= 2 && day <= 5 && !isHoliday) runs = true;
-    if (legend === '5/6' && day === 5) runs = true;
-    if (legend === '6/7' && day === 6) runs = true;
+  let effectiveRuns = false;
+  for (const legend of effectiveLegends) {
+    if ((legend === 'D' || legend === '(D)' || legend === 'S') && !isWeekendOrHoliday) effectiveRuns = true;
+    if (legend === 'E' && !isSundayOrHoliday) effectiveRuns = true;
+    if (legend === 'C' && isWeekendOrHoliday) effectiveRuns = true;
+    if (legend === saturdaySchool && day === 6 && !isHoliday) effectiveRuns = true;
+    if (legend === '6' && day === 6) effectiveRuns = true;
+    if ((legend === '+' || legend === '7') && isSundayOrHoliday) effectiveRuns = true;
+    if (legend === '5' && day === 5 && !isHoliday) effectiveRuns = true;
+    if (legend === '1-4' && day >= 1 && day <= 4 && !isHoliday) effectiveRuns = true;
+    if (legend === '2-5' && day >= 2 && day <= 5 && !isHoliday) effectiveRuns = true;
+    if (legend === '5/6' && day === 5) effectiveRuns = true;
+    if (legend === '6/7' && day === 6) effectiveRuns = true;
   }
-
-  return runs;
+  return effectiveRuns;
 }
 
 function processTimetable(ttData: any, dayIso: string, codeToCompare: string) {
@@ -646,8 +677,6 @@ export async function fetchRouteShapeClient(tripId: string, fallbackStops: numbe
       if (points.length > 1) return points;
     } catch {}
 
-    const fallbackRoute = buildSmoothFallbackRoute(stopCoords);
-    if (fallbackRoute.length > 1) return fallbackRoute;
   }
   return [];
 }

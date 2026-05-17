@@ -23,40 +23,6 @@ function MapStateTracker({ onInteraction }: { onInteraction: (active: boolean) =
   return null;
 }
 
-function buildLocalRoutePreview(stopIds: number[], stopsData?: Record<string, StopData> | null) {
-  if (!stopsData || stopIds.length < 2) return [];
-  const coords = stopIds
-    .map((id) => stopsData[String(id)])
-    .filter((stop): stop is StopData => Boolean(stop) && Number.isFinite(stop.lat) && Number.isFinite(stop.lon))
-    .map((stop) => [stop.lat, stop.lon] as [number, number]);
-  if (coords.length < 2) return [];
-
-  const points: [number, number][] = [];
-  for (let i = 0; i < coords.length - 1; i++) {
-    const [lat1, lon1] = coords[i];
-    const [lat2, lon2] = coords[i + 1];
-    const dLat = lat2 - lat1;
-    const dLon = lon2 - lon1;
-    const length = Math.hypot(dLat, dLon) || 1;
-    const steps = Math.max(6, Math.min(22, Math.ceil(length / 0.002)));
-    const wiggle = Math.min(0.00032, Math.max(0.00008, length * 0.035));
-
-    for (let step = 0; step < steps; step++) {
-      if (i > 0 && step === 0) continue;
-      const t = step / steps;
-      const ease = t * t * (3 - 2 * t);
-      const curve = Math.sin(Math.PI * t) * wiggle * (i % 2 === 0 ? 1 : -1);
-      points.push([
-        lat1 + dLat * ease + (dLon / length) * curve,
-        lon1 + dLon * ease - (dLat / length) * curve,
-      ]);
-    }
-  }
-
-  points.push(coords[coords.length - 1]);
-  return points;
-}
-
 const formatDelay = (delaySec: number | undefined) => {
   if (delaySec === undefined) return null;
   if (Math.abs(delaySec) > 18000) return null; // Ignore absurd delays > 5 hours
@@ -246,6 +212,110 @@ function MapClickListener({ onClick }: { onClick?: () => void }) {
   return null;
 }
 
+function VehicleMarkerLayer({
+  vehicles,
+  selectedVehicleId,
+  themeColor,
+  refreshInterval,
+  onVehicleClick,
+}: {
+  vehicles: Vehicle[];
+  selectedVehicleId?: string | null;
+  themeColor: string;
+  refreshInterval: number;
+  onVehicleClick?: (vehicle: Vehicle) => void;
+}) {
+  const map = useMap();
+  const [viewTick, setViewTick] = useState(0);
+
+  useMapEvents({
+    zoomend: () => setViewTick((value) => value + 1),
+    moveend: () => setViewTick((value) => value + 1),
+  });
+
+  const zoom = map.getZoom();
+  const shouldCluster = zoom <= 12 && vehicles.length > 8;
+  const groups = useMemo(() => {
+    if (!shouldCluster) return vehicles.map((vehicle) => ({ vehicles: [vehicle], lat: vehicle.lat, lon: vehicle.lon }));
+
+    const gridSize = zoom <= 10 ? 86 : 68;
+    const grouped = new Map<string, { vehicles: Vehicle[]; lat: number; lon: number }>();
+    for (const vehicle of vehicles) {
+      const point = map.project([vehicle.lat, vehicle.lon], zoom);
+      const key = `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`;
+      const group = grouped.get(key);
+      if (group) {
+        group.vehicles.push(vehicle);
+        group.lat += vehicle.lat;
+        group.lon += vehicle.lon;
+      } else {
+        grouped.set(key, { vehicles: [vehicle], lat: vehicle.lat, lon: vehicle.lon });
+      }
+    }
+
+    return Array.from(grouped.values()).map((group) => ({
+      ...group,
+      lat: group.lat / group.vehicles.length,
+      lon: group.lon / group.vehicles.length,
+    }));
+  }, [map, shouldCluster, vehicles, viewTick, zoom]);
+
+  return (
+    <>
+      {groups.map((group) => {
+        if (group.vehicles.length > 1) {
+          const count = group.vehicles.length;
+          const size = count >= 10 ? 54 : 46;
+          return (
+            <Marker
+              key={`cluster-${group.vehicles.map((vehicle) => vehicle.id).sort().join('-')}`}
+              position={[group.lat, group.lon]}
+              zIndexOffset={900}
+              icon={L.divIcon({
+                className: 'mks-bus-cluster !bg-transparent !border-0',
+                html: `
+                  <div class="relative flex items-center justify-center" style="width:${size}px;height:${size}px">
+                    <div class="absolute inset-0 rounded-full" style="background:${themeColor};opacity:.20;box-shadow:0 0 28px ${themeColor}66"></div>
+                    <div class="absolute inset-[5px] rounded-full border-2 border-white/90 shadow-xl" style="background:${themeColor}"></div>
+                    <div class="relative z-10 text-white font-black text-[15px] tracking-tight">${count}</div>
+                  </div>
+                `,
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2],
+              })}
+              eventHandlers={{
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e as any);
+                  const bounds = L.latLngBounds(group.vehicles.map((vehicle) => [vehicle.lat, vehicle.lon] as [number, number]));
+                  map.fitBounds(bounds.pad(0.35), { animate: true, maxZoom: Math.max(14, zoom + 2) });
+                },
+              }}
+            />
+          );
+        }
+
+        const vehicle = group.vehicles[0];
+        const isSelected = selectedVehicleId === vehicle.id;
+        const isHighVolume = vehicles.length > 50;
+        return (
+          <Marker
+            key={vehicle.id}
+            position={[vehicle.lat, vehicle.lon]}
+            icon={getCachedBusIcon(vehicle.routeShortName || '', vehicle.id, vehicle.delay, vehicle.speed, isSelected, themeColor, vehicle.dataAgeSec, isHighVolume)}
+            zIndexOffset={isSelected ? 1000 : 0}
+            eventHandlers={{
+              click: (e) => {
+                L.DomEvent.stopPropagation(e as any);
+                if (onVehicleClick) onVehicleClick(vehicle);
+              },
+            }}
+          />
+        );
+      })}
+    </>
+  );
+}
+
 export default function BusMap({ 
   vehicles, 
   onVehicleClick, 
@@ -317,8 +387,7 @@ export default function BusMap({
     }
 
     lastFetchedRouteKeyRef.current = routeKey;
-    const previewRoute = buildLocalRoutePreview(routeStopIds, stopsData);
-    setSnappedRoute(previewRoute);
+    setSnappedRoute([]);
 
     const tripId = String(selectedVehicle.tripId || '').trim();
     let cancelled = false;
@@ -329,11 +398,11 @@ export default function BusMap({
           setSnappedRoute(points);
           return;
         }
-        setSnappedRoute(previewRoute);
+        setSnappedRoute([]);
       })
       .catch(() => {
         if (cancelled || lastFetchedRouteKeyRef.current !== routeKey) return;
-        setSnappedRoute(previewRoute);
+        setSnappedRoute([]);
       });
 
     return () => {
@@ -455,27 +524,13 @@ export default function BusMap({
           )}
         </Pane>
 
-        {vehicles.map((vehicle) => {
-          const delayInfo = formatDelay(vehicle.delay);
-          // Highlight selected bus
-          const isSelected = selectedVehicleId === vehicle.id;
-          const isHighVolume = vehicles.length > 50;
-          
-          return (
-            <Marker
-              key={vehicle.id}
-              position={[vehicle.lat, vehicle.lon]}
-              icon={getCachedBusIcon(vehicle.routeShortName || '', vehicle.id, vehicle.delay, vehicle.speed, isSelected, themeColor, vehicle.dataAgeSec, isHighVolume)}
-              zIndexOffset={isSelected ? 1000 : 0}
-              eventHandlers={{
-                click: (e) => {
-                  L.DomEvent.stopPropagation(e as any);
-                  if (onVehicleClick) onVehicleClick(vehicle);
-                }
-              }}
-            />
-          );
-        })}
+        <VehicleMarkerLayer
+          vehicles={vehicles}
+          selectedVehicleId={selectedVehicleId}
+          themeColor={themeColor}
+          refreshInterval={refreshInterval}
+          onVehicleClick={onVehicleClick}
+        />
       </MapContainer>
     </div>
   );

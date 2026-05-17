@@ -618,6 +618,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       verified: role === 'owner' || role === 'admin' || extras.verified === true,
       updatedAt: serverTimestamp(),
       updatedBy: user?.uid || null,
+      lastUid: user?.uid || null,
     };
     if (extras.banDetails) {
       patch.banDetails = extras.banDetails;
@@ -678,6 +679,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
             banDetails,
             updatedAt: serverTimestamp(),
             updatedBy: user?.uid || null,
+            lastUid: user?.uid || null,
           },
           { merge: true },
         );

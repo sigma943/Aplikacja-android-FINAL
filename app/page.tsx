@@ -275,23 +275,6 @@ export default function Home() {
             }
         });
 
-        if (!liveMatch) {
-            vehicles.forEach(v => {
-                if (normLine(v.routeShortName) !== journeyLineNorm) return;
-                const delaySec = Number(v.delay);
-                if (!Number.isFinite(delaySec) || delaySec === 0 || Math.abs(delaySec) > 18000) return;
-                if (v.status === 'break' || v.status === 'inactive') return;
-                const liveDirection = normalizeDirection(v.direction);
-                const journeyDirection = normalizeDirection(journey.route_description);
-                const sameDirection =
-                  Boolean(liveDirection && journeyDirection) &&
-                  (liveDirection.includes(journeyDirection) || journeyDirection.includes(liveDirection));
-                if (sameLineCandidates === 1 || sameDirection) {
-                  liveMatch = v;
-                }
-            });
-        }
-
         if (liveMatch) {
             const liveDelaySec = Number(liveMatch.delay);
             const canUseLiveDelay =
@@ -334,7 +317,7 @@ export default function Home() {
         const uniqKey = [
           journeyLineNorm,
           String(journey.route_description || '').trim().toUpperCase(),
-          vehicleNum ? `veh:${vehicleNum}` : `min:${plannedMinuteBucket}`,
+          `min:${plannedMinuteBucket}`,
         ].join('|');
         const depDate = new Date(journeyPlannedMs);
         const todayDate = new Date(now);

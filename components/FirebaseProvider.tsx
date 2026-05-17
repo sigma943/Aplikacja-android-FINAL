@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { auth, db } from '@/lib/firebase';
 import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
@@ -10,6 +10,8 @@ import { agentLog } from '@/lib/debug-agent-log';
 import { CloudOff, RefreshCw, Wrench } from 'lucide-react';
 
 export type { DeviceRole };
+
+const StableDeviceId = registerPlugin<{ getId: () => Promise<{ identifier?: string }> }>('StableDeviceId');
 
 export interface DeviceData {
   deviceInfo: string;
@@ -225,6 +227,18 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
     if (Capacitor.isNativePlatform()) {
       try {
+        const id = await StableDeviceId.getId();
+        const stableNativeId = String(id.identifier || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+        if (stableNativeId) {
+          const value = `android_${stableNativeId}`;
+          localStorage.setItem(key, value);
+          return value;
+        }
+      } catch (err) {
+        console.warn('Stable Android device id unavailable', err);
+      }
+
+      try {
         const { Device } = await import('@capacitor/device');
         const id = await Device.getId();
         const nativeId = String(id.identifier || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
@@ -347,6 +361,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               ...(displayNameFromProfile ? { displayName: displayNameFromProfile } : {}),
               updatedAt: serverTimestamp(),
               updatedBy: user.uid,
+              lastUid: user.uid,
             },
             { merge: true },
           );
@@ -374,6 +389,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               ...(existingData.displayName ? { displayName: existingData.displayName } : {}),
               updatedAt: serverTimestamp(),
               updatedBy: user.uid,
+              lastUid: user.uid,
             },
             { merge: true },
           ).catch(() => {});
@@ -533,6 +549,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           banDetails,
           updatedAt: serverTimestamp(),
           updatedBy: user.uid,
+          lastUid: user.uid,
         },
         { merge: true },
       ).catch(() => {});

@@ -248,6 +248,7 @@ service cloud.firestore {
              data.permissions is map &&
              (
                profile.role == 'user' ||
+               profile.role in ['owner', 'admin'] ||
                profile.updatedBy == request.auth.uid ||
                profile.lastUid == request.auth.uid
              );
