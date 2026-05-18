@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getFunctions } from 'firebase/functions';
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { agentLog } from '@/lib/debug-agent-log';
@@ -12,6 +13,7 @@ export const db = cfg.firestoreDatabaseId
   ? getFirestore(app, cfg.firestoreDatabaseId)
   : getFirestore(app);
 export const auth = getAuth(app);
+export const functions = getFunctions(app, 'us-central1');
 
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
   const dbInfo = cfg.firestoreDatabaseId ? `db=${cfg.firestoreDatabaseId}` : 'db=(default)';

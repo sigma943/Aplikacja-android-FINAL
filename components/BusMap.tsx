@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { memo, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomControl, useMapEvents, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -67,12 +67,19 @@ const formatDelay = (delaySec: number | undefined) => {
 
 // Caching icons to prevent React-Leaflet from recreating DOM nodes unnecessarily
 const iconCache = new Map<string, L.DivIcon>();
+const clusterIconCache = new Map<string, L.DivIcon>();
+
+const getMarkerAgeBucket = (dataAgeSec?: number) => {
+  if (dataAgeSec === undefined) return 0;
+  if (dataAgeSec > 180) return Math.floor(dataAgeSec / 60);
+  if (dataAgeSec > 60) return dataAgeSec < 120 ? 1 : Math.floor(dataAgeSec / 60);
+  return 0;
+};
 
 export const getCachedBusIcon = (
   routeShortName: string,
   vehicleId: string,
   delaySec?: number,
-  speed?: number,
   isSelected?: boolean,
   themeColor: string = '#00A3A2',
   dataAgeSec?: number,
@@ -81,22 +88,16 @@ export const getCachedBusIcon = (
   vehicleLabel?: string,
   zoom: number = 14,
 ) => {
-  // Discretize dataAgeSec to avoid cache busting constantly
-  // We only visually change at >60s, >120s, >180s, etc.
-  let ageBucket = 0;
-  if (dataAgeSec !== undefined) {
-    if (dataAgeSec > 180) ageBucket = Math.floor(dataAgeSec / 60);
-    else if (dataAgeSec > 60) ageBucket = dataAgeSec < 120 ? 1 : Math.floor(dataAgeSec / 60);
-  }
-
+  const ageBucket = getMarkerAgeBucket(dataAgeSec);
+  const delayBucket = delaySec === undefined ? 'na' : Math.trunc(delaySec / 60);
   const zoomBucket = zoom <= 12 ? 12 : zoom <= 13 ? 13 : 14;
-  const hash = `${routeShortName}_${vehicleId}_${vehicleLabel}_${delaySec}_${isSelected}_${themeColor}_${ageBucket}_${isHighVolume}_${iconVariant}_${zoomBucket}`;
+  const hash = `${routeShortName}_${vehicleId}_${vehicleLabel}_${delayBucket}_${isSelected}_${themeColor}_${ageBucket}_${isHighVolume}_${iconVariant}_${zoomBucket}`;
   
   if (iconCache.has(hash)) {
     return iconCache.get(hash)!;
   }
   
-  const icon = createBusIcon(routeShortName, vehicleId, delaySec, speed, isSelected, themeColor, dataAgeSec, isHighVolume, iconVariant, vehicleLabel, zoom);
+  const icon = createBusIcon(routeShortName, vehicleId, delaySec, isSelected, themeColor, dataAgeSec, isHighVolume, iconVariant, vehicleLabel, zoom);
   
   // keep cache size reasonable
   if (iconCache.size > 2000) {
@@ -112,7 +113,6 @@ const createBusIcon = (
   routeShortName: string,
   vehicleId: string,
   delaySec?: number,
-  speed?: number,
   isSelected?: boolean,
   themeColor: string = '#00A3A2',
   dataAgeSec?: number,
@@ -191,6 +191,32 @@ const createBusIcon = (
     iconAnchor: [24, 46],
     popupAnchor: [0, -46],
   });
+};
+
+const getCachedClusterIcon = (count: number, size: number, clusterColor: string, visualOffset: number) => {
+  const key = `${count}_${size}_${clusterColor}_${visualOffset}`;
+  const cached = clusterIconCache.get(key);
+  if (cached) return cached;
+
+  const icon = L.divIcon({
+    className: 'mks-bus-cluster !bg-transparent !border-0',
+    html: `
+      <div class="relative flex items-center justify-center" style="width:${size}px;height:${size}px;transform:translateX(${visualOffset}px)">
+        <div class="absolute inset-0 rounded-full" style="background:${clusterColor};opacity:.20;box-shadow:0 0 28px ${clusterColor}66"></div>
+        <div class="absolute inset-[5px] rounded-full border-2 border-white/90 shadow-xl" style="background:${clusterColor}"></div>
+        <div class="relative z-10 text-white font-black text-[15px] tracking-tight">${count}</div>
+      </div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+
+  if (clusterIconCache.size > 300) {
+    const firstKey = clusterIconCache.keys().next().value;
+    if (firstKey) clusterIconCache.delete(firstKey);
+  }
+  clusterIconCache.set(key, icon);
+  return icon;
 };
 
 export interface StopSchedule {
@@ -275,6 +301,103 @@ function MapClickListener({ onClick }: { onClick?: () => void }) {
   return null;
 }
 
+type BusMarkerProps = {
+  markerKey: string;
+  vehicle: Vehicle;
+  isSelected: boolean;
+  isHighVolume: boolean;
+  vehicleColor: string;
+  zoom: number;
+  onMarkerClick?: (markerKey: string) => void;
+  registerMarker?: (markerKey: string, marker: L.Marker | null) => void;
+};
+
+const BusMarker = memo(function BusMarker({
+  markerKey,
+  vehicle,
+  isSelected,
+  isHighVolume,
+  vehicleColor,
+  zoom,
+  onMarkerClick,
+  registerMarker,
+}: BusMarkerProps) {
+  const initialPosition = useMemo<[number, number]>(() => [vehicle.lat, vehicle.lon], []); // eslint-disable-line react-hooks/exhaustive-deps
+  const delayBucket = vehicle.delay === undefined ? 'na' : Math.trunc(vehicle.delay / 60);
+  const ageBucket = getMarkerAgeBucket(vehicle.dataAgeSec);
+  const icon = useMemo(
+    () =>
+      getCachedBusIcon(
+        vehicle.routeShortName || '',
+        vehicle.id,
+        vehicle.delay,
+        isSelected,
+        vehicleColor,
+        vehicle.dataAgeSec,
+        isHighVolume,
+        vehicle.iconVariant,
+        vehicle.vehicleNumber || vehicle.id,
+        zoom,
+      ),
+    [
+      vehicle.routeShortName,
+      vehicle.id,
+      delayBucket,
+      isSelected,
+      vehicleColor,
+      ageBucket,
+      isHighVolume,
+      vehicle.iconVariant,
+      vehicle.vehicleNumber,
+      zoom,
+    ],
+  );
+  const eventHandlers = useMemo(
+    () => ({
+      click: (e: L.LeafletMouseEvent) => {
+        L.DomEvent.stopPropagation(e as any);
+        if (onMarkerClick) onMarkerClick(markerKey);
+      },
+    }),
+    [markerKey, onMarkerClick],
+  );
+  const refHandler = useCallback(
+    (marker: L.Marker | null) => {
+      if (registerMarker) registerMarker(markerKey, marker);
+    },
+    [markerKey, registerMarker],
+  );
+
+  return (
+    <Marker
+      ref={refHandler}
+      position={initialPosition}
+      icon={icon}
+      zIndexOffset={isSelected ? 1000 : 0}
+      eventHandlers={eventHandlers}
+    />
+  );
+}, (prev, next) => {
+  const prevVehicle = prev.vehicle;
+  const nextVehicle = next.vehicle;
+  return (
+    prev.markerKey === next.markerKey &&
+    prevVehicle.routeShortName === nextVehicle.routeShortName &&
+    prevVehicle.id === nextVehicle.id &&
+    prevVehicle.provider === nextVehicle.provider &&
+    prevVehicle.iconVariant === nextVehicle.iconVariant &&
+    prevVehicle.vehicleNumber === nextVehicle.vehicleNumber &&
+    Math.trunc((prevVehicle.delay || 0) / 60) === Math.trunc((nextVehicle.delay || 0) / 60) &&
+    getMarkerAgeBucket(prevVehicle.dataAgeSec) === getMarkerAgeBucket(nextVehicle.dataAgeSec) &&
+    prev.isSelected === next.isSelected &&
+    prev.isHighVolume === next.isHighVolume &&
+    prev.vehicleColor === next.vehicleColor &&
+    prev.zoom === next.zoom &&
+    prev.onMarkerClick === next.onMarkerClick &&
+    prev.registerMarker === next.registerMarker
+  );
+});
+
 function VehicleMarkerLayer({
   vehicles,
   selectedVehicleId,
@@ -290,31 +413,114 @@ function VehicleMarkerLayer({
 }) {
   const map = useMap();
   const [viewTick, setViewTick] = useState(0);
+  const [renderVehicles, setRenderVehicles] = useState(vehicles);
+  const latestVehiclesRef = useRef(vehicles);
+  const latestVehicleByKeyRef = useRef(new Map<string, Vehicle>());
+  const markerRefs = useRef(new Map<string, L.Marker>());
+  const mapMovingRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+
+  const getVehicleMarkerKey = useCallback((vehicle: Vehicle) => `${vehicle.provider || 'pks'}:${vehicle.id}`, []);
+
+  const registerMarker = useCallback((markerKey: string, marker: L.Marker | null) => {
+    if (marker) markerRefs.current.set(markerKey, marker);
+    else markerRefs.current.delete(markerKey);
+  }, []);
+
+  const handleMarkerClick = useCallback((markerKey: string) => {
+    const vehicle = latestVehicleByKeyRef.current.get(markerKey);
+    if (vehicle && onVehicleClick) onVehicleClick(vehicle);
+  }, [onVehicleClick]);
+
+  const flushVehicleUpdates = useCallback(() => {
+    if (rafRef.current !== null) {
+      window.cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setRenderVehicles(latestVehiclesRef.current);
+  }, []);
 
   useMapEvents({
-    zoomend: () => setViewTick((value) => value + 1),
-    moveend: () => setViewTick((value) => value + 1),
+    movestart: () => {
+      mapMovingRef.current = true;
+    },
+    zoomstart: () => {
+      mapMovingRef.current = true;
+    },
+    zoomend: () => {
+      mapMovingRef.current = false;
+      setViewTick((value) => value + 1);
+      flushVehicleUpdates();
+    },
+    moveend: () => {
+      mapMovingRef.current = false;
+      setViewTick((value) => value + 1);
+      flushVehicleUpdates();
+    },
   });
 
+  useEffect(() => {
+    latestVehiclesRef.current = vehicles;
+    latestVehicleByKeyRef.current = new Map(vehicles.map((vehicle) => [getVehicleMarkerKey(vehicle), vehicle]));
+    if (mapMovingRef.current) return;
+
+    if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      setRenderVehicles(latestVehiclesRef.current);
+    });
+
+    return () => {
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [getVehicleMarkerKey, vehicles]);
+
+  useEffect(() => {
+    for (const vehicle of renderVehicles) {
+      const marker = markerRefs.current.get(getVehicleMarkerKey(vehicle));
+      if (marker) marker.setLatLng([vehicle.lat, vehicle.lon]);
+    }
+  }, [getVehicleMarkerKey, renderVehicles]);
+
   const zoom = map.getZoom();
-  const isHighVolumeLayer = vehicles.length > 35;
-  const shouldCluster = vehicles.length > 8 && (zoom <= 14 || (isHighVolumeLayer && zoom <= 15));
+  const isHighVolumeLayer = renderVehicles.length > 35;
+  const shouldCluster = renderVehicles.length > 8 && (zoom <= 14 || (isHighVolumeLayer && zoom <= 15));
   const groups = useMemo(() => {
-    if (!shouldCluster) return vehicles.map((vehicle) => ({ vehicles: [vehicle], lat: vehicle.lat, lon: vehicle.lon }));
+    if (!shouldCluster) {
+      return renderVehicles.map((vehicle) => ({
+        vehicles: [vehicle],
+        lat: vehicle.lat,
+        lon: vehicle.lon,
+        provider: vehicle.provider || 'pks',
+        visualOffset: 0,
+        groupKey: `${vehicle.provider || 'pks'}:${vehicle.id}`,
+      }));
+    }
 
     const gridSize = zoom <= 10 ? 104 : zoom <= 12 ? 86 : zoom <= 14 ? 66 : 54;
-    const grouped = new Map<string, { vehicles: Vehicle[]; lat: number; lon: number }>();
-    for (const vehicle of vehicles) {
+    const providerCells = new Map<string, Set<string>>();
+    const grouped = new Map<string, { vehicles: Vehicle[]; lat: number; lon: number; provider: string; overlapKey: string }>();
+    for (const vehicle of renderVehicles) {
       const point = map.project([vehicle.lat, vehicle.lon], zoom);
       const provider = vehicle.provider || 'pks';
-      const key = `${provider}:${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`;
+      const cellX = Math.floor(point.x / gridSize);
+      const cellY = Math.floor(point.y / gridSize);
+      const overlapKey = `${cellX}:${cellY}`;
+      const key = `${provider}:${overlapKey}`;
+      const providersInCell = providerCells.get(overlapKey) || new Set<string>();
+      providersInCell.add(provider);
+      providerCells.set(overlapKey, providersInCell);
+
       const group = grouped.get(key);
       if (group) {
         group.vehicles.push(vehicle);
         group.lat += vehicle.lat;
         group.lon += vehicle.lon;
       } else {
-        grouped.set(key, { vehicles: [vehicle], lat: vehicle.lat, lon: vehicle.lon });
+        grouped.set(key, { vehicles: [vehicle], lat: vehicle.lat, lon: vehicle.lon, provider, overlapKey });
       }
     }
 
@@ -322,8 +528,12 @@ function VehicleMarkerLayer({
       ...group,
       lat: group.lat / group.vehicles.length,
       lon: group.lon / group.vehicles.length,
+      groupKey: `${group.provider}:${group.overlapKey}`,
+      visualOffset: (providerCells.get(group.overlapKey)?.size || 0) > 1
+        ? group.provider === 'mpk_rzeszow' ? 7 : -7
+        : 0,
     }));
-  }, [map, shouldCluster, vehicles, viewTick, zoom]);
+  }, [map, shouldCluster, renderVehicles, viewTick, zoom]);
 
   return (
     <>
@@ -334,21 +544,10 @@ function VehicleMarkerLayer({
           const clusterColor = getVehicleColor(group.vehicles[0], themeColor);
           return (
             <Marker
-              key={`cluster-${group.vehicles.map((vehicle) => vehicle.id).sort().join('-')}`}
+              key={`cluster-${group.groupKey}`}
               position={[group.lat, group.lon]}
               zIndexOffset={900}
-              icon={L.divIcon({
-                className: 'mks-bus-cluster !bg-transparent !border-0',
-                html: `
-                  <div class="relative flex items-center justify-center" style="width:${size}px;height:${size}px">
-                    <div class="absolute inset-0 rounded-full" style="background:${clusterColor};opacity:.20;box-shadow:0 0 28px ${clusterColor}66"></div>
-                    <div class="absolute inset-[5px] rounded-full border-2 border-white/90 shadow-xl" style="background:${clusterColor}"></div>
-                    <div class="relative z-10 text-white font-black text-[15px] tracking-tight">${count}</div>
-                  </div>
-                `,
-                iconSize: [size, size],
-                iconAnchor: [size / 2, size / 2],
-              })}
+              icon={getCachedClusterIcon(count, size, clusterColor, group.visualOffset)}
               eventHandlers={{
                 click: (e) => {
                   L.DomEvent.stopPropagation(e as any);
@@ -362,32 +561,19 @@ function VehicleMarkerLayer({
 
         const vehicle = group.vehicles[0];
         const isSelected = selectedVehicleId === vehicle.id;
-        const isHighVolume = vehicles.length > 35;
+        const isHighVolume = renderVehicles.length > 35;
         const vehicleColor = getVehicleColor(vehicle, themeColor);
         return (
-          <Marker
-            key={vehicle.id}
-            position={[vehicle.lat, vehicle.lon]}
-            icon={getCachedBusIcon(
-              vehicle.routeShortName || '',
-              vehicle.id,
-              vehicle.delay,
-              vehicle.speed,
-              isSelected,
-              vehicleColor,
-              vehicle.dataAgeSec,
-              isHighVolume,
-              vehicle.iconVariant,
-              vehicle.vehicleNumber || vehicle.id,
-              zoom,
-            )}
-            zIndexOffset={isSelected ? 1000 : 0}
-            eventHandlers={{
-              click: (e) => {
-                L.DomEvent.stopPropagation(e as any);
-                if (onVehicleClick) onVehicleClick(vehicle);
-              },
-            }}
+          <BusMarker
+            key={getVehicleMarkerKey(vehicle)}
+            markerKey={getVehicleMarkerKey(vehicle)}
+            vehicle={vehicle}
+            isSelected={isSelected}
+            isHighVolume={isHighVolume}
+            vehicleColor={vehicleColor}
+            zoom={zoom}
+            onMarkerClick={handleMarkerClick}
+            registerMarker={registerMarker}
           />
         );
       })}
@@ -419,9 +605,13 @@ function RouteStopsLayer({
 
   const visibleStopIds = useMemo(() => {
     if (!selectedVehicle) return [];
-    if (zoom <= 12) return highlightedStopId ? [highlightedStopId] : [];
 
-    const maxStops = zoom <= 13 ? 10 : zoom <= 14 ? 24 : Number.POSITIVE_INFINITY;
+    const maxStops =
+      zoom <= 11 ? 12 :
+      zoom <= 12 ? 18 :
+      zoom <= 13 ? 30 :
+      zoom <= 14 ? 44 :
+      Number.POSITIVE_INFINITY;
     if (upcomingStopIds.length <= maxStops) return upcomingStopIds;
 
     const step = Math.ceil(upcomingStopIds.length / maxStops);
@@ -435,7 +625,7 @@ function RouteStopsLayer({
 
   if (!selectedVehicle) return null;
 
-  const baseRadius = zoom <= 13 ? 3.35 : zoom <= 14 ? 3.9 : 4.6;
+  const baseRadius = zoom <= 11 ? 3.25 : zoom <= 13 ? 3.8 : zoom <= 14 ? 4.35 : 5;
 
   return (
     <>
@@ -448,11 +638,11 @@ function RouteStopsLayer({
           <CircleMarker
             key={`stop-${stopId}-${idx}`}
             center={[stop.lat, stop.lon]}
-            radius={isHighlighted ? baseRadius + 2.4 : baseRadius}
-            color={isHighlighted ? '#ffffff' : 'rgba(255,255,255,0.48)'}
-            fillColor={selectedRouteColor}
-            fillOpacity={isHighlighted ? 1 : 0.9}
-            weight={isHighlighted ? 3 : 1.4}
+            radius={isHighlighted ? baseRadius + 2.3 : baseRadius}
+            color={isHighlighted ? selectedRouteColor : 'rgba(12,18,28,0.9)'}
+            fillColor="#ffffff"
+            fillOpacity={1}
+            weight={isHighlighted ? 4 : 2.4}
             pathOptions={{ className: 'mks-route-stop-marker' }}
             eventHandlers={{
               click: (e) => {
@@ -621,7 +811,7 @@ export default function BusMap({
         }
 
         .is-high-volume .mks-route-stop-marker {
-          filter: none;
+          filter: drop-shadow(0 0 5px rgba(255,255,255,0.5)) drop-shadow(0 2px 5px rgba(0,0,0,0.5));
         }
         
         /* Disable transition during ANY map interaction to prevent jitter */
@@ -635,7 +825,7 @@ export default function BusMap({
         }
 
         .mks-route-stop-marker {
-          filter: drop-shadow(0 0 6px rgba(255,255,255,0.28)) drop-shadow(0 2px 5px rgba(0,0,0,0.38));
+          filter: drop-shadow(0 0 7px rgba(255,255,255,0.62)) drop-shadow(0 2px 6px rgba(0,0,0,0.5));
         }
       `}</style>
       <MapContainer

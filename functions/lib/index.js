@@ -286,19 +286,31 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
         };
         const installation = installationSnap.exists ? installationSnap.data() : null;
         const lastUid = String(installation?.lastUid || '').trim();
-        // If UID changed (e.g. different web port / fresh install), inherit role/permissions/displayName
-        // from the last known UID for this installationId to avoid losing access.
+        let previousUidToDeduplicate = '';
+        // If UID changed (e.g. reinstall / cleared data), inherit role and remove the old row
+        // so the admin device list does not show duplicate entries for the same physical device.
         if (!existingSnap.exists && lastUid && lastUid !== uid) {
             const prevSnap = await db.collection('devices').doc(lastUid).get();
             if (prevSnap.exists) {
                 const prev = prevSnap.data();
-                const prevRole = (prev?.role || 'user');
-                patch.role = prevRole;
-                patch.permissions = prev?.permissions && typeof prev.permissions === 'object'
-                    ? prev.permissions
-                    : permissionsForRole(prevRole);
-                if (typeof prev.displayName === 'string' && prev.displayName.trim()) {
-                    patch.displayName = prev.displayName.trim().slice(0, 120);
+                const prevInstallationId = normalizeInstallationId(prev?.installationId);
+                if (prevInstallationId === installationId) {
+                    previousUidToDeduplicate = lastUid;
+                    const prevRole = (prev?.role || 'user');
+                    const prevStatus = prev?.status === 'banned' ? 'banned' : 'active';
+                    patch.role = prevRole;
+                    patch.permissions = prev?.permissions && typeof prev.permissions === 'object'
+                        ? prev.permissions
+                        : permissionsForRole(prevRole);
+                    patch.verified = prevRole === 'owner' || prevRole === 'admin' || prev?.verified === true;
+                    if (!isBlocked)
+                        patch.status = prevStatus;
+                    if (prevStatus === 'banned' && prev?.banDetails && typeof prev.banDetails === 'object') {
+                        patch.banDetails = prev.banDetails;
+                    }
+                    if (typeof prev.displayName === 'string' && prev.displayName.trim()) {
+                        patch.displayName = prev.displayName.trim().slice(0, 120);
+                    }
                 }
             }
         }
@@ -312,6 +324,15 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
         else {
             const existing = existingSnap.data();
             const existingRole = (existing?.role || 'user');
+            const existingStatus = existing?.status === 'banned' ? 'banned' : 'active';
+            if (!isBlocked)
+                patch.status = existingStatus;
+            if (existingStatus === 'banned' && existing?.banDetails && typeof existing.banDetails === 'object') {
+                patch.banDetails = existing.banDetails;
+            }
+            if (existingRole === 'owner' || existingRole === 'admin' || existing?.verified === true) {
+                patch.verified = true;
+            }
             if ((existingRole === 'admin' || existingRole === 'owner') &&
                 isAllFalsePermissions(existing?.permissions)) {
                 patch.permissions = permissionsForRole(existingRole);
@@ -325,6 +346,9 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
             };
         }
         await deviceRef.set(patch, { merge: true });
+        if (previousUidToDeduplicate) {
+            await db.collection('devices').doc(previousUidToDeduplicate).delete();
+        }
         await installationRef.set({
             installationId,
             knownUids: firestore_1.FieldValue.arrayUnion(uid),
@@ -332,7 +356,12 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
             lastSeenAt: now,
             updatedAt: now,
         }, { merge: true });
-        return { ok: true, installationId, status };
+        return {
+            ok: true,
+            installationId,
+            status: String(patch.status || status),
+            ...(previousUidToDeduplicate ? { dedupedPreviousUid: previousUidToDeduplicate } : {}),
+        };
     }
     catch (err) {
         throw toHttpsError(err, 'registerDeviceIdentity failed');

@@ -110,6 +110,9 @@ export default function Home() {
   const lastVehiclesRef = useRef<string>('');
   const lastVehiclesEtagRef = useRef<string>('');
   const activeProvidersRef = useRef<TransportProviderId[]>([]);
+  const vehiclesFetchAbortRef = useRef<AbortController | null>(null);
+  const vehicleDetailsCacheRef = useRef<Map<string, { vehicle: Vehicle; expiresAt: number }>>(new Map());
+  const vehicleDetailsRequestSeqRef = useRef(0);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -162,7 +165,7 @@ export default function Home() {
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(true);
   const [stopDepartures, setStopDepartures] = useState<any[]>([]);
   const [isFetchingDepartures, setIsFetchingDepartures] = useState(false);
-  const [refreshInterval, setRefreshInterval] = useState(5000);
+  const [refreshInterval, setRefreshInterval] = useState(7000);
   const [favsState, setFavsState] = useState<string[]>([]);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [departuresLineFilter, setDeparturesLineFilter] = useState('');
@@ -191,7 +194,7 @@ export default function Home() {
   const formatScheduleStopName = useCallback((name?: string | null) => {
     const raw = String(name || '').trim();
     if (!raw) return 'Przystanek nieznany';
-    return raw.replace(/^Rzeszów D\.A\.\s+st\.\s*\d+$/i, 'Rzeszów D.A.');
+    return raw.replace(/^Rzeszów\s+D\.A\.\s+st\.\s*0*\d+$/i, 'Rzeszów D.A.');
   }, []);
 
   // Handle hardware back button to prevent accidental app exits when viewing a panel
@@ -512,6 +515,43 @@ export default function Home() {
     }
   };
 
+  const mergeVehicleDetails = useCallback((base: Vehicle, details?: Vehicle | null) => {
+    if (!details) return base;
+    return {
+      ...base,
+      ...details,
+      schedule: (details.schedule?.length || 0) > 0 ? details.schedule : base.schedule,
+      routePath: (details.routePath?.length || 0) > 0 ? details.routePath : base.routePath,
+    };
+  }, []);
+
+  const loadVehicleDetails = useCallback(async (vehicle: Vehicle) => {
+    const provider = (vehicle.provider || 'pks') as TransportProviderId;
+    const cacheKey = `${provider}:${vehicle.id}`;
+    const cached = vehicleDetailsCacheRef.current.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      setSelectedBus((current) => current?.id === vehicle.id ? mergeVehicleDetails(current, cached.vehicle) : current);
+      return cached.vehicle;
+    }
+
+    const requestSeq = vehicleDetailsRequestSeqRef.current + 1;
+    vehicleDetailsRequestSeqRef.current = requestSeq;
+    setSelectedBusDetailsLoading(true);
+    try {
+      const details = await fetchVehicleDetailsClient(provider, vehicle.id, showInactive);
+      if (details) {
+        vehicleDetailsCacheRef.current.set(cacheKey, { vehicle: details, expiresAt: Date.now() + 45_000 });
+        setSelectedBus((current) => current?.id === vehicle.id ? mergeVehicleDetails(current, details) : current);
+      }
+      return details;
+    } catch (error) {
+      console.warn('Vehicle details unavailable:', error);
+      return null;
+    } finally {
+      if (vehicleDetailsRequestSeqRef.current === requestSeq) setSelectedBusDetailsLoading(false);
+    }
+  }, [mergeVehicleDetails, showInactive]);
+
   const fetchVehicles = async (inactive = showInactive, force = false) => {
     if (!hasLoadedTransportProviders) {
       setIsLoading(false);
@@ -529,13 +569,13 @@ export default function Home() {
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
+      vehiclesFetchAbortRef.current?.abort();
       const controller = new AbortController();
+      vehiclesFetchAbortRef.current = controller;
       timeoutId = setTimeout(() => controller.abort(), 15000);
-      const data = await Promise.race([
-        fetchVehiclesClient(inactive, requestProviders),
-        new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(Object.assign(new Error('Aborted'), {name: 'AbortError'}))))
-      ]) as any;
+      const data = await fetchVehiclesClient(inactive, requestProviders, { signal: controller.signal }) as any;
       if (timeoutId) clearTimeout(timeoutId);
+      if (vehiclesFetchAbortRef.current === controller) vehiclesFetchAbortRef.current = null;
       if (!sameTransportProviders(requestProviders, activeProvidersRef.current)) return;
       const loadedVehicles = Array.isArray(data) ? data : (data.vehicles || []);
       const requestProviderSet = new Set(requestProviders);
@@ -551,9 +591,8 @@ export default function Home() {
       if (isOffline) setIsOffline(false);
     } catch (err: any) {
       if (timeoutId) clearTimeout(timeoutId);
+      if (vehiclesFetchAbortRef.current?.signal.aborted) vehiclesFetchAbortRef.current = null;
       if (err.name === 'AbortError') {
-        console.warn('Fetch vehicles aborted (timeout or navigation)');
-        setIsOffline(true);
         return;
       }
       console.error('Fetch vehicles error:', err);
@@ -731,17 +770,11 @@ export default function Home() {
       const updated = vehicles.find(v => v.id === selectedBus.id);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (updated && updated !== selectedBus) {
-        const selectedScheduleLength = selectedBus.schedule?.length || 0;
-        const updatedScheduleLength = updated.schedule?.length || 0;
-        setSelectedBus({
-          ...updated,
-          schedule: selectedScheduleLength > updatedScheduleLength ? selectedBus.schedule : updated.schedule,
-          routePath: (selectedBus.routePath?.length || 0) > (updated.routePath?.length || 0) ? selectedBus.routePath : updated.routePath,
-        });
+        setSelectedBus(mergeVehicleDetails(updated, selectedBus));
       }
       if (!updated && activeProviders.length > 0) setSelectedBus(null);
     }
-  }, [vehicles, selectedBus?.id, activeProviders.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [vehicles, selectedBus?.id, activeProviders.length, mergeVehicleDetails]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredVehicles = useMemo(() => {
     if (!deferredFilterRoute) return vehicles;
@@ -772,19 +805,10 @@ export default function Home() {
     return map;
   }, [stopsList]);
 
-  // Dynamic Refresh Interval Adjuster based on visible vehicles
+  // Keep live polling predictable and light. Details are fetched on demand after clicking a bus.
   useEffect(() => {
-    const count = filteredVehicles.length;
-    let nextInt = 5000;
-    if (count > 0 && count <= 8) nextInt = 1500;      // Super fast for focused lines
-    else if (count > 8 && count <= 25) nextInt = 3000; // Fast
-    else if (count > 40) nextInt = 8000;              // Conservative for heavy load
-    
-    if (nextInt !== refreshInterval) {
-       const val = nextInt;
-       setTimeout(() => setRefreshInterval(val), 0);
-    }
-  }, [filteredVehicles.length, refreshInterval]);
+    if (refreshInterval !== 7000) setTimeout(() => setRefreshInterval(7000), 0);
+  }, [refreshInterval]);
 
   const incomingToStop = (stopId: string) => {
     const now = new Date().getTime();
@@ -921,10 +945,16 @@ export default function Home() {
         : selectedBus?.statusText || null;
   const selectedBusGpsSignalClock = formatGpsSignalClock(selectedBus?.lastSignalTime);
   const selectedVehicleColor = selectedBus?.provider === 'mpk_rzeszow' ? '#ff7a00' : themeColor;
+  const selectedBusIsWaitingForDeparture = Boolean(
+    selectedBus?.status === 'break' ||
+    selectedBus?.statusText?.toLowerCase().includes('przerwa do') ||
+    selectedBus?.statusText?.toLowerCase().includes('odjazd za') ||
+    selectedBusStatusLabel === 'Przerwa',
+  );
   const selectedBusScheduleLoading =
-    selectedBus?.provider === 'mpk_rzeszow' &&
+    Boolean(selectedBus) &&
     selectedBusDetailsLoading &&
-    ((selectedBus.schedule?.length || 0) <= 1 || !(selectedBus.schedule || []).some((stop) => stop.planned || stop.real));
+    ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
   const selectedBusHeaderStyle = {
     background: transparentUI
       ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.9)}, ${withAlpha(selectedVehicleColor, 0.68)})`
@@ -979,6 +1009,18 @@ export default function Home() {
     setSelectedBus(null);
     setSelectedStopId(null);
   }, [draftProviders]);
+
+  const handleVehicleClick = useCallback((v: Vehicle) => {
+    if (!v) return;
+    if (selectedBus?.id !== v.id || selectedBus?.provider !== v.provider) {
+      setSelectedStopId(null);
+    }
+    setSelectedBus(v);
+    setIsBusPanelExpanded(true);
+    setIsSettingsOpen(false);
+    setIsTransportPanelOpen(false);
+    loadVehicleDetails(v);
+  }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
   
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
@@ -1110,25 +1152,7 @@ export default function Home() {
          <div className="absolute inset-0 z-0">
             <BusMap 
                vehicles={filteredVehicles} 
-               onVehicleClick={(v: any) => {
-                  if (v) {
-                     setSelectedBus(v);
-                     setIsBusPanelExpanded(true);
-                     setIsSettingsOpen(false);
-                     setIsTransportPanelOpen(false);
-                     if (v.provider === 'mpk_rzeszow') {
-                        setSelectedBusDetailsLoading(true);
-                        fetchVehicleDetailsClient('mpk_rzeszow', v.id, showInactive)
-                          .then((details) => {
-                            if (details) setSelectedBus((current) => current?.id === v.id ? details : current);
-                          })
-                          .catch((error) => console.warn('MPK details unavailable:', error))
-                          .finally(() => setSelectedBusDetailsLoading(false));
-                     } else {
-                        setSelectedBusDetailsLoading(false);
-                     }
-                  }
-               }}
+               onVehicleClick={handleVehicleClick}
                selectedVehicleId={selectedBus?.id}
                stopsData={stopsDataMap}
                themeColor={themeColor}
@@ -1336,7 +1360,7 @@ export default function Home() {
                       >
                         <div className={`p-2.5 md:p-4 flex flex-col gap-2.5 md:gap-4 overflow-y-auto mt-1.5 md:mt-2 rounded-t-xl md:rounded-t-2xl relative z-10 ${mapDetailContent}`}>
                         <div className="grid grid-cols-2 gap-2 md:gap-4 shrink-0">
-                        <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard} ${!selectedBus.delay || Math.floor(Math.abs(selectedBus.delay) / 60) === 0 ? 'col-span-2' : ''}`}>
+                        <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard} ${selectedBusIsWaitingForDeparture ? 'col-span-2' : ''}`}>
                            <div className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5 md:mb-1 ${textSub}`}>
                               <Navigation className="w-3 h-3 md:w-3.5 md:h-3.5" /> Prędkość
                            </div>
@@ -1351,8 +1375,8 @@ export default function Home() {
                            </span>
                         </div>
                         
-                        {!!(selectedBus.delay && !isNaN(selectedBus.delay) && Math.floor(Math.abs(selectedBus.delay) / 60) > 0) && (
-                           <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard}`}>
+                        {!selectedBusIsWaitingForDeparture && (
+                        <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard}`}>
                               <div className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5 md:mb-1 ${textSub}`}>
                                  <Clock className="w-3 h-3 md:w-3.5 md:h-3.5" /> Punktualność
                               </div>
@@ -1360,6 +1384,11 @@ export default function Home() {
                                  let d = selectedBus.delay || 0;
                                  if (Math.abs(d) > 18000) d = 0; // Ignore absurd delays (e.g. > 5 hours) to prevent UI breakage
                                  const m = Math.floor(Math.abs(d) / 60);
+                                 if (m === 0) return (
+                                   <div className={`flex flex-col items-start ${textMain}`}>
+                                     <span className="text-sm md:text-base font-bold leading-tight">Zgodnie z planem</span>
+                                   </div>
+                                 );
                                  if (d < 0) return (
                                    <div className="flex flex-col text-emerald-500 items-start">
                                      <div className="flex items-baseline gap-1">
@@ -1411,10 +1440,13 @@ export default function Home() {
                                    selectedBus.status !== 'inactive' &&
                                    Number.isFinite(busDelaySec) &&
                                    Math.abs(busDelaySec) <= 18000;
-                                const realTime = realTimeRaw || (plannedTime && canUseBusDelay && busDelaySec !== 0 ? new Date(plannedTime.getTime() + (busDelaySec * 1000)) : null);
+                                const computedDelayTime = plannedTime && canUseBusDelay && busDelaySec !== 0 ? new Date(plannedTime.getTime() + (busDelaySec * 1000)) : null;
+                                const rawLooksPlanned = Boolean(realTimeRaw && plannedTime && Math.abs(realTimeRaw.getTime() - plannedTime.getTime()) < 60_000);
+                                const realTime = rawLooksPlanned ? (computedDelayTime || realTimeRaw) : (realTimeRaw || computedDelayTime);
                                 const displayTime = realTime || plannedTime;
                                 let delayMin = 0;
                                 if (realTime && plannedTime) delayMin = Math.round((realTime.getTime() - plannedTime.getTime()) / 60000);
+                                const busDelayMin = canUseBusDelay ? Math.round(busDelaySec / 60) : delayMin;
                                 const formatTime = (time: Date) => {
                                    const isTomorrow = time.getDate() !== new Date().getDate();
                                    const mm = time.getMinutes().toString().padStart(2, '0');
@@ -1426,7 +1458,8 @@ export default function Home() {
                                    }
                                    return `${hh}:${mm}`;
                                 };
-                                const timeStr = displayTime ? formatTime(displayTime) : '--:--';
+                                const timeStr = displayTime ? formatTime(displayTime) : '';
+                                const timeClass = busDelayMin > 0 ? 'text-rose-500' : busDelayMin < 0 ? 'text-emerald-500' : textMain;
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = selectedBus.lastStopId && sch.id === selectedBus.lastStopId;
                                 return (
@@ -1438,9 +1471,11 @@ export default function Home() {
                                      <div className={`w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm leading-none transition-colors ${isHighlighted ? 'border-red-500' : (isDark ? 'border-slate-800/80' : 'border-white/85')}`} style={{ backgroundColor: isHighlighted ? selectedVehicleColor : (isPastStop ? '#94a3b8' : selectedVehicleColor) }}></div>
                                      <div className={`flex flex-col flex-1 pb-2 border-b ${mapDetailDivider} ${isHighlighted ? 'border-transparent' : ''}`}>
                                         <span className={`text-[13px] font-semibold leading-tight pr-2 ${textMain}`}>{formatScheduleStopName(sch.name)}</span>
-                                        <div className="flex items-center gap-2 mt-1">
-                                           <span className={`text-xs font-bold font-mono ${delayMin > 0 ? 'text-rose-500' : textMain}`}>{timeStr}</span>
-                                        </div>
+                                        {timeStr && (
+                                          <div className="flex items-center gap-2 mt-1">
+                                             <span className={`text-xs font-bold font-mono ${timeClass}`}>{timeStr}</span>
+                                          </div>
+                                        )}
                                      </div>
                                   </div>
                                 );

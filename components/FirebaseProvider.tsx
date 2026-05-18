@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, functions } from '@/lib/firebase';
 import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
 import { buildDevicePermissions, type DeviceRole } from '@/lib/admin/rbac';
 import { agentLog } from '@/lib/debug-agent-log';
@@ -12,6 +13,10 @@ import { CloudOff, RefreshCw, Wrench } from 'lucide-react';
 export type { DeviceRole };
 
 const StableDeviceId = registerPlugin<{ getId: () => Promise<{ identifier?: string }> }>('StableDeviceId');
+const registerDeviceIdentityFn = httpsCallable<
+  { installationId: string; deviceInfo: string },
+  { ok?: boolean; installationId?: string; status?: string; dedupedPreviousUid?: string }
+>(functions, 'registerDeviceIdentity');
 
 export interface DeviceData {
   deviceInfo: string;
@@ -301,6 +306,22 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       // #endregion
       try {
         const deviceInfo = await getClientDeviceInfo();
+        try {
+          await registerDeviceIdentityFn({ installationId: instId, deviceInfo });
+          agentLog(
+            'FirebaseProvider.tsx:registerIdentity:functionOk',
+            'Device identity saved via Cloud Function',
+            {
+              uidPrefix: user.uid.slice(0, 8),
+              installationIdPrefix: instId.slice(0, 12),
+            },
+            'H5',
+          );
+          return;
+        } catch (fnErr) {
+          console.warn('Cloud Function device registration unavailable, using Firestore fallback', fnErr);
+        }
+
         const installationRef = doc(db, 'installations', instId);
         const existing = await getDoc(deviceRef);
         if (!existing.exists()) {

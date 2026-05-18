@@ -85,6 +85,44 @@ function lastSeenLabelFromDevice(d: { lastSeenAt?: { toDate?: () => Date } | nul
   return `${date}, ${time}`;
 }
 
+function deviceLastSeenMs(d: { lastSeenAt?: { toDate?: () => Date } | null }): number {
+  const t = d.lastSeenAt?.toDate?.();
+  return t && !Number.isNaN(t.getTime()) ? t.getTime() : 0;
+}
+
+function roleRank(role?: DeviceRole): number {
+  if (role === 'owner') return 3;
+  if (role === 'admin') return 2;
+  return 1;
+}
+
+function dedupeDevicesByInstallation(devices: ({ id: string } & DeviceData)[]): ({ id: string } & DeviceData)[] {
+  const byInstallation = new Map<string, { id: string } & DeviceData>();
+  const withoutInstallation: ({ id: string } & DeviceData)[] = [];
+
+  for (const device of devices) {
+    const installationId = String(device.installationId || '').trim();
+    if (!installationId) {
+      withoutInstallation.push(device);
+      continue;
+    }
+
+    const current = byInstallation.get(installationId);
+    if (!current) {
+      byInstallation.set(installationId, device);
+      continue;
+    }
+
+    const shouldReplace =
+      roleRank(device.role) > roleRank(current.role) ||
+      (roleRank(device.role) === roleRank(current.role) && deviceLastSeenMs(device) >= deviceLastSeenMs(current));
+
+    if (shouldReplace) byInstallation.set(installationId, device);
+  }
+
+  return [...withoutInstallation, ...byInstallation.values()];
+}
+
 function deviceLabelById(devices: ({ id: string } & DeviceData)[]): Record<string, string> {
   const m: Record<string, string> = {};
   for (const d of devices) {
@@ -309,7 +347,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
         return { id: d.id, ...(raw as DeviceData) };
       });
       setDevicesError(null);
-      setDevicesData(data);
+      setDevicesData(dedupeDevicesByInstallation(data));
     }, (e: unknown) => {
       console.error('[AdminDashboard] Firestore list devices failed', e);
       const ex = e as any;

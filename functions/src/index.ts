@@ -332,20 +332,31 @@ export const registerDeviceIdentity = onCall(async (request) => {
 
     const installation = installationSnap.exists ? (installationSnap.data() as any) : null;
     const lastUid = String(installation?.lastUid || '').trim();
+    let previousUidToDeduplicate = '';
 
-  // If UID changed (e.g. different web port / fresh install), inherit role/permissions/displayName
-  // from the last known UID for this installationId to avoid losing access.
+    // If UID changed (e.g. reinstall / cleared data), inherit role and remove the old row
+    // so the admin device list does not show duplicate entries for the same physical device.
     if (!existingSnap.exists && lastUid && lastUid !== uid) {
       const prevSnap = await db.collection('devices').doc(lastUid).get();
       if (prevSnap.exists) {
         const prev = prevSnap.data() as any;
-        const prevRole = (prev?.role || 'user') as DeviceRole;
-        patch.role = prevRole;
-        patch.permissions = prev?.permissions && typeof prev.permissions === 'object'
-          ? prev.permissions
-          : permissionsForRole(prevRole);
-        if (typeof prev.displayName === 'string' && prev.displayName.trim()) {
-          patch.displayName = prev.displayName.trim().slice(0, 120);
+        const prevInstallationId = normalizeInstallationId(prev?.installationId);
+        if (prevInstallationId === installationId) {
+          previousUidToDeduplicate = lastUid;
+          const prevRole = (prev?.role || 'user') as DeviceRole;
+          const prevStatus: DeviceStatus = prev?.status === 'banned' ? 'banned' : 'active';
+          patch.role = prevRole;
+          patch.permissions = prev?.permissions && typeof prev.permissions === 'object'
+            ? prev.permissions
+            : permissionsForRole(prevRole);
+          patch.verified = prevRole === 'owner' || prevRole === 'admin' || prev?.verified === true;
+          if (!isBlocked) patch.status = prevStatus;
+          if (prevStatus === 'banned' && prev?.banDetails && typeof prev.banDetails === 'object') {
+            patch.banDetails = prev.banDetails;
+          }
+          if (typeof prev.displayName === 'string' && prev.displayName.trim()) {
+            patch.displayName = prev.displayName.trim().slice(0, 120);
+          }
         }
       }
     }
@@ -357,6 +368,14 @@ export const registerDeviceIdentity = onCall(async (request) => {
     } else {
       const existing = existingSnap.data() as any;
       const existingRole = (existing?.role || 'user') as DeviceRole;
+      const existingStatus: DeviceStatus = existing?.status === 'banned' ? 'banned' : 'active';
+      if (!isBlocked) patch.status = existingStatus;
+      if (existingStatus === 'banned' && existing?.banDetails && typeof existing.banDetails === 'object') {
+        patch.banDetails = existing.banDetails;
+      }
+      if (existingRole === 'owner' || existingRole === 'admin' || existing?.verified === true) {
+        patch.verified = true;
+      }
       if (
         (existingRole === 'admin' || existingRole === 'owner') &&
         isAllFalsePermissions(existing?.permissions)
@@ -374,6 +393,9 @@ export const registerDeviceIdentity = onCall(async (request) => {
     }
 
     await deviceRef.set(patch, { merge: true });
+    if (previousUidToDeduplicate) {
+      await db.collection('devices').doc(previousUidToDeduplicate).delete();
+    }
 
     await installationRef.set(
       {
@@ -386,7 +408,12 @@ export const registerDeviceIdentity = onCall(async (request) => {
       { merge: true },
     );
 
-    return { ok: true, installationId, status };
+    return {
+      ok: true,
+      installationId,
+      status: String(patch.status || status),
+      ...(previousUidToDeduplicate ? { dedupedPreviousUid: previousUidToDeduplicate } : {}),
+    };
   } catch (err: unknown) {
     throw toHttpsError(err, 'registerDeviceIdentity failed');
   }

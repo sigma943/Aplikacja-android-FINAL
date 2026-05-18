@@ -139,15 +139,12 @@ async function requestText(url: string, init?: RequestInit & {headers?: Record<s
   return text;
 }
 
-async function fetchPksVehiclesClient(includeInactive: boolean) {
-  const [rawVehicles, stopsDict] = await Promise.all([
-    requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php'),
-    loadStopsDictionary(),
-  ]);
+async function fetchPksVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
+  const rawVehicles = await requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal });
   const now = Date.now();
 
   return (Array.isArray(rawVehicles) ? rawVehicles : [])
-    .map((vehicle) => mapVehicle(vehicle, now, includeInactive, stopsDict))
+    .map((vehicle) => mapVehicle(vehicle, now, includeInactive, {}, false))
     .filter((vehicle): vehicle is Vehicle => Boolean(vehicle))
     .map((vehicle) => ({
       ...vehicle,
@@ -157,13 +154,34 @@ async function fetchPksVehiclesClient(includeInactive: boolean) {
     }));
 }
 
-async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean) {
+async function fetchPksVehicleDetailsClient(vehicleId: string, includeInactive: boolean) {
+  const [rawVehicles, stopsDict] = await Promise.all([
+    requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php'),
+    loadStopsDictionary(),
+  ]);
+  const rawVehicle = (Array.isArray(rawVehicles) ? rawVehicles : []).find((vehicle) =>
+    String(vehicle?.vehicle_id ?? `json-${getTripBase(vehicle?.trip_id) || ''}`) === String(vehicleId),
+  );
+  if (!rawVehicle) return null;
+
+  const mapped = mapVehicle(rawVehicle, Date.now(), includeInactive, stopsDict, true);
+  return mapped
+    ? {
+        ...mapped,
+        provider: 'pks' as const,
+        operatorName: 'PKS Rzeszów',
+        type: 'bus' as const,
+      }
+    : null;
+}
+
+async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
   const searchParams = new URLSearchParams();
   searchParams.set('providers', 'mpk_rzeszow');
   if (includeInactive) searchParams.set('includeInactive', 'true');
 
   try {
-    const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', searchParams));
+    const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', searchParams), { signal });
     const vehicles = (response.vehicles || []).map(mapTransportVehicleToClient);
     if (vehicles.length > 0) return vehicles;
     return fetchMpkRzeszowVehiclesDirect(includeInactive);
@@ -787,7 +805,13 @@ function inferVehicleStatus(v: any, ageSec: number, speed: number, now: number, 
   return {status: 'active' as const, statusText: 'W trasie'};
 }
 
-function mapVehicle(v: any, now: number, includeInactive: boolean, stopsDict: Record<string, string>): Vehicle | null {
+function mapVehicle(
+  v: any,
+  now: number,
+  includeInactive: boolean,
+  stopsDict: Record<string, string>,
+  includeDetails = true,
+): Vehicle | null {
   if (!v.position || v.position.lat == null || v.position.long == null) return null;
 
   const signalRaw = v.position.position_date ? String(v.position.position_date).replace(' ', 'T') : '';
@@ -813,8 +837,8 @@ function mapVehicle(v: any, now: number, includeInactive: boolean, stopsDict: Re
     direction: destination,
     delay: typeof v.delay === 'number' ? v.delay : 0,
     dataAgeSec: ageSec,
-    schedule: buildSchedule(v.next_stop_points, stopsDict),
-    routePath: buildRoutePath(v.journey?.route),
+    schedule: includeDetails ? buildSchedule(v.next_stop_points, stopsDict) : [],
+    routePath: includeDetails ? buildRoutePath(v.journey?.route) : [],
     model: v.model,
     lastStopDistance: typeof v.position.last_stop_point_distance === 'number' ? v.position.last_stop_point_distance : undefined,
     lastStopId: typeof v.position.last_stop_point_number === 'number' ? v.position.last_stop_point_number : undefined,
@@ -837,14 +861,16 @@ function mapVehicle(v: any, now: number, includeInactive: boolean, stopsDict: Re
 export async function fetchVehiclesClient(
   includeInactive: boolean,
   providers: TransportProviderId[] = ['pks'],
+  options?: { signal?: AbortSignal },
 ) {
   const activeProviders = providers.filter(Boolean);
   if (activeProviders.length === 0) return [];
 
   const requests = activeProviders.map(async (provider) => {
-    if (provider === 'pks') return fetchPksVehiclesClient(includeInactive);
+    if (provider === 'pks') return fetchPksVehiclesClient(includeInactive, options?.signal);
     if (provider === 'mpk_rzeszow') {
-      return fetchMpkRzeszowVehiclesClient(includeInactive).catch((error) => {
+      return fetchMpkRzeszowVehiclesClient(includeInactive, options?.signal).catch((error) => {
+        if ((error as any)?.name === 'AbortError') throw error;
         console.warn('MPK Rzeszów provider unavailable:', error);
         return [];
       });
@@ -877,6 +903,14 @@ export async function fetchVehicleDetailsClient(provider: TransportProviderId, v
     }
 
     return directVehicle;
+  }
+
+  if (provider === 'pks') {
+    const directVehicle = await fetchPksVehicleDetailsClient(vehicleId, includeInactive).catch((error) => {
+      console.warn('PKS details unavailable:', error);
+      return null;
+    });
+    if (directVehicle) return directVehicle;
   }
 
   const searchParams = new URLSearchParams();
@@ -926,6 +960,7 @@ export async function fetchStopsClient(): Promise<StopsMap> {
 
       if (isRzeszow) {
         if (isRzeszowDA) {
+          if (/^0+\d+$/.test(code)) code = String(Number(code));
           if (!formattedName.toLowerCase().includes('st.')) formattedName += ` st. ${code}`;
         } else {
           // Rzeszów: zawsze pokazujemy pełny kod z wiodącym zerem, jeśli istnieje w API.
@@ -1097,7 +1132,7 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
 
 export async function fetchRouteShapeClient(
   tripId: string,
-  fallbackStops: number[],
+  fallbackStops: Array<number | string>,
   stopsData?: Record<string, {lat: number; lon: number}> | null,
   options?: { fastFallback?: boolean; startPoint?: ShapePoint },
 ) {
