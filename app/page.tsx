@@ -11,6 +11,9 @@ import {fetchDeparturesClient, fetchStopsClient, fetchVehicleDetailsClient, fetc
 import { useFirebase } from '@/components/FirebaseProvider';
 import { canAccessAdminDashboard } from '@/lib/admin/rbac';
 
+const PKS_COLOR = '#14b8a6';
+const MPK_RZESZOW_COLOR = '#ff7a00';
+
 const BusMap = dynamic(() => import('@/components/BusMap'), {
   ssr: false,
   loading: () => (
@@ -944,7 +947,7 @@ export default function Home() {
         ? 'Ostatnia pozycja'
         : selectedBus?.statusText || null;
   const selectedBusGpsSignalClock = formatGpsSignalClock(selectedBus?.lastSignalTime);
-  const selectedVehicleColor = selectedBus?.provider === 'mpk_rzeszow' ? '#ff7a00' : themeColor;
+  const selectedVehicleColor = selectedBus?.provider === 'mpk_rzeszow' ? MPK_RZESZOW_COLOR : PKS_COLOR;
   const selectedBusIsWaitingForDeparture = Boolean(
     selectedBus?.status === 'break' ||
     selectedBus?.statusText?.toLowerCase().includes('przerwa do') ||
@@ -1446,7 +1449,9 @@ export default function Home() {
                                 const displayTime = realTime || plannedTime;
                                 let delayMin = 0;
                                 if (realTime && plannedTime) delayMin = Math.round((realTime.getTime() - plannedTime.getTime()) / 60000);
-                                const busDelayMin = canUseBusDelay ? Math.round(busDelaySec / 60) : delayMin;
+                                const busDelayMin = canUseBusDelay
+                                  ? Math.sign(busDelaySec) * Math.floor(Math.abs(busDelaySec) / 60)
+                                  : delayMin;
                                 const formatTime = (time: Date) => {
                                    const isTomorrow = time.getDate() !== new Date().getDate();
                                    const mm = time.getMinutes().toString().padStart(2, '0');

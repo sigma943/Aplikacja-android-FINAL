@@ -81,7 +81,7 @@ export const getCachedBusIcon = (
   vehicleId: string,
   delaySec?: number,
   isSelected?: boolean,
-  themeColor: string = '#00A3A2',
+  themeColor: string = PKS_COLOR,
   dataAgeSec?: number,
   isHighVolume?: boolean,
   iconVariant?: string,
@@ -114,7 +114,7 @@ const createBusIcon = (
   vehicleId: string,
   delaySec?: number,
   isSelected?: boolean,
-  themeColor: string = '#00A3A2',
+  themeColor: string = PKS_COLOR,
   dataAgeSec?: number,
   isHighVolume?: boolean,
   iconVariant?: string,
@@ -541,7 +541,7 @@ function VehicleMarkerLayer({
         if (group.vehicles.length > 1) {
           const count = group.vehicles.length;
           const size = count >= 10 ? 54 : 46;
-          const clusterColor = getVehicleColor(group.vehicles[0], themeColor);
+          const clusterColor = getVehicleColor(group.vehicles[0]);
           return (
             <Marker
               key={`cluster-${group.groupKey}`}
@@ -562,7 +562,7 @@ function VehicleMarkerLayer({
         const vehicle = group.vehicles[0];
         const isSelected = selectedVehicleId === vehicle.id;
         const isHighVolume = renderVehicles.length > 35;
-        const vehicleColor = getVehicleColor(vehicle, themeColor);
+        const vehicleColor = getVehicleColor(vehicle);
         return (
           <BusMarker
             key={getVehicleMarkerKey(vehicle)}
@@ -713,7 +713,7 @@ export default function BusMap({
   );
   const routeStopIdsKey = useMemo(() => routeStopIds.join(','), [routeStopIds]);
 
-  const selectedRouteColor = getVehicleColor(selectedVehicle, themeColor);
+  const selectedRouteColor = getVehicleColor(selectedVehicle);
   const routeGlowOpts = { color: '#ffffff', weight: 10, opacity: 0.18, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.35 } as L.PolylineOptions;
   const routePolylineOpts = { color: selectedRouteColor, weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.35 } as L.PolylineOptions;
   const routeKey = selectedVehicle ? `${selectedVehicle.id}_${routeStopIdsKey}` : '';
