@@ -1,9 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.clearAdminLogs = exports.unblockDevice = exports.blockDevice = exports.setOperatorRole = exports.einfoProxyGet = exports.listDevicesForAdmin = exports.registerDeviceIdentity = void 0;
+exports.clearAdminLogs = exports.unblockDevice = exports.blockDevice = exports.setOperatorRole = exports.transportApi = exports.einfoProxyGet = exports.listDevicesForAdmin = exports.registerDeviceIdentity = void 0;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
+const service_1 = require("./transport/service");
 (0, app_1.initializeApp)();
 const db = (0, firestore_1.getFirestore)();
 const requireAuth = (uid) => {
@@ -378,6 +379,78 @@ exports.einfoProxyGet = (0, https_1.onCall)(async (request) => {
     }
     catch {
         throw new https_1.HttpsError('unavailable', `Invalid JSON: ${text.slice(0, 300)}`);
+    }
+});
+const parseBooleanParam = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
+};
+const parseBboxParam = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw)
+        return null;
+    const parts = raw.split(',').map((segment) => Number(segment.trim()));
+    if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part)))
+        return null;
+    return [parts[0], parts[1], parts[2], parts[3]];
+};
+exports.transportApi = (0, https_1.onRequest)({ cors: true, timeoutSeconds: 30 }, async (request, response) => {
+    try {
+        if (request.method === 'OPTIONS') {
+            response.status(204).end();
+            return;
+        }
+        if (request.method !== 'GET') {
+            response.status(405).json({ error: 'Method not allowed' });
+            return;
+        }
+        const path = String(request.path || '/').replace(/\/+$/, '') || '/';
+        if (path === '/' || path === '') {
+            response.json({
+                ok: true,
+                endpoints: [
+                    '/vehicles?providers=mpk_rzeszow',
+                    '/vehicle/mpk_rzeszow/:vehicleId',
+                    '/health/providers',
+                ],
+            });
+            return;
+        }
+        if (path === '/vehicles') {
+            const providers = String(request.query.providers || '')
+                .split(',')
+                .map((provider) => provider.trim())
+                .filter(Boolean);
+            const payload = await (0, service_1.fetchVehiclesForProviders)({
+                providerIds: providers,
+                includeInactive: parseBooleanParam(request.query.includeInactive),
+                bbox: parseBboxParam(request.query.bbox),
+            });
+            response.json(payload);
+            return;
+        }
+        if (path === '/health/providers') {
+            response.json((0, service_1.getProvidersHealth)());
+            return;
+        }
+        const vehicleMatch = path.match(/^\/vehicle\/([^/]+)\/([^/]+)$/);
+        if (vehicleMatch) {
+            const providerId = decodeURIComponent(vehicleMatch[1]);
+            const vehicleId = decodeURIComponent(vehicleMatch[2]);
+            const includeInactive = request.query.includeInactive == null ? true : parseBooleanParam(request.query.includeInactive);
+            const vehicle = await (0, service_1.fetchVehicleDetails)(providerId, vehicleId, includeInactive);
+            if (!vehicle) {
+                response.status(404).json({ error: 'Vehicle not found' });
+                return;
+            }
+            response.json({ vehicle });
+            return;
+        }
+        response.status(404).json({ error: 'Not found' });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        response.status(500).json({ error: message });
     }
 });
 exports.setOperatorRole = (0, https_1.onCall)(async (request) => {

@@ -1,6 +1,7 @@
 ﻿import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
+import { fetchVehicleDetails, fetchVehiclesForProviders, getProvidersHealth } from './transport/service';
 
 initializeApp();
 const db = getFirestore();
@@ -433,6 +434,87 @@ export const einfoProxyGet = onCall(async (request) => {
     return { ok: true, data: JSON.parse(text) as unknown };
   } catch {
     throw new HttpsError('unavailable', `Invalid JSON: ${text.slice(0, 300)}`);
+  }
+});
+
+const parseBooleanParam = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
+};
+
+const parseBboxParam = (value: unknown): [number, number, number, number] | null => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const parts = raw.split(',').map((segment) => Number(segment.trim()));
+  if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) return null;
+  return [parts[0], parts[1], parts[2], parts[3]];
+};
+
+export const transportApi = onRequest({ cors: true, timeoutSeconds: 30 }, async (request, response) => {
+  try {
+    if (request.method === 'OPTIONS') {
+      response.status(204).end();
+      return;
+    }
+
+    if (request.method !== 'GET') {
+      response.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    const path = String(request.path || '/').replace(/\/+$/, '') || '/';
+
+    if (path === '/' || path === '') {
+      response.json({
+        ok: true,
+        endpoints: [
+          '/vehicles?providers=mpk_rzeszow',
+          '/vehicle/mpk_rzeszow/:vehicleId',
+          '/health/providers',
+        ],
+      });
+      return;
+    }
+
+    if (path === '/vehicles') {
+      const providers = String(request.query.providers || '')
+        .split(',')
+        .map((provider) => provider.trim())
+        .filter(Boolean);
+      const payload = await fetchVehiclesForProviders({
+        providerIds: providers,
+        includeInactive: parseBooleanParam(request.query.includeInactive),
+        bbox: parseBboxParam(request.query.bbox),
+      });
+      response.json(payload);
+      return;
+    }
+
+    if (path === '/health/providers') {
+      response.json(getProvidersHealth());
+      return;
+    }
+
+    const vehicleMatch = path.match(/^\/vehicle\/([^/]+)\/([^/]+)$/);
+    if (vehicleMatch) {
+      const providerId = decodeURIComponent(vehicleMatch[1]);
+      const vehicleId = decodeURIComponent(vehicleMatch[2]);
+      const includeInactive = request.query.includeInactive == null ? true : parseBooleanParam(request.query.includeInactive);
+      const vehicle = await fetchVehicleDetails(providerId, vehicleId, includeInactive);
+
+      if (!vehicle) {
+        response.status(404).json({ error: 'Vehicle not found' });
+        return;
+      }
+
+      response.json({ vehicle });
+      return;
+    }
+
+    response.status(404).json({ error: 'Not found' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    response.status(500).json({ error: message });
   }
 });
 

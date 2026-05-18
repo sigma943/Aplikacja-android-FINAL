@@ -6,7 +6,8 @@ import { Capacitor } from '@capacitor/core';
 import { Bus, Search, RefreshCw, AlertCircle, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, ChevronRight, Eye, Palette, ArrowLeft, Star, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
-import {fetchDeparturesClient, fetchStopsClient, fetchVehiclesClient} from '@/lib/pks-client';
+import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
+import {fetchDeparturesClient, fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type TransportProviderId} from '@/lib/pks-client';
 import { useFirebase } from '@/components/FirebaseProvider';
 import { canAccessAdminDashboard } from '@/lib/admin/rbac';
 
@@ -77,19 +78,51 @@ const withAlpha = (hex: string, alpha: number) => {
   return `#${clean}${value}`;
 };
 
+const DEFAULT_ACTIVE_PROVIDERS: TransportProviderId[] = ['mpk_rzeszow'];
+const AVAILABLE_TRANSPORT_PROVIDERS = new Set<TransportProviderId>(['pks', 'mpk_rzeszow']);
+
+const readStoredTransportProviders = (): TransportProviderId[] => {
+  if (typeof window === 'undefined') return DEFAULT_ACTIVE_PROVIDERS;
+  try {
+    const parsed = JSON.parse(localStorage.getItem('mks_transport_providers') || 'null');
+    if (!Array.isArray(parsed)) return DEFAULT_ACTIVE_PROVIDERS;
+    return parsed.filter(
+      (provider): provider is TransportProviderId =>
+        typeof provider === 'string' && AVAILABLE_TRANSPORT_PROVIDERS.has(provider as TransportProviderId),
+    );
+  } catch {
+    return DEFAULT_ACTIVE_PROVIDERS;
+  }
+};
+
+const sameTransportProviders = (left: TransportProviderId[], right: TransportProviderId[]) => {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((provider) => rightSet.has(provider));
+};
+
+const getVehicleDisplayNumber = (vehicle?: Pick<Vehicle, 'vehicleNumber' | 'id'> | null) =>
+  String(vehicle?.vehicleNumber || vehicle?.id || '').replace(/^mpk_rzeszow_/, '');
+
 export default function Home() {
   const { device, loading } = useFirebase();
 
   const lastVehiclesRef = useRef<string>('');
   const lastVehiclesEtagRef = useRef<string>('');
+  const activeProvidersRef = useRef<TransportProviderId[]>([]);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [appLoadTimedOut, setAppLoadTimedOut] = useState(false);
   const [filterRoute, setFilterRoute] = useState('');
+  const [activeProviders, setActiveProviders] = useState<TransportProviderId[]>([]);
+  const [draftProviders, setDraftProviders] = useState<TransportProviderId[]>([]);
+  const [hasLoadedTransportProviders, setHasLoadedTransportProviders] = useState(false);
+  const [isTransportPanelOpen, setIsTransportPanelOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedBus, setSelectedBus] = useState<Vehicle | null>(null);
+  const [selectedBusDetailsLoading, setSelectedBusDetailsLoading] = useState(false);
   const [isBusPanelExpanded, setIsBusPanelExpanded] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -151,6 +184,10 @@ export default function Home() {
     }
   }, [selectedBus, selectedStopId]);
 
+  useEffect(() => {
+    activeProvidersRef.current = activeProviders;
+  }, [activeProviders]);
+
   const formatScheduleStopName = useCallback((name?: string | null) => {
     const raw = String(name || '').trim();
     if (!raw) return 'Przystanek nieznany';
@@ -166,6 +203,10 @@ export default function Home() {
 
   useEffect(() => {
      const handlePopState = (e: PopStateEvent) => {
+        if (isTransportPanelOpen) {
+           setIsTransportPanelOpen(false);
+           return;
+        }
         if (selectedBus || selectedStopId) {
            setSelectedBus(null);
            setSelectedStopId(null);
@@ -173,7 +214,7 @@ export default function Home() {
      };
      window.addEventListener('popstate', handlePopState);
      return () => window.removeEventListener('popstate', handlePopState);
-  }, [selectedBus, selectedStopId]);
+  }, [isTransportPanelOpen, selectedBus, selectedStopId]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -187,6 +228,10 @@ export default function Home() {
 
         if (isSettingsOpen) {
           setIsSettingsOpen(false);
+          return;
+        }
+        if (isTransportPanelOpen) {
+          setIsTransportPanelOpen(false);
           return;
         }
         if (selectedBus) {
@@ -214,7 +259,7 @@ export default function Home() {
       cancelled = true;
       listenerPromise?.then((listener) => listener.remove()).catch(() => {});
     };
-  }, [activeTab, isMapTabDisabled, isSettingsOpen, selectedBus, selectedStopId]);
+  }, [activeTab, isMapTabDisabled, isSettingsOpen, isTransportPanelOpen, selectedBus, selectedStopId]);
 
   const toggleFavoriteStop = (stopId: string, e: React.MouseEvent) => {
      e.stopPropagation();
@@ -292,7 +337,7 @@ export default function Home() {
             if (realT && !isNaN(realT.getTime())) {
                 isRealtime = true;
                 isDelayed = Math.abs(realT.getTime() - journeyPlannedMs) > 60_000;
-                vehicleNum = liveMatch.id;
+                vehicleNum = getVehicleDisplayNumber(liveMatch);
                 actualDepTimeMs = realT.getTime();
                 diffMin = Math.floor((actualDepTimeMs - now) / 60000);
                 actualTimeStr = realT.toTimeString().substring(0, 5);
@@ -394,6 +439,12 @@ export default function Home() {
   }, [selectedStopId, stopsList]);
 
   useEffect(() => {
+    const storedProviders = readStoredTransportProviders();
+    activeProvidersRef.current = storedProviders;
+    setActiveProviders(storedProviders);
+    setDraftProviders(storedProviders);
+    setHasLoadedTransportProviders(true);
+
     const sTheme = localStorage.getItem('mks_theme');
     if (sTheme && sTheme !== themeColor) setTimeout(() => setThemeColor(sTheme), 0);
     const sInactive = localStorage.getItem('mks_show_inactive');
@@ -462,18 +513,38 @@ export default function Home() {
   };
 
   const fetchVehicles = async (inactive = showInactive, force = false) => {
+    if (!hasLoadedTransportProviders) {
+      setIsLoading(false);
+      return;
+    }
+
+    const requestProviders = activeProvidersRef.current;
+
+    if (requestProviders.length === 0) {
+      setVehicles([]);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), 15000);
       const data = await Promise.race([
-        fetchVehiclesClient(inactive),
+        fetchVehiclesClient(inactive, requestProviders),
         new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(Object.assign(new Error('Aborted'), {name: 'AbortError'}))))
       ]) as any;
       if (timeoutId) clearTimeout(timeoutId);
-      const newDataStr = JSON.stringify(data);
+      if (!sameTransportProviders(requestProviders, activeProvidersRef.current)) return;
+      const loadedVehicles = Array.isArray(data) ? data : (data.vehicles || []);
+      const requestProviderSet = new Set(requestProviders);
+      const visibleVehicles = loadedVehicles.filter((vehicle: Vehicle) =>
+        requestProviderSet.has((vehicle.provider || 'pks') as TransportProviderId),
+      );
+      const newDataStr = JSON.stringify(visibleVehicles);
       if (newDataStr !== lastVehiclesRef.current) {
-        setVehicles(Array.isArray(data) ? data : (data.vehicles || []));
+        setVehicles(visibleVehicles);
         lastVehiclesRef.current = newDataStr;
       }
       setError(null);
@@ -507,6 +578,23 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (!hasLoadedTransportProviders) return;
+
+    if (activeProviders.length === 0) {
+      setVehicles([]);
+      setSelectedBus(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
+    fetchVehicles(showInactive, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProviders, hasLoadedTransportProviders]);
+
+  useEffect(() => {
+    if (!hasLoadedTransportProviders) return;
+
     let timer: NodeJS.Timeout;
     
     const tick = async () => {
@@ -535,9 +623,11 @@ export default function Home() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshInterval, showInactive, isOffline]);
+  }, [refreshInterval, showInactive, isOffline, activeProviders, hasLoadedTransportProviders]);
 
   useEffect(() => {
+    if (!hasLoadedTransportProviders) return;
+
     let cancelled = false;
     let nativeListenerPromise: Promise<{ remove: () => Promise<void> }> | null = null;
 
@@ -610,7 +700,7 @@ export default function Home() {
       window.clearInterval(onlineStateTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showInactive]);
+  }, [showInactive, activeProviders, hasLoadedTransportProviders]);
 
   const loadStops = () => {
     setStopsLoadError(false);
@@ -640,16 +730,26 @@ export default function Home() {
     if (selectedBus) {
       const updated = vehicles.find(v => v.id === selectedBus.id);
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (updated && updated !== selectedBus) setSelectedBus(updated);
+      if (updated && updated !== selectedBus) {
+        const selectedScheduleLength = selectedBus.schedule?.length || 0;
+        const updatedScheduleLength = updated.schedule?.length || 0;
+        setSelectedBus({
+          ...updated,
+          schedule: selectedScheduleLength > updatedScheduleLength ? selectedBus.schedule : updated.schedule,
+          routePath: (selectedBus.routePath?.length || 0) > (updated.routePath?.length || 0) ? selectedBus.routePath : updated.routePath,
+        });
+      }
+      if (!updated && activeProviders.length > 0) setSelectedBus(null);
     }
-  }, [vehicles, selectedBus?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [vehicles, selectedBus?.id, activeProviders.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredVehicles = useMemo(() => {
     if (!deferredFilterRoute) return vehicles;
     const f = deferredFilterRoute.toLowerCase();
     return vehicles.filter(v => 
       (v.routeShortName || '').toLowerCase().includes(f) || 
-      (v.id || '').toLowerCase().includes(f)
+      (v.id || '').toLowerCase().includes(f) ||
+      getVehicleDisplayNumber(v).toLowerCase().includes(f)
     );
   }, [vehicles, deferredFilterRoute]);
 
@@ -820,11 +920,65 @@ export default function Home() {
         ? 'Ostatnia pozycja'
         : selectedBus?.statusText || null;
   const selectedBusGpsSignalClock = formatGpsSignalClock(selectedBus?.lastSignalTime);
+  const selectedVehicleColor = selectedBus?.provider === 'mpk_rzeszow' ? '#ff7a00' : themeColor;
+  const selectedBusScheduleLoading =
+    selectedBus?.provider === 'mpk_rzeszow' &&
+    selectedBusDetailsLoading &&
+    ((selectedBus.schedule?.length || 0) <= 1 || !(selectedBus.schedule || []).some((stop) => stop.planned || stop.real));
   const selectedBusHeaderStyle = {
     background: transparentUI
-      ? `linear-gradient(135deg, ${withAlpha(themeColor, 0.9)}, ${withAlpha(themeColor, 0.68)})`
-      : themeColor,
+      ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.9)}, ${withAlpha(selectedVehicleColor, 0.68)})`
+      : selectedVehicleColor,
   } as React.CSSProperties;
+
+  const transportOptions = useMemo<TransportOption[]>(() => {
+    return [
+      {
+        id: 'pks',
+        label: 'Autobusy PKS Rzeszów',
+        color: '#14b8a6',
+        enabled: true,
+        type: 'bus',
+        iconVariant: 'default_bus',
+      },
+      {
+        id: 'mpk_rzeszow',
+        label: 'Autobusy MPK Rzeszów',
+        color: '#ff7a00',
+        enabled: true,
+        type: 'bus',
+        iconVariant: 'mpk_rzeszow',
+      },
+    ];
+  }, []);
+
+  const openTransportPanel = useCallback(() => {
+    setDraftProviders(activeProviders);
+    setIsSettingsOpen(false);
+    setIsTransportPanelOpen(true);
+  }, [activeProviders]);
+
+  const toggleDraftProvider = useCallback((providerId: TransportProviderId) => {
+    setDraftProviders((current) =>
+      current.includes(providerId)
+        ? current.filter((value) => value !== providerId)
+        : [...current, providerId],
+    );
+  }, []);
+
+  const applyDraftProviders = useCallback(() => {
+    const nextProviders = draftProviders
+      .filter((providerId, index, values) => values.indexOf(providerId) === index)
+      .filter((providerId) => AVAILABLE_TRANSPORT_PROVIDERS.has(providerId));
+    setActiveProviders(nextProviders);
+    activeProvidersRef.current = nextProviders;
+    setVehicles([]);
+    lastVehiclesRef.current = '';
+    localStorage.setItem('mks_transport_providers', JSON.stringify(nextProviders));
+    setIsTransportPanelOpen(false);
+    setSelectedBus(null);
+    setSelectedStopId(null);
+  }, [draftProviders]);
   
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
@@ -961,6 +1115,18 @@ export default function Home() {
                      setSelectedBus(v);
                      setIsBusPanelExpanded(true);
                      setIsSettingsOpen(false);
+                     setIsTransportPanelOpen(false);
+                     if (v.provider === 'mpk_rzeszow') {
+                        setSelectedBusDetailsLoading(true);
+                        fetchVehicleDetailsClient('mpk_rzeszow', v.id, showInactive)
+                          .then((details) => {
+                            if (details) setSelectedBus((current) => current?.id === v.id ? details : current);
+                          })
+                          .catch((error) => console.warn('MPK details unavailable:', error))
+                          .finally(() => setSelectedBusDetailsLoading(false));
+                     } else {
+                        setSelectedBusDetailsLoading(false);
+                     }
                   }
                }}
                selectedVehicleId={selectedBus?.id}
@@ -973,10 +1139,13 @@ export default function Home() {
                onStopClick={(stopId) => {
                   setSelectedStopId(stopId);
                   setIsStopPanelExpanded(true);
+                  setIsTransportPanelOpen(false);
                }}
                onMapClick={() => {
                   setSelectedBus(null);
+                  setSelectedBusDetailsLoading(false);
                   setSelectedStopId(null);
+                  setIsTransportPanelOpen(false);
                }}
             />
 
@@ -1027,10 +1196,31 @@ export default function Home() {
                      </button>
                   )}
                 </div>
+
+              </div>
+
+              <div className="flex w-full justify-end md:hidden pointer-events-auto -mt-2 pr-1">
+                <button
+                  type="button"
+                  onClick={openTransportPanel}
+                  className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border shadow-lg transition-all active:scale-95 ${mapGlassPanel}`}
+                  title="Przewoźnicy"
+                  aria-label="Przewoźnicy"
+                >
+                  <Bus className="h-5 w-5" />
+                </button>
               </div>
 
               {/* Desktop Settings & Refresh Pill (Hidden on Mobile) */}
               <div className={`hidden md:flex ${mapGlassPanel} rounded-full border px-4 py-2 pointer-events-auto items-center gap-4 transition-all`}>
+                 <button
+                    type="button"
+                    onClick={openTransportPanel}
+                    className={`flex items-center gap-2 text-sm font-bold transition-colors mr-2 ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                 >
+                    <Bus className="h-5 w-5" /> Przewoźnicy
+                 </button>
+                 <div className={`w-px h-4 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
                  <button 
                     disabled={isStopsTabDisabled}
                     onClick={() => { if (!isStopsTabDisabled) setActiveTab('stops'); }}
@@ -1067,6 +1257,16 @@ export default function Home() {
               </div>
             </div>
 
+            <TransportSelectorPanel
+              open={isTransportPanelOpen}
+              options={transportOptions}
+              selectedIds={draftProviders}
+              onClose={() => setIsTransportPanelOpen(false)}
+              onToggle={toggleDraftProvider}
+              onApply={applyDraftProviders}
+              isDark={isDark}
+            />
+
             <AnimatePresence>
               {selectedBus && (
                 <motion.div
@@ -1101,7 +1301,7 @@ export default function Home() {
                        Kierunek: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
                      </h2>
                      <h3 className="text-[10px] md:text-xs font-medium leading-tight opacity-90 drop-shadow-sm mt-0.5 md:mt-1 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="text-white/80 uppercase tracking-[0.18em] font-semibold">{selectedBus.id && `Nr pojazdu: ${selectedBus.id}`}</span>
+                        <span className="text-white/80 uppercase tracking-[0.18em] font-semibold">{getVehicleDisplayNumber(selectedBus) && `Nr pojazdu: ${getVehicleDisplayNumber(selectedBus)}`}</span>
                         {selectedBusStatusLabel && (
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? 'bg-indigo-500/80 text-white' : 'bg-white/15 text-white'}`}>
                             {normalizeVehicleText(selectedBusStatusLabel)}
@@ -1183,14 +1383,24 @@ export default function Home() {
                         )}
                       </div>
                       
-                      {selectedBus.schedule && selectedBus.schedule.length > 0 && (
+                      {(selectedBusScheduleLoading || (selectedBus.schedule && selectedBus.schedule.length > 0)) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
                             <MapPin className="w-4 h-4" /> Nadchodzące przystanki
                           </h3>
                           <div className="flex flex-col gap-0 relative">
                              <div className={`absolute left-[9px] top-4 bottom-4 w-0.5 ${mapDetailLine}`}></div>
-                             {selectedBus.schedule.map((sch: any, idx: number) => {
+                             {selectedBusScheduleLoading ? (
+                                [0, 1, 2].map((idx) => (
+                                  <div key={`mpk-stops-loading-${idx}`} className="flex items-start gap-4 py-2 relative z-10 px-2 -mx-2">
+                                     <div className="w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm animate-pulse" style={{ backgroundColor: selectedVehicleColor, borderColor: isDark ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.85)' }}></div>
+                                     <div className={`flex flex-col flex-1 pb-2 border-b ${mapDetailDivider}`}>
+                                        <div className={`h-3.5 w-36 rounded-full animate-pulse ${isDark ? 'bg-white/12' : 'bg-slate-200'}`}></div>
+                                        <div className={`mt-2 h-2.5 w-16 rounded-full animate-pulse ${isDark ? 'bg-white/8' : 'bg-slate-100'}`}></div>
+                                     </div>
+                                  </div>
+                                ))
+                             ) : selectedBus.schedule?.map((sch: any, idx: number) => {
                                 const parsedRealTime = sch.real ? new Date(sch.real) : null;
                                 const realTimeRaw = parsedRealTime && !Number.isNaN(parsedRealTime.getTime()) ? parsedRealTime : null;
                                 const parsedPlannedTime = sch.planned ? new Date(sch.planned) : null;
@@ -1225,7 +1435,7 @@ export default function Home() {
                                      onClick={() => { if (sch.id) setSelectedStopId(sch.id.toString()); }}
                                      className={`flex items-start gap-4 py-2 relative z-10 cursor-pointer transition-colors hover:bg-slate-500/10 rounded-xl px-2 -mx-2 ${isHighlighted ? (isDark ? 'bg-amber-500/20' : 'bg-amber-100') : ''} ${isPastStop ? 'opacity-50' : ''}`}
                                   >
-                                     <div className={`w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm leading-none transition-colors ${isHighlighted ? 'border-red-500' : (isDark ? 'border-slate-800/80' : 'border-white/85')}`} style={{ backgroundColor: isHighlighted ? themeColor : (isPastStop ? '#94a3b8' : themeColor) }}></div>
+                                     <div className={`w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm leading-none transition-colors ${isHighlighted ? 'border-red-500' : (isDark ? 'border-slate-800/80' : 'border-white/85')}`} style={{ backgroundColor: isHighlighted ? selectedVehicleColor : (isPastStop ? '#94a3b8' : selectedVehicleColor) }}></div>
                                      <div className={`flex flex-col flex-1 pb-2 border-b ${mapDetailDivider} ${isHighlighted ? 'border-transparent' : ''}`}>
                                         <span className={`text-[13px] font-semibold leading-tight pr-2 ${textMain}`}>{formatScheduleStopName(sch.name)}</span>
                                         <div className="flex items-center gap-2 mt-1">

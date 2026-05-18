@@ -4,6 +4,50 @@ import type {Vehicle} from '@/components/BusMap';
 type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: string; code?: string}>;
 type ShapePoint = [number, number];
 type ShapeMetadata = { id: string; bbox: [number, number, number, number]; samples: ShapePoint[] };
+export type TransportProviderId = 'pks' | 'mpk_rzeszow';
+
+type TransportApiVehicle = {
+  id: string;
+  provider: TransportProviderId;
+  operatorName: string;
+  type: 'bus' | 'train';
+  iconVariant: string;
+  vehicleNumber?: string;
+  line: string;
+  displayName: string;
+  name: string;
+  routeId?: string;
+  lat: number;
+  lng: number;
+  bearing?: number;
+  speed?: number;
+  direction?: string;
+  delaySeconds?: number;
+  delayMinutes?: number;
+  dataAgeSec?: number;
+  schedule?: Array<{ id: number; name: string; planned: string | null; real: string | null }>;
+  routePath?: number[];
+  model?: string;
+  lastStopDistance?: number;
+  lastStopId?: number;
+  lastUpdate?: string;
+  journeyId?: string | number;
+  serviceId?: string | number;
+  tripId?: string | number;
+  brigadeName?: string;
+  status?: 'active' | 'break' | 'inactive' | 'technical' | 'cached';
+  statusText?: string;
+  isHistorical?: boolean;
+};
+
+type TransportApiVehiclesResponse = {
+  vehicles?: TransportApiVehicle[];
+  providers?: Record<string, string>;
+  meta?: {
+    generatedAt?: string;
+    cache?: string;
+  };
+};
 
 let stopsDictionaryPromise: Promise<Record<string, string>> | null = null;
 let shapeIndexPromise: Promise<Record<string, string>> | null = null;
@@ -11,6 +55,13 @@ let routeStopShapeIndexPromise: Promise<Record<string, string>> | null = null;
 let routeShapeMetadataPromise: Promise<ShapeMetadata[]> | null = null;
 const shapePointsCache = new Map<string, Promise<ShapePoint[]>>();
 const roadRouteCache = new Map<string, Promise<ShapePoint[]>>();
+const TRANSPORT_API_BASE_URL = (
+  process.env.NEXT_PUBLIC_TRANSPORT_API_BASE_URL ||
+  'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi'
+).replace(/\/$/, '');
+const MPK_RZESZOW_VEHICLES_XML_URL = 'https://www.mpkrzeszow.pl/mpk/vehicles_proxy.php';
+const MPK_RZESZOW_VEHICLES_DETAILS_URL = 'https://www.mpkrzeszow.pl/mpk/get_vehicles.php';
+const MPK_RZESZOW_TRIP_STOPS_URL = 'https://www.mpkrzeszow.pl/brygady/get_trip_stops_advanced.php';
 
 const isNative = () => Capacitor.isNativePlatform();
 const EINFO_DIRECT = 'http://einfo.zgpks.rzeszow.pl/api';
@@ -57,6 +108,288 @@ async function requestJson<T>(url: string, init?: RequestInit & {headers?: Recor
 
 async function requestEinfoJson<T>(pathAndOptionalQuery: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
   return requestJson<T>(einfoFallbackUrl(pathAndOptionalQuery), init);
+}
+
+async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
+  if (isNative()) {
+    const response = await CapacitorHttp.request({
+      url,
+      method: init?.method || 'GET',
+      headers: init?.headers,
+      connectTimeout: 12000,
+      readTimeout: 12000,
+    });
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+
+    return typeof response.data === 'string' ? response.data : String(response.data || '');
+  }
+
+  const response = await fetch(url, {
+    ...init,
+    cache: 'no-store',
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    const hint = text ? ` - ${text.slice(0, 240)}` : '';
+    throw new Error(`Request failed: ${response.status}${hint}`);
+  }
+  return text;
+}
+
+async function fetchPksVehiclesClient(includeInactive: boolean) {
+  const [rawVehicles, stopsDict] = await Promise.all([
+    requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php'),
+    loadStopsDictionary(),
+  ]);
+  const now = Date.now();
+
+  return (Array.isArray(rawVehicles) ? rawVehicles : [])
+    .map((vehicle) => mapVehicle(vehicle, now, includeInactive, stopsDict))
+    .filter((vehicle): vehicle is Vehicle => Boolean(vehicle))
+    .map((vehicle) => ({
+      ...vehicle,
+      provider: 'pks' as const,
+      operatorName: 'PKS Rzeszów',
+      type: 'bus' as const,
+    }));
+}
+
+async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean) {
+  const searchParams = new URLSearchParams();
+  searchParams.set('providers', 'mpk_rzeszow');
+  if (includeInactive) searchParams.set('includeInactive', 'true');
+
+  try {
+    const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', searchParams));
+    const vehicles = (response.vehicles || []).map(mapTransportVehicleToClient);
+    if (vehicles.length > 0) return vehicles;
+    return fetchMpkRzeszowVehiclesDirect(includeInactive);
+  } catch (error) {
+    console.warn('MPK Rzeszów backend unavailable, using direct MPK feed:', error);
+    return fetchMpkRzeszowVehiclesDirect(includeInactive);
+  }
+}
+
+function decodeXmlEntity(value: string) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function parseMpkVehiclesXml(xml: string) {
+  const vehicles: Record<string, string>[] = [];
+  const vehicleRegex = /<V\s+([\s\S]*?)\/>/g;
+  let vehicleMatch: RegExpExecArray | null;
+
+  while ((vehicleMatch = vehicleRegex.exec(xml))) {
+    const attrs: Record<string, string> = {};
+    const attrRegex = /([a-zA-Z0-9_-]+)="([^"]*)"/g;
+    let attrMatch: RegExpExecArray | null;
+
+    while ((attrMatch = attrRegex.exec(vehicleMatch[1]))) {
+      attrs[attrMatch[1]] = decodeXmlEntity(attrMatch[2]);
+    }
+
+    vehicles.push(attrs);
+  }
+
+  return vehicles;
+}
+
+function normalizeMpkVehicleId(rawVehicleId: unknown) {
+  return String(rawVehicleId ?? '').trim() || 'unknown';
+}
+
+function isMpkBreakStatus(statusCode: string) {
+  return statusCode === '3' || statusCode === '6' || statusCode === '7' || statusCode === '10';
+}
+
+function isMpkWaitingStatus(statusCode: string) {
+  return statusCode === '2' || isMpkBreakStatus(statusCode);
+}
+
+function getEffectiveMpkDelay(
+  rawDelay: number,
+  statusCode: string,
+  speed = 0,
+  schedule?: Vehicle['schedule'],
+) {
+  if (!Number.isFinite(rawDelay) || Math.abs(rawDelay) > 18000) return 0;
+  if (isMpkWaitingStatus(statusCode)) return 0;
+
+  const firstPlannedMs = schedule?.[0]?.planned ? new Date(schedule[0].planned).getTime() : NaN;
+  if (rawDelay > 0 && speed <= 1 && Number.isFinite(firstPlannedMs) && firstPlannedMs > Date.now()) {
+    return 0;
+  }
+
+  return rawDelay;
+}
+
+function buildDateFromMpkTime(timeValue: unknown, anchorDate: Date, previousDate: Date | null) {
+  const raw = String(timeValue || '').trim();
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(raw);
+  if (!match) return null;
+
+  const date = new Date(anchorDate);
+  date.setHours(Number(match[1]), Number(match[2]), Number(match[3] || '0'), 0);
+  if (previousDate && date < previousDate) date.setDate(date.getDate() + 1);
+  return date;
+}
+
+async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Promise<{
+  schedule: Vehicle['schedule'];
+  routePath: number[];
+}> {
+  const normalizedTripId = String(tripId || '').trim();
+  if (!normalizedTripId) return { schedule: [], routePath: [] };
+
+  const searchParams = new URLSearchParams({ trip_id: normalizedTripId });
+  const data = await requestJson<{ stops?: any[] }>(`${MPK_RZESZOW_TRIP_STOPS_URL}?${searchParams.toString()}`).catch(() => null);
+  const stops = Array.isArray(data?.stops) ? data.stops : [];
+  if (stops.length === 0) return { schedule: [], routePath: [] };
+
+  const anchorDate = new Date();
+  if (anchorDate.getHours() < 3) anchorDate.setDate(anchorDate.getDate() - 1);
+  anchorDate.setHours(0, 0, 0, 0);
+
+  let previousDate: Date | null = null;
+  const nowMs = Date.now();
+  const allStops = stops.map((stop) => {
+    const plannedDate = buildDateFromMpkTime(stop.departure_time || stop.arrival_time, anchorDate, previousDate);
+    if (plannedDate) previousDate = plannedDate;
+    const realDate = plannedDate && Number.isFinite(delaySeconds) && Math.abs(delaySeconds) <= 18000
+      ? new Date(plannedDate.getTime() + delaySeconds * 1000)
+      : null;
+    const stopId = Number(stop.stop_id);
+
+    return {
+      id: Number.isFinite(stopId) ? stopId : Number(stop.stop_sequence || 0),
+      name: String(stop.stop_name || '').trim() || `Przystanek ${stop.stop_sequence || ''}`.trim(),
+      planned: plannedDate ? plannedDate.toISOString() : null,
+      real: realDate ? realDate.toISOString() : null,
+    };
+  });
+  const upcomingStops = allStops.filter((stop) => {
+    const time = stop.real || stop.planned;
+    if (!time) return true;
+    return new Date(time).getTime() >= nowMs - 2 * 60 * 1000;
+  });
+
+  return {
+    schedule: upcomingStops.length > 0 ? upcomingStops : allStops,
+    routePath: allStops.map((stop) => stop.id).filter((id) => Number.isFinite(Number(id))),
+  };
+}
+
+function mapMpkDirectVehicle(
+  rawVehicle: Record<string, string>,
+  detailsByVehicle: Map<string, any>,
+  now: number,
+  includeInactive: boolean,
+  tripSchedule?: { schedule: Vehicle['schedule']; routePath: number[] },
+): Vehicle | null {
+  const lat = Number(rawVehicle.y);
+  const lon = Number(rawVehicle.x);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  const vehicleNumber = normalizeMpkVehicleId(rawVehicle.nb || rawVehicle.id);
+  const details = detailsByVehicle.get(vehicleNumber);
+  const line = String(rawVehicle.nr || rawVehicle.nnr || details?.nr || '').trim() || '?';
+  const hasLine = line !== '?';
+  const dataAgeSec = Math.max(0, Number(rawVehicle.is || 0));
+  if (!includeInactive && !hasLine) return null;
+  if (dataAgeSec > 30 * 60) return null;
+
+  const previousLat = Number(rawVehicle.py);
+  const previousLon = Number(rawVehicle.px);
+  const movedDistance = Number.isFinite(previousLat) && Number.isFinite(previousLon)
+    ? Math.hypot(lat - previousLat, lon - previousLon)
+    : 0;
+  const speed = movedDistance > 0 ? Math.min(55, Math.round(movedDistance * 100000)) : 0;
+  const rawDelay = Number(rawVehicle.o ?? details?.delay ?? 0);
+  const statusCode = String(rawVehicle.s || details?.status || '');
+  const delay = getEffectiveMpkDelay(rawDelay, statusCode, speed, tripSchedule?.schedule);
+  const nextStopId = Number(rawVehicle.nk || details?.end_stop_id);
+  const nextStopName = String(rawVehicle.nop || details?.end_stop_name || '').trim();
+  const direction = String(rawVehicle.op || details?.op || rawVehicle.nop || '').trim() || (speed > 3 ? 'W trasie' : 'Postój');
+  const isBreak = isMpkBreakStatus(statusCode);
+
+  return {
+    id: `mpk_rzeszow_${vehicleNumber}`,
+    provider: 'mpk_rzeszow',
+    operatorName: 'MPK Rzeszów',
+    type: 'bus',
+    iconVariant: 'mpk_rzeszow',
+    vehicleNumber,
+    name: `MPK ${line !== '?' ? line : vehicleNumber}`,
+    routeId: line !== '?' ? line : undefined,
+    routeShortName: line,
+    lat,
+    lon,
+    speed,
+    direction,
+    delay,
+    dataAgeSec,
+    schedule: tripSchedule?.schedule?.length
+      ? tripSchedule.schedule
+      : Number.isFinite(nextStopId) && nextStopName
+      ? [{ id: nextStopId, name: nextStopName, planned: null, real: null }]
+      : [],
+    routePath: tripSchedule?.routePath || [],
+    model: details?.bus,
+    lastStopDistance: Number.isFinite(Number(rawVehicle.dp)) ? Number(rawVehicle.dp) : undefined,
+    lastStopId: Number.isFinite(Number(rawVehicle.ik)) ? Number(rawVehicle.ik) : undefined,
+    lastSignalTime: new Date(now - dataAgeSec * 1000).toISOString(),
+    journeyId: details?.rawBrygada ?? rawVehicle.kwi?.trim() ?? undefined,
+    serviceId: rawVehicle.kwi?.trim() || details?.brygada,
+    tripId: details?.trip_id ?? rawVehicle.ik ?? undefined,
+    brigadeName: rawVehicle.kwi?.trim() || details?.brygada,
+    status: isBreak ? 'break' : 'active',
+    statusText: isBreak ? 'Postój na pętli' : speed <= 1 ? 'Postój na trasie' : 'W trasie',
+  };
+}
+
+async function fetchMpkRzeszowVehiclesDirect(includeInactive: boolean) {
+  const [xml, details] = await Promise.all([
+    requestText(MPK_RZESZOW_VEHICLES_XML_URL),
+    requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL).catch(() => []),
+  ]);
+  const detailsByVehicle = new Map(
+    (Array.isArray(details) ? details : []).map((detail: any) => [normalizeMpkVehicleId(detail?.nb), detail]),
+  );
+  const now = Date.now();
+
+  return parseMpkVehiclesXml(xml)
+    .map((rawVehicle) => mapMpkDirectVehicle(rawVehicle, detailsByVehicle, now, includeInactive))
+    .filter((vehicle): vehicle is Vehicle => Boolean(vehicle));
+}
+
+async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeInactive: boolean) {
+  const lookupVehicleId = normalizeMpkVehicleId(String(vehicleId || '').replace(/^mpk_rzeszow_/, ''));
+  const [xml, details] = await Promise.all([
+    requestText(MPK_RZESZOW_VEHICLES_XML_URL),
+    requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL).catch(() => []),
+  ]);
+  const rawVehicle = parseMpkVehiclesXml(xml).find((vehicle) =>
+    normalizeMpkVehicleId(vehicle.nb || vehicle.id) === lookupVehicleId,
+  );
+  if (!rawVehicle) return null;
+
+  const detailsByVehicle = new Map(
+    (Array.isArray(details) ? details : []).map((detail: any) => [normalizeMpkVehicleId(detail?.nb), detail]),
+  );
+  const vehicleDetails = detailsByVehicle.get(lookupVehicleId);
+  const statusCode = String(rawVehicle.s || vehicleDetails?.status || '');
+  const delaySeconds = getEffectiveMpkDelay(Number(rawVehicle.o ?? vehicleDetails?.delay ?? 0), statusCode);
+  const tripSchedule = await fetchMpkTripSchedule(vehicleDetails?.trip_id ?? rawVehicle.ik, delaySeconds);
+
+  return mapMpkDirectVehicle(rawVehicle, detailsByVehicle, Date.now(), includeInactive, tripSchedule);
 }
 
 async function loadStopsDictionary() {
@@ -276,6 +609,42 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
   return routePromise;
 }
 
+function createQuickCurvedRoute(coords: ShapePoint[]) {
+  const cleanCoords = coords.filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+  if (cleanCoords.length < 2) return [];
+
+  const points: ShapePoint[] = [];
+  for (let i = 0; i < cleanCoords.length - 1; i += 1) {
+    const prev = cleanCoords[Math.max(0, i - 1)];
+    const start = cleanCoords[i];
+    const end = cleanCoords[i + 1];
+    const next = cleanCoords[Math.min(cleanCoords.length - 1, i + 2)];
+    const steps = i === 0 || i === cleanCoords.length - 2 ? 12 : 8;
+
+    for (let step = 0; step < steps; step += 1) {
+      const t = step / steps;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const lat = 0.5 * (
+        (2 * start[0]) +
+        (-prev[0] + end[0]) * t +
+        (2 * prev[0] - 5 * start[0] + 4 * end[0] - next[0]) * t2 +
+        (-prev[0] + 3 * start[0] - 3 * end[0] + next[0]) * t3
+      );
+      const lon = 0.5 * (
+        (2 * start[1]) +
+        (-prev[1] + end[1]) * t +
+        (2 * prev[1] - 5 * start[1] + 4 * end[1] - next[1]) * t2 +
+        (-prev[1] + 3 * start[1] - 3 * end[1] + next[1]) * t3
+      );
+      points.push([lat, lon]);
+    }
+  }
+
+  points.push(cleanCoords[cleanCoords.length - 1]);
+  return points;
+}
+
 function toTitleCase(str: string) {
   if (!str) return '';
   return str
@@ -287,6 +656,54 @@ function toTitleCase(str: string) {
 
 function getTripBase(tripId: unknown) {
   return String(tripId || '').trim().split('_')[0] || '';
+}
+
+function transportApiUrl(path: string, searchParams?: URLSearchParams) {
+  const basePath = path.startsWith('/') ? path : `/${path}`;
+  const query = searchParams && Array.from(searchParams.keys()).length > 0 ? `?${searchParams.toString()}` : '';
+  return `${TRANSPORT_API_BASE_URL}${basePath}${query}`;
+}
+
+function mapTransportVehicleToClient(vehicle: TransportApiVehicle): Vehicle {
+  const rawDelay = vehicle.delaySeconds ?? (typeof vehicle.delayMinutes === 'number' ? vehicle.delayMinutes * 60 : 0);
+  const statusText = String(vehicle.statusText || '').toLowerCase();
+  const delay =
+    vehicle.provider === 'mpk_rzeszow' &&
+    (vehicle.status === 'break' || statusText.includes('petli') || statusText.includes('pętli') || statusText.includes('przystanku'))
+      ? 0
+      : rawDelay;
+
+  return {
+    id: vehicle.id,
+    provider: vehicle.provider,
+    operatorName: vehicle.operatorName,
+    type: vehicle.type,
+    iconVariant: vehicle.iconVariant,
+    vehicleNumber: vehicle.vehicleNumber,
+    name: vehicle.name || vehicle.displayName,
+    routeId: vehicle.routeId,
+    routeShortName: vehicle.line,
+    lat: Number(vehicle.lat),
+    lon: Number(vehicle.lng),
+    speed: vehicle.speed,
+    direction: vehicle.direction,
+    delay,
+    dataAgeSec: vehicle.dataAgeSec,
+    schedule: vehicle.schedule,
+    routePath: vehicle.routePath,
+    model: vehicle.model,
+    lastStopDistance: vehicle.lastStopDistance,
+    lastStopId: vehicle.lastStopId,
+    lastSignalTime: vehicle.lastUpdate,
+    journeyId: vehicle.journeyId,
+    serviceId: vehicle.serviceId,
+    tripId: vehicle.tripId,
+    brigadeName: vehicle.brigadeName,
+    status: vehicle.status,
+    statusText: vehicle.statusText,
+    isHistorical: vehicle.isHistorical,
+    bearing: vehicle.bearing,
+  };
 }
 
 function formatStopName(rawName: string | undefined) {
@@ -417,16 +834,60 @@ function mapVehicle(v: any, now: number, includeInactive: boolean, stopsDict: Re
   };
 }
 
-export async function fetchVehiclesClient(includeInactive: boolean) {
-  const [rawVehicles, stopsDict] = await Promise.all([
-    requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php'),
-    loadStopsDictionary(),
-  ]);
-  const now = Date.now();
+export async function fetchVehiclesClient(
+  includeInactive: boolean,
+  providers: TransportProviderId[] = ['pks'],
+) {
+  const activeProviders = providers.filter(Boolean);
+  if (activeProviders.length === 0) return [];
 
-  return (Array.isArray(rawVehicles) ? rawVehicles : [])
-    .map((vehicle) => mapVehicle(vehicle, now, includeInactive, stopsDict))
-    .filter((vehicle): vehicle is Vehicle => Boolean(vehicle));
+  const requests = activeProviders.map(async (provider) => {
+    if (provider === 'pks') return fetchPksVehiclesClient(includeInactive);
+    if (provider === 'mpk_rzeszow') {
+      return fetchMpkRzeszowVehiclesClient(includeInactive).catch((error) => {
+        console.warn('MPK Rzeszów provider unavailable:', error);
+        return [];
+      });
+    }
+    return [];
+  });
+
+  const results = await Promise.all(requests);
+  return results.flat();
+}
+
+export async function fetchVehicleDetailsClient(provider: TransportProviderId, vehicleId: string, includeInactive = true) {
+  if (provider === 'mpk_rzeszow') {
+    const directVehicle = await fetchMpkRzeszowVehicleDetailsDirect(vehicleId, includeInactive).catch((error) => {
+      console.warn('MPK Rzeszów direct details unavailable, using backend:', error);
+      return null;
+    });
+    if (directVehicle && (directVehicle.schedule?.length || 0) > 1) return directVehicle;
+
+    try {
+      const searchParams = new URLSearchParams();
+      if (includeInactive) searchParams.set('includeInactive', 'true');
+      const response = await requestJson<{ vehicle?: TransportApiVehicle }>(
+        transportApiUrl(`/vehicle/${encodeURIComponent(provider)}/${encodeURIComponent(vehicleId)}`, searchParams),
+      );
+      const vehicle = response.vehicle ? mapTransportVehicleToClient(response.vehicle) : null;
+      if (vehicle && (vehicle.schedule?.length || 0) > 1) return vehicle;
+    } catch (error) {
+      console.warn('MPK Rzeszów details backend unavailable:', error);
+    }
+
+    return directVehicle;
+  }
+
+  const searchParams = new URLSearchParams();
+  if (includeInactive) searchParams.set('includeInactive', 'true');
+
+  const response = await requestJson<{ vehicle?: TransportApiVehicle }>(
+    transportApiUrl(`/vehicle/${encodeURIComponent(provider)}/${encodeURIComponent(vehicleId)}`, searchParams),
+  );
+
+  if (!response.vehicle) return null;
+  return mapTransportVehicleToClient(response.vehicle);
 }
 
 export async function fetchStopsClient(): Promise<StopsMap> {
@@ -634,7 +1095,12 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
   };
 }
 
-export async function fetchRouteShapeClient(tripId: string, fallbackStops: number[], stopsData?: Record<string, {lat: number; lon: number}> | null) {
+export async function fetchRouteShapeClient(
+  tripId: string,
+  fallbackStops: number[],
+  stopsData?: Record<string, {lat: number; lon: number}> | null,
+  options?: { fastFallback?: boolean; startPoint?: ShapePoint },
+) {
   const tripIdBase = String(tripId || '').trim().split('_')[0];
   const normalizedStops = fallbackStops
     .map((id) => String(id || '').trim())
@@ -665,6 +1131,17 @@ export async function fetchRouteShapeClient(tripId: string, fallbackStops: numbe
       return Number.isFinite(stop.lat) && Number.isFinite(stop.lon);
     })
     .map((stop) => [stop.lat, stop.lon] as ShapePoint);
+  const routeCoords = options?.startPoint
+    ? [options.startPoint, ...stopCoords].filter(
+        ([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon),
+      )
+    : stopCoords;
+
+  if (options?.fastFallback) {
+    const quickRoute = createQuickCurvedRoute(routeCoords);
+    if (quickRoute.length > 1) return quickRoute;
+  }
+
   if (stopCoords.length > 1) {
     try {
       const roadRoute = await fetchRoadRouteForStops(stopCoords, normalizedStops.join('-'));
@@ -678,5 +1155,7 @@ export async function fetchRouteShapeClient(tripId: string, fallbackStops: numbe
     } catch {}
 
   }
+  const quickRoute = createQuickCurvedRoute(routeCoords);
+  if (quickRoute.length > 1) return quickRoute;
   return [];
 }
