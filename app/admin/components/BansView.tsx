@@ -1,5 +1,6 @@
 ﻿import { useState, useMemo } from 'react';
 import { Search, Filter, Lock, LockOpen, Smartphone, ChevronDown, Menu, Calendar, Info, MapPin } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Ban } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -28,6 +29,24 @@ export function BansView({
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(3);
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const filtersRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showFilters) return;
+
+    const closeOnOutsidePointer = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (target && filtersRef.current?.contains(target)) return;
+      setShowFilters(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsidePointer);
+    document.addEventListener('touchstart', closeOnOutsidePointer);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsidePointer);
+      document.removeEventListener('touchstart', closeOnOutsidePointer);
+    };
+  }, [showFilters]);
 
   const filteredBans = useMemo(() => {
     return bans.filter((ban) => {
@@ -81,7 +100,7 @@ export function BansView({
               className="w-full bg-[#111623] border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-all shadow-inner"
             />
           </div>
-          <div className="relative shrink-0">
+          <div ref={filtersRef} className="relative shrink-0">
             <button
               onClick={() => setShowFilters(!showFilters)}
               className="flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 sm:px-5 py-3.5 rounded-2xl text-sm font-bold text-slate-300 transition-all h-full cursor-pointer active:scale-95 shadow-lg"

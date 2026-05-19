@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, ChevronDown, Calendar, RefreshCcw, LogIn, MonitorOff, ShieldAlert, UserCog, PowerOff, MapPin, Menu, Trash2, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Log } from '../types';
@@ -78,8 +78,43 @@ export function LogsView({
   const [isClearingLogs, setIsClearingLogs] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearLogsError, setClearLogsError] = useState<string | null>(null);
+  const filtersRef = useRef<HTMLDivElement | null>(null);
   
   const [visibleCount, setVisibleCount] = useState(5);
+
+  const toggleTypeFilter = () => {
+    setShowFilterDropdown((open) => {
+      const nextOpen = !open;
+      if (nextOpen) setShowDatePicker(false);
+      return nextOpen;
+    });
+  };
+
+  const toggleDateFilter = () => {
+    setShowDatePicker((open) => {
+      const nextOpen = !open;
+      if (nextOpen) setShowFilterDropdown(false);
+      return nextOpen;
+    });
+  };
+
+  useEffect(() => {
+    if (!showFilterDropdown && !showDatePicker) return;
+
+    const closeOnOutsidePointer = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (target && filtersRef.current?.contains(target)) return;
+      setShowFilterDropdown(false);
+      setShowDatePicker(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsidePointer);
+    document.addEventListener('touchstart', closeOnOutsidePointer);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsidePointer);
+      document.removeEventListener('touchstart', closeOnOutsidePointer);
+    };
+  }, [showFilterDropdown, showDatePicker]);
 
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
@@ -215,11 +250,10 @@ export function LogsView({
         </div>
 
         {/* Filters Top */}
-        <div className="grid grid-cols-2 gap-4">
+        <div ref={filtersRef} className="grid grid-cols-2 gap-4">
           <div className="relative">
             <button 
-              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-              onBlur={() => setTimeout(() => setShowFilterDropdown(false), 200)}
+              onClick={toggleTypeFilter}
               className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
@@ -235,9 +269,9 @@ export function LogsView({
                   exit={{ opacity: 0, scale: 0.95, y: -5 }}
                   className="absolute top-full left-0 right-0 mt-2 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1"
                 >
-                  <button onClick={() => setFilterType('ALL')} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Wszystkie typy</button>
-                  <button onClick={() => setFilterType('SYSTEM')} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Tylko Systemowe</button>
-                  <button onClick={() => setFilterType('OPERATOR')} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Tylko Operatorskie</button>
+                  <button onClick={() => { setFilterType('ALL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Wszystkie typy</button>
+                  <button onClick={() => { setFilterType('SYSTEM'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Tylko Systemowe</button>
+                  <button onClick={() => { setFilterType('OPERATOR'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Tylko Operatorskie</button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -245,7 +279,7 @@ export function LogsView({
 
           <div className="relative">
             <button 
-              onClick={() => setShowDatePicker(!showDatePicker)}
+              onClick={toggleDateFilter}
               className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">

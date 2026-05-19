@@ -1,7 +1,7 @@
 import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown, Pencil, X, CheckCircle2 } from 'lucide-react';
 import { Badge } from './Badge';
 import { cn } from '@/lib/utils';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Device } from '../types';
 
@@ -44,6 +44,7 @@ export function DeviceTable({
   const [renameDevice, setRenameDevice] = useState<Device | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
+  const toolbarDropdownsRef = useRef<HTMLDivElement | null>(null);
   const itemsPerPage = 5;
 
   const parseDateValue = (value?: string) => {
@@ -71,8 +72,43 @@ export function DeviceTable({
   const handleSortClick = (key: SortKey) => {
     setSortConfig((prev) => (!prev || prev.key !== key ? { key, dir: 'desc' } : { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }));
     setShowSortDropdown(false);
+    setShowFilterDropdown(false);
     setCurrentPage(1);
   };
+
+  const toggleSortDropdown = () => {
+    setShowSortDropdown((open) => {
+      const nextOpen = !open;
+      if (nextOpen) setShowFilterDropdown(false);
+      return nextOpen;
+    });
+  };
+
+  const toggleFilterDropdown = () => {
+    setShowFilterDropdown((open) => {
+      const nextOpen = !open;
+      if (nextOpen) setShowSortDropdown(false);
+      return nextOpen;
+    });
+  };
+
+  useEffect(() => {
+    if (!showFilterDropdown && !showSortDropdown) return;
+
+    const closeOnOutsidePointer = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (target && toolbarDropdownsRef.current?.contains(target)) return;
+      setShowFilterDropdown(false);
+      setShowSortDropdown(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsidePointer);
+    document.addEventListener('touchstart', closeOnOutsidePointer);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsidePointer);
+      document.removeEventListener('touchstart', closeOnOutsidePointer);
+    };
+  }, [showFilterDropdown, showSortDropdown]);
 
   const sortLabel = sortConfig
     ? sortConfig.key === 'firstLogin'
@@ -331,7 +367,7 @@ export function DeviceTable({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+      <div ref={toolbarDropdownsRef} className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
         <div className="relative min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
           <input
@@ -347,7 +383,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button onClick={() => setShowSortDropdown(!showSortDropdown)} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button onClick={toggleSortDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <ArrowUpDown size={14} className="text-slate-500 group-hover:text-white transition-colors" />
             <span className="truncate">{sortLabel}{sortConfig ? (sortConfig.dir === 'desc' ? ' ↓' : ' ↑') : ''}</span>
           </button>
@@ -370,7 +406,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button onClick={() => setShowFilterDropdown(!showFilterDropdown)} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button onClick={toggleFilterDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <Filter size={14} className={cn('text-slate-500 group-hover:text-white transition-all duration-300', showFilterDropdown && 'rotate-180')} />
             <span>{filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : filterRole === 'ADMIN' ? 'Administratorzy' : filterRole === 'BLOCKED' ? 'Zablokowani' : 'Użytkownicy'}</span>
           </button>

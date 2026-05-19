@@ -8,10 +8,12 @@ import {fetchRouteShapeClient} from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
+const MARCEL_COLOR = '#68c44a';
 const ROUTE_POINT_LIMIT = 720;
 
 function getVehicleColor(vehicle?: Pick<Vehicle, 'provider'> | null, fallback = PKS_COLOR) {
   if (vehicle?.provider === 'mpk_rzeszow') return MPK_RZESZOW_COLOR;
+  if (vehicle?.provider === 'marcel') return MARCEL_COLOR;
   if (vehicle?.provider === 'pks') return PKS_COLOR;
   return fallback;
 }
@@ -122,7 +124,7 @@ const createBusIcon = (
   zoom: number = 14,
 ) => {
   const display = routeShortName || '?';
-  const numberLabel = vehicleLabel || vehicleId;
+  const numberLabel = String(vehicleLabel || '').trim();
   const delayInfo = formatDelay(delaySec);
   
   let opacityClass = 'opacity-90';
@@ -141,8 +143,7 @@ const createBusIcon = (
     `;
   }
 
-  const isMpkRzeszow = iconVariant === 'mpk_rzeszow';
-  const markerColor = isMpkRzeszow ? '#ff7a00' : themeColor;
+  const markerColor = iconVariant === 'mpk_rzeszow' ? MPK_RZESZOW_COLOR : iconVariant === 'marcel' ? MARCEL_COLOR : themeColor;
 
   const html = `
     <div class="mks-marker-inner relative flex flex-col items-center justify-start ${isSelClass}" style="width: 48px; height: 68px; ${filterStyle}">
@@ -175,10 +176,12 @@ const createBusIcon = (
         <div class="w-1.5 h-1.5 rounded-b-sm" style="background-color: #1e293b"></div>
       </div>
 
-      <!-- Minimal Vehicle ID -->
-      <div class="mt-1 border border-slate-200 rounded px-1.5 py-[1px] text-[8px] tracking-wide font-bold max-w-[44px] truncate text-center ${isHighVolume?'':'shadow-sm'} flex items-center justify-center gap-1" style="background-color: rgba(255,255,255,0.95); color: #64748b;">
-        <span>${numberLabel}</span>
-      </div>
+      ${numberLabel ? `
+        <!-- Minimal Vehicle ID -->
+        <div class="mt-1 border border-slate-200 rounded px-1.5 py-[1px] text-[8px] tracking-wide font-bold max-w-[44px] truncate text-center ${isHighVolume?'':'shadow-sm'} flex items-center justify-center gap-1" style="background-color: rgba(255,255,255,0.95); color: #64748b;">
+          <span>${numberLabel}</span>
+        </div>
+      ` : ''}
 
       ${badgeHtml}
     </div>
@@ -224,6 +227,9 @@ export interface StopSchedule {
   name: string;
   planned: string | null;
   real: string | null;
+  lat?: number;
+  lon?: number;
+  isPast?: boolean;
 }
 
 export interface Vehicle {
@@ -243,6 +249,7 @@ export interface Vehicle {
   delay?: number;
   dataAgeSec?: number;
   schedule?: StopSchedule[];
+  routeStops?: StopSchedule[];
   routePath?: number[];
   model?: string;
   // Test fields
@@ -269,6 +276,7 @@ interface BusMapProps {
   vehicles: Vehicle[];
   onVehicleClick?: (vehicle: Vehicle) => void;
   selectedVehicleId?: string | null;
+  selectedVehicle?: Vehicle | null;
   stopsData?: Record<string, StopData> | null;
   themeColor?: string;
   refreshInterval?: number;
@@ -336,7 +344,7 @@ const BusMarker = memo(function BusMarker({
         vehicle.dataAgeSec,
         isHighVolume,
         vehicle.iconVariant,
-        vehicle.vehicleNumber || vehicle.id,
+        vehicle.vehicleNumber || (vehicle.provider === 'marcel' ? '' : vehicle.id),
         zoom,
       ),
     [
@@ -530,7 +538,7 @@ function VehicleMarkerLayer({
       lon: group.lon / group.vehicles.length,
       groupKey: `${group.provider}:${group.overlapKey}`,
       visualOffset: (providerCells.get(group.overlapKey)?.size || 0) > 1
-        ? group.provider === 'mpk_rzeszow' ? 7 : -7
+        ? group.provider === 'mpk_rzeszow' ? 7 : group.provider === 'marcel' ? 0 : -7
         : 0,
     }));
   }, [map, shouldCluster, renderVehicles, viewTick, zoom]);
@@ -584,14 +592,14 @@ function VehicleMarkerLayer({
 function RouteStopsLayer({
   selectedVehicle,
   stopsData,
-  upcomingStopIds,
+  stopIds,
   highlightedStopId,
   selectedRouteColor,
   onStopClick,
 }: {
   selectedVehicle?: Vehicle;
   stopsData: Record<string, StopData>;
-  upcomingStopIds: Array<string | number>;
+  stopIds: Array<string | number>;
   highlightedStopId?: string | null;
   selectedRouteColor: string;
   onStopClick?: (stopId: string) => void;
@@ -612,20 +620,20 @@ function RouteStopsLayer({
       zoom <= 13 ? 30 :
       zoom <= 14 ? 44 :
       Number.POSITIVE_INFINITY;
-    if (upcomingStopIds.length <= maxStops) return upcomingStopIds;
+    if (stopIds.length <= maxStops) return stopIds;
 
-    const step = Math.ceil(upcomingStopIds.length / maxStops);
-    return upcomingStopIds.filter((stopId, idx) =>
+    const step = Math.ceil(stopIds.length / maxStops);
+    return stopIds.filter((stopId, idx) =>
       idx === 0 ||
-      idx === upcomingStopIds.length - 1 ||
+      idx === stopIds.length - 1 ||
       String(stopId) === highlightedStopId ||
       idx % step === 0,
     );
-  }, [highlightedStopId, selectedVehicle, upcomingStopIds, zoom]);
+  }, [highlightedStopId, selectedVehicle, stopIds, zoom]);
 
   if (!selectedVehicle) return null;
 
-  const baseRadius = zoom <= 11 ? 3.25 : zoom <= 13 ? 3.8 : zoom <= 14 ? 4.35 : 5;
+  const baseRadius = zoom <= 11 ? 4.5 : zoom <= 13 ? 5.1 : zoom <= 14 ? 5.8 : 6.5;
 
   return (
     <>
@@ -642,7 +650,7 @@ function RouteStopsLayer({
             color={isHighlighted ? selectedRouteColor : 'rgba(12,18,28,0.9)'}
             fillColor="#ffffff"
             fillOpacity={1}
-            weight={isHighlighted ? 4 : 2.4}
+            weight={isHighlighted ? 4.6 : 2.8}
             pathOptions={{ className: 'mks-route-stop-marker' }}
             eventHandlers={{
               click: (e) => {
@@ -661,6 +669,7 @@ export default function BusMap({
   vehicles, 
   onVehicleClick, 
   selectedVehicleId, 
+  selectedVehicle: selectedVehicleOverride,
   stopsData, 
   themeColor = '#00A3A2', 
   refreshInterval = 5000,
@@ -697,31 +706,64 @@ export default function BusMap({
     }
   }, []);
 
-  const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+  const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
   const [snappedRoute, setSnappedRoute] = useState<[number, number][]>([]);
   const lastFetchedRouteKeyRef = useRef<string>('');
+  const routeStopsData = useMemo(() => {
+    const next: Record<string, StopData> = { ...(stopsData || {}) };
+    for (const stop of selectedVehicle?.routeStops || selectedVehicle?.schedule || []) {
+      if (Number.isFinite(stop.lat) && Number.isFinite(stop.lon)) {
+        next[String(stop.id)] = {
+          n: stop.name,
+          lat: Number(stop.lat),
+          lon: Number(stop.lon),
+        };
+      }
+    }
+    return next;
+  }, [selectedVehicle?.routeStops, selectedVehicle?.schedule, stopsData]);
   const routeStopIds = useMemo(() => {
     const fullRoute = selectedVehicle?.routePath?.filter((id) => Number.isFinite(Number(id))) || [];
     if (fullRoute.length > 0) return fullRoute;
+    const routeStops = (selectedVehicle?.routeStops || []).map((s: any) => s.id);
+    if (routeStops.length > 0) return routeStops;
     return (selectedVehicle?.schedule || []).map((s: any) => s.id);
   }, [selectedVehicle]);
-  const upcomingStopIds = useMemo<Array<string | number>>(
-    () => (selectedVehicle?.schedule || [])
+  const visibleRouteStopIds = useMemo(() => {
+    const scheduleIds = (selectedVehicle?.schedule || [])
       .map((s: any) => s.id)
-      .filter((id: unknown): id is string | number => typeof id === 'string' || typeof id === 'number'),
-    [selectedVehicle?.schedule],
-  );
+      .filter((id: unknown) => Number.isFinite(Number(id)));
+    return scheduleIds.length > 0 ? scheduleIds : routeStopIds;
+  }, [selectedVehicle?.schedule, routeStopIds]);
   const routeStopIdsKey = useMemo(() => routeStopIds.join(','), [routeStopIds]);
+  const routeCoordKey = useMemo(() => {
+    return routeStopIds
+      .map((stopId) => {
+        const stop = routeStopsData[String(stopId)];
+        if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon)) return `${stopId}:missing`;
+        return `${stopId}:${stop.lat.toFixed(5)},${stop.lon.toFixed(5)}`;
+      })
+      .join('|');
+  }, [routeStopIds, routeStopsData]);
 
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const routeGlowOpts = { color: '#ffffff', weight: 10, opacity: 0.18, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.35 } as L.PolylineOptions;
   const routePolylineOpts = { color: selectedRouteColor, weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.35 } as L.PolylineOptions;
-  const routeKey = selectedVehicle ? `${selectedVehicle.id}_${routeStopIdsKey}` : '';
+  const routeKey = selectedVehicle ? `${selectedVehicle.id}_${routeStopIdsKey}_${routeCoordKey}` : '';
 
   useEffect(() => {
-    if (!selectedVehicle || !stopsData) {
+    if (!selectedVehicle) {
       setSnappedRoute([]);
       lastFetchedRouteKeyRef.current = '';
+      return;
+    }
+
+    const routeCoordCount = routeStopIds.filter((stopId) => {
+      const stop = routeStopsData[String(stopId)];
+      return stop && Number.isFinite(stop.lat) && Number.isFinite(stop.lon);
+    }).length;
+    if (routeStopIds.length > 1 && routeCoordCount < 2) {
+      setSnappedRoute([]);
       return;
     }
 
@@ -735,8 +777,9 @@ export default function BusMap({
 
     const tripId = String(selectedVehicle.tripId || '').trim();
     let cancelled = false;
-    fetchRouteShapeClient(tripId, routeStopIds, stopsData, {
+    fetchRouteShapeClient(tripId, routeStopIds, routeStopsData, {
       fastFallback: selectedVehicle.provider === 'mpk_rzeszow',
+      skipOfficialShape: selectedVehicle.provider === 'marcel',
       startPoint: [selectedVehicle.lat, selectedVehicle.lon],
     })
       .then((points) => {
@@ -755,7 +798,7 @@ export default function BusMap({
     return () => {
       cancelled = true;
     };
-  }, [selectedVehicle?.tripId, routeKey, routeStopIdsKey, stopsData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedVehicle?.tripId, routeKey, routeStopIdsKey, routeCoordKey, routeStopsData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 
@@ -847,9 +890,9 @@ export default function BusMap({
         />
 
         {/* Highlighted Selected Stop */}
-        {highlightedStopId && stopsData && stopsData[highlightedStopId] && (
+        {highlightedStopId && routeStopsData[highlightedStopId] && (
           <Marker 
-            position={[stopsData[highlightedStopId].lat, stopsData[highlightedStopId].lon]}
+            position={[routeStopsData[highlightedStopId].lat, routeStopsData[highlightedStopId].lon]}
             zIndexOffset={5000}
             icon={L.divIcon({
                className: 'stop-highlight-pin',
@@ -880,11 +923,11 @@ export default function BusMap({
 
         {/* Draw Route Stops */}
         <Pane name="routeStopsPane" style={{ zIndex: 410 }}>
-          {selectedVehicle && stopsData && (
+          {selectedVehicle && (
             <RouteStopsLayer
               selectedVehicle={selectedVehicle}
-              stopsData={stopsData}
-              upcomingStopIds={upcomingStopIds}
+              stopsData={routeStopsData}
+              stopIds={visibleRouteStopIds}
               highlightedStopId={highlightedStopId}
               selectedRouteColor={selectedRouteColor}
               onStopClick={onStopClick}

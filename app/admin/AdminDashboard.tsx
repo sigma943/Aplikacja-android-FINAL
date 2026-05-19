@@ -113,9 +113,13 @@ function dedupeDevicesByInstallation(devices: ({ id: string } & DeviceData)[]): 
       continue;
     }
 
+    const currentLastSeen = deviceLastSeenMs(current);
+    const nextLastSeen = deviceLastSeenMs(device);
+    const isClearlyNewerDevice = nextLastSeen > 0 && nextLastSeen > currentLastSeen + 60_000;
     const shouldReplace =
+      isClearlyNewerDevice ||
       roleRank(device.role) > roleRank(current.role) ||
-      (roleRank(device.role) === roleRank(current.role) && deviceLastSeenMs(device) >= deviceLastSeenMs(current));
+      (roleRank(device.role) === roleRank(current.role) && nextLastSeen >= currentLastSeen);
 
     if (shouldReplace) byInstallation.set(installationId, device);
   }

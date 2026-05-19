@@ -1,4 +1,5 @@
 import { mpkRzeszowProvider } from './mpk-rzeszow-provider';
+import { marcelProvider } from './marcel-provider';
 import { toProviderHealthSnapshot } from './provider-health';
 import type { ProviderHealthSnapshot, ProviderId, TransportProvider } from './types';
 
@@ -11,6 +12,7 @@ type ProviderRegistryEntry = {
 
 const providerRegistry: ProviderRegistryEntry[] = [
   { id: 'mpk_rzeszow', operatorName: 'MPK Rzeszów', implemented: true, provider: mpkRzeszowProvider },
+  { id: 'marcel', operatorName: 'Marcel', implemented: true, provider: marcelProvider },
 ];
 
 export function getRequestedProviderEntries(requestedProviderIds: string[]): ProviderRegistryEntry[] {

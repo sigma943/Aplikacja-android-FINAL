@@ -43,6 +43,24 @@ export function OperatorsView({
   const [editingOperator, setEditingOperator] = useState<Operator | null>(null);
   const [showGlobalPermissions, setShowGlobalPermissions] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showFilterDropdown) return;
+
+    const closeOnOutsidePointer = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (target && filterDropdownRef.current?.contains(target)) return;
+      setShowFilterDropdown(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsidePointer);
+    document.addEventListener('touchstart', closeOnOutsidePointer);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsidePointer);
+      document.removeEventListener('touchstart', closeOnOutsidePointer);
+    };
+  }, [showFilterDropdown]);
 
   const filteredOperators = useMemo(() => {
     return operators.filter(op => {
@@ -94,10 +112,9 @@ export function OperatorsView({
               className="w-full bg-[#111623] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-colors"
             />
           </div>
-          <div className="relative">
+          <div ref={filterDropdownRef} className="relative">
             <button 
               onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-              onBlur={() => setTimeout(() => setShowFilterDropdown(false), 200)}
               className="flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 transition-all cursor-pointer group"
             >
               {filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : filterRole === 'ADMIN' ? 'Administratorzy' : 'Użytkownicy'}
@@ -111,10 +128,10 @@ export function OperatorsView({
                   exit={{ opacity: 0, scale: 0.95, y: -5 }}
                   className="absolute right-0 top-full mt-2 w-48 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1"
                 >
-                  <button onClick={() => setFilterRole('ALL')} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Wszyscy</button>
-                  <button onClick={() => setFilterRole('WŁAŚCICIEL')} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Właściciele</button>
-                  <button onClick={() => setFilterRole('ADMIN')} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Administratorzy</button>
-                  <button onClick={() => setFilterRole('UŻYTKOWNIK')} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Użytkownicy</button>
+                  <button onClick={() => { setFilterRole('ALL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Wszyscy</button>
+                  <button onClick={() => { setFilterRole('WŁAŚCICIEL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Właściciele</button>
+                  <button onClick={() => { setFilterRole('ADMIN'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Administratorzy</button>
+                  <button onClick={() => { setFilterRole('UŻYTKOWNIK'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Użytkownicy</button>
                 </motion.div>
               )}
             </AnimatePresence>

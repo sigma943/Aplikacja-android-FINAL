@@ -1,4 +1,4 @@
-export type ProviderId = 'mpk_rzeszow';
+export type ProviderId = 'mpk_rzeszow' | 'marcel';
 
 export type VehicleStatus = 'active' | 'break' | 'inactive' | 'technical' | 'cached';
 
@@ -11,6 +11,10 @@ export interface TransportStopSchedule {
   name: string;
   planned: string | null;
   real: string | null;
+  lat?: number;
+  lng?: number;
+  lon?: number;
+  isPast?: boolean;
 }
 
 export interface TransportVehicle {
@@ -33,6 +37,7 @@ export interface TransportVehicle {
   delayMinutes?: number;
   dataAgeSec?: number;
   schedule?: TransportStopSchedule[];
+  routeStops?: TransportStopSchedule[];
   routePath?: number[];
   model?: string;
   lastStopDistance?: number;

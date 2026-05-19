@@ -13,6 +13,7 @@ import { canAccessAdminDashboard } from '@/lib/admin/rbac';
 
 const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
+const MARCEL_COLOR = '#68c44a';
 
 const BusMap = dynamic(() => import('@/components/BusMap'), {
   ssr: false,
@@ -81,18 +82,19 @@ const withAlpha = (hex: string, alpha: number) => {
   return `#${clean}${value}`;
 };
 
-const DEFAULT_ACTIVE_PROVIDERS: TransportProviderId[] = ['mpk_rzeszow'];
-const AVAILABLE_TRANSPORT_PROVIDERS = new Set<TransportProviderId>(['pks', 'mpk_rzeszow']);
+const DEFAULT_ACTIVE_PROVIDERS: TransportProviderId[] = ['pks'];
+const AVAILABLE_TRANSPORT_PROVIDERS = new Set<TransportProviderId>(['pks', 'mpk_rzeszow', 'marcel']);
 
 const readStoredTransportProviders = (): TransportProviderId[] => {
   if (typeof window === 'undefined') return DEFAULT_ACTIVE_PROVIDERS;
   try {
     const parsed = JSON.parse(localStorage.getItem('mks_transport_providers') || 'null');
     if (!Array.isArray(parsed)) return DEFAULT_ACTIVE_PROVIDERS;
-    return parsed.filter(
+    const storedProviders = parsed.filter(
       (provider): provider is TransportProviderId =>
         typeof provider === 'string' && AVAILABLE_TRANSPORT_PROVIDERS.has(provider as TransportProviderId),
     );
+    return storedProviders;
   } catch {
     return DEFAULT_ACTIVE_PROVIDERS;
   }
@@ -104,8 +106,10 @@ const sameTransportProviders = (left: TransportProviderId[], right: TransportPro
   return left.every((provider) => rightSet.has(provider));
 };
 
-const getVehicleDisplayNumber = (vehicle?: Pick<Vehicle, 'vehicleNumber' | 'id'> | null) =>
-  String(vehicle?.vehicleNumber || vehicle?.id || '').replace(/^mpk_rzeszow_/, '');
+const getVehicleDisplayNumber = (vehicle?: Pick<Vehicle, 'vehicleNumber' | 'id' | 'provider'> | null) => {
+  if (vehicle?.provider === 'marcel') return String(vehicle.vehicleNumber || '').trim();
+  return String(vehicle?.vehicleNumber || vehicle?.id || '').replace(/^(mpk_rzeszow|marcel)_/, '');
+};
 
 export default function Home() {
   const { device, loading } = useFirebase();
@@ -947,7 +951,12 @@ export default function Home() {
         ? 'Ostatnia pozycja'
         : selectedBus?.statusText || null;
   const selectedBusGpsSignalClock = formatGpsSignalClock(selectedBus?.lastSignalTime);
-  const selectedVehicleColor = selectedBus?.provider === 'mpk_rzeszow' ? MPK_RZESZOW_COLOR : PKS_COLOR;
+  const selectedVehicleColor =
+    selectedBus?.provider === 'mpk_rzeszow'
+      ? MPK_RZESZOW_COLOR
+      : selectedBus?.provider === 'marcel'
+        ? MARCEL_COLOR
+        : PKS_COLOR;
   const selectedBusIsWaitingForDeparture = Boolean(
     selectedBus?.status === 'break' ||
     selectedBus?.statusText?.toLowerCase().includes('przerwa do') ||
@@ -981,6 +990,14 @@ export default function Home() {
         enabled: true,
         type: 'bus',
         iconVariant: 'mpk_rzeszow',
+      },
+      {
+        id: 'marcel',
+        label: 'Autobusy Marcel',
+        color: MARCEL_COLOR,
+        enabled: true,
+        type: 'bus',
+        iconVariant: 'marcel',
       },
     ];
   }, []);
@@ -1157,6 +1174,7 @@ export default function Home() {
                vehicles={filteredVehicles} 
                onVehicleClick={handleVehicleClick}
                selectedVehicleId={selectedBus?.id}
+               selectedVehicle={selectedBus}
                stopsData={stopsDataMap}
                themeColor={themeColor}
                refreshInterval={refreshInterval}
@@ -1292,6 +1310,8 @@ export default function Home() {
               onToggle={toggleDraftProvider}
               onApply={applyDraftProviders}
               isDark={isDark}
+              themeMode={actualTheme}
+              transparentUI={transparentUI}
             />
 
             <AnimatePresence>
@@ -1324,13 +1344,24 @@ export default function Home() {
                         <span className="text-3xl md:text-5xl font-black tracking-tighter drop-shadow-sm">{selectedBus.routeShortName || '-'}</span>
                         <span className="uppercase tracking-widest text-[10px] md:text-xs font-bold text-white/90">Linia</span>
                      </div>
-                     <h2 className="text-sm md:text-[17px] font-medium leading-tight opacity-100 drop-shadow-sm pr-12 relative z-20">
-                       Kierunek: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
-                     </h2>
+                     <div className="pr-12 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm md:text-[17px] font-medium leading-tight opacity-100 drop-shadow-sm">
+                       <h2 className="min-w-0">
+                         Kierunek: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
+                       </h2>
+                       {selectedBus.provider === 'marcel' && selectedBusStatusLabel && (
+                         <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? 'bg-indigo-500/80 text-white' : 'bg-white/[0.18] text-white'}`}>
+                           {normalizeVehicleText(selectedBusStatusLabel)}
+                         </span>
+                       )}
+                     </div>
                      <h3 className="text-[10px] md:text-xs font-medium leading-tight opacity-90 drop-shadow-sm mt-0.5 md:mt-1 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="text-white/80 uppercase tracking-[0.18em] font-semibold">{getVehicleDisplayNumber(selectedBus) && `Nr pojazdu: ${getVehicleDisplayNumber(selectedBus)}`}</span>
-                        {selectedBusStatusLabel && (
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? 'bg-indigo-500/80 text-white' : 'bg-white/15 text-white'}`}>
+                        {getVehicleDisplayNumber(selectedBus) && (
+                          <span className="text-white/80 uppercase tracking-[0.18em] font-semibold">
+                            Nr pojazdu: {getVehicleDisplayNumber(selectedBus)}
+                          </span>
+                        )}
+                        {selectedBus.provider !== 'marcel' && selectedBusStatusLabel && (
+                          <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? 'bg-indigo-500/80 text-white' : 'bg-white/[0.18] text-white'}`}>
                             {normalizeVehicleText(selectedBusStatusLabel)}
                           </span>
                         )}
@@ -1368,13 +1399,15 @@ export default function Home() {
                               <Navigation className="w-3 h-3 md:w-3.5 md:h-3.5" /> Prędkość
                            </div>
                            <span className={`text-base md:text-lg font-medium tracking-tight ${textMain}`}>
-                              {selectedBus.status === 'break' ||
+                              {selectedBus.provider === 'marcel'
+                                ? 'Nieznana'
+                                : selectedBus.status === 'break' ||
                               selectedBus.statusText?.toLowerCase().includes('postoj') ||
                               selectedBus.statusText?.toLowerCase().includes('przerwa') ||
                               selectedBus.speed === 0 ||
                               !selectedBus.speed
-                                ? '0 km/h'
-                                : `${Math.round(selectedBus.speed)} km/h`}
+                                  ? '0 km/h'
+                                  : `${Math.round(selectedBus.speed)} km/h`}
                            </span>
                         </div>
                         
@@ -1466,7 +1499,7 @@ export default function Home() {
                                 const timeStr = displayTime ? formatTime(displayTime) : '';
                                 const timeClass = busDelayMin > 0 ? 'text-rose-500' : busDelayMin < 0 ? 'text-emerald-500' : textMain;
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
-                                const isPastStop = selectedBus.lastStopId && sch.id === selectedBus.lastStopId;
+                                const isPastStop = Boolean(sch.isPast) || Boolean(selectedBus.lastStopId && sch.id === selectedBus.lastStopId);
                                 return (
                                   <div 
                                      key={`${sch.id || idx}-${idx}`} 

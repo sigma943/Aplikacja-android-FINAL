@@ -4,7 +4,7 @@ import type {Vehicle} from '@/components/BusMap';
 type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: string; code?: string}>;
 type ShapePoint = [number, number];
 type ShapeMetadata = { id: string; bbox: [number, number, number, number]; samples: ShapePoint[] };
-export type TransportProviderId = 'pks' | 'mpk_rzeszow';
+export type TransportProviderId = 'pks' | 'mpk_rzeszow' | 'marcel';
 
 type TransportApiVehicle = {
   id: string;
@@ -25,7 +25,8 @@ type TransportApiVehicle = {
   delaySeconds?: number;
   delayMinutes?: number;
   dataAgeSec?: number;
-  schedule?: Array<{ id: number; name: string; planned: string | null; real: string | null }>;
+  schedule?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean }>;
+  routeStops?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean }>;
   routePath?: number[];
   model?: string;
   lastStopDistance?: number;
@@ -62,6 +63,24 @@ const TRANSPORT_API_BASE_URL = (
 const MPK_RZESZOW_VEHICLES_XML_URL = 'https://www.mpkrzeszow.pl/mpk/vehicles_proxy.php';
 const MPK_RZESZOW_VEHICLES_DETAILS_URL = 'https://www.mpkrzeszow.pl/mpk/get_vehicles.php';
 const MPK_RZESZOW_TRIP_STOPS_URL = 'https://www.mpkrzeszow.pl/brygady/get_trip_stops_advanced.php';
+const MARCEL_API_BASE_URL = (process.env.NEXT_PUBLIC_MARCEL_API_BASE_URL || 'https://api-site.marcel-bus.pl').replace(/\/$/, '');
+const MARCEL_DIRECT_VEHICLES_URL =
+  process.env.NEXT_PUBLIC_MARCEL_VEHICLES_URL ||
+  `${MARCEL_API_BASE_URL}/client/api/trasy/lokalizacjaBusow?appVersion=v1.67`;
+const marcelCourseStopsCache = new Map<string, Promise<MarcelCourseStop[]>>();
+const marcelPositionFreshness = new Map<string, { signature: string; signalMs: number; lastSeenMs: number }>();
+const MARCEL_STALE_MS = 7 * 60 * 1000;
+
+type MarcelCourseStop = {
+  id: number;
+  name: string;
+  lat: number;
+  lon: number;
+  plannedMs: number;
+  planned: string | null;
+  km: number;
+  order: number;
+};
 
 const isNative = () => Capacitor.isNativePlatform();
 const EINFO_DIRECT = 'http://einfo.zgpks.rzeszow.pl/api';
@@ -189,6 +208,388 @@ async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: 
     console.warn('MPK Rzeszów backend unavailable, using direct MPK feed:', error);
     return fetchMpkRzeszowVehiclesDirect(includeInactive);
   }
+}
+
+async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
+  return fetchMarcelVehiclesDirect(includeInactive, signal);
+}
+
+function unwrapMarcelVehiclesPayload(payload: unknown): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+
+  const record = payload as Record<string, unknown>;
+  for (const key of ['vehicles', 'pojazdy', 'items', 'data', 'results']) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+  }
+
+  return [];
+}
+
+function readMarcelField(raw: any, paths: string[]) {
+  for (const path of paths) {
+    const value = path.split('.').reduce<any>((current, key) => (current == null ? undefined : current[key]), raw);
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return undefined;
+}
+
+function readMarcelString(raw: any, paths: string[], fallback = '') {
+  const value = readMarcelField(raw, paths);
+  return String(value ?? fallback).trim();
+}
+
+function readMarcelNumber(raw: any, paths: string[]) {
+  const value = readMarcelField(raw, paths);
+  const number = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+  return Number.isFinite(number) ? number : NaN;
+}
+
+function readMarcelTimestamp(raw: any) {
+  const value = readMarcelField(raw, [
+    'lastUpdate',
+    'last_update',
+    'positionDate',
+    'position_date',
+    'position.position_date',
+    'timestamp',
+    'updatedAt',
+    'updated_at',
+    'czas',
+    'data',
+  ]);
+
+  if (typeof value === 'number') return value < 10_000_000_000 ? value * 1000 : value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = new Date(value.replace(' ', 'T')).getTime();
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+
+  return NaN;
+}
+
+function getObservedMarcelSignalMs(vehicleKey: string, lat: number, lon: number, now: number) {
+  const signature = `${lat.toFixed(5)},${lon.toFixed(5)}`;
+  const existing = marcelPositionFreshness.get(vehicleKey);
+  if (!existing || existing.signature !== signature) {
+    marcelPositionFreshness.set(vehicleKey, { signature, signalMs: now, lastSeenMs: now });
+    return now;
+  }
+
+  existing.lastSeenMs = now;
+  if (marcelPositionFreshness.size > 400) {
+    for (const [key, value] of marcelPositionFreshness) {
+      if (now - value.lastSeenMs > 60 * 60 * 1000) marcelPositionFreshness.delete(key);
+    }
+  }
+  return existing.signalMs;
+}
+
+function getWarsawDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Warsaw',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+  return { year: read('year'), month: read('month'), day: read('day') };
+}
+
+function warsawWallTimeToUtcMs(year: number, month: number, day: number, hour: number, minute: number) {
+  const guessedUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Warsaw',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(guessedUtc));
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+  const renderedAsUtc = Date.UTC(read('year'), read('month') - 1, read('day'), read('hour'), read('minute'), read('second'));
+  return guessedUtc - (renderedAsUtc - guessedUtc);
+}
+
+function buildMarcelPlannedMs(timeValue: unknown, previousMs: number | null, now = new Date()) {
+  const raw = String(timeValue || '').trim();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (!match) return Number.NaN;
+  const { year, month, day } = getWarsawDateParts(now);
+  let plannedMs = warsawWallTimeToUtcMs(year, month, day, Number(match[1]), Number(match[2]));
+  if (previousMs !== null && plannedMs < previousMs - 6 * 60 * 60 * 1000) plannedMs += 24 * 60 * 60 * 1000;
+  return plannedMs;
+}
+
+function unwrapMarcelCourseStopsPayload(payload: unknown): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+  const record = payload as Record<string, unknown>;
+  for (const key of ['stops', 'przystanki', 'items', 'data', 'results']) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
+function cleanMarcelStopName(value: string) {
+  return String(value || '')
+    .replace(/\s*\([+\-/]+\)\s*$/g, '')
+    .replace(/\s+[+-]\s*$/g, '')
+    .trim();
+}
+
+function getMarcelDestination(routeName: string, fallback = 'W trasie') {
+  const normalized = String(routeName || '').trim();
+  if (!normalized) return fallback;
+  const parts = normalized.split(/\s*[-–—]\s*/).map((part) => part.trim()).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 1] : normalized;
+}
+
+async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop[]> {
+  const id = String(tripId || '').trim();
+  if (!id) return [];
+  if (!marcelCourseStopsCache.has(id)) {
+    marcelCourseStopsCache.set(
+      id,
+      requestJson<unknown>(`${MARCEL_API_BASE_URL}/client/api/trasy/kurs/${encodeURIComponent(id)}?appVersion=v1.67`, {
+        headers: { Accept: 'application/json' },
+      })
+        .then((payload) => {
+          let previousMs: number | null = null;
+          return unwrapMarcelCourseStopsPayload(payload)
+            .map((stop, index): MarcelCourseStop | null => {
+              const source = stop && typeof stop === 'object' ? stop as Record<string, unknown> : {};
+              const lat = readMarcelNumber(source, ['szGps', 'lat', 'latitude', 'szerokosc']);
+              const lon = readMarcelNumber(source, ['dlGps', 'lon', 'lng', 'longitude', 'dlugosc']);
+              const plannedMs = buildMarcelPlannedMs(source.godz || source.godzPr || source.godzina, previousMs);
+              if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(plannedMs)) return null;
+              previousMs = plannedMs;
+              const idRaw = Number(source.idPr ?? source.id ?? source.kol ?? index + 1);
+              const city = String(source.nazMi || source.nazwaMi || '').trim();
+              const stopName = cleanMarcelStopName(String(source.nazPr || source.nazwaPr || source.name || '').trim());
+              return {
+                id: Number.isFinite(idRaw) ? idRaw : index + 1,
+                name: [city, stopName].filter(Boolean).join(' - ') || `Przystanek ${index + 1}`,
+                lat,
+                lon,
+                plannedMs,
+                planned: new Date(plannedMs).toISOString(),
+                km: Number.isFinite(Number(source.km)) ? Number(source.km) : index,
+                order: Number.isFinite(Number(source.kol)) ? Number(source.kol) : index + 1,
+              };
+            })
+            .filter((stop): stop is MarcelCourseStop => Boolean(stop))
+            .sort((a, b) => a.order - b.order);
+        })
+        .catch(() => []),
+    );
+    if (marcelCourseStopsCache.size > 200) {
+      const firstKey = marcelCourseStopsCache.keys().next().value;
+      if (firstKey) marcelCourseStopsCache.delete(firstKey);
+    }
+  }
+  return marcelCourseStopsCache.get(id)!;
+}
+
+function squaredMetersDistanceToSegment(point: ShapePoint, start: ShapePoint, end: ShapePoint) {
+  const meanLat = ((point[0] + start[0] + end[0]) / 3) * Math.PI / 180;
+  const metersPerLat = 111_320;
+  const metersPerLon = Math.cos(meanLat) * 111_320;
+  const px = point[1] * metersPerLon;
+  const py = point[0] * metersPerLat;
+  const ax = start[1] * metersPerLon;
+  const ay = start[0] * metersPerLat;
+  const bx = end[1] * metersPerLon;
+  const by = end[0] * metersPerLat;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  const t = lenSq > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq)) : 0;
+  const cx = ax + dx * t;
+  const cy = ay + dy * t;
+  const distanceSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+  return { distanceSq, t };
+}
+
+function distanceMeters(a: ShapePoint, b: ShapePoint) {
+  const meanLat = ((a[0] + b[0]) / 2) * Math.PI / 180;
+  const dLat = (a[0] - b[0]) * 111_320;
+  const dLon = (a[1] - b[1]) * Math.cos(meanLat) * 111_320;
+  return Math.sqrt(dLat * dLat + dLon * dLon);
+}
+
+function estimateMarcelDelaySeconds(lat: number, lon: number, stops: MarcelCourseStop[], nowMs: number) {
+  if (stops.length === 0) return 0;
+  if (stops.length === 1) return Math.round((nowMs - stops[0].plannedMs) / 1000);
+
+  const point: ShapePoint = [lat, lon];
+  let bestScheduledMs = stops[0].plannedMs;
+  let bestDistanceSq = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < stops.length - 1; i += 1) {
+    const start = stops[i];
+    const end = stops[i + 1];
+    const { distanceSq, t } = squaredMetersDistanceToSegment(point, [start.lat, start.lon], [end.lat, end.lon]);
+    if (distanceSq < bestDistanceSq) {
+      bestDistanceSq = distanceSq;
+      bestScheduledMs = start.plannedMs + (end.plannedMs - start.plannedMs) * t;
+    }
+  }
+
+  const delaySeconds = Math.round((nowMs - bestScheduledMs) / 1000);
+  return Math.abs(delaySeconds) <= 18_000 ? delaySeconds : 0;
+}
+
+function buildMarcelSchedule(stops: MarcelCourseStop[], delaySeconds: number, nowMs: number) {
+  return stops
+    .map((stop) => {
+      const predictedMs = stop.plannedMs + delaySeconds * 1000;
+      return {
+        id: stop.id,
+        name: stop.name,
+        planned: stop.planned,
+        real: new Date(predictedMs).toISOString(),
+        lat: stop.lat,
+        lon: stop.lon,
+        isPast: predictedMs < nowMs - 2 * 60 * 1000,
+      };
+    })
+    .filter((stop) => !stop.isPast);
+}
+
+function buildMarcelRouteStops(stops: MarcelCourseStop[], delaySeconds: number, nowMs: number) {
+  return stops.map((stop) => {
+    const predictedMs = stop.plannedMs + delaySeconds * 1000;
+    return {
+      id: stop.id,
+      name: stop.name,
+      planned: stop.planned,
+      real: new Date(predictedMs).toISOString(),
+      lat: stop.lat,
+      lon: stop.lon,
+      isPast: predictedMs < nowMs - 2 * 60 * 1000,
+    };
+  });
+}
+
+function inferMarcelStatus(
+  hasLine: boolean,
+  lat: number,
+  lon: number,
+  stops: MarcelCourseStop[],
+  delaySeconds: number,
+  dataAgeSec: number,
+  nowMs: number,
+) {
+  if (!hasLine) {
+    return { status: 'inactive' as const, statusText: 'Pojazd bez przypisanej linii' };
+  }
+
+  const firstStop = stops[0];
+  const firstDepartureMs = firstStop ? firstStop.plannedMs + delaySeconds * 1000 : NaN;
+  const isNearFirstStop = firstStop
+    ? distanceMeters([lat, lon], [firstStop.lat, firstStop.lon]) <= 350
+    : false;
+
+  if (Number.isFinite(firstDepartureMs) && firstDepartureMs - nowMs > 2 * 60 * 1000 && isNearFirstStop) {
+    return { status: 'break' as const, statusText: `Przerwa do ${formatClock(firstDepartureMs)}` };
+  }
+
+  if (dataAgeSec > 90) {
+    return { status: 'active' as const, statusText: 'Postój na trasie' };
+  }
+
+  return { status: 'active' as const, statusText: 'W trasie' };
+}
+
+async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean): Promise<Vehicle | null> {
+  const lat = readMarcelNumber(raw, ['lat', 'latitude', 'szGps', 'szerokosc', 'szerokoscGeo', 'position.lat', 'position.latitude']);
+  const lon = readMarcelNumber(raw, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  const tripId = readMarcelString(raw, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']) || undefined;
+  const rawVehicleId = readMarcelString(raw, ['vehicle_id', 'vehicle.id', 'idPojazdu', 'pojazdId', 'idPo'])
+    || tripId
+    || `${lat.toFixed(5)}_${lon.toFixed(5)}`;
+  const vehicleNumber = readMarcelString(raw, ['vehicleNumber', 'vehicle_number', 'vehicle.label', 'nrBoczny', 'numerBoczny', 'nrRej', 'rejestracja']) || undefined;
+  const routeName = readMarcelString(raw, ['nazTr', 'routeName', 'trasa', 'relacja', 'opisTrasy', 'route.description', 'journey.route.description']);
+  const line = readMarcelString(raw, ['line', 'routeShortName', 'route_short_name', 'routeId', 'route_id', 'linia', 'nrLinii'], 'M') || 'M';
+  const direction = getMarcelDestination(
+    routeName || readMarcelString(raw, ['direction', 'destination', 'kierunek', 'relacja', 'route.description', 'journey.route.description']),
+  );
+  const timestampMs = readMarcelTimestamp(raw);
+  const signalMs = Number.isFinite(timestampMs)
+    ? timestampMs
+    : getObservedMarcelSignalMs(String(rawVehicleId), lat, lon, now);
+  const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
+  const courseStops = await fetchMarcelCourseStops(tripId);
+  const delay = estimateMarcelDelaySeconds(lat, lon, courseStops, now);
+  const schedule = buildMarcelSchedule(courseStops, delay, now);
+  const routeStops = buildMarcelRouteStops(courseStops, delay, now);
+  const fullRoutePath = routeStops.map((stop) => stop.id);
+  const hasLine = line !== '?';
+  const vehicleStatus = inferMarcelStatus(hasLine, lat, lon, courseStops, delay, dataAgeSec, now);
+
+  if (!includeInactive && !hasLine) return null;
+  if (dataAgeSec > MARCEL_STALE_MS / 1000) return null;
+
+  return {
+    id: `marcel_${rawVehicleId}`,
+    provider: 'marcel',
+    operatorName: 'Marcel',
+    type: 'bus',
+    iconVariant: 'marcel',
+    vehicleNumber,
+    name: `Marcel ${routeName || (line !== '?' ? line : vehicleNumber || rawVehicleId)}`,
+    routeId: routeName || (line !== '?' ? line : undefined),
+    routeShortName: line,
+    lat,
+    lon,
+    direction,
+    delay,
+    dataAgeSec,
+    schedule,
+    routeStops,
+    routePath: fullRoutePath,
+    model: readMarcelString(raw, ['model', 'vehicle.model']),
+    lastSignalTime: new Date(signalMs).toISOString(),
+    journeyId: tripId,
+    serviceId: readMarcelString(raw, ['serviceId', 'service_id', 'brygada']) || undefined,
+    tripId,
+    brigadeName: readMarcelString(raw, ['brigadeName', 'brigade_name', 'brygada']) || undefined,
+    status: vehicleStatus.status,
+    statusText: vehicleStatus.statusText,
+  };
+}
+
+async function fetchMarcelVehiclesDirect(includeInactive: boolean, signal?: AbortSignal) {
+  const payload = await requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, {
+    signal,
+    headers: {'Accept': 'application/json'},
+  });
+  const now = Date.now();
+  const rawVehicles = unwrapMarcelVehiclesPayload(payload);
+  const vehicles: Vehicle[] = [];
+  const concurrency = 6;
+  for (let start = 0; start < rawVehicles.length; start += concurrency) {
+    const chunk = rawVehicles.slice(start, start + concurrency);
+    const mapped = await Promise.all(chunk.map((rawVehicle) => mapMarcelDirectVehicle(rawVehicle, now, includeInactive)));
+    vehicles.push(...mapped.filter((vehicle): vehicle is Vehicle => Boolean(vehicle)));
+  }
+  return vehicles;
+}
+
+async function fetchMarcelVehicleDetailsDirect(vehicleId: string, includeInactive: boolean) {
+  const lookupVehicleId = String(vehicleId || '').replace(/^marcel_/, '');
+  const vehicles = await fetchMarcelVehiclesDirect(includeInactive);
+  return vehicles.find((vehicle) =>
+    String(vehicle.id).replace(/^marcel_/, '') === lookupVehicleId ||
+    String(vehicle.vehicleNumber || '') === lookupVehicleId ||
+    String(vehicle.journeyId || '') === lookupVehicleId
+  ) || null;
 }
 
 function decodeXmlEntity(value: string) {
@@ -707,7 +1108,14 @@ function mapTransportVehicleToClient(vehicle: TransportApiVehicle): Vehicle {
     direction: vehicle.direction,
     delay,
     dataAgeSec: vehicle.dataAgeSec,
-    schedule: vehicle.schedule,
+    schedule: vehicle.schedule?.map((stop) => ({
+      ...stop,
+      lon: stop.lon ?? stop.lng,
+    })),
+    routeStops: vehicle.routeStops?.map((stop) => ({
+      ...stop,
+      lon: stop.lon ?? stop.lng,
+    })),
     routePath: vehicle.routePath,
     model: vehicle.model,
     lastStopDistance: vehicle.lastStopDistance,
@@ -875,6 +1283,13 @@ export async function fetchVehiclesClient(
         return [];
       });
     }
+    if (provider === 'marcel') {
+      return fetchMarcelVehiclesClient(includeInactive, options?.signal).catch((error) => {
+        if ((error as any)?.name === 'AbortError') throw error;
+        console.warn('Marcel provider unavailable:', error);
+        return [];
+      });
+    }
     return [];
   });
 
@@ -883,6 +1298,13 @@ export async function fetchVehiclesClient(
 }
 
 export async function fetchVehicleDetailsClient(provider: TransportProviderId, vehicleId: string, includeInactive = true) {
+  if (provider === 'marcel') {
+    return fetchMarcelVehicleDetailsDirect(vehicleId, includeInactive).catch((error) => {
+      console.warn('Marcel direct details unavailable:', error);
+      return null;
+    });
+  }
+
   if (provider === 'mpk_rzeszow') {
     const directVehicle = await fetchMpkRzeszowVehicleDetailsDirect(vehicleId, includeInactive).catch((error) => {
       console.warn('MPK Rzeszów direct details unavailable, using backend:', error);
@@ -1134,14 +1556,14 @@ export async function fetchRouteShapeClient(
   tripId: string,
   fallbackStops: Array<number | string>,
   stopsData?: Record<string, {lat: number; lon: number}> | null,
-  options?: { fastFallback?: boolean; startPoint?: ShapePoint },
+  options?: { fastFallback?: boolean; startPoint?: ShapePoint; skipOfficialShape?: boolean },
 ) {
   const tripIdBase = String(tripId || '').trim().split('_')[0];
   const normalizedStops = fallbackStops
     .map((id) => String(id || '').trim())
     .filter(Boolean);
 
-  if (tripIdBase) {
+  if (!options?.skipOfficialShape && tripIdBase) {
     try {
       const shapeIndex = await loadShapeIndex();
       const shapeId = shapeIndex?.[tripIdBase];
@@ -1150,7 +1572,7 @@ export async function fetchRouteShapeClient(
     } catch {}
   }
 
-  if (normalizedStops.length > 1) {
+  if (!options?.skipOfficialShape && normalizedStops.length > 1) {
     try {
       const stopShapeIndex = await loadRouteStopShapeIndex();
       const shapeId = stopShapeIndex[normalizedStops.join('-')];
@@ -1183,11 +1605,13 @@ export async function fetchRouteShapeClient(
       if (roadRoute.length > 1) return roadRoute;
     } catch {}
 
-    try {
-      const shapeId = findBestShapeByStops(stopCoords, await loadRouteShapeMetadata());
-      const points = shapeId ? await loadShapePoints(shapeId) : [];
-      if (points.length > 1) return points;
-    } catch {}
+    if (!options?.skipOfficialShape) {
+      try {
+        const shapeId = findBestShapeByStops(stopCoords, await loadRouteShapeMetadata());
+        const points = shapeId ? await loadShapePoints(shapeId) : [];
+        if (points.length > 1) return points;
+      } catch {}
+    }
 
   }
   const quickRoute = createQuickCurvedRoute(routeCoords);

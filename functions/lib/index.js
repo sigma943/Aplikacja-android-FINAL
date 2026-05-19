@@ -162,6 +162,15 @@ const normalizeInstallationId = (raw) => {
 };
 const normalizeDeviceInfo = (raw) => String(raw || '').trim().slice(0, 200);
 const blockedInstallationRef = (installationId) => db.collection('blocked_installations').doc(installationId);
+const normalizeStoredRole = (value) => {
+    return value === 'owner' || value === 'admin' || value === 'user' ? value : null;
+};
+const normalizeStoredStatus = (value) => {
+    return value === 'active' || value === 'banned' ? value : null;
+};
+const permissionsFromStoredProfile = (permissions, role) => {
+    return isPlainObject(permissions) ? { ...permissionsForRole(role), ...permissions } : permissionsForRole(role);
+};
 const permissionsForRole = (role) => {
     if (role === 'owner') {
         return {
@@ -287,6 +296,8 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
         const installation = installationSnap.exists ? installationSnap.data() : null;
         const lastUid = String(installation?.lastUid || '').trim();
         let previousUidToDeduplicate = '';
+        const installationRole = normalizeStoredRole(installation?.role);
+        const installationStatus = normalizeStoredStatus(installation?.status);
         // If UID changed (e.g. reinstall / cleared data), inherit role and remove the old row
         // so the admin device list does not show duplicate entries for the same physical device.
         if (!existingSnap.exists && lastUid && lastUid !== uid) {
@@ -315,6 +326,19 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
             }
         }
         if (!existingSnap.exists) {
+            if (!('role' in patch) && installationRole) {
+                patch.role = installationRole;
+                patch.permissions = permissionsFromStoredProfile(installation?.permissions, installationRole);
+                patch.verified = installationRole === 'owner' || installationRole === 'admin' || installation?.verified === true;
+                if (!isBlocked)
+                    patch.status = installationStatus || 'active';
+                if (installationStatus === 'banned' && isPlainObject(installation?.banDetails)) {
+                    patch.banDetails = installation.banDetails;
+                }
+                if (typeof installation?.displayName === 'string' && installation.displayName.trim()) {
+                    patch.displayName = installation.displayName.trim().slice(0, 120);
+                }
+            }
             if (!('role' in patch))
                 patch.role = 'user';
             patch.firstLogin = new Date().toISOString();
@@ -349,13 +373,18 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
         if (previousUidToDeduplicate) {
             await db.collection('devices').doc(previousUidToDeduplicate).delete();
         }
-        await installationRef.set({
+        const installationPatch = {
             installationId,
             knownUids: firestore_1.FieldValue.arrayUnion(uid),
             lastUid: uid,
             lastSeenAt: now,
             updatedAt: now,
-        }, { merge: true });
+        };
+        for (const key of ['role', 'permissions', 'status', 'verified', 'banDetails', 'displayName']) {
+            if (key in patch)
+                installationPatch[key] = patch[key];
+        }
+        await installationRef.set(installationPatch, { merge: true });
         return {
             ok: true,
             installationId,
@@ -438,8 +467,9 @@ exports.transportApi = (0, https_1.onRequest)({ cors: true, timeoutSeconds: 30 }
             response.json({
                 ok: true,
                 endpoints: [
-                    '/vehicles?providers=mpk_rzeszow',
+                    '/vehicles?providers=mpk_rzeszow,marcel',
                     '/vehicle/mpk_rzeszow/:vehicleId',
+                    '/vehicle/marcel/:vehicleId',
                     '/health/providers',
                 ],
             });
