@@ -85,7 +85,15 @@ const isScheduleStopUpcoming = (
   if (!timeRaw) return true;
   const timeMs = parseJourneyMs(timeRaw);
   if (!Number.isFinite(timeMs)) return true;
-  return timeMs >= nowMs - 2 * 60 * 1000;
+  return timeMs >= nowMs - 30 * 1000;
+};
+
+const hasUsableRouteDetails = (vehicle?: Vehicle | null) => {
+  if (!vehicle) return false;
+  if ((vehicle.routePath?.length || 0) > 1) return true;
+  if ((vehicle.routeStops?.length || 0) > 1) return true;
+  if ((vehicle.schedule?.length || 0) > 1) return true;
+  return false;
 };
 
 const withAlpha = (hex: string, alpha: number) => {
@@ -549,18 +557,35 @@ export default function Home() {
     const baseRoutePath = base.routePath || [];
     const detailsRoutePath = details.routePath || [];
 
-    const isScheduleInformative = (schedule: Vehicle['schedule']) =>
-      (schedule || []).some((stop: any) =>
-        Boolean(stop?.planned || stop?.real) || (Number.isFinite(stop?.lat) && Number.isFinite(stop?.lon)),
-      );
+    const scheduleScore = (schedule: Vehicle['schedule']) => {
+      const list = schedule || [];
+      if (list.length === 0) return 0;
+      let withTime = 0;
+      let withCoords = 0;
+      for (const stop of list) {
+        if (stop?.planned || stop?.real) withTime += 1;
+        if (Number.isFinite(stop?.lat) && Number.isFinite(stop?.lon)) withCoords += 1;
+      }
+      return list.length + withTime * 4 + withCoords * 2;
+    };
 
-    const hasLiveSchedule =
-      isScheduleInformative(baseSchedule) ||
-      (baseSchedule.length > 1 && baseSchedule.length >= detailsSchedule.length);
-    const hasLiveRouteStops =
-      baseRouteStops.length > 1 && baseRouteStops.length >= detailsRouteStops.length;
-    const hasLiveRoutePath =
-      baseRoutePath.length > 1 && baseRoutePath.length >= detailsRoutePath.length;
+    const routeStopsScore = (stops: Vehicle['routeStops']) => {
+      const list = stops || [];
+      if (list.length === 0) return 0;
+      let withCoords = 0;
+      for (const stop of list) {
+        if (Number.isFinite(stop?.lat) && Number.isFinite(stop?.lon)) withCoords += 1;
+      }
+      return list.length + withCoords * 3;
+    };
+
+    const baseScheduleScore = scheduleScore(baseSchedule);
+    const detailsScheduleScore = scheduleScore(detailsSchedule);
+    const baseRouteStopsScore = routeStopsScore(baseRouteStops);
+    const detailsRouteStopsScore = routeStopsScore(detailsRouteStops);
+    const hasLiveSchedule = baseScheduleScore >= detailsScheduleScore + 2;
+    const hasLiveRouteStops = baseRouteStopsScore >= detailsRouteStopsScore + 2;
+    const hasLiveRoutePath = baseRoutePath.length > 1 && baseRoutePath.length >= detailsRoutePath.length;
 
     return {
       ...details,
@@ -596,7 +621,7 @@ export default function Home() {
     const provider = (vehicle.provider || 'pks') as TransportProviderId;
     const cacheKey = `${provider}:${vehicle.id}`;
     const cached = vehicleDetailsCacheRef.current.get(cacheKey);
-    if (!force && cached && cached.expiresAt > Date.now()) {
+    if (!force && cached && cached.expiresAt > Date.now() && hasUsableRouteDetails(cached.vehicle)) {
       setSelectedBus((current) => current?.id === vehicle.id ? mergeVehicleDetails(current, cached.vehicle) : current);
       return cached.vehicle;
     }
@@ -607,7 +632,13 @@ export default function Home() {
     try {
       const details = await fetchVehicleDetailsClient(provider, vehicle.id, showInactive);
       if (details) {
-        vehicleDetailsCacheRef.current.set(cacheKey, { vehicle: details, expiresAt: Date.now() + 45_000 });
+        vehicleDetailsCacheRef.current.set(
+          cacheKey,
+          {
+            vehicle: details,
+            expiresAt: Date.now() + (hasUsableRouteDetails(details) ? 45_000 : 8_000),
+          },
+        );
         setSelectedBus((current) => current?.id === vehicle.id ? mergeVehicleDetails(current, details) : current);
       }
       return details;
@@ -630,10 +661,10 @@ export default function Home() {
 
     const initialTimer = window.setTimeout(() => {
       if (!cancelled) refreshSelectedBusDetails();
-    }, 1500);
+    }, 350);
     const intervalId = window.setInterval(() => {
       if (!cancelled) refreshSelectedBusDetails();
-    }, 12000);
+    }, 7000);
 
     return () => {
       cancelled = true;
@@ -1052,8 +1083,12 @@ export default function Home() {
     ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
   const selectedBusUpcomingSchedule = useMemo(() => {
     const schedule = selectedBus?.schedule || [];
-    return schedule.filter((stop) => isScheduleStopUpcoming(stop, now));
-  }, [now, selectedBus?.schedule]);
+    return schedule.filter((stop) => {
+      if (!isScheduleStopUpcoming(stop, now)) return false;
+      if (selectedBus?.lastStopId && Number(stop?.id) === Number(selectedBus.lastStopId)) return false;
+      return true;
+    });
+  }, [now, selectedBus?.lastStopId, selectedBus?.schedule]);
   const selectedBusHeaderStyle = {
     background: transparentUI
       ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.9)}, ${withAlpha(selectedVehicleColor, 0.68)})`
@@ -1126,7 +1161,7 @@ export default function Home() {
     setIsBusPanelExpanded(true);
     setIsSettingsOpen(false);
     setIsTransportPanelOpen(false);
-    loadVehicleDetails(v);
+    loadVehicleDetails(v, { force: true });
   }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
   
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark

@@ -53,53 +53,24 @@ function dedupeStableStopIds(stopIds: Array<string | number>) {
   return deduped;
 }
 
-function createQuickCurvedRoute(coords: [number, number][]) {
-  const cleanCoords = coords.filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
-  if (cleanCoords.length < 2) return [];
-
-  const points: [number, number][] = [];
-  for (let i = 0; i < cleanCoords.length - 1; i += 1) {
-    const prev = cleanCoords[Math.max(0, i - 1)];
-    const start = cleanCoords[i];
-    const end = cleanCoords[i + 1];
-    const next = cleanCoords[Math.min(cleanCoords.length - 1, i + 2)];
-    const steps = i === 0 || i === cleanCoords.length - 2 ? 12 : 8;
-
-    for (let step = 0; step < steps; step += 1) {
-      const t = step / steps;
-      const t2 = t * t;
-      const t3 = t2 * t;
-      const lat = 0.5 * (
-        (2 * start[0]) +
-        (-prev[0] + end[0]) * t +
-        (2 * prev[0] - 5 * start[0] + 4 * end[0] - next[0]) * t2 +
-        (-prev[0] + 3 * start[0] - 3 * end[0] + next[0]) * t3
-      );
-      const lon = 0.5 * (
-        (2 * start[1]) +
-        (-prev[1] + end[1]) * t +
-        (2 * prev[1] - 5 * start[1] + 4 * end[1] - next[1]) * t2 +
-        (-prev[1] + 3 * start[1] - 3 * end[1] + next[1]) * t3
-      );
-      points.push([lat, lon]);
-    }
-  }
-
-  points.push(cleanCoords[cleanCoords.length - 1]);
-  return points;
-}
-
-function buildQuickRouteFromStopIds(
+function buildLinearRouteFromStopIds(
   stopIds: Array<string | number>,
   routeStopsData: Record<string, StopData>,
 ) {
-  const coords = stopIds
-    .map((stopId) => routeStopsData[String(stopId)])
-    .filter((stop): stop is StopData => Boolean(stop && Number.isFinite(stop.lat) && Number.isFinite(stop.lon)))
-    .map((stop) => [stop.lat, stop.lon] as [number, number]);
+  const points: [number, number][] = [];
+  let lastPointKey = '';
 
-  if (coords.length < 2) return [];
-  return simplifyRouteForPaint(createQuickCurvedRoute(coords));
+  for (const stopId of stopIds) {
+    const stop = routeStopsData[String(stopId)];
+    if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon)) continue;
+    const key = `${stop.lat.toFixed(6)}:${stop.lon.toFixed(6)}`;
+    if (key === lastPointKey) continue;
+    points.push([stop.lat, stop.lon]);
+    lastPointKey = key;
+  }
+
+  if (points.length < 2) return [];
+  return simplifyRouteForPaint(points);
 }
 
 function MapStateTracker({ onInteraction }: { onInteraction: (active: boolean) => void }) {
@@ -351,7 +322,7 @@ function isUpcomingScheduleStop(
   if (stop.isPast) return false;
   const timeMs = parseScheduleStopMs(stop);
   if (!Number.isFinite(timeMs)) return true;
-  return timeMs >= nowMs - 2 * 60 * 1000;
+  return timeMs >= nowMs - 30 * 1000;
 }
 
 interface BusMapProps {
@@ -792,6 +763,10 @@ export default function BusMap({
   const [snappedRoute, setSnappedRoute] = useState<[number, number][]>([]);
   const lastFetchedRouteKeyRef = useRef<string>('');
   const refinedRouteCacheRef = useRef(new Map<string, [number, number][]>());
+  const refinedRouteByVehicleRef = useRef(new Map<string, [number, number][]>());
+  const selectedVehicleIdentityRef = useRef<string>('');
+  const routeFetchInFlightRef = useRef<string>('');
+  const [routeRetryTick, setRouteRetryTick] = useState(0);
   const routeStopsData = useMemo(() => {
     const next: Record<string, StopData> = { ...(stopsData || {}) };
     for (const stop of selectedVehicle?.routeStops || selectedVehicle?.schedule || []) {
@@ -816,6 +791,7 @@ export default function BusMap({
     const nowMs = Date.now();
     const scheduleIds = (selectedVehicle?.schedule || [])
       .filter((s: any) => isUpcomingScheduleStop(s, nowMs))
+      .filter((s: any) => !(selectedVehicle?.lastStopId && Number(s?.id) === Number(selectedVehicle.lastStopId)))
       .map((s: any) => s.id)
       .filter((id: unknown) => Number.isFinite(Number(id)));
     const upcomingScheduleIds = dedupeStableStopIds(scheduleIds);
@@ -833,67 +809,112 @@ export default function BusMap({
     if (!selectedVehicle) {
       setSnappedRoute([]);
       lastFetchedRouteKeyRef.current = '';
+      routeFetchInFlightRef.current = '';
       return;
     }
+
+    const currentIdentity = `${selectedVehicle.provider || 'pks'}:${selectedVehicle.id}`;
+    if (selectedVehicleIdentityRef.current && selectedVehicleIdentityRef.current !== currentIdentity) {
+      const previousVehicleRoute = refinedRouteByVehicleRef.current.get(currentIdentity);
+      setSnappedRoute(previousVehicleRoute && previousVehicleRoute.length > 1 ? previousVehicleRoute : []);
+      routeFetchInFlightRef.current = '';
+      lastFetchedRouteKeyRef.current = '';
+    }
+    selectedVehicleIdentityRef.current = currentIdentity;
+    const vehicleRouteFromCache = refinedRouteByVehicleRef.current.get(currentIdentity);
 
     const routeCoordCount = routeStopIds.filter((stopId) => {
       const stop = routeStopsData[String(stopId)];
       return stop && Number.isFinite(stop.lat) && Number.isFinite(stop.lon);
     }).length;
     if (routeStopIds.length > 1 && routeCoordCount < 2) {
-      setSnappedRoute([]);
+      if (!vehicleRouteFromCache || vehicleRouteFromCache.length <= 1) setSnappedRoute([]);
       return;
     }
 
     if (routeStopIds.length <= 1) {
-      setSnappedRoute([]);
+      if (!vehicleRouteFromCache || vehicleRouteFromCache.length <= 1) setSnappedRoute([]);
     }
 
     const cachedRefinedRoute = refinedRouteCacheRef.current.get(routeKey);
     if (cachedRefinedRoute && cachedRefinedRoute.length > 1) {
       setSnappedRoute(cachedRefinedRoute);
+      refinedRouteByVehicleRef.current.set(currentIdentity, cachedRefinedRoute);
       lastFetchedRouteKeyRef.current = routeKey;
       return;
     }
 
-    // Show only final route geometry; avoid temporary fallback line flicker.
-    setSnappedRoute([]);
+    if (vehicleRouteFromCache && vehicleRouteFromCache.length > 1) {
+      setSnappedRoute(vehicleRouteFromCache);
+    } else {
+      const fallbackRoute = buildLinearRouteFromStopIds(routeStopIds, routeStopsData);
+      if (fallbackRoute.length > 1) setSnappedRoute(fallbackRoute);
+    }
+
+    if (routeFetchInFlightRef.current === routeKey) {
+      return;
+    }
 
     if (lastFetchedRouteKeyRef.current === routeKey) {
       // Already refined for this route signature.
       return;
     }
 
-    lastFetchedRouteKeyRef.current = routeKey;
+    routeFetchInFlightRef.current = routeKey;
 
     const tripId = String(selectedVehicle.tripId || '').trim();
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const fallbackRoute = buildLinearRouteFromStopIds(routeStopIds, routeStopsData);
     fetchRouteShapeClient(tripId, routeStopIds, routeStopsData, {
       skipOfficialShape: selectedVehicle.provider === 'marcel',
     })
       .then((points) => {
-        if (cancelled || lastFetchedRouteKeyRef.current !== routeKey) return;
+        if (cancelled || routeFetchInFlightRef.current !== routeKey) return;
+        routeFetchInFlightRef.current = '';
         if (points.length > 1) {
           const refinedRoute = simplifyRouteForPaint(points);
           refinedRouteCacheRef.current.set(routeKey, refinedRoute);
+          refinedRouteByVehicleRef.current.set(currentIdentity, refinedRoute);
           if (refinedRouteCacheRef.current.size > 200) {
             const firstKey = refinedRouteCacheRef.current.keys().next().value;
             if (firstKey) refinedRouteCacheRef.current.delete(firstKey);
           }
+          if (refinedRouteByVehicleRef.current.size > 400) {
+            const firstVehicleKey = refinedRouteByVehicleRef.current.keys().next().value;
+            if (firstVehicleKey) refinedRouteByVehicleRef.current.delete(firstVehicleKey);
+          }
+          lastFetchedRouteKeyRef.current = routeKey;
           setSnappedRoute(refinedRoute);
           return;
         }
-        setSnappedRoute([]);
+        if (fallbackRoute.length > 1) {
+          setSnappedRoute(fallbackRoute);
+          refinedRouteByVehicleRef.current.set(currentIdentity, fallbackRoute);
+        } else {
+          if (!vehicleRouteFromCache || vehicleRouteFromCache.length <= 1) setSnappedRoute([]);
+        }
+        lastFetchedRouteKeyRef.current = '';
+        retryTimer = setTimeout(() => setRouteRetryTick((value) => value + 1), 1800);
       })
       .catch(() => {
-        if (cancelled || lastFetchedRouteKeyRef.current !== routeKey) return;
-        setSnappedRoute([]);
+        if (cancelled || routeFetchInFlightRef.current !== routeKey) return;
+        routeFetchInFlightRef.current = '';
+        if (fallbackRoute.length > 1) {
+          setSnappedRoute(fallbackRoute);
+          refinedRouteByVehicleRef.current.set(currentIdentity, fallbackRoute);
+        } else {
+          if (!vehicleRouteFromCache || vehicleRouteFromCache.length <= 1) setSnappedRoute([]);
+        }
+        lastFetchedRouteKeyRef.current = '';
+        retryTimer = setTimeout(() => setRouteRetryTick((value) => value + 1), 1800);
       });
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [routeKey, routeStopIdsKey, routeStopsData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeKey, routeStopIdsKey, routeStopsData, routeStopIds, selectedVehicle?.provider, selectedVehicle?.id, routeRetryTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 
