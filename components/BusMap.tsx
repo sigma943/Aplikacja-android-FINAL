@@ -36,6 +36,72 @@ function simplifyRouteForPaint(points: [number, number][], maxPoints = ROUTE_POI
   return simplified;
 }
 
+function dedupeStableStopIds(stopIds: Array<string | number>) {
+  let last: string | null = null;
+  const deduped: string[] = [];
+
+  for (const rawId of stopIds) {
+    const normalized = String(rawId || '').trim();
+    if (!normalized) continue;
+    if (!Number.isFinite(Number(normalized))) continue;
+    // Preserve loop routes; remove only accidental consecutive duplicates.
+    if (last === normalized) continue;
+    deduped.push(normalized);
+    last = normalized;
+  }
+
+  return deduped;
+}
+
+function createQuickCurvedRoute(coords: [number, number][]) {
+  const cleanCoords = coords.filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+  if (cleanCoords.length < 2) return [];
+
+  const points: [number, number][] = [];
+  for (let i = 0; i < cleanCoords.length - 1; i += 1) {
+    const prev = cleanCoords[Math.max(0, i - 1)];
+    const start = cleanCoords[i];
+    const end = cleanCoords[i + 1];
+    const next = cleanCoords[Math.min(cleanCoords.length - 1, i + 2)];
+    const steps = i === 0 || i === cleanCoords.length - 2 ? 12 : 8;
+
+    for (let step = 0; step < steps; step += 1) {
+      const t = step / steps;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const lat = 0.5 * (
+        (2 * start[0]) +
+        (-prev[0] + end[0]) * t +
+        (2 * prev[0] - 5 * start[0] + 4 * end[0] - next[0]) * t2 +
+        (-prev[0] + 3 * start[0] - 3 * end[0] + next[0]) * t3
+      );
+      const lon = 0.5 * (
+        (2 * start[1]) +
+        (-prev[1] + end[1]) * t +
+        (2 * prev[1] - 5 * start[1] + 4 * end[1] - next[1]) * t2 +
+        (-prev[1] + 3 * start[1] - 3 * end[1] + next[1]) * t3
+      );
+      points.push([lat, lon]);
+    }
+  }
+
+  points.push(cleanCoords[cleanCoords.length - 1]);
+  return points;
+}
+
+function buildQuickRouteFromStopIds(
+  stopIds: Array<string | number>,
+  routeStopsData: Record<string, StopData>,
+) {
+  const coords = stopIds
+    .map((stopId) => routeStopsData[String(stopId)])
+    .filter((stop): stop is StopData => Boolean(stop && Number.isFinite(stop.lat) && Number.isFinite(stop.lon)))
+    .map((stop) => [stop.lat, stop.lon] as [number, number]);
+
+  if (coords.length < 2) return [];
+  return simplifyRouteForPaint(createQuickCurvedRoute(coords));
+}
+
 function MapStateTracker({ onInteraction }: { onInteraction: (active: boolean) => void }) {
   const map = useMap();
   useMapEvents({
@@ -270,6 +336,22 @@ export interface StopData {
   n: string;
   lat: number;
   lon: number;
+}
+
+function parseScheduleStopMs(stop: { planned?: string | null; real?: string | null }) {
+  const raw = String(stop.real || stop.planned || '').trim();
+  if (!raw) return NaN;
+  return new Date(raw.replace(' ', 'T')).getTime();
+}
+
+function isUpcomingScheduleStop(
+  stop: { planned?: string | null; real?: string | null; isPast?: boolean },
+  nowMs: number,
+) {
+  if (stop.isPast) return false;
+  const timeMs = parseScheduleStopMs(stop);
+  if (!Number.isFinite(timeMs)) return true;
+  return timeMs >= nowMs - 2 * 60 * 1000;
 }
 
 interface BusMapProps {
@@ -709,6 +791,7 @@ export default function BusMap({
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
   const [snappedRoute, setSnappedRoute] = useState<[number, number][]>([]);
   const lastFetchedRouteKeyRef = useRef<string>('');
+  const refinedRouteCacheRef = useRef(new Map<string, [number, number][]>());
   const routeStopsData = useMemo(() => {
     const next: Record<string, StopData> = { ...(stopsData || {}) };
     for (const stop of selectedVehicle?.routeStops || selectedVehicle?.schedule || []) {
@@ -724,32 +807,27 @@ export default function BusMap({
   }, [selectedVehicle?.routeStops, selectedVehicle?.schedule, stopsData]);
   const routeStopIds = useMemo(() => {
     const fullRoute = selectedVehicle?.routePath?.filter((id) => Number.isFinite(Number(id))) || [];
-    if (fullRoute.length > 0) return fullRoute;
+    if (fullRoute.length > 0) return dedupeStableStopIds(fullRoute);
     const routeStops = (selectedVehicle?.routeStops || []).map((s: any) => s.id);
-    if (routeStops.length > 0) return routeStops;
-    return (selectedVehicle?.schedule || []).map((s: any) => s.id);
+    if (routeStops.length > 0) return dedupeStableStopIds(routeStops);
+    return dedupeStableStopIds((selectedVehicle?.schedule || []).map((s: any) => s.id));
   }, [selectedVehicle]);
   const visibleRouteStopIds = useMemo(() => {
+    const nowMs = Date.now();
     const scheduleIds = (selectedVehicle?.schedule || [])
+      .filter((s: any) => isUpcomingScheduleStop(s, nowMs))
       .map((s: any) => s.id)
       .filter((id: unknown) => Number.isFinite(Number(id)));
-    return scheduleIds.length > 0 ? scheduleIds : routeStopIds;
+    const upcomingScheduleIds = dedupeStableStopIds(scheduleIds);
+    return upcomingScheduleIds.length > 0 ? upcomingScheduleIds : routeStopIds;
   }, [selectedVehicle?.schedule, routeStopIds]);
   const routeStopIdsKey = useMemo(() => routeStopIds.join(','), [routeStopIds]);
-  const routeCoordKey = useMemo(() => {
-    return routeStopIds
-      .map((stopId) => {
-        const stop = routeStopsData[String(stopId)];
-        if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon)) return `${stopId}:missing`;
-        return `${stopId}:${stop.lat.toFixed(5)},${stop.lon.toFixed(5)}`;
-      })
-      .join('|');
-  }, [routeStopIds, routeStopsData]);
-
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const routeGlowOpts = { color: '#ffffff', weight: 10, opacity: 0.18, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.35 } as L.PolylineOptions;
   const routePolylineOpts = { color: selectedRouteColor, weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.35 } as L.PolylineOptions;
-  const routeKey = selectedVehicle ? `${selectedVehicle.id}_${routeStopIdsKey}_${routeCoordKey}` : '';
+  const routeKey = selectedVehicle
+    ? `${selectedVehicle.provider || 'pks'}:${selectedVehicle.id}:${String(selectedVehicle.tripId || '').trim()}:${routeStopIdsKey}`
+    : '';
 
   useEffect(() => {
     if (!selectedVehicle) {
@@ -767,25 +845,42 @@ export default function BusMap({
       return;
     }
 
+    if (routeStopIds.length <= 1) {
+      setSnappedRoute([]);
+    }
+
+    const cachedRefinedRoute = refinedRouteCacheRef.current.get(routeKey);
+    if (cachedRefinedRoute && cachedRefinedRoute.length > 1) {
+      setSnappedRoute(cachedRefinedRoute);
+      lastFetchedRouteKeyRef.current = routeKey;
+      return;
+    }
+
+    // Show only final route geometry; avoid temporary fallback line flicker.
+    setSnappedRoute([]);
+
     if (lastFetchedRouteKeyRef.current === routeKey) {
-      // Already fetched and route hasn't changed
+      // Already refined for this route signature.
       return;
     }
 
     lastFetchedRouteKeyRef.current = routeKey;
-    setSnappedRoute([]);
 
     const tripId = String(selectedVehicle.tripId || '').trim();
     let cancelled = false;
     fetchRouteShapeClient(tripId, routeStopIds, routeStopsData, {
-      fastFallback: selectedVehicle.provider === 'mpk_rzeszow',
       skipOfficialShape: selectedVehicle.provider === 'marcel',
-      startPoint: [selectedVehicle.lat, selectedVehicle.lon],
     })
       .then((points) => {
         if (cancelled || lastFetchedRouteKeyRef.current !== routeKey) return;
         if (points.length > 1) {
-          setSnappedRoute(simplifyRouteForPaint(points));
+          const refinedRoute = simplifyRouteForPaint(points);
+          refinedRouteCacheRef.current.set(routeKey, refinedRoute);
+          if (refinedRouteCacheRef.current.size > 200) {
+            const firstKey = refinedRouteCacheRef.current.keys().next().value;
+            if (firstKey) refinedRouteCacheRef.current.delete(firstKey);
+          }
+          setSnappedRoute(refinedRoute);
           return;
         }
         setSnappedRoute([]);
@@ -798,7 +893,7 @@ export default function BusMap({
     return () => {
       cancelled = true;
     };
-  }, [selectedVehicle?.tripId, routeKey, routeStopIdsKey, routeCoordKey, routeStopsData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeKey, routeStopIdsKey, routeStopsData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 

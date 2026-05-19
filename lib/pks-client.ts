@@ -4,6 +4,7 @@ import type {Vehicle} from '@/components/BusMap';
 type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: string; code?: string}>;
 type ShapePoint = [number, number];
 type ShapeMetadata = { id: string; bbox: [number, number, number, number]; samples: ShapePoint[] };
+type StopPointIndex = Record<string, { n: string; lat?: number; lon?: number }>;
 export type TransportProviderId = 'pks' | 'mpk_rzeszow' | 'marcel';
 
 type TransportApiVehicle = {
@@ -51,6 +52,7 @@ type TransportApiVehiclesResponse = {
 };
 
 let stopsDictionaryPromise: Promise<Record<string, string>> | null = null;
+let stopPointIndexPromise: Promise<StopPointIndex> | null = null;
 let shapeIndexPromise: Promise<Record<string, string>> | null = null;
 let routeStopShapeIndexPromise: Promise<Record<string, string>> | null = null;
 let routeShapeMetadataPromise: Promise<ShapeMetadata[]> | null = null;
@@ -669,7 +671,10 @@ async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Prom
   if (!normalizedTripId) return { schedule: [], routePath: [] };
 
   const searchParams = new URLSearchParams({ trip_id: normalizedTripId });
-  const data = await requestJson<{ stops?: any[] }>(`${MPK_RZESZOW_TRIP_STOPS_URL}?${searchParams.toString()}`).catch(() => null);
+  const [data, stopPointIndex] = await Promise.all([
+    requestJson<{ stops?: any[] }>(`${MPK_RZESZOW_TRIP_STOPS_URL}?${searchParams.toString()}`).catch(() => null),
+    loadStopPointIndex(),
+  ]);
   const stops = Array.isArray(data?.stops) ? data.stops : [];
   if (stops.length === 0) return { schedule: [], routePath: [] };
 
@@ -686,12 +691,20 @@ async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Prom
       ? new Date(plannedDate.getTime() + delaySeconds * 1000)
       : null;
     const stopId = Number(stop.stop_id);
+    const stopIndexEntry = stopPointIndex[String(stopId)] || null;
+    const rawLat = Number(stop.lat ?? stop.latitude ?? stop.stop_lat ?? stop.stop_latitude);
+    const rawLon = Number(stop.lon ?? stop.lng ?? stop.long ?? stop.longitude ?? stop.stop_lon ?? stop.stop_lng ?? stop.stop_longitude);
+    const lat = Number.isFinite(rawLat) ? rawLat : stopIndexEntry?.lat;
+    const lon = Number.isFinite(rawLon) ? rawLon : stopIndexEntry?.lon;
+    const stopName = String(stop.stop_name || stopIndexEntry?.n || '').trim();
 
     return {
       id: Number.isFinite(stopId) ? stopId : Number(stop.stop_sequence || 0),
-      name: String(stop.stop_name || '').trim() || `Przystanek ${stop.stop_sequence || ''}`.trim(),
+      name: stopName || `Przystanek ${stop.stop_sequence || ''}`.trim(),
       planned: plannedDate ? plannedDate.toISOString() : null,
       real: realDate ? realDate.toISOString() : null,
+      lat,
+      lon,
     };
   });
   const upcomingStops = allStops.filter((stop) => {
@@ -816,6 +829,31 @@ async function loadStopsDictionary() {
     stopsDictionaryPromise = fetch('/data/stops-dictionary.json', {cache: 'force-cache'}).then((res) => res.json());
   }
   return stopsDictionaryPromise;
+}
+
+async function loadStopPointIndex() {
+  if (!stopPointIndexPromise) {
+    stopPointIndexPromise = requestEinfoJson<any>('stop-point', {
+      headers: {Accept: 'application/json'},
+    })
+      .then((data) => {
+        const index: StopPointIndex = {};
+        for (const item of data?.items || []) {
+          const stopId = String(item?.stop_point_id || '').trim();
+          if (!stopId) continue;
+          const lat = Number(item?.location?.lat ?? item?.location?.latitude);
+          const lon = Number(item?.location?.lon ?? item?.location?.lng ?? item?.location?.long ?? item?.location?.longitude);
+          index[stopId] = {
+            n: String(item?.name || '').trim(),
+            lat: Number.isFinite(lat) ? lat : undefined,
+            lon: Number.isFinite(lon) ? lon : undefined,
+          };
+        }
+        return index;
+      })
+      .catch(() => ({}));
+  }
+  return stopPointIndexPromise;
 }
 
 async function loadShapeIndex() {
@@ -1026,6 +1064,17 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
     roadRouteCache.delete(firstKey);
   }
   return routePromise;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => resolve(fallback), timeoutMs);
+    }),
+  ]);
 }
 
 function createQuickCurvedRoute(coords: ShapePoint[]) {
@@ -1556,7 +1605,7 @@ export async function fetchRouteShapeClient(
   tripId: string,
   fallbackStops: Array<number | string>,
   stopsData?: Record<string, {lat: number; lon: number}> | null,
-  options?: { fastFallback?: boolean; startPoint?: ShapePoint; skipOfficialShape?: boolean },
+  options?: { fastFallback?: boolean; startPoint?: ShapePoint; skipOfficialShape?: boolean; refineTimeoutMs?: number },
 ) {
   const tripIdBase = String(tripId || '').trim().split('_')[0];
   const normalizedStops = fallbackStops
@@ -1601,7 +1650,11 @@ export async function fetchRouteShapeClient(
 
   if (stopCoords.length > 1) {
     try {
-      const roadRoute = await fetchRoadRouteForStops(stopCoords, normalizedStops.join('-'));
+      const roadRoute = await withTimeout(
+        fetchRoadRouteForStops(stopCoords, normalizedStops.join('-')),
+        options?.refineTimeoutMs || 0,
+        [] as ShapePoint[],
+      );
       if (roadRoute.length > 1) return roadRoute;
     } catch {}
 

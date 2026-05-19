@@ -75,6 +75,19 @@ const formatGpsSignalClock = (value?: string | null) => {
   return new Date(ms).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 };
 
+const isScheduleStopUpcoming = (
+  stop: Pick<NonNullable<Vehicle['schedule']>[number], 'planned' | 'real' | 'isPast'> | null | undefined,
+  nowMs: number,
+) => {
+  if (!stop) return false;
+  if (stop.isPast) return false;
+  const timeRaw = String(stop.real || stop.planned || '').trim();
+  if (!timeRaw) return true;
+  const timeMs = parseJourneyMs(timeRaw);
+  if (!Number.isFinite(timeMs)) return true;
+  return timeMs >= nowMs - 2 * 60 * 1000;
+};
+
 const withAlpha = (hex: string, alpha: number) => {
   const clean = hex.replace('#', '');
   if (clean.length !== 6) return hex;
@@ -120,6 +133,7 @@ export default function Home() {
   const vehiclesFetchAbortRef = useRef<AbortController | null>(null);
   const vehicleDetailsCacheRef = useRef<Map<string, { vehicle: Vehicle; expiresAt: number }>>(new Map());
   const vehicleDetailsRequestSeqRef = useRef(0);
+  const vehiclesRef = useRef<Vehicle[]>([]);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -197,6 +211,9 @@ export default function Home() {
   useEffect(() => {
     activeProvidersRef.current = activeProviders;
   }, [activeProviders]);
+  useEffect(() => {
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
 
   const formatScheduleStopName = useCallback((name?: string | null) => {
     const raw = String(name || '').trim();
@@ -524,26 +541,69 @@ export default function Home() {
 
   const mergeVehicleDetails = useCallback((base: Vehicle, details?: Vehicle | null) => {
     if (!details) return base;
+
+    const baseSchedule = base.schedule || [];
+    const detailsSchedule = details.schedule || [];
+    const baseRouteStops = base.routeStops || [];
+    const detailsRouteStops = details.routeStops || [];
+    const baseRoutePath = base.routePath || [];
+    const detailsRoutePath = details.routePath || [];
+
+    const isScheduleInformative = (schedule: Vehicle['schedule']) =>
+      (schedule || []).some((stop: any) =>
+        Boolean(stop?.planned || stop?.real) || (Number.isFinite(stop?.lat) && Number.isFinite(stop?.lon)),
+      );
+
+    const hasLiveSchedule =
+      isScheduleInformative(baseSchedule) ||
+      (baseSchedule.length > 1 && baseSchedule.length >= detailsSchedule.length);
+    const hasLiveRouteStops =
+      baseRouteStops.length > 1 && baseRouteStops.length >= detailsRouteStops.length;
+    const hasLiveRoutePath =
+      baseRoutePath.length > 1 && baseRoutePath.length >= detailsRoutePath.length;
+
     return {
-      ...base,
       ...details,
-      schedule: (details.schedule?.length || 0) > 0 ? details.schedule : base.schedule,
-      routePath: (details.routePath?.length || 0) > 0 ? details.routePath : base.routePath,
+      ...base,
+      // Keep live telemetry authoritative to avoid stale detail cache snapping UI backward.
+      lat: base.lat,
+      lon: base.lon,
+      delay: base.delay,
+      status: base.status,
+      statusText: base.statusText,
+      dataAgeSec: base.dataAgeSec,
+      lastSignalTime: base.lastSignalTime,
+      schedule: hasLiveSchedule ? baseSchedule : (detailsSchedule.length > 0 ? detailsSchedule : baseSchedule),
+      routeStops: hasLiveRouteStops ? baseRouteStops : (detailsRouteStops.length > 0 ? detailsRouteStops : baseRouteStops),
+      routePath: hasLiveRoutePath ? baseRoutePath : (detailsRoutePath.length > 0 ? detailsRoutePath : baseRoutePath),
+      // Preserve details-only metadata if polling payload does not carry it.
+      model: base.model || details.model,
+      journeyId: base.journeyId ?? details.journeyId,
+      serviceId: base.serviceId ?? details.serviceId,
+      tripId: base.tripId ?? details.tripId,
+      brigadeName: base.brigadeName ?? details.brigadeName,
+      bearing: base.bearing ?? details.bearing,
+      isHistorical: base.isHistorical ?? details.isHistorical,
     };
   }, []);
 
-  const loadVehicleDetails = useCallback(async (vehicle: Vehicle) => {
+  const loadVehicleDetails = useCallback(async (
+    vehicle: Vehicle,
+    options?: { force?: boolean; silent?: boolean },
+  ) => {
+    const force = Boolean(options?.force);
+    const silent = Boolean(options?.silent);
     const provider = (vehicle.provider || 'pks') as TransportProviderId;
     const cacheKey = `${provider}:${vehicle.id}`;
     const cached = vehicleDetailsCacheRef.current.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
+    if (!force && cached && cached.expiresAt > Date.now()) {
       setSelectedBus((current) => current?.id === vehicle.id ? mergeVehicleDetails(current, cached.vehicle) : current);
       return cached.vehicle;
     }
 
     const requestSeq = vehicleDetailsRequestSeqRef.current + 1;
     vehicleDetailsRequestSeqRef.current = requestSeq;
-    setSelectedBusDetailsLoading(true);
+    if (!silent) setSelectedBusDetailsLoading(true);
     try {
       const details = await fetchVehicleDetailsClient(provider, vehicle.id, showInactive);
       if (details) {
@@ -555,9 +615,32 @@ export default function Home() {
       console.warn('Vehicle details unavailable:', error);
       return null;
     } finally {
-      if (vehicleDetailsRequestSeqRef.current === requestSeq) setSelectedBusDetailsLoading(false);
+      if (!silent && vehicleDetailsRequestSeqRef.current === requestSeq) setSelectedBusDetailsLoading(false);
     }
   }, [mergeVehicleDetails, showInactive]);
+
+  useEffect(() => {
+    if (!selectedBus) return;
+    let cancelled = false;
+
+    const refreshSelectedBusDetails = () => {
+      const latestVehicle = vehiclesRef.current.find((vehicle) => vehicle.id === selectedBus.id) || selectedBus;
+      loadVehicleDetails(latestVehicle, { force: true, silent: true });
+    };
+
+    const initialTimer = window.setTimeout(() => {
+      if (!cancelled) refreshSelectedBusDetails();
+    }, 1500);
+    const intervalId = window.setInterval(() => {
+      if (!cancelled) refreshSelectedBusDetails();
+    }, 12000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initialTimer);
+      window.clearInterval(intervalId);
+    };
+  }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
 
   const fetchVehicles = async (inactive = showInactive, force = false) => {
     if (!hasLoadedTransportProviders) {
@@ -967,6 +1050,10 @@ export default function Home() {
     Boolean(selectedBus) &&
     selectedBusDetailsLoading &&
     ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
+  const selectedBusUpcomingSchedule = useMemo(() => {
+    const schedule = selectedBus?.schedule || [];
+    return schedule.filter((stop) => isScheduleStopUpcoming(stop, now));
+  }, [now, selectedBus?.schedule]);
   const selectedBusHeaderStyle = {
     background: transparentUI
       ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.9)}, ${withAlpha(selectedVehicleColor, 0.68)})`
@@ -1448,7 +1535,7 @@ export default function Home() {
                         )}
                       </div>
                       
-                      {(selectedBusScheduleLoading || (selectedBus.schedule && selectedBus.schedule.length > 0)) && (
+                      {(selectedBusScheduleLoading || selectedBusUpcomingSchedule.length > 0) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
                             <MapPin className="w-4 h-4" /> Nadchodzące przystanki
@@ -1465,7 +1552,7 @@ export default function Home() {
                                      </div>
                                   </div>
                                 ))
-                             ) : selectedBus.schedule?.map((sch: any, idx: number) => {
+                             ) : selectedBusUpcomingSchedule.map((sch: any, idx: number) => {
                                 const parsedRealTime = sch.real ? new Date(sch.real) : null;
                                 const realTimeRaw = parsedRealTime && !Number.isNaN(parsedRealTime.getTime()) ? parsedRealTime : null;
                                 const parsedPlannedTime = sch.planned ? new Date(sch.planned) : null;
