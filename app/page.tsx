@@ -7,13 +7,15 @@ import { Bus, Search, RefreshCw, AlertCircle, X, Clock, Navigation, MapPin, Map 
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
 import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
-import {fetchDeparturesClient, fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type TransportProviderId} from '@/lib/pks-client';
+import TrainDetailsPanel from '@/components/TrainDetailsPanel';
+import {fetchDeparturesClient, fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type PkpQueryViewport, type TransportProviderId} from '@/lib/pks-client';
 import { useFirebase } from '@/components/FirebaseProvider';
 import { canAccessAdminDashboard } from '@/lib/admin/rbac';
 
 const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
+const PKP_INTERCITY_COLOR = '#1d4ed8';
 
 const BusMap = dynamic(() => import('@/components/BusMap'), {
   ssr: false,
@@ -104,7 +106,19 @@ const withAlpha = (hex: string, alpha: number) => {
 };
 
 const DEFAULT_ACTIVE_PROVIDERS: TransportProviderId[] = ['pks'];
-const AVAILABLE_TRANSPORT_PROVIDERS = new Set<TransportProviderId>(['pks', 'mpk_rzeszow', 'marcel']);
+const AVAILABLE_TRANSPORT_PROVIDERS = new Set<TransportProviderId>(['pks', 'mpk_rzeszow', 'marcel', 'pkp_intercity']);
+const PKP_INTERCITY_REFRESH_MS = 60_000;
+
+const sanitizeProvidersWithVisibility = (
+  providers: TransportProviderId[],
+  hiddenProviders: Set<TransportProviderId>,
+) => {
+  const unique = providers
+    .filter((providerId, index, values) => values.indexOf(providerId) === index)
+    .filter((providerId) => AVAILABLE_TRANSPORT_PROVIDERS.has(providerId))
+    .filter((providerId) => !hiddenProviders.has(providerId));
+  return unique;
+};
 
 const readStoredTransportProviders = (): TransportProviderId[] => {
   if (typeof window === 'undefined') return DEFAULT_ACTIVE_PROVIDERS;
@@ -127,13 +141,29 @@ const sameTransportProviders = (left: TransportProviderId[], right: TransportPro
   return left.every((provider) => rightSet.has(provider));
 };
 
-const getVehicleDisplayNumber = (vehicle?: Pick<Vehicle, 'vehicleNumber' | 'id' | 'provider'> | null) => {
+const getVehicleDisplayNumber = (vehicle?: Pick<Vehicle, 'vehicleNumber' | 'id' | 'provider' | 'routeShortName'> | null) => {
+  if (vehicle?.provider === 'pkp_intercity') {
+    const rawNumber = String(vehicle.vehicleNumber || '').trim();
+    const category = String(vehicle.routeShortName || '').trim().toUpperCase();
+    if (!rawNumber) return '';
+    if (category && rawNumber.toUpperCase().startsWith(`${category} `)) return rawNumber;
+    return category ? `${category} ${rawNumber}` : rawNumber;
+  }
   if (vehicle?.provider === 'marcel') return String(vehicle.vehicleNumber || '').trim();
   return String(vehicle?.vehicleNumber || vehicle?.id || '').replace(/^(mpk_rzeszow|marcel)_/, '');
 };
 
 export default function Home() {
-  const { device, loading } = useFirebase();
+  const { device, loading, hiddenProviderIds } = useFirebase();
+  const isOwnerDevice = device?.role === 'owner';
+  const hiddenProvidersSet = useMemo(
+    () => new Set(
+      (isOwnerDevice ? [] : hiddenProviderIds)
+        .filter((providerId): providerId is TransportProviderId => AVAILABLE_TRANSPORT_PROVIDERS.has(providerId as TransportProviderId))
+        .map((providerId) => providerId as TransportProviderId),
+    ),
+    [hiddenProviderIds, isOwnerDevice],
+  );
 
   const lastVehiclesRef = useRef<string>('');
   const lastVehiclesEtagRef = useRef<string>('');
@@ -142,6 +172,10 @@ export default function Home() {
   const vehicleDetailsCacheRef = useRef<Map<string, { vehicle: Vehicle; expiresAt: number }>>(new Map());
   const vehicleDetailsRequestSeqRef = useRef(0);
   const vehiclesRef = useRef<Vehicle[]>([]);
+  const lastPkpIntercityFetchAtRef = useRef(0);
+  const isAppForegroundRef = useRef<boolean>(typeof document === 'undefined' ? true : document.visibilityState === 'visible');
+  const mapViewportRef = useRef<PkpQueryViewport | null>(null);
+  const lastViewportFetchAtRef = useRef(0);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -158,6 +192,9 @@ export default function Home() {
   const [isBusPanelExpanded, setIsBusPanelExpanded] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [isAppForeground, setIsAppForeground] = useState<boolean>(
+    typeof document === 'undefined' ? true : document.visibilityState === 'visible',
+  );
   
   // Customization States
   const [themeColor, setThemeColor] = useState('#00A3A2');
@@ -222,6 +259,9 @@ export default function Home() {
   useEffect(() => {
     vehiclesRef.current = vehicles;
   }, [vehicles]);
+  useEffect(() => {
+    isAppForegroundRef.current = isAppForeground;
+  }, [isAppForeground]);
 
   const formatScheduleStopName = useCallback((name?: string | null) => {
     const raw = String(name || '').trim();
@@ -295,6 +335,44 @@ export default function Home() {
       listenerPromise?.then((listener) => listener.remove()).catch(() => {});
     };
   }, [activeTab, isMapTabDisabled, isSettingsOpen, isTransportPanelOpen, selectedBus, selectedStopId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let nativeListenerPromise: Promise<{ remove: () => Promise<void> }> | null = null;
+    let nativeActive = true;
+
+    const updateForeground = () => {
+      const visible = typeof document === 'undefined' ? true : document.visibilityState === 'visible';
+      if (!cancelled) setIsAppForeground(visible && nativeActive);
+    };
+
+    updateForeground();
+
+    const handleVisibilityChange = () => {
+      updateForeground();
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      nativeListenerPromise = import('@capacitor/app').then(({ App }) =>
+        App.addListener('appStateChange', ({ isActive }) => {
+          nativeActive = Boolean(isActive);
+          updateForeground();
+        }),
+      );
+    }
+
+    return () => {
+      cancelled = true;
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      nativeListenerPromise?.then((listener) => listener.remove()).catch(() => {});
+    };
+  }, []);
 
   const toggleFavoriteStop = (stopId: string, e: React.MouseEvent) => {
      e.stopPropagation();
@@ -474,7 +552,7 @@ export default function Home() {
   }, [selectedStopId, stopsList]);
 
   useEffect(() => {
-    const storedProviders = readStoredTransportProviders();
+    const storedProviders = sanitizeProvidersWithVisibility(readStoredTransportProviders(), hiddenProvidersSet);
     activeProvidersRef.current = storedProviders;
     setActiveProviders(storedProviders);
     setDraftProviders(storedProviders);
@@ -587,6 +665,9 @@ export default function Home() {
     const hasLiveRouteStops = baseRouteStopsScore >= detailsRouteStopsScore + 2;
     const hasLiveRoutePath = baseRoutePath.length > 1 && baseRoutePath.length >= detailsRoutePath.length;
 
+    const provider = (base.provider || details.provider) as TransportProviderId;
+    const isPkpIntercity = provider === 'pkp_intercity';
+
     return {
       ...details,
       ...base,
@@ -609,8 +690,35 @@ export default function Home() {
       brigadeName: base.brigadeName ?? details.brigadeName,
       bearing: base.bearing ?? details.bearing,
       isHistorical: base.isHistorical ?? details.isHistorical,
+      speed: Number.isFinite(base.speed) ? base.speed : details.speed,
+      vehicleNumber: isPkpIntercity ? (details.vehicleNumber || base.vehicleNumber) : (base.vehicleNumber || details.vehicleNumber),
+      name: isPkpIntercity ? (details.name || base.name) : (base.name || details.name),
+      routeShortName: isPkpIntercity ? (details.routeShortName || base.routeShortName) : (base.routeShortName || details.routeShortName),
+      iconVariant: isPkpIntercity ? (details.iconVariant || base.iconVariant) : (base.iconVariant || details.iconVariant),
+      trainName: isPkpIntercity ? (details.trainName || base.trainName) : (base.trainName || details.trainName),
+      positionQuality: isPkpIntercity ? (details.positionQuality || base.positionQuality) : (base.positionQuality || details.positionQuality),
     };
-  }, []);
+  }, [hiddenProvidersSet]);
+
+  useEffect(() => {
+    if (!hasLoadedTransportProviders) return;
+    const nextProviders = sanitizeProvidersWithVisibility(activeProvidersRef.current, hiddenProvidersSet);
+    if (sameTransportProviders(nextProviders, activeProvidersRef.current)) return;
+
+    const nextProviderSet = new Set(nextProviders);
+    activeProvidersRef.current = nextProviders;
+    setActiveProviders(nextProviders);
+    setDraftProviders((current) => sanitizeProvidersWithVisibility(current, hiddenProvidersSet));
+    setVehicles((currentVehicles) => currentVehicles.filter((vehicle) =>
+      nextProviderSet.has((vehicle.provider || 'pks') as TransportProviderId),
+    ));
+    localStorage.setItem('mks_transport_providers', JSON.stringify(nextProviders));
+    setSelectedBus((currentSelected) => {
+      if (!currentSelected) return currentSelected;
+      const providerId = (currentSelected.provider || 'pks') as TransportProviderId;
+      return nextProviderSet.has(providerId) ? currentSelected : null;
+    });
+  }, [hasLoadedTransportProviders, hiddenProvidersSet]);
 
   const loadVehicleDetails = useCallback(async (
     vehicle: Vehicle,
@@ -679,6 +787,11 @@ export default function Home() {
       return;
     }
 
+    if (!isAppForegroundRef.current) {
+      setIsLoading(false);
+      return;
+    }
+
     const requestProviders = activeProvidersRef.current;
 
     if (requestProviders.length === 0) {
@@ -690,43 +803,72 @@ export default function Home() {
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
+      const nowMs = Date.now();
+      const shouldFetchPkpIntercity = requestProviders.includes('pkp_intercity')
+        ? force || nowMs - lastPkpIntercityFetchAtRef.current >= PKP_INTERCITY_REFRESH_MS
+        : false;
+      const providersToRequest = requestProviders.filter(
+        (provider) => provider !== 'pkp_intercity' || shouldFetchPkpIntercity,
+      );
+      if (providersToRequest.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
       vehiclesFetchAbortRef.current?.abort();
       const controller = new AbortController();
       vehiclesFetchAbortRef.current = controller;
-      timeoutId = setTimeout(() => controller.abort(), 15000);
-      const data = await fetchVehiclesClient(inactive, requestProviders, { signal: controller.signal }) as any;
+      timeoutId = setTimeout(() => controller.abort(), 30000);
+      const data = await fetchVehiclesClient(inactive, providersToRequest, {
+        signal: controller.signal,
+        pkpViewport: mapViewportRef.current || undefined,
+      }) as any;
       if (timeoutId) clearTimeout(timeoutId);
       if (vehiclesFetchAbortRef.current === controller) vehiclesFetchAbortRef.current = null;
       if (!sameTransportProviders(requestProviders, activeProvidersRef.current)) return;
       const loadedVehicles = Array.isArray(data) ? data : (data.vehicles || []);
       const requestProviderSet = new Set(requestProviders);
-      const visibleVehicles = loadedVehicles.filter((vehicle: Vehicle) =>
+      const requestedProviderSet = new Set(providersToRequest);
+      const freshVehicles = loadedVehicles.filter((vehicle: Vehicle) =>
         requestProviderSet.has((vehicle.provider || 'pks') as TransportProviderId),
       );
+      const carriedVehicles = vehiclesRef.current.filter((vehicle) => {
+        const providerId = (vehicle.provider || 'pks') as TransportProviderId;
+        return requestProviderSet.has(providerId) && !requestedProviderSet.has(providerId);
+      });
+      const visibleVehicles = [...carriedVehicles, ...freshVehicles];
       const newDataStr = JSON.stringify(visibleVehicles);
       if (newDataStr !== lastVehiclesRef.current) {
         setVehicles(visibleVehicles);
         lastVehiclesRef.current = newDataStr;
+      }
+      if (providersToRequest.includes('pkp_intercity')) {
+        lastPkpIntercityFetchAtRef.current = Date.now();
       }
       setError(null);
       if (isOffline) setIsOffline(false);
     } catch (err: any) {
       if (timeoutId) clearTimeout(timeoutId);
       if (vehiclesFetchAbortRef.current?.signal.aborted) vehiclesFetchAbortRef.current = null;
-      if (err.name === 'AbortError') {
+      if (err.name === 'AbortError' || String(err?.message || '').toLowerCase().includes('abort')) {
         return;
       }
+      const errorMessage = String(err?.message || '');
+      const isPkpIntercityProviderError = errorMessage.toLowerCase().includes('pkp intercity niedostepne');
       console.error('Fetch vehicles error:', err);
       if (
-        err.message === 'Failed to fetch' ||
+        !isPkpIntercityProviderError &&
+        (err.message === 'Failed to fetch' ||
         err.name === 'AbortError' ||
         String(err.message || '').toLowerCase().includes('network') ||
-        (typeof navigator !== 'undefined' && !navigator.onLine)
+        (typeof navigator !== 'undefined' && !navigator.onLine))
       ) {
         setIsOffline(true);
       }
       if (vehicles.length === 0 || force) {
-        if (err.message === 'Failed to fetch') {
+        if (isPkpIntercityProviderError) {
+          setError(errorMessage);
+        } else if (err.message === 'Failed to fetch') {
           setError('Brak połączenia z internetem lub serwerem');
         } else {
           setError(err.message || 'Wystąpił nieoczekiwany błąd');
@@ -758,7 +900,7 @@ export default function Home() {
     let timer: NodeJS.Timeout;
     
     const tick = async () => {
-      if (typeof document !== 'undefined' && document.visibilityState !== 'hidden' && !isOffline) {
+      if (isAppForegroundRef.current && !isOffline) {
         await fetchVehicles();
       }
       timer = setTimeout(tick, refreshInterval);
@@ -767,7 +909,7 @@ export default function Home() {
     timer = setTimeout(tick, refreshInterval);
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && !isOffline) {
+      if (isAppForegroundRef.current && !isOffline) {
         fetchVehicles(showInactive, true);
       }
     };
@@ -819,7 +961,7 @@ export default function Home() {
       nativeListenerPromise = import('@capacitor/network').then(({ Network }) =>
         Network.addListener('networkStatusChange', (status) => {
           setIsOffline(!status.connected);
-          if (status.connected) fetchVehicles(showInactive, true);
+          if (status.connected && isAppForegroundRef.current) fetchVehicles(showInactive, true);
         }),
       );
     }
@@ -830,16 +972,16 @@ export default function Home() {
     };
     const handleOnline = () => {
       setIsOffline(false);
-      fetchVehicles(showInactive, true);
+      if (isAppForegroundRef.current) fetchVehicles(showInactive, true);
       applyOnlineState().then((offline) => {
-        if (!offline) fetchVehicles(showInactive, true);
+        if (!offline && isAppForegroundRef.current) fetchVehicles(showInactive, true);
       });
     };
     const syncOnlineState = async () => {
       const offline = await readOfflineState();
       if (cancelled) return;
       setIsOffline((wasOffline) => {
-        if (wasOffline && !offline) {
+        if (wasOffline && !offline && isAppForegroundRef.current) {
           fetchVehicles(showInactive, true);
         }
         return offline;
@@ -888,7 +1030,7 @@ export default function Home() {
 
   useEffect(() => {
     if (selectedBus) {
-      const updated = vehicles.find(v => v.id === selectedBus.id);
+      const updated = vehicles.find(v => v.id === selectedBus.id && v.provider === selectedBus.provider);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (updated && updated !== selectedBus) {
         setSelectedBus(mergeVehicleDetails(updated, selectedBus));
@@ -906,6 +1048,19 @@ export default function Home() {
       getVehicleDisplayNumber(v).toLowerCase().includes(f)
     );
   }, [vehicles, deferredFilterRoute]);
+
+  const handleMapViewportChange = useCallback((payload: { bbox: [number, number, number, number]; center: [number, number]; zoom: number }) => {
+    mapViewportRef.current = payload;
+
+    if (!isAppForegroundRef.current) return;
+    if (isOffline) return;
+    if (!activeProvidersRef.current.includes('pkp_intercity')) return;
+
+    const nowMs = Date.now();
+    if (nowMs - lastViewportFetchAtRef.current < PKP_INTERCITY_REFRESH_MS) return;
+    lastViewportFetchAtRef.current = nowMs;
+    fetchVehicles(showInactive, true);
+  }, [fetchVehicles, isOffline, showInactive]);
 
   const filteredStopsList = useMemo(() => {
     const normalizedFilter = deferredStopsFilter.trim().toLowerCase();
@@ -1070,7 +1225,10 @@ export default function Home() {
       ? MPK_RZESZOW_COLOR
       : selectedBus?.provider === 'marcel'
         ? MARCEL_COLOR
-        : PKS_COLOR;
+        : selectedBus?.provider === 'pkp_intercity'
+          ? PKP_INTERCITY_COLOR
+          : PKS_COLOR;
+  const selectedVehicleIsTrain = selectedBus?.type === 'train' || selectedBus?.provider === 'pkp_intercity';
   const selectedBusIsWaitingForDeparture = Boolean(
     selectedBus?.status === 'break' ||
     selectedBus?.statusText?.toLowerCase().includes('przerwa do') ||
@@ -1094,9 +1252,10 @@ export default function Home() {
       ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.9)}, ${withAlpha(selectedVehicleColor, 0.68)})`
       : selectedVehicleColor,
   } as React.CSSProperties;
+  const showTopError = Boolean(error && !isOffline);
 
   const transportOptions = useMemo<TransportOption[]>(() => {
-    return [
+    const options: TransportOption[] = [
       {
         id: 'pks',
         label: 'Autobusy PKS Rzeszów',
@@ -1121,8 +1280,17 @@ export default function Home() {
         type: 'bus',
         iconVariant: 'marcel',
       },
+      {
+        id: 'pkp_intercity',
+        label: 'Pociagi PKP Intercity',
+        color: PKP_INTERCITY_COLOR,
+        enabled: true,
+        type: 'train',
+        iconVariant: 'IC',
+      },
     ];
-  }, []);
+    return options.filter((option) => !hiddenProvidersSet.has(option.id));
+  }, [hiddenProvidersSet]);
 
   const openTransportPanel = useCallback(() => {
     setDraftProviders(activeProviders);
@@ -1131,26 +1299,33 @@ export default function Home() {
   }, [activeProviders]);
 
   const toggleDraftProvider = useCallback((providerId: TransportProviderId) => {
+    if (hiddenProvidersSet.has(providerId)) return;
     setDraftProviders((current) =>
       current.includes(providerId)
         ? current.filter((value) => value !== providerId)
         : [...current, providerId],
     );
-  }, []);
+  }, [hiddenProvidersSet]);
 
   const applyDraftProviders = useCallback(() => {
-    const nextProviders = draftProviders
-      .filter((providerId, index, values) => values.indexOf(providerId) === index)
-      .filter((providerId) => AVAILABLE_TRANSPORT_PROVIDERS.has(providerId));
+    const nextProviders = sanitizeProvidersWithVisibility(draftProviders, hiddenProvidersSet);
+    const nextProviderSet = new Set(nextProviders);
     setActiveProviders(nextProviders);
     activeProvidersRef.current = nextProviders;
-    setVehicles([]);
-    lastVehiclesRef.current = '';
+    setVehicles((currentVehicles) => {
+      const remainingVehicles = currentVehicles.filter((vehicle) =>
+        nextProviderSet.has((vehicle.provider || 'pks') as TransportProviderId),
+      );
+      lastVehiclesRef.current = JSON.stringify(remainingVehicles);
+      return remainingVehicles;
+    });
     localStorage.setItem('mks_transport_providers', JSON.stringify(nextProviders));
     setIsTransportPanelOpen(false);
-    setSelectedBus(null);
-    setSelectedStopId(null);
-  }, [draftProviders]);
+    if (selectedBus && !nextProviderSet.has((selectedBus.provider || 'pks') as TransportProviderId)) {
+      setSelectedBus(null);
+      setSelectedStopId(null);
+    }
+  }, [draftProviders, hiddenProvidersSet, selectedBus]);
 
   const handleVehicleClick = useCallback((v: Vehicle) => {
     if (!v) return;
@@ -1308,13 +1483,14 @@ export default function Home() {
                   setIsStopPanelExpanded(true);
                   setIsTransportPanelOpen(false);
                }}
-               onMapClick={() => {
-                  setSelectedBus(null);
-                  setSelectedBusDetailsLoading(false);
-                  setSelectedStopId(null);
-                  setIsTransportPanelOpen(false);
-               }}
-            />
+                onMapClick={() => {
+                   setSelectedBus(null);
+                   setSelectedBusDetailsLoading(false);
+                   setSelectedStopId(null);
+                   setIsTransportPanelOpen(false);
+                }}
+                onViewportChange={handleMapViewportChange}
+             />
 
             {/* Overlays for Map */}
             <div className="absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1334,8 +1510,10 @@ export default function Home() {
                      >
                         <RefreshCw className={`w-4 h-4 ${isManualRefreshing ? 'animate-spin' : ''}`} />
                      </button>
-                     {error ? (
-                        <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                     {showTopError ? (
+                        <span title={error || undefined}>
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                        </span>
                      ) : (
                         <span className="relative flex h-2.5 w-2.5" title="LIVE">
                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -1344,6 +1522,11 @@ export default function Home() {
                      )}
                   </div>
                 </div>
+                {showTopError && (
+                  <div className={`mt-2 rounded-xl border px-3 py-1.5 text-[11px] font-semibold ${isDark ? 'border-rose-500/40 bg-rose-500/10 text-rose-200' : 'border-rose-300 bg-rose-50 text-rose-700'}`}>
+                    {error}
+                  </div>
+                )}
                 
                 <div className="relative shrink-0">
                   <Search className={`absolute left-3 top-2.5 h-4 w-4 opacity-60 ${textSub}`} />
@@ -1437,7 +1620,20 @@ export default function Home() {
             />
 
             <AnimatePresence>
-              {selectedBus && (
+              {selectedBus && selectedVehicleIsTrain ? (
+                <TrainDetailsPanel
+                  vehicle={selectedBus}
+                  expanded={isBusPanelExpanded}
+                  loading={selectedBusScheduleLoading}
+                  highlightedStopId={selectedStopId}
+                  onToggleExpanded={() => setIsBusPanelExpanded(!isBusPanelExpanded)}
+                  onClose={() => {
+                    setSelectedBus(null);
+                    setSelectedStopId(null);
+                  }}
+                  onStopSelect={(stopId) => setSelectedStopId(stopId)}
+                />
+              ) : selectedBus && (
                 <motion.div
                   key="bus-panel-map"
                   initial={{ y: "100%", opacity: 0.5 }}
@@ -1464,11 +1660,11 @@ export default function Home() {
                      
                      <div className="flex items-baseline gap-2 mb-1 md:mb-1.5">
                         <span className="text-3xl md:text-5xl font-black tracking-tighter drop-shadow-sm">{selectedBus.routeShortName || '-'}</span>
-                        <span className="uppercase tracking-widest text-[10px] md:text-xs font-bold text-white/90">Linia</span>
+                        <span className="uppercase tracking-widest text-[10px] md:text-xs font-bold text-white/90">{selectedVehicleIsTrain ? 'Pociag' : 'Linia'}</span>
                      </div>
                      <div className="pr-12 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm md:text-[17px] font-medium leading-tight opacity-100 drop-shadow-sm">
                        <h2 className="min-w-0">
-                         Kierunek: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
+                         {selectedVehicleIsTrain ? 'Relacja' : 'Kierunek'}: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
                        </h2>
                        {selectedBus.provider === 'marcel' && selectedBusStatusLabel && (
                          <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? 'bg-indigo-500/80 text-white' : 'bg-white/[0.18] text-white'}`}>
@@ -1479,7 +1675,7 @@ export default function Home() {
                      <h3 className="text-[10px] md:text-xs font-medium leading-tight opacity-90 drop-shadow-sm mt-0.5 md:mt-1 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1">
                         {getVehicleDisplayNumber(selectedBus) && (
                           <span className="text-white/80 uppercase tracking-[0.18em] font-semibold">
-                            Nr pojazdu: {getVehicleDisplayNumber(selectedBus)}
+                            {selectedVehicleIsTrain ? 'Nr pociagu' : 'Nr pojazdu'}: {getVehicleDisplayNumber(selectedBus)}
                           </span>
                         )}
                         {selectedBus.provider !== 'marcel' && selectedBusStatusLabel && (
@@ -1490,7 +1686,12 @@ export default function Home() {
                         {selectedBus.model && (
                           <span className="basis-full text-[12px] md:text-sm font-semibold leading-tight text-white/95">Model: {selectedBus.model}</span>
                         )}
-                        {(selectedBusGpsSignalClock || (selectedBus.status === 'break' && breakCountdownLabel)) && (
+                        {selectedVehicleIsTrain && selectedBusGpsSignalClock && (
+                          <span className="basis-full text-[10px] md:text-xs font-semibold leading-tight text-white/85">
+                            Ostatnia aktualizacja: <span className="font-black text-white">{selectedBusGpsSignalClock}</span>
+                          </span>
+                        )}
+                        {((!selectedVehicleIsTrain && selectedBusGpsSignalClock) || (selectedBus.status === 'break' && breakCountdownLabel)) && (
                           <span className="basis-full flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] md:text-xs font-semibold leading-tight text-white/85">
                             {selectedBusGpsSignalClock && (
                               <span>Ostatni sygnał GPS: <span className="font-black text-white">{selectedBusGpsSignalClock}</span></span>
@@ -1521,15 +1722,19 @@ export default function Home() {
                               <Navigation className="w-3 h-3 md:w-3.5 md:h-3.5" /> Prędkość
                            </div>
                            <span className={`text-base md:text-lg font-medium tracking-tight ${textMain}`}>
-                              {selectedBus.provider === 'marcel'
+                              {selectedVehicleIsTrain
+                                ? (Number.isFinite(selectedBus.speed)
+                                    ? `${Math.round(selectedBus.speed || 0)} km/h`
+                                    : 'Brak danych')
+                                : selectedBus.provider === 'marcel'
                                 ? 'Nieznana'
                                 : selectedBus.status === 'break' ||
-                              selectedBus.statusText?.toLowerCase().includes('postoj') ||
-                              selectedBus.statusText?.toLowerCase().includes('przerwa') ||
-                              selectedBus.speed === 0 ||
-                              !selectedBus.speed
-                                  ? '0 km/h'
-                                  : `${Math.round(selectedBus.speed)} km/h`}
+                                  selectedBus.statusText?.toLowerCase().includes('postoj') ||
+                                  selectedBus.statusText?.toLowerCase().includes('przerwa') ||
+                                  selectedBus.speed === 0 ||
+                                  !selectedBus.speed
+                                ? '0 km/h'
+                                : `${Math.round(selectedBus.speed)} km/h`}
                            </span>
                         </div>
                         

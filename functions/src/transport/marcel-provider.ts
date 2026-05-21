@@ -7,6 +7,13 @@ const API_TOKEN = process.env.MARCEL_API_TOKEN || process.env.MARCEL_BEARER_TOKE
 const ICON_VARIANT = 'marcel';
 const MARCEL_STALE_MS = 7 * 60 * 1000;
 const positionFreshness = new Map<string, { signature: string; signalMs: number; lastSeenMs: number }>();
+const progressFreshness = new Map<string, {
+  positionSignature: string;
+  positionSinceMs: number;
+  tripProgressSignature: string;
+  tripProgressSinceMs: number;
+  lastSeenMs: number;
+}>();
 
 const REQUEST_HEADERS: Record<string, string> = {
   Accept: 'application/json',
@@ -65,6 +72,72 @@ function getObservedSignalMs(vehicleKey: string, lat: number, lng: number, now: 
     }
   }
   return existing.signalMs;
+}
+
+function getProgressFreshness(
+  vehicleKey: string,
+  lat: number,
+  lng: number,
+  tripId: unknown,
+  nextStopId: unknown,
+  now: number,
+) {
+  const positionSignature = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const tripProgressSignature = `${readString(tripId)}:${readString(nextStopId)}`;
+  const existing = progressFreshness.get(vehicleKey);
+
+  if (!existing) {
+    progressFreshness.set(vehicleKey, {
+      positionSignature,
+      positionSinceMs: now,
+      tripProgressSignature,
+      tripProgressSinceMs: now,
+      lastSeenMs: now,
+    });
+    return { positionUnchangedMinutes: 0, tripProgressUnchangedMinutes: 0 };
+  }
+
+  if (existing.positionSignature !== positionSignature) {
+    existing.positionSignature = positionSignature;
+    existing.positionSinceMs = now;
+  }
+  if (existing.tripProgressSignature !== tripProgressSignature) {
+    existing.tripProgressSignature = tripProgressSignature;
+    existing.tripProgressSinceMs = now;
+  }
+  existing.lastSeenMs = now;
+
+  if (progressFreshness.size > 500) {
+    for (const [key, value] of progressFreshness) {
+      if (now - value.lastSeenMs > 2 * 60 * 60 * 1000) progressFreshness.delete(key);
+    }
+  }
+
+  return {
+    positionUnchangedMinutes: Math.floor((now - existing.positionSinceMs) / 60_000),
+    tripProgressUnchangedMinutes: Math.floor((now - existing.tripProgressSinceMs) / 60_000),
+  };
+}
+
+function shouldHideDeadVehicle({
+  delaySeconds,
+  speed,
+  positionUnchangedMinutes,
+  tripProgressUnchangedMinutes,
+  isAtTerminalOrDepot,
+}: {
+  delaySeconds: number;
+  speed: number;
+  positionUnchangedMinutes: number;
+  tripProgressUnchangedMinutes: number;
+  isAtTerminalOrDepot: boolean;
+}) {
+  const hugeDelay = delaySeconds / 60 >= 180;
+  const samePlaceLong = positionUnchangedMinutes >= 20;
+  const inferredSpeed = Number.isFinite(speed) ? speed : samePlaceLong ? 0 : Number.POSITIVE_INFINITY;
+  const notMoving = inferredSpeed <= 2;
+  const noTripProgress = tripProgressUnchangedMinutes >= 20;
+  return hugeDelay && notMoving && samePlaceLong && (noTripProgress || isAtTerminalOrDepot);
 }
 
 function getWarsawDateParts(date = new Date()) {
@@ -404,6 +477,23 @@ async function toTransportVehicle(rawVehicle: Record<string, unknown>, now: numb
   const routeStops = buildRouteStops(courseStops, delaySeconds, now);
   const direction = getDestination(routeName || readFirstString(source, ['kierunek', 'direction', 'relacja', 'opisTrasy', 'routeDescription']));
   const vehicleStatus = inferStatus(hasLine, lat, lng, courseStops, delaySeconds, dataAgeSec, now);
+  const speed = readFirstNumber(source, ['speed', 'predkosc', 'prędkość', 'v', 'velocity']);
+  const nextStopId = schedule[0]?.id ?? routeStops.find((stop) => !stop.isPast)?.id ?? '';
+  const progress = getProgressFreshness(String(rawVehicleId), lat, lng, tripId, nextStopId, now);
+  const firstStop = routeStops[0];
+  const lastStop = routeStops[routeStops.length - 1];
+  const isAtTerminalOrDepot = Boolean(
+    (firstStop && distanceMeters([lat, lng], [firstStop.lat, firstStop.lng]) <= 350) ||
+    (lastStop && distanceMeters([lat, lng], [lastStop.lat, lastStop.lng]) <= 350)
+  );
+
+  if (shouldHideDeadVehicle({
+    delaySeconds,
+    speed,
+    positionUnchangedMinutes: progress.positionUnchangedMinutes,
+    tripProgressUnchangedMinutes: progress.tripProgressUnchangedMinutes,
+    isAtTerminalOrDepot,
+  })) return null;
 
   return {
     id: `marcel_${rawVehicleId}`,
@@ -419,6 +509,7 @@ async function toTransportVehicle(rawVehicle: Record<string, unknown>, now: numb
     lat,
     lng,
     bearing: readFirstNumber(source, ['bearing', 'heading', 'azymut', 'kierunekJazdy']),
+    speed: Number.isFinite(speed) ? speed : undefined,
     direction,
     delaySeconds,
     delayMinutes: Math.round(delaySeconds / 60),

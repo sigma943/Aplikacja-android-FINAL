@@ -5,7 +5,43 @@ type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: 
 type ShapePoint = [number, number];
 type ShapeMetadata = { id: string; bbox: [number, number, number, number]; samples: ShapePoint[] };
 type StopPointIndex = Record<string, { n: string; lat?: number; lon?: number }>;
-export type TransportProviderId = 'pks' | 'mpk_rzeszow' | 'marcel';
+export type TransportProviderId = 'pks' | 'mpk_rzeszow' | 'marcel' | 'pkp_intercity';
+export type RouteGeometryStop = {
+  id?: string | number;
+  name?: string;
+  lat: number;
+  lon: number;
+  sequence?: number;
+};
+export type PkpQueryViewport = {
+  bbox?: [number, number, number, number] | null;
+  center?: [number, number] | null;
+  zoom?: number;
+};
+export type RouteGeometryClientRequest = {
+  carrier: string;
+  line: string;
+  direction: string;
+  variant?: string;
+  stops: RouteGeometryStop[];
+  dataVersion?: string;
+  mode?: 'road' | 'rail';
+};
+export type RouteGeometryClientResponse = {
+  carrier: string;
+  line: string;
+  direction: string;
+  variant: string;
+  stopsHash: string;
+  cacheKey: string;
+  geometry?: {
+    type: 'LineString';
+    coordinates?: [number, number][];
+  };
+  source?: string;
+  cached?: boolean;
+  skippedSegments?: number;
+};
 
 type TransportApiVehicle = {
   id: string;
@@ -26,8 +62,8 @@ type TransportApiVehicle = {
   delaySeconds?: number;
   delayMinutes?: number;
   dataAgeSec?: number;
-  schedule?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean }>;
-  routeStops?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean }>;
+  schedule?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean; platform?: string; track?: string; stopDelayMinutes?: number; timeType?: 'arrival' | 'departure' }>;
+  routeStops?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean; platform?: string; track?: string; stopDelayMinutes?: number; timeType?: 'arrival' | 'departure' }>;
   routePath?: number[];
   model?: string;
   lastStopDistance?: number;
@@ -40,6 +76,8 @@ type TransportApiVehicle = {
   status?: 'active' | 'break' | 'inactive' | 'technical' | 'cached';
   statusText?: string;
   isHistorical?: boolean;
+  trainName?: string;
+  positionQuality?: 'known' | 'estimated';
 };
 
 type TransportApiVehiclesResponse = {
@@ -56,6 +94,9 @@ let stopPointIndexPromise: Promise<StopPointIndex> | null = null;
 let shapeIndexPromise: Promise<Record<string, string>> | null = null;
 let routeStopShapeIndexPromise: Promise<Record<string, string>> | null = null;
 let routeShapeMetadataPromise: Promise<ShapeMetadata[]> | null = null;
+let pkpStationCoordinatesPromise: Promise<Record<string, { lat: number; lon: number }>> | null = null;
+const pkpTrainMetadataCache = new Map<string, { expiresAt: number; value: PkpTrainMetadata | null }>();
+const pkpTrainMetadataInflight = new Map<string, Promise<PkpTrainMetadata | null>>();
 const shapePointsCache = new Map<string, Promise<ShapePoint[]>>();
 const roadRouteCache = new Map<string, Promise<ShapePoint[]>>();
 const TRANSPORT_API_BASE_URL = (
@@ -69,8 +110,25 @@ const MARCEL_API_BASE_URL = (process.env.NEXT_PUBLIC_MARCEL_API_BASE_URL || 'htt
 const MARCEL_DIRECT_VEHICLES_URL =
   process.env.NEXT_PUBLIC_MARCEL_VEHICLES_URL ||
   `${MARCEL_API_BASE_URL}/client/api/trasy/lokalizacjaBusow?appVersion=v1.67`;
+const PKP_INTERCITY_GPS_PROXY_URL =
+  process.env.NEXT_PUBLIC_PKP_INTERCITY_GPS_PROXY_URL ||
+  '/api/pkp-intercity/gps';
+const PKP_STATIONS_DATASET_URL =
+  process.env.NEXT_PUBLIC_PKP_STATIONS_DATASET_URL ||
+  'https://cdn.jsdelivr.net/gh/trainline-eu/stations/stations.csv';
+const PKP_DEFAULT_CENTER: [number, number] = [50.0429, 22.0069]; // Rzeszow Glowny
+const PKP_MAX_DISTANCE_KM = Number(process.env.NEXT_PUBLIC_PKP_INTERCITY_MAX_DISTANCE_KM || 120);
+const PKP_METADATA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const PKP_METADATA_LOOKUP_LIMIT = 80;
 const marcelCourseStopsCache = new Map<string, Promise<MarcelCourseStop[]>>();
 const marcelPositionFreshness = new Map<string, { signature: string; signalMs: number; lastSeenMs: number }>();
+const marcelProgressState = new Map<string, {
+  positionSignature: string;
+  positionSinceMs: number;
+  tripProgressSignature: string;
+  tripProgressSinceMs: number;
+  lastSeenMs: number;
+}>();
 const MARCEL_STALE_MS = 7 * 60 * 1000;
 
 type MarcelCourseStop = {
@@ -84,6 +142,12 @@ type MarcelCourseStop = {
   order: number;
 };
 
+type PkpTrainMetadata = {
+  trainNumber: string;
+  category: string;
+  trainName?: string;
+};
+
 const isNative = () => Capacitor.isNativePlatform();
 const EINFO_DIRECT = 'http://einfo.zgpks.rzeszow.pl/api';
 
@@ -94,10 +158,19 @@ function einfoFallbackUrl(pathAndOptionalQuery: string) {
 
 async function requestJson<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
   if (isNative()) {
+    let data: unknown;
+    if (typeof init?.body === 'string' && init.body) {
+      try {
+        data = JSON.parse(init.body);
+      } catch {
+        data = init.body;
+      }
+    }
     const response = await CapacitorHttp.request({
       url,
       method: init?.method || 'GET',
       headers: init?.headers,
+      data,
       connectTimeout: 12000,
       readTimeout: 12000,
     });
@@ -286,6 +359,73 @@ function getObservedMarcelSignalMs(vehicleKey: string, lat: number, lon: number,
     }
   }
   return existing.signalMs;
+}
+
+function getMarcelProgressState(
+  vehicleKey: string,
+  lat: number,
+  lon: number,
+  tripId: unknown,
+  nextStopId: unknown,
+  now: number,
+) {
+  const positionSignature = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+  const tripProgressSignature = `${String(tripId || '').trim()}:${String(nextStopId || '').trim()}`;
+  const existing = marcelProgressState.get(vehicleKey);
+
+  if (!existing) {
+    marcelProgressState.set(vehicleKey, {
+      positionSignature,
+      positionSinceMs: now,
+      tripProgressSignature,
+      tripProgressSinceMs: now,
+      lastSeenMs: now,
+    });
+    return { positionUnchangedMinutes: 0, tripProgressUnchangedMinutes: 0 };
+  }
+
+  if (existing.positionSignature !== positionSignature) {
+    existing.positionSignature = positionSignature;
+    existing.positionSinceMs = now;
+  }
+  if (existing.tripProgressSignature !== tripProgressSignature) {
+    existing.tripProgressSignature = tripProgressSignature;
+    existing.tripProgressSinceMs = now;
+  }
+  existing.lastSeenMs = now;
+
+  if (marcelProgressState.size > 500) {
+    for (const [key, value] of marcelProgressState) {
+      if (now - value.lastSeenMs > 2 * 60 * 60 * 1000) marcelProgressState.delete(key);
+    }
+  }
+
+  return {
+    positionUnchangedMinutes: Math.floor((now - existing.positionSinceMs) / 60_000),
+    tripProgressUnchangedMinutes: Math.floor((now - existing.tripProgressSinceMs) / 60_000),
+  };
+}
+
+function shouldHideDeadMarcelVehicle({
+  delaySeconds,
+  speed,
+  positionUnchangedMinutes,
+  tripProgressUnchangedMinutes,
+  isAtTerminalOrDepot,
+}: {
+  delaySeconds: number;
+  speed: number;
+  positionUnchangedMinutes: number;
+  tripProgressUnchangedMinutes: number;
+  isAtTerminalOrDepot: boolean;
+}) {
+  const hugeDelay = delaySeconds / 60 >= 180;
+  const samePlaceLong = positionUnchangedMinutes >= 20;
+  const inferredSpeed = Number.isFinite(speed) ? speed : samePlaceLong ? 0 : Number.POSITIVE_INFINITY;
+  const notMoving = inferredSpeed <= 2;
+  const noTripProgress = tripProgressUnchangedMinutes >= 20;
+
+  return hugeDelay && notMoving && samePlaceLong && (noTripProgress || isAtTerminalOrDepot);
 }
 
 function getWarsawDateParts(date = new Date()) {
@@ -534,9 +674,25 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
   const fullRoutePath = routeStops.map((stop) => stop.id);
   const hasLine = line !== '?';
   const vehicleStatus = inferMarcelStatus(hasLine, lat, lon, courseStops, delay, dataAgeSec, now);
+  const speed = readMarcelNumber(raw, ['speed', 'predkosc', 'prędkość', 'v', 'velocity', 'position.speed']);
+  const nextStopId = schedule[0]?.id ?? routeStops.find((stop) => !stop.isPast)?.id ?? '';
+  const progressState = getMarcelProgressState(String(rawVehicleId), lat, lon, tripId, nextStopId, now);
+  const firstStop = routeStops[0];
+  const lastStop = routeStops[routeStops.length - 1];
+  const isAtTerminalOrDepot = Boolean(
+    (firstStop && distanceMeters([lat, lon], [firstStop.lat, firstStop.lon]) <= 350) ||
+    (lastStop && distanceMeters([lat, lon], [lastStop.lat, lastStop.lon]) <= 350)
+  );
 
   if (!includeInactive && !hasLine) return null;
   if (dataAgeSec > MARCEL_STALE_MS / 1000) return null;
+  if (shouldHideDeadMarcelVehicle({
+    delaySeconds: delay,
+    speed,
+    positionUnchangedMinutes: progressState.positionUnchangedMinutes,
+    tripProgressUnchangedMinutes: progressState.tripProgressUnchangedMinutes,
+    isAtTerminalOrDepot,
+  })) return null;
 
   return {
     id: `marcel_${rawVehicleId}`,
@@ -550,6 +706,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     routeShortName: line,
     lat,
     lon,
+    speed: Number.isFinite(speed) ? speed : undefined,
     direction,
     delay,
     dataAgeSec,
@@ -665,10 +822,11 @@ function buildDateFromMpkTime(timeValue: unknown, anchorDate: Date, previousDate
 
 async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Promise<{
   schedule: Vehicle['schedule'];
+  routeStops: Vehicle['routeStops'];
   routePath: number[];
 }> {
   const normalizedTripId = String(tripId || '').trim();
-  if (!normalizedTripId) return { schedule: [], routePath: [] };
+  if (!normalizedTripId) return { schedule: [], routeStops: [], routePath: [] };
 
   const searchParams = new URLSearchParams({ trip_id: normalizedTripId });
   const [data, stopPointIndex] = await Promise.all([
@@ -676,7 +834,7 @@ async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Prom
     loadStopPointIndex(),
   ]);
   const stops = Array.isArray(data?.stops) ? data.stops : [];
-  if (stops.length === 0) return { schedule: [], routePath: [] };
+  if (stops.length === 0) return { schedule: [], routeStops: [], routePath: [] };
 
   const anchorDate = new Date();
   if (anchorDate.getHours() < 3) anchorDate.setDate(anchorDate.getDate() - 1);
@@ -715,6 +873,7 @@ async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Prom
 
   return {
     schedule: upcomingStops.length > 0 ? upcomingStops : allStops,
+    routeStops: allStops,
     routePath: allStops.map((stop) => stop.id).filter((id) => Number.isFinite(Number(id))),
   };
 }
@@ -724,7 +883,7 @@ function mapMpkDirectVehicle(
   detailsByVehicle: Map<string, any>,
   now: number,
   includeInactive: boolean,
-  tripSchedule?: { schedule: Vehicle['schedule']; routePath: number[] },
+  tripSchedule?: { schedule: Vehicle['schedule']; routeStops: Vehicle['routeStops']; routePath: number[] },
 ): Vehicle | null {
   const lat = Number(rawVehicle.y);
   const lon = Number(rawVehicle.x);
@@ -773,6 +932,7 @@ function mapMpkDirectVehicle(
       : Number.isFinite(nextStopId) && nextStopName
       ? [{ id: nextStopId, name: nextStopName, planned: null, real: null }]
       : [],
+    routeStops: tripSchedule?.routeStops || [],
     routePath: tripSchedule?.routePath || [],
     model: details?.bus,
     lastStopDistance: Number.isFinite(Number(rawVehicle.dp)) ? Number(rawVehicle.dp) : undefined,
@@ -946,7 +1106,108 @@ function findBestShapeByStops(stops: ShapePoint[], metadata: ShapeMetadata[]) {
   return bestId;
 }
 
-async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
+function routeLengthMeters(points: ShapePoint[]) {
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += distanceMeters(points[index - 1], points[index]);
+  }
+  return total;
+}
+
+function maxDeviationFromChordMeters(points: ShapePoint[], start: ShapePoint, end: ShapePoint) {
+  if (points.length <= 2) return 0;
+  const meanLat = ((start[0] + start[0] + end[0]) / 3) * Math.PI / 180;
+  const metersPerLat = 111_320;
+  const metersPerLon = Math.cos(meanLat) * 111_320;
+  const ax = start[1] * metersPerLon;
+  const ay = start[0] * metersPerLat;
+  const bx = end[1] * metersPerLon;
+  const by = end[0] * metersPerLat;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  let maxDistanceSq = 0;
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const point = points[index];
+    const px = point[1] * metersPerLon;
+    const py = point[0] * metersPerLat;
+    const t = lenSq > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq)) : 0;
+    const cx = ax + dx * t;
+    const cy = ay + dy * t;
+    const distX = px - cx;
+    const distY = py - cy;
+    const distanceSq = distX * distX + distY * distY;
+    if (distanceSq > maxDistanceSq) maxDistanceSq = distanceSq;
+  }
+
+  return Math.sqrt(maxDistanceSq);
+}
+
+function collapseHairpins(points: ShapePoint[], options?: { strict?: boolean }) {
+  if (points.length < 3) return points;
+  const strict = Boolean(options?.strict);
+  const closeBacktrackMeters = strict ? 70 : 45;
+  const detourRatio = strict ? 3.2 : 4.5;
+  const minLegMeters = strict ? 30 : 18;
+  const next: ShapePoint[] = [points[0]];
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const a = next[next.length - 1];
+    const b = points[index];
+    const c = points[index + 1];
+    const ab = distanceMeters(a, b);
+    const bc = distanceMeters(b, c);
+    const ac = distanceMeters(a, c);
+    const via = ab + bc;
+
+    if (ab >= minLegMeters && bc >= minLegMeters && ac <= closeBacktrackMeters && via > ac * detourRatio) {
+      continue;
+    }
+
+    next.push(b);
+  }
+
+  next.push(points[points.length - 1]);
+  return next;
+}
+
+function collapseLocalLoops(points: ShapePoint[], options?: { strict?: boolean }) {
+  if (points.length < 4) return points;
+  const strict = Boolean(options?.strict);
+  const joinDistanceMeters = strict ? 16 : 10;
+  const maxLoopLengthMeters = strict ? 1400 : 800;
+  const maxLoopChordMeters = strict ? 210 : 130;
+  const result = [...points];
+
+  let index = 0;
+  while (index < result.length - 2) {
+    let removed = false;
+    for (let back = Math.max(0, index - 100); back < index - 1; back += 1) {
+      const rejoin = distanceMeters(result[back], result[index]);
+      if (rejoin > joinDistanceMeters) continue;
+
+      const loop = result.slice(back, index + 1);
+      const loopLength = routeLengthMeters(loop);
+      const chord = distanceMeters(loop[0], loop[loop.length - 1]);
+      if (loopLength <= maxLoopLengthMeters && chord <= maxLoopChordMeters) {
+        result.splice(back + 1, index - back - 1);
+        index = Math.max(0, back - 1);
+        removed = true;
+        break;
+      }
+    }
+    if (!removed) index += 1;
+  }
+
+  return result;
+}
+
+async function fetchRoadRouteForStops(
+  coords: ShapePoint[],
+  cacheKey: string,
+  options?: { strictShortSegments?: boolean },
+) {
   const cleanCoords = coords.filter(
     ([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon),
   );
@@ -955,12 +1216,6 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
   if (roadRouteCache.has(cacheKey)) return roadRouteCache.get(cacheKey)!;
 
   const routePromise = (async () => {
-    const chunks: ShapePoint[][] = [];
-    const maxPoints = 24;
-    for (let start = 0; start < cleanCoords.length - 1; start += maxPoints - 1) {
-      chunks.push(cleanCoords.slice(start, Math.min(cleanCoords.length, start + maxPoints)));
-    }
-
     const merged: ShapePoint[] = [];
     const appendPoints = (points: ShapePoint[]) => {
       for (const point of points) {
@@ -1029,34 +1284,64 @@ async function fetchRoadRouteForStops(coords: ShapePoint[], cacheKey: string) {
       return points;
     };
 
-    for (const chunk of chunks) {
-      if (chunk.length < 2) continue;
-      const points = await fetchOsrmRoute(chunk).catch(() => []);
-      if (points.length > 1) {
-        appendPoints(points);
+    const isReasonableSegment = (segment: ShapePoint[], start: ShapePoint, end: ShapePoint) => {
+      if (segment.length <= 1) return false;
+      const direct = distanceMeters(start, end);
+      if (direct < 20) return false;
+      const routed = routeLengthMeters(segment);
+      const strict = Boolean(options?.strictShortSegments);
+      const maxRatio = direct < 100
+        ? (strict ? 2.25 : 4.2)
+        : direct < 240
+          ? (strict ? 2.8 : 3.8)
+          : direct < 600
+            ? 3.4
+            : 3.2;
+      const maxExtra = direct < 100
+        ? (strict ? 130 : 260)
+        : direct < 240
+          ? (strict ? 220 : 420)
+          : 900;
+      if (routed > Math.max(direct * maxRatio, direct + maxExtra)) return false;
+      if (strict && direct <= 460) {
+        const maxDeviation = maxDeviationFromChordMeters(segment, start, end);
+        const allowedDeviation = Math.max(40, direct * 0.33);
+        if (maxDeviation > allowedDeviation) return false;
+      }
+      return true;
+    };
+
+    for (let i = 0; i < cleanCoords.length - 1; i += 1) {
+      const start = cleanCoords[i];
+      const end = cleanCoords[i + 1];
+      const direct = distanceMeters(start, end);
+      if (direct < 20 || direct > 350_000) continue;
+
+      const segment = await fetchOsrmRoute([start, end]).catch(() => []);
+      if (isReasonableSegment(segment, start, end)) {
+        appendPoints(segment);
         continue;
       }
 
-      const valhallaPoints = await fetchValhallaRoute(chunk).catch(() => []);
-      if (valhallaPoints.length > 1) {
-        appendPoints(valhallaPoints);
-        continue;
-      }
-
-      for (let i = 0; i < chunk.length - 1; i++) {
-        const segment = await fetchOsrmRoute([chunk[i], chunk[i + 1]]).catch(() => []);
-        if (segment.length > 1) {
-          appendPoints(segment);
-          continue;
-        }
-
-        const valhallaSegment = await fetchValhallaRoute([chunk[i], chunk[i + 1]]).catch(() => []);
-        if (valhallaSegment.length > 1) appendPoints(valhallaSegment);
-      }
+      const valhallaSegment = await fetchValhallaRoute([start, end]).catch(() => []);
+      if (isReasonableSegment(valhallaSegment, start, end)) appendPoints(valhallaSegment);
     }
 
-    return merged.length > 1 ? merged : [];
-  })();
+    if (merged.length <= 1) return [];
+    const strict = Boolean(options?.strictShortSegments);
+    const hairpinCollapsed = collapseHairpins(merged, { strict });
+    const loopCollapsed = collapseLocalLoops(hairpinCollapsed, { strict });
+    return loopCollapsed.length > 1 ? loopCollapsed : merged;
+  })()
+    .then((points) => {
+      // Do not cache empty routes: allow next attempt to retry live routing.
+      if (points.length <= 1) roadRouteCache.delete(cacheKey);
+      return points;
+    })
+    .catch((error) => {
+      roadRouteCache.delete(cacheKey);
+      throw error;
+    });
 
   roadRouteCache.set(cacheKey, routePromise);
   if (roadRouteCache.size > 80) {
@@ -1178,6 +1463,8 @@ function mapTransportVehicleToClient(vehicle: TransportApiVehicle): Vehicle {
     statusText: vehicle.statusText,
     isHistorical: vehicle.isHistorical,
     bearing: vehicle.bearing,
+    trainName: vehicle.trainName,
+    positionQuality: vehicle.positionQuality,
   };
 }
 
@@ -1315,10 +1602,461 @@ function mapVehicle(
   };
 }
 
+async function requestPkpDirectJson<T>(path: string, searchParams?: URLSearchParams, signal?: AbortSignal): Promise<T> {
+  const proxySearch = new URLSearchParams(searchParams ? Array.from(searchParams.entries()) : []);
+  proxySearch.set('endpoint', path.startsWith('/') ? path : `/${path}`);
+  return requestJson<T>(`/api/pkp-intercity/operations?${proxySearch.toString()}`, { signal });
+}
+
+function isAbortLikeError(error: unknown) {
+  const err = error as { name?: string; message?: string } | null;
+  const name = String(err?.name || '');
+  const message = String(err?.message || '').toLowerCase();
+  return name === 'AbortError' || message.includes('abort');
+}
+
+function getPkpRecord(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function getPkpPath(source: unknown, path: string) {
+  let current: unknown = source;
+  for (const key of path.split('.')) {
+    const record = getPkpRecord(current);
+    if (!record) return undefined;
+    current = record[key];
+  }
+  return current;
+}
+
+function readPkpFirst(source: unknown, paths: string[]) {
+  for (const path of paths) {
+    const value = getPkpPath(source, path);
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return undefined;
+}
+
+function readPkpString(source: unknown, paths: string[], fallback = '') {
+  const value = readPkpFirst(source, paths);
+  return String(value ?? fallback).trim();
+}
+
+function readPkpNumber(source: unknown, paths: string[]) {
+  const value = readPkpFirst(source, paths);
+  const parsed = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function readPkpDateIso(source: unknown, paths: string[]) {
+  const value = readPkpFirst(source, paths);
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const parsed = new Date(raw.replace(' ', 'T')).getTime();
+  if (!Number.isFinite(parsed)) return null;
+  return new Date(parsed).toISOString();
+}
+
+function normalizePkpStationName(name: string) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+async function loadPkpStationCoordinates() {
+  if (!pkpStationCoordinatesPromise) {
+    pkpStationCoordinatesPromise = requestText(PKP_STATIONS_DATASET_URL)
+      .then((csv) => {
+        const lines = csv.split(/\r?\n/);
+        if (lines.length <= 1) return {} as Record<string, { lat: number; lon: number }>;
+        const header = lines[0].split(';');
+        const idxName = header.indexOf('name');
+        const idxLat = header.indexOf('latitude');
+        const idxLon = header.indexOf('longitude');
+        const idxCountry = header.indexOf('country');
+        if (idxName < 0 || idxLat < 0 || idxLon < 0 || idxCountry < 0) {
+          return {} as Record<string, { lat: number; lon: number }>;
+        }
+
+        const lookup: Record<string, { lat: number; lon: number }> = {};
+        for (let i = 1; i < lines.length; i += 1) {
+          const line = lines[i];
+          if (!line || line.indexOf(';') < 0) continue;
+          const cols = line.split(';');
+          if (cols[idxCountry] !== 'PL') continue;
+          const name = normalizePkpStationName(cols[idxName] || '');
+          if (!name) continue;
+          const lat = Number(String(cols[idxLat] || '').replace(',', '.'));
+          const lon = Number(String(cols[idxLon] || '').replace(',', '.'));
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+          if (!lookup[name]) lookup[name] = { lat, lon };
+        }
+        return lookup;
+      })
+      .catch(() => ({}));
+  }
+  return pkpStationCoordinatesPromise;
+}
+
+function normalizePkpCategory(raw: string) {
+  const category = raw.toUpperCase().replace(/[^A-Z]/g, '');
+  if (category.includes('EIP')) return 'EIP';
+  if (category.includes('EIC')) return 'EIC';
+  if (category.includes('IC')) return 'IC';
+  return 'IC';
+}
+
+function normalizeTrainNumber(raw: string) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  const compact = value.replace(/\s+/g, '');
+  if (!compact) return '';
+  if (/^\d+$/.test(compact)) return compact.replace(/^0+/, '') || compact;
+  return compact.toUpperCase();
+}
+
+function distanceKmBetween(aLat: number, aLon: number, bLat: number, bLon: number) {
+  const earthRadiusKm = 6371;
+  const dLat = (bLat - aLat) * Math.PI / 180;
+  const dLon = (bLon - aLon) * Math.PI / 180;
+  const lat1 = aLat * Math.PI / 180;
+  const lat2 = bLat * Math.PI / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * earthRadiusKm * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function isPointInsideBbox(lat: number, lon: number, bbox?: [number, number, number, number] | null) {
+  if (!bbox) return true;
+  const [south, west, north, east] = bbox;
+  return lat >= south && lat <= north && lon >= west && lon <= east;
+}
+
+function normalizePkpLatLon(lat: number, lon: number): { lat: number; lon: number } | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < 47 || lat > 56 || lon < 12 || lon > 26) return null;
+  return { lat, lon };
+}
+
+function resolvePkpCoords(source: unknown): { lat: number; lon: number } | null {
+  const primary = normalizePkpLatLon(
+    readPkpNumber(source, ['lat', 'latitude', 'position.lat', 'location.lat']),
+    readPkpNumber(source, ['lng', 'lon', 'long', 'longitude', 'position.lon', 'position.lng', 'location.lng']),
+  );
+  if (primary) return primary;
+
+  const record = getPkpRecord(source);
+  if (!record) return null;
+  for (const key of Object.keys(record)) {
+    const value = record[key];
+    if (value && typeof value === 'object') {
+      const nested = resolvePkpCoords(value);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function resolvePkpLiveCoords(source: unknown): { lat: number; lon: number } | null {
+  return normalizePkpLatLon(
+    readPkpNumber(source, ['lat', 'latitude', 'position.lat', 'location.lat']),
+    readPkpNumber(source, ['lng', 'lon', 'long', 'longitude', 'position.lon', 'position.lng', 'location.lng']),
+  );
+}
+
+function getPkpTrainDelaySeconds(routeStops: Array<{
+  planned: string | null;
+  real: string | null;
+  isPast?: boolean;
+}>) {
+  const upcoming = routeStops.find((stop) => !stop.isPast && stop.planned && stop.real);
+  if (!upcoming?.planned || !upcoming.real) return 0;
+  const plannedMs = new Date(upcoming.planned).getTime();
+  const realMs = new Date(upcoming.real).getTime();
+  if (!Number.isFinite(plannedMs) || !Number.isFinite(realMs)) return 0;
+  const delaySeconds = Math.round((realMs - plannedMs) / 1000);
+  return Math.abs(delaySeconds) <= 18_000 ? delaySeconds : 0;
+}
+
+async function fetchPkpTrainMetadata(scheduleId: string, orderId: string, signal?: AbortSignal): Promise<PkpTrainMetadata | null> {
+  const cacheKey = `${scheduleId}_${orderId}`;
+  const now = Date.now();
+  const cached = pkpTrainMetadataCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.value;
+
+  const inflight = pkpTrainMetadataInflight.get(cacheKey);
+  if (inflight) return inflight;
+
+  const request = requestPkpDirectJson<unknown>(
+    `/api/v1/schedules/route/${encodeURIComponent(scheduleId)}/${encodeURIComponent(orderId)}`,
+    undefined,
+    signal,
+  )
+    .then((payload) => {
+      const record = getPkpRecord(payload);
+      if (!record) return null;
+      const trainNumber = readPkpString(record, ['nationalNumber', 'trainNumber', 'number', 'name'], '');
+      const category = normalizePkpCategory(readPkpString(record, ['commercialCategorySymbol', 'commercialCategory', 'category', 'carrierCode'], 'IC'));
+      const trainName = readPkpString(record, ['name'], '');
+      const value = trainNumber
+        ? {
+            trainNumber: trainNumber.replace(/^0+/, '') || trainNumber,
+            category,
+            trainName: trainName || undefined,
+          }
+        : null;
+      pkpTrainMetadataCache.set(cacheKey, { expiresAt: now + PKP_METADATA_CACHE_TTL_MS, value });
+      return value;
+    })
+    .catch(() => null)
+    .finally(() => {
+      pkpTrainMetadataInflight.delete(cacheKey);
+    });
+
+  pkpTrainMetadataInflight.set(cacheKey, request);
+  return request;
+}
+
+function mapPkpOperationToVehicle(
+  trainRaw: unknown,
+  stationsLookup: Record<string, unknown>,
+  stationCoordinatesLookup: Record<string, { lat: number; lon: number }>,
+  generatedAtIso: string,
+  metadata?: PkpTrainMetadata | null,
+): Vehicle | null {
+  const train = getPkpRecord(trainRaw);
+  if (!train) return null;
+  const nowMs = Date.now();
+  const rawStops = Array.isArray(train.stations) ? train.stations : [];
+  const routeStops = rawStops.map((stopRaw: unknown, index: number) => {
+    const stop = getPkpRecord(stopRaw) || {};
+    const stationId = readPkpNumber(stop, ['stationId', 'station.id', 'id']);
+    const stationLookupRaw = stationsLookup[String(stationId)];
+    const stationDetails = getPkpRecord(stationLookupRaw) || {};
+    const stationNameFromLookup = typeof stationLookupRaw === 'string' ? stationLookupRaw.trim() : '';
+    const stationNameFromStop = readPkpString(stop, ['stationName', 'name', 'stopName']);
+    const stationName = stationNameFromStop || stationNameFromLookup || readPkpString(stationDetails, ['name', 'stationName'], '');
+    const stationCoords =
+      resolvePkpCoords(stationDetails) ||
+      resolvePkpCoords(stop) ||
+      stationCoordinatesLookup[normalizePkpStationName(stationName)] ||
+      null;
+    const plannedIso = readPkpDateIso(stop, ['plannedDeparture', 'plannedArrival']);
+    const realIso = readPkpDateIso(stop, ['actualDeparture', 'actualArrival']);
+    const delayMinutes = readPkpNumber(stop, ['departureDelayMinutes', 'arrivalDelayMinutes', 'delayMinutes', 'delay']);
+    const platform = readPkpString(stop, ['departurePlatform', 'arrivalPlatform', 'platform', 'platformNumber', 'plannedPlatform']);
+    const track = readPkpString(stop, ['departureTrack', 'arrivalTrack', 'track', 'trackNumber', 'plannedTrack']);
+    const timeType: 'arrival' | 'departure' = readPkpFirst(stop, ['plannedDeparture', 'actualDeparture', 'departureDelayMinutes'])
+      ? 'departure'
+      : 'arrival';
+    const plannedMs = plannedIso ? new Date(plannedIso).getTime() : Number.NaN;
+    const computedRealMs =
+      realIso
+        ? new Date(realIso).getTime()
+        : Number.isFinite(delayMinutes) && Number.isFinite(plannedMs)
+          ? plannedMs + delayMinutes * 60_000
+          : Number.NaN;
+    const effectiveRealIso = Number.isFinite(computedRealMs) ? new Date(computedRealMs).toISOString() : realIso;
+    return {
+      id: Number.isFinite(stationId) ? stationId : index + 1,
+      name: stationName || `Stacja ${index + 1}`,
+      planned: plannedIso,
+      real: effectiveRealIso || null,
+      lat: stationCoords?.lat,
+      lon: stationCoords?.lon,
+      isPast: Number.isFinite(computedRealMs) ? computedRealMs < nowMs - 120_000 : false,
+      platform: platform || undefined,
+      track: track || undefined,
+      stopDelayMinutes: Number.isFinite(delayMinutes) ? delayMinutes : undefined,
+      timeType,
+    };
+  });
+
+  const liveCoords = resolvePkpLiveCoords(train);
+  const lat = liveCoords?.lat;
+  const lon = liveCoords?.lon;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  const scheduleId = readPkpString(train, ['scheduleId', 'sid']);
+  const orderId = readPkpString(train, ['orderId', 'oid']);
+  const operatingDate = readPkpString(train, ['operatingDate', 'date']);
+  const trainNumberRaw = (metadata?.trainNumber || readPkpString(train, ['trainNumber', 'number', 'trainNo'], '')).trim();
+  const trainNumber = trainNumberRaw && !/^\d{8,}$/.test(trainNumberRaw) ? trainNumberRaw : '';
+  const category = metadata?.category || normalizePkpCategory(readPkpString(train, ['commercialCategory', 'category', 'trainCategory', 'kind'], 'IC'));
+  const relation = routeStops.length > 1
+    ? `${routeStops[0].name} - ${routeStops[routeStops.length - 1].name}`
+    : (routeStops[0]?.name || 'W trasie');
+  const delaySeconds = getPkpTrainDelaySeconds(routeStops);
+  const lookupId = [scheduleId, orderId, operatingDate].filter(Boolean).join('_') || String(trainNumber);
+  const statusCode = readPkpString(train, ['trainStatus', 'status'], '').toUpperCase();
+  const statusTextRaw = statusCode || 'W trasie';
+  const generatedMs = new Date(generatedAtIso).getTime();
+  const displayName = trainNumber ? `${category} ${trainNumber}`.trim() : category;
+  const speedRaw = readPkpNumber(train, ['speed', 'position.speed']);
+  const speed = Number.isFinite(speedRaw) ? speedRaw : undefined;
+  const trainName = metadata?.trainName || readPkpString(train, ['trainName', 'compositionName', 'name']);
+
+  return {
+    id: `pkp_intercity_${lookupId}`,
+    provider: 'pkp_intercity',
+    operatorName: 'PKP Intercity',
+    type: 'train',
+    iconVariant: category,
+    vehicleNumber: trainNumber || undefined,
+    name: displayName,
+    routeId: relation,
+    routeShortName: category,
+    lat: Number(lat),
+    lon: Number(lon),
+    speed,
+    direction: relation,
+    delay: delaySeconds,
+    dataAgeSec: Number.isFinite(generatedMs) ? Math.max(0, Math.floor((nowMs - generatedMs) / 1000)) : undefined,
+    schedule: routeStops.filter((stop) => !stop.isPast),
+    routeStops,
+    routePath: routeStops.map((stop) => Number(stop.id)).filter((id) => Number.isFinite(id)),
+    trainName: trainName || undefined,
+    lastSignalTime: generatedAtIso,
+    journeyId: scheduleId || undefined,
+    serviceId: orderId || undefined,
+    tripId: lookupId || undefined,
+    status: statusCode === 'X' ? 'inactive' : 'active',
+    statusText: statusTextRaw,
+    positionQuality: 'known',
+  };
+}
+
+async function fetchPkpIntercityVehiclesDirect(signal?: AbortSignal, viewport?: PkpQueryViewport): Promise<Vehicle[]> {
+  const [stationCoordinatesLookup] = await Promise.all([
+    loadPkpStationCoordinates(),
+  ]);
+
+  const pageSize = 80;
+  const maxPages = 1;
+  const targetCount = viewport?.bbox ? 40 : 30;
+  const defaultCenter: [number, number] = viewport?.center || PKP_DEFAULT_CENTER;
+  const vehiclesById = new Map<string, Vehicle>();
+  let generatedAtIso = new Date().toISOString();
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const searchParams = new URLSearchParams();
+    searchParams.set('carriersInclude', 'IC');
+    searchParams.set('fullRoutes', 'true');
+    searchParams.set('withPlanned', 'true');
+    searchParams.set('pageSize', String(pageSize));
+    searchParams.set('page', String(page));
+
+    const payload = await requestPkpDirectJson<{
+      generatedAt?: string;
+      trains?: unknown[];
+      stations?: Record<string, unknown>;
+      pagination?: { hasNextPage?: boolean };
+    }>('/api/v1/operations', searchParams, signal);
+
+    const currentGeneratedAtIso = readPkpDateIso(payload, ['generatedAt']);
+    if (currentGeneratedAtIso) generatedAtIso = currentGeneratedAtIso;
+
+    const trains = Array.isArray(payload?.trains) ? payload.trains : [];
+    const stationsLookup = getPkpRecord(payload?.stations) || {};
+
+    const activeTrains = trains.filter((trainRaw) => {
+      const train = getPkpRecord(trainRaw);
+      if (!train) return false;
+      const status = readPkpString(train, ['trainStatus', 'status'], '').toUpperCase();
+      return status === 'P';
+    });
+
+    const mappedVehicles = activeTrains
+      .map((train) => mapPkpOperationToVehicle(train, stationsLookup, stationCoordinatesLookup, generatedAtIso))
+      .filter((vehicle): vehicle is Vehicle => Boolean(vehicle))
+      .filter((vehicle) => {
+        if (viewport?.bbox && isPointInsideBbox(vehicle.lat, vehicle.lon, viewport.bbox)) return true;
+        if (viewport?.bbox) {
+          const radiusKm = Number.isFinite(PKP_MAX_DISTANCE_KM) && PKP_MAX_DISTANCE_KM > 0 ? PKP_MAX_DISTANCE_KM : 120;
+          return distanceKmBetween(vehicle.lat, vehicle.lon, defaultCenter[0], defaultCenter[1]) <= radiusKm;
+        }
+        if (!Number.isFinite(PKP_MAX_DISTANCE_KM) || PKP_MAX_DISTANCE_KM <= 0) return true;
+        return distanceKmBetween(vehicle.lat, vehicle.lon, defaultCenter[0], defaultCenter[1]) <= PKP_MAX_DISTANCE_KM;
+      });
+
+    for (const vehicle of mappedVehicles) {
+      vehiclesById.set(vehicle.id, vehicle);
+    }
+
+    const hasNextPage = Boolean((payload as any)?.pagination?.hasNextPage);
+    if (vehiclesById.size >= targetCount || !hasNextPage) break;
+  }
+
+  return Array.from(vehiclesById.values())
+    .sort(
+      (a, b) =>
+        distanceKmBetween(a.lat, a.lon, defaultCenter[0], defaultCenter[1]) -
+        distanceKmBetween(b.lat, b.lon, defaultCenter[0], defaultCenter[1]),
+    )
+    .slice(0, targetCount);
+}
+
+function normalizePkpVehicleLookupId(vehicleId: string) {
+  return String(vehicleId || '').replace(/^pkp_intercity_/, '').trim();
+}
+
+async function fetchPkpIntercityPortalGpsVehicles(signal?: AbortSignal, viewport?: PkpQueryViewport): Promise<Vehicle[]> {
+  const searchParams = new URLSearchParams();
+  const bbox = viewport?.bbox;
+  if (bbox && bbox.length === 4 && bbox.every((value) => Number.isFinite(Number(value)))) {
+    searchParams.set('bbox', bbox.join(','));
+  }
+  if (Number.isFinite(Number(viewport?.zoom))) {
+    searchParams.set('zoom', String(Math.round(Number(viewport?.zoom))));
+  }
+
+  const separator = PKP_INTERCITY_GPS_PROXY_URL.includes('?') ? '&' : '?';
+  const query = searchParams.toString();
+  const response = await requestJson<TransportApiVehiclesResponse>(
+    `${PKP_INTERCITY_GPS_PROXY_URL}${query ? `${separator}${query}` : ''}`,
+    { signal },
+  );
+
+  return (response.vehicles || [])
+    .map(mapTransportVehicleToClient)
+    .filter((vehicle) => Number.isFinite(vehicle.lat) && Number.isFinite(vehicle.lon));
+}
+
+async function fetchPkpIntercityVehicleDetailsDirect(vehicleId: string, signal?: AbortSignal) {
+  const lookupId = normalizePkpVehicleLookupId(vehicleId);
+  const [scheduleIdRaw, orderIdRaw, operatingDateRaw] = lookupId.split('_');
+  const scheduleId = String(scheduleIdRaw || '').trim();
+  const orderId = String(orderIdRaw || '').trim();
+  const operatingDate = String(operatingDateRaw || '').trim();
+  if (!scheduleId || !orderId || !operatingDate) return null;
+
+  const [operationsPayload, stationCoordinatesLookup, metadata] = await Promise.all([
+    requestPkpDirectJson<unknown>(
+      `/api/v1/operations/train/${encodeURIComponent(scheduleId)}/${encodeURIComponent(orderId)}/${encodeURIComponent(operatingDate)}`,
+      undefined,
+      signal,
+    ),
+    loadPkpStationCoordinates(),
+    fetchPkpTrainMetadata(scheduleId, orderId, signal),
+  ]);
+
+  const operationRecord = getPkpRecord(operationsPayload);
+  if (!operationRecord) return null;
+  const generatedAtIso = readPkpDateIso(operationRecord, ['generatedAt']) || new Date().toISOString();
+  const stationsLookup = getPkpRecord((operationRecord as any).stations) || {};
+  const trainRaw = getPkpRecord((operationRecord as any).train) || operationRecord;
+  const mapped = mapPkpOperationToVehicle(trainRaw, stationsLookup, stationCoordinatesLookup, generatedAtIso, metadata);
+  return mapped && normalizePkpVehicleLookupId(mapped.id) === lookupId ? mapped : mapped;
+}
+
 export async function fetchVehiclesClient(
   includeInactive: boolean,
   providers: TransportProviderId[] = ['pks'],
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; pkpViewport?: PkpQueryViewport },
 ) {
   const activeProviders = providers.filter(Boolean);
   if (activeProviders.length === 0) return [];
@@ -1338,6 +2076,64 @@ export async function fetchVehiclesClient(
         console.warn('Marcel provider unavailable:', error);
         return [];
       });
+    }
+    if (provider === 'pkp_intercity') {
+      const fetchBackendVehicles = async () => {
+        const searchParams = new URLSearchParams();
+        searchParams.set('providers', 'pkp_intercity');
+        if (includeInactive) searchParams.set('includeInactive', 'true');
+        const bbox = options?.pkpViewport?.bbox;
+        if (bbox && bbox.length === 4 && bbox.every((value) => Number.isFinite(Number(value)))) {
+          searchParams.set('bbox', bbox.join(','));
+        }
+        const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', searchParams), {
+          signal: options?.signal,
+        });
+        return (response.vehicles || []).map(mapTransportVehicleToClient);
+      };
+
+      const fallbackVehicles = async () => {
+        if (!isNative()) {
+          try {
+            const gps = await fetchPkpIntercityPortalGpsVehicles(options?.signal, options?.pkpViewport);
+            if (gps.length > 0) return gps;
+          } catch (gpsError) {
+            if (isAbortLikeError(gpsError)) throw gpsError;
+            console.warn('PKP Intercity portal GPS fallback unavailable:', gpsError);
+          }
+        }
+
+        try {
+          const backend = await fetchBackendVehicles();
+          if (backend.length > 0) return backend;
+        } catch (backendError) {
+          if (isAbortLikeError(backendError)) throw backendError;
+          console.warn('PKP Intercity backend fallback unavailable:', backendError);
+        }
+
+        try {
+          const direct = await fetchPkpIntercityVehiclesDirect(options?.signal, options?.pkpViewport);
+          if (direct.length > 0) return direct;
+        } catch (fallbackError) {
+          if (isAbortLikeError(fallbackError)) throw fallbackError;
+          console.warn('PKP Intercity direct fallback unavailable:', fallbackError);
+        }
+
+        return [];
+      };
+
+      return fallbackVehicles()
+        .catch((error) => {
+          if (isAbortLikeError(error)) throw error;
+          console.warn('PKP Intercity provider unavailable:', error);
+          return [];
+        })
+        .then((vehicles) => vehicles.filter((vehicle) => Number.isFinite(vehicle.lat) && Number.isFinite(vehicle.lon)))
+        .catch((error) => {
+          if (isAbortLikeError(error)) throw error;
+          console.warn('PKP Intercity provider unavailable:', error);
+          return [];
+        });
     }
     return [];
   });
@@ -1382,6 +2178,25 @@ export async function fetchVehicleDetailsClient(provider: TransportProviderId, v
       return null;
     });
     if (directVehicle) return directVehicle;
+  }
+
+  if (provider === 'pkp_intercity') {
+    try {
+      const searchParams = new URLSearchParams();
+      if (includeInactive) searchParams.set('includeInactive', 'true');
+      const response = await requestJson<{ vehicle?: TransportApiVehicle }>(
+        transportApiUrl(`/vehicle/${encodeURIComponent(provider)}/${encodeURIComponent(vehicleId)}`, searchParams),
+      );
+      const vehicle = response.vehicle ? mapTransportVehicleToClient(response.vehicle) : null;
+      if (vehicle) return vehicle;
+    } catch (error) {
+      console.warn('PKP Intercity details backend unavailable, using direct fallback:', error);
+    }
+
+    return fetchPkpIntercityVehicleDetailsDirect(vehicleId).catch((error) => {
+      console.warn('PKP Intercity direct details unavailable:', error);
+      return null;
+    });
   }
 
   const searchParams = new URLSearchParams();
@@ -1601,11 +2416,97 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
   };
 }
 
+export async function fetchRouteGeometryClient(
+  request: RouteGeometryClientRequest,
+  options?: { signal?: AbortSignal },
+): Promise<RouteGeometryClientResponse> {
+  const isRail = request.mode === 'rail';
+  const fetchClientFallback = async (): Promise<RouteGeometryClientResponse> => {
+    if (isRail) {
+      return {
+        carrier: request.carrier,
+        line: request.line,
+        direction: request.direction,
+        variant: request.variant || 'default',
+        stopsHash: '',
+        cacheKey: '',
+        geometry: {
+          type: 'LineString',
+          coordinates: [],
+        },
+        source: 'rail-empty-fallback',
+        cached: false,
+        skippedSegments: 0,
+      };
+    }
+
+    const stopCoords = request.stops
+      .filter((stop) => Number.isFinite(stop.lat) && Number.isFinite(stop.lon))
+      .map((stop) => [Number(stop.lat), Number(stop.lon)] as ShapePoint);
+    const fallbackPoints = await fetchRoadRouteForStops(
+      stopCoords,
+      [
+        request.carrier,
+        request.line,
+        request.direction,
+        request.variant || 'default',
+        stopCoords.map(([lat, lon]) => `${lat.toFixed(6)},${lon.toFixed(6)}`).join('|'),
+      ].join(':'),
+      { strictShortSegments: request.carrier === 'mpk_rzeszow' },
+    );
+
+    return {
+      carrier: request.carrier,
+      line: request.line,
+      direction: request.direction,
+      variant: request.variant || 'default',
+      stopsHash: '',
+      cacheKey: '',
+      geometry: {
+        type: 'LineString',
+        coordinates: fallbackPoints.map(([lat, lon]) => [lon, lat]),
+      },
+      source: 'osrm-client-fallback',
+      cached: false,
+      skippedSegments: 0,
+    };
+  };
+
+  let response: RouteGeometryClientResponse | null = null;
+  try {
+    response = await requestJson<RouteGeometryClientResponse>(transportApiUrl('/routes/geometry'), {
+      method: 'POST',
+      signal: options?.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+  } catch (error) {
+    if ((error as any)?.name === 'AbortError' || options?.signal?.aborted) throw error;
+    return fetchClientFallback();
+  }
+
+  const coordinates = response.geometry?.coordinates || [];
+  if (response.geometry?.type !== 'LineString' || coordinates.length <= 1) {
+    return fetchClientFallback();
+  }
+
+  return response;
+}
+
 export async function fetchRouteShapeClient(
   tripId: string,
   fallbackStops: Array<number | string>,
   stopsData?: Record<string, {lat: number; lon: number}> | null,
-  options?: { fastFallback?: boolean; startPoint?: ShapePoint; skipOfficialShape?: boolean; refineTimeoutMs?: number },
+  options?: {
+    fastFallback?: boolean;
+    startPoint?: ShapePoint;
+    skipOfficialShape?: boolean;
+    refineTimeoutMs?: number;
+    disableSyntheticFallback?: boolean;
+  },
 ) {
   const tripIdBase = String(tripId || '').trim().split('_')[0];
   const normalizedStops = fallbackStops
@@ -1667,7 +2568,9 @@ export async function fetchRouteShapeClient(
     }
 
   }
-  const quickRoute = createQuickCurvedRoute(routeCoords);
-  if (quickRoute.length > 1) return quickRoute;
+  if (!options?.disableSyntheticFallback) {
+    const quickRoute = createQuickCurvedRoute(routeCoords);
+    if (quickRoute.length > 1) return quickRoute;
+  }
   return [];
 }

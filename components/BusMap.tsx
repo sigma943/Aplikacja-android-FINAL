@@ -4,16 +4,21 @@ import { memo, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomControl, useMapEvents, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import {fetchRouteShapeClient} from '@/lib/pks-client';
+import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
-const ROUTE_POINT_LIMIT = 720;
+const PKP_INTERCITY_COLOR = '#1d4ed8';
+const ROUTE_POINT_LIMIT = 5000;
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v3';
+const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
+const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 
 function getVehicleColor(vehicle?: Pick<Vehicle, 'provider'> | null, fallback = PKS_COLOR) {
   if (vehicle?.provider === 'mpk_rzeszow') return MPK_RZESZOW_COLOR;
   if (vehicle?.provider === 'marcel') return MARCEL_COLOR;
+  if (vehicle?.provider === 'pkp_intercity') return PKP_INTERCITY_COLOR;
   if (vehicle?.provider === 'pks') return PKS_COLOR;
   return fallback;
 }
@@ -53,38 +58,109 @@ function dedupeStableStopIds(stopIds: Array<string | number>) {
   return deduped;
 }
 
-function buildLinearRouteFromStopIds(
-  stopIds: Array<string | number>,
-  routeStopsData: Record<string, StopData>,
-) {
-  const points: [number, number][] = [];
-  let lastPointKey = '';
-
-  for (const stopId of stopIds) {
-    const stop = routeStopsData[String(stopId)];
-    if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon)) continue;
-    const key = `${stop.lat.toFixed(6)}:${stop.lon.toFixed(6)}`;
-    if (key === lastPointKey) continue;
-    points.push([stop.lat, stop.lon]);
-    lastPointKey = key;
-  }
-
-  if (points.length < 2) return [];
-  return simplifyRouteForPaint(points);
+function normalizeRouteCachePart(value: unknown, fallback = 'unknown') {
+  return String(value ?? fallback)
+    .trim()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 90) || fallback;
 }
 
-function MapStateTracker({ onInteraction }: { onInteraction: (active: boolean) => void }) {
+function stableRouteHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function hashRouteGeometryStops(stops: RouteGeometryStop[]) {
+  return stableRouteHash(
+    stops
+      .map((stop) => [
+        String(stop.id ?? '').trim(),
+        Number(stop.lat).toFixed(6),
+        Number(stop.lon).toFixed(6),
+      ].join(':'))
+      .join('|'),
+  );
+}
+
+function readLocalRouteGeometry(cacheKey: string, version: string) {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(`${ROUTE_GEOMETRY_LOCAL_PREFIX}${cacheKey}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { version?: string; points?: [number, number][]; expiresAt?: number };
+    if (parsed.version !== version) return [];
+    if (parsed.expiresAt && parsed.expiresAt <= Date.now()) return [];
+    const points = Array.isArray(parsed.points) ? parsed.points : [];
+    return points.filter((point): point is [number, number] =>
+      Array.isArray(point) &&
+      point.length === 2 &&
+      Number.isFinite(point[0]) &&
+      Number.isFinite(point[1]),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
+  if (typeof window === 'undefined' || points.length <= 1) return;
+  try {
+    window.localStorage.setItem(
+      `${ROUTE_GEOMETRY_LOCAL_PREFIX}${cacheKey}`,
+      JSON.stringify({
+        version,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        points,
+      }),
+    );
+  } catch {
+    // localStorage may be full; memory cache still keeps the current session fast.
+  }
+}
+
+function MapStateTracker({
+  onInteraction,
+  onViewportChange,
+}: {
+  onInteraction: (active: boolean) => void;
+  onViewportChange?: (payload: { bbox: [number, number, number, number]; center: [number, number]; zoom: number }) => void;
+}) {
   const map = useMap();
+  const emitViewport = useCallback(() => {
+    if (!onViewportChange) return;
+    const bounds = map.getBounds();
+    const center = map.getCenter();
+    onViewportChange({
+      bbox: [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()],
+      center: [center.lat, center.lng],
+      zoom: map.getZoom(),
+    });
+  }, [map, onViewportChange]);
+
+  useEffect(() => {
+    emitViewport();
+  }, [emitViewport]);
+
   useMapEvents({
     zoomstart: () => onInteraction(true),
     zoomend: () => {
       onInteraction(false);
       localStorage.setItem('mks_map_state', JSON.stringify({ center: map.getCenter(), zoom: map.getZoom() }));
+      emitViewport();
     },
     movestart: () => onInteraction(true),
     moveend: () => {
       onInteraction(false);
       localStorage.setItem('mks_map_state', JSON.stringify({ center: map.getCenter(), zoom: map.getZoom() }));
+      emitViewport();
     },
   });
   return null;
@@ -160,6 +236,11 @@ const createBusIcon = (
   vehicleLabel?: string,
   zoom: number = 14,
 ) => {
+  const trainCategory = String(iconVariant || routeShortName || '').toUpperCase();
+  if (trainCategory === 'IC' || trainCategory === 'EIC' || trainCategory === 'EIP') {
+    return createTrainIcon(routeShortName, vehicleId, delaySec, isSelected, dataAgeSec, isHighVolume, trainCategory, vehicleLabel);
+  }
+
   const display = routeShortName || '?';
   const numberLabel = String(vehicleLabel || '').trim();
   const delayInfo = formatDelay(delaySec);
@@ -233,6 +314,58 @@ const createBusIcon = (
   });
 };
 
+const createTrainIcon = (
+  routeShortName: string,
+  vehicleId: string,
+  delaySec?: number,
+  isSelected?: boolean,
+  dataAgeSec?: number,
+  isHighVolume?: boolean,
+  iconVariant?: string,
+  vehicleLabel?: string,
+) => {
+  const category = iconVariant === 'EIP' || iconVariant === 'EIC' || iconVariant === 'IC' ? iconVariant : 'IC';
+  const display = routeShortName || category;
+  const numberLabel = String(vehicleLabel || '').trim();
+  const delayInfo = formatDelay(delaySec);
+  const isSelClass = isSelected
+    ? 'z-[2000] scale-125 saturate-110 drop-shadow-2xl'
+    : `z-[100] scale-100 opacity-95 ${isHighVolume ? '' : 'drop-shadow-md hover:scale-105'}`;
+
+  let badgeHtml = '';
+  if (delayInfo && delaySec !== undefined && Math.abs(delaySec) > 60) {
+    badgeHtml = `
+      <div class="absolute -top-2 -right-2 px-1.5 py-0.5 rounded ${delayInfo.bg} ${delayInfo.class} text-[9px] font-black border border-white ${isHighVolume ? '' : 'shadow-sm'} z-50 whitespace-nowrap">
+        ${delaySec > 0 ? '+' : '-'}${Math.floor(Math.abs(delaySec) / 60)}
+      </div>
+    `;
+  }
+
+  const html = `
+    <div class="mks-marker-inner relative flex flex-col items-center justify-start ${isSelClass}" style="width: 58px; height: 72px;">
+      <div class="relative flex h-[45px] w-[45px] items-center justify-center rounded-[12px] border-2 border-white bg-white ${isHighVolume ? '' : 'shadow-lg'} overflow-hidden">
+        <img src="/train-icons/${category}.svg" alt="" class="h-[38px] w-[38px] object-contain" />
+        <div class="absolute left-1 top-1 rounded bg-[#1d4ed8] px-1 text-[8px] font-black leading-3 text-white">${display}</div>
+        ${isSelected ? `<div class="absolute inset-0 bg-blue-400/10 pointer-events-none"></div>` : ''}
+      </div>
+      ${numberLabel ? `
+        <div class="mt-1 border border-slate-200 rounded px-1.5 py-[1px] text-[8px] tracking-wide font-bold max-w-[54px] truncate text-center ${isHighVolume ? '' : 'shadow-sm'} flex items-center justify-center" style="background-color: rgba(255,255,255,0.96); color: #1e3a8a;">
+          <span>${numberLabel}</span>
+        </div>
+      ` : ''}
+      ${badgeHtml}
+    </div>
+  `;
+
+  return L.divIcon({
+    className: 'mks-bus-marker mks-train-marker !bg-transparent !border-0',
+    html,
+    iconSize: [58, 74],
+    iconAnchor: [29, 50],
+    popupAnchor: [0, -50],
+  });
+};
+
 const getCachedClusterIcon = (count: number, size: number, clusterColor: string, visualOffset: number) => {
   const key = `${count}_${size}_${clusterColor}_${visualOffset}`;
   const cached = clusterIconCache.get(key);
@@ -267,6 +400,10 @@ export interface StopSchedule {
   lat?: number;
   lon?: number;
   isPast?: boolean;
+  platform?: string;
+  track?: string;
+  stopDelayMinutes?: number;
+  timeType?: 'arrival' | 'departure';
 }
 
 export interface Vehicle {
@@ -301,6 +438,8 @@ export interface Vehicle {
   status?: 'active' | 'break' | 'inactive' | 'technical' | 'cached';
   statusText?: string;
   isHistorical?: boolean;
+  trainName?: string;
+  positionQuality?: 'known' | 'estimated';
 }
 
 export interface StopData {
@@ -338,6 +477,7 @@ interface BusMapProps {
   highlightedStopId?: string | null;
   onStopClick?: (stopId: string) => void;
   onMapClick?: () => void;
+  onViewportChange?: (payload: { bbox: [number, number, number, number]; center: [number, number]; zoom: number }) => void;
 }
 
 function MapCenterer({ center, onComplete }: { center: [number, number] | null, onComplete?: () => void }) {
@@ -397,7 +537,13 @@ const BusMarker = memo(function BusMarker({
         vehicle.dataAgeSec,
         isHighVolume,
         vehicle.iconVariant,
-        vehicle.vehicleNumber || (vehicle.provider === 'marcel' ? '' : vehicle.id),
+        vehicle.provider === 'pkp_intercity'
+          ? String(
+              vehicle.vehicleNumber
+                ? `${String(vehicle.routeShortName || vehicle.iconVariant || '').trim().toUpperCase()} ${String(vehicle.vehicleNumber).trim()}`
+                : '',
+            ).trim()
+          : (vehicle.vehicleNumber || (vehicle.provider === 'marcel' ? '' : vehicle.id)),
         zoom,
       ),
     [
@@ -591,7 +737,7 @@ function VehicleMarkerLayer({
       lon: group.lon / group.vehicles.length,
       groupKey: `${group.provider}:${group.overlapKey}`,
       visualOffset: (providerCells.get(group.overlapKey)?.size || 0) > 1
-        ? group.provider === 'mpk_rzeszow' ? 7 : group.provider === 'marcel' ? 0 : -7
+        ? group.provider === 'mpk_rzeszow' ? 7 : group.provider === 'marcel' ? 0 : group.provider === 'pkp_intercity' ? 14 : -7
         : 0,
     }));
   }, [map, shouldCluster, renderVehicles, viewTick, zoom]);
@@ -698,13 +844,14 @@ function RouteStopsLayer({
         return (
           <CircleMarker
             key={`stop-${stopId}-${idx}`}
+            pane="routeStopsPane"
             center={[stop.lat, stop.lon]}
             radius={isHighlighted ? baseRadius + 2.3 : baseRadius}
             color={isHighlighted ? selectedRouteColor : 'rgba(12,18,28,0.9)'}
             fillColor="#ffffff"
             fillOpacity={1}
             weight={isHighlighted ? 4.6 : 2.8}
-            pathOptions={{ className: 'mks-route-stop-marker' }}
+            pathOptions={{ pane: 'routeStopsPane', className: 'mks-route-stop-marker' }}
             eventHandlers={{
               click: (e) => {
                 L.DomEvent.stopPropagation(e as any);
@@ -730,7 +877,8 @@ export default function BusMap({
   onCenterComplete,
   highlightedStopId,
   onStopClick,
-  onMapClick
+  onMapClick,
+  onViewportChange,
 }: BusMapProps) {
   const [initMapState, setInitMapState] = useState<{center: [number, number], zoom: number} | null>(() => {
     try {
@@ -761,15 +909,20 @@ export default function BusMap({
 
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
   const [snappedRoute, setSnappedRoute] = useState<[number, number][]>([]);
-  const lastFetchedRouteKeyRef = useRef<string>('');
+  const [routeClockMs, setRouteClockMs] = useState(() => Date.now());
   const refinedRouteCacheRef = useRef(new Map<string, [number, number][]>());
   const refinedRouteByVehicleRef = useRef(new Map<string, [number, number][]>());
   const selectedVehicleIdentityRef = useRef<string>('');
-  const routeFetchInFlightRef = useRef<string>('');
-  const [routeRetryTick, setRouteRetryTick] = useState(0);
+  const routeAbortRef = useRef<AbortController | null>(null);
+  const activeRouteRequestIdRef = useRef(0);
+  const routeStopsSource = useMemo(() => {
+    const routeStops = selectedVehicle?.routeStops || [];
+    if (routeStops.length > 0) return routeStops;
+    return selectedVehicle?.schedule || [];
+  }, [selectedVehicle?.routeStops, selectedVehicle?.schedule]);
   const routeStopsData = useMemo(() => {
     const next: Record<string, StopData> = { ...(stopsData || {}) };
-    for (const stop of selectedVehicle?.routeStops || selectedVehicle?.schedule || []) {
+    for (const stop of routeStopsSource) {
       if (Number.isFinite(stop.lat) && Number.isFinite(stop.lon)) {
         next[String(stop.id)] = {
           n: stop.name,
@@ -779,7 +932,7 @@ export default function BusMap({
       }
     }
     return next;
-  }, [selectedVehicle?.routeStops, selectedVehicle?.schedule, stopsData]);
+  }, [routeStopsSource, stopsData]);
   const routeStopIds = useMemo(() => {
     const fullRoute = selectedVehicle?.routePath?.filter((id) => Number.isFinite(Number(id))) || [];
     if (fullRoute.length > 0) return dedupeStableStopIds(fullRoute);
@@ -787,95 +940,141 @@ export default function BusMap({
     if (routeStops.length > 0) return dedupeStableStopIds(routeStops);
     return dedupeStableStopIds((selectedVehicle?.schedule || []).map((s: any) => s.id));
   }, [selectedVehicle]);
+  useEffect(() => {
+    if (!selectedVehicle) return;
+    const intervalId = window.setInterval(() => setRouteClockMs(Date.now()), 20_000);
+    return () => window.clearInterval(intervalId);
+  }, [selectedVehicle?.id, selectedVehicle?.provider]);
   const visibleRouteStopIds = useMemo(() => {
-    const nowMs = Date.now();
-    const scheduleIds = (selectedVehicle?.schedule || [])
-      .filter((s: any) => isUpcomingScheduleStop(s, nowMs))
-      .filter((s: any) => !(selectedVehicle?.lastStopId && Number(s?.id) === Number(selectedVehicle.lastStopId)))
-      .map((s: any) => s.id)
+    const schedule = selectedVehicle?.schedule || [];
+    const scheduleIds = schedule
+      .filter((stop: any) => isUpcomingScheduleStop(stop, routeClockMs))
+      .filter((stop: any) => !(selectedVehicle?.lastStopId && Number(stop?.id) === Number(selectedVehicle.lastStopId)))
+      .map((stop: any) => stop.id)
       .filter((id: unknown) => Number.isFinite(Number(id)));
-    const upcomingScheduleIds = dedupeStableStopIds(scheduleIds);
-    return upcomingScheduleIds.length > 0 ? upcomingScheduleIds : routeStopIds;
-  }, [selectedVehicle?.schedule, routeStopIds]);
-  const routeStopIdsKey = useMemo(() => routeStopIds.join(','), [routeStopIds]);
+    const upcomingIds = dedupeStableStopIds(scheduleIds);
+    return schedule.length > 0 ? upcomingIds : [];
+  }, [routeClockMs, selectedVehicle?.lastStopId, selectedVehicle?.schedule]);
+  const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
+  const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
+    const next: RouteGeometryStop[] = [];
+    for (let index = 0; index < routeStopIds.length; index += 1) {
+      const stopId = routeStopIds[index];
+      const stop = routeStopsData[String(stopId)];
+      if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon)) continue;
+      next.push({
+        id: stopId,
+        name: stop.n,
+        lat: Number(stop.lat),
+        lon: Number(stop.lon),
+        sequence: index,
+      });
+    }
+    return next;
+  }, [routeStopIds, routeStopsData]);
+  const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
-  const routeGlowOpts = { color: '#ffffff', weight: 10, opacity: 0.18, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.35 } as L.PolylineOptions;
-  const routePolylineOpts = { color: selectedRouteColor, weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.35 } as L.PolylineOptions;
+  const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.15 } as L.PolylineOptions;
+  const routeGlowOpts = { pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.15 } as L.PolylineOptions;
+  const routePolylineOpts = { pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.15 } as L.PolylineOptions;
+  const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
+  const routeDirection = normalizeRouteCachePart(
+    selectedVehicle?.direction ||
+    routeGeometryStops[routeGeometryStops.length - 1]?.name ||
+    selectedVehicle?.routeId ||
+    '',
+  );
+  const routeVariant = normalizeRouteCachePart(
+    selectedVehicle?.tripId ||
+    selectedVehicle?.journeyId ||
+    selectedVehicle?.serviceId ||
+    selectedVehicle?.brigadeName ||
+    selectedVehicle?.routeId ||
+    'default',
+  );
+  const routeMode = selectedVehicle?.provider === 'pkp_intercity' ? 'rail' : 'road';
+  const routeGeometryVersion = routeMode === 'rail' ? RAIL_ROUTE_GEOMETRY_CACHE_VERSION : ROAD_ROUTE_GEOMETRY_CACHE_VERSION;
   const routeKey = selectedVehicle
-    ? `${selectedVehicle.provider || 'pks'}:${selectedVehicle.id}:${String(selectedVehicle.tripId || '').trim()}:${routeStopIdsKey}`
+    ? [
+        routeMode,
+        normalizeRouteCachePart(selectedVehicle.provider || 'pks'),
+        routeLine,
+        routeDirection,
+        routeVariant,
+        routeStopsHash,
+      ].join(':')
     : '';
 
   useEffect(() => {
+    activeRouteRequestIdRef.current += 1;
+    const requestId = activeRouteRequestIdRef.current;
+    routeAbortRef.current?.abort();
+    routeAbortRef.current = null;
+
     if (!selectedVehicle) {
       setSnappedRoute([]);
-      lastFetchedRouteKeyRef.current = '';
-      routeFetchInFlightRef.current = '';
+      selectedVehicleIdentityRef.current = '';
       return;
     }
 
     const currentIdentity = `${selectedVehicle.provider || 'pks'}:${selectedVehicle.id}`;
     if (selectedVehicleIdentityRef.current && selectedVehicleIdentityRef.current !== currentIdentity) {
-      const previousVehicleRoute = refinedRouteByVehicleRef.current.get(currentIdentity);
-      setSnappedRoute(previousVehicleRoute && previousVehicleRoute.length > 1 ? previousVehicleRoute : []);
-      routeFetchInFlightRef.current = '';
-      lastFetchedRouteKeyRef.current = '';
+      setSnappedRoute([]);
     }
     selectedVehicleIdentityRef.current = currentIdentity;
-    const vehicleRouteFromCache = refinedRouteByVehicleRef.current.get(currentIdentity);
 
-    const routeCoordCount = routeStopIds.filter((stopId) => {
-      const stop = routeStopsData[String(stopId)];
-      return stop && Number.isFinite(stop.lat) && Number.isFinite(stop.lon);
-    }).length;
-    if (routeStopIds.length > 1 && routeCoordCount < 2) {
-      if (!vehicleRouteFromCache || vehicleRouteFromCache.length <= 1) setSnappedRoute([]);
+    if (routeGeometryStops.length < 2) {
+      setSnappedRoute([]);
       return;
     }
 
-    if (routeStopIds.length <= 1) {
-      if (!vehicleRouteFromCache || vehicleRouteFromCache.length <= 1) setSnappedRoute([]);
-    }
-
-    const cachedRefinedRoute = refinedRouteCacheRef.current.get(routeKey);
-    if (cachedRefinedRoute && cachedRefinedRoute.length > 1) {
-      setSnappedRoute(cachedRefinedRoute);
-      refinedRouteByVehicleRef.current.set(currentIdentity, cachedRefinedRoute);
-      lastFetchedRouteKeyRef.current = routeKey;
+    const memoryRoute = refinedRouteCacheRef.current.get(routeKey);
+    if (memoryRoute && memoryRoute.length > 1) {
+      setSnappedRoute(memoryRoute);
+      refinedRouteByVehicleRef.current.set(currentIdentity, memoryRoute);
       return;
     }
 
-    if (vehicleRouteFromCache && vehicleRouteFromCache.length > 1) {
-      setSnappedRoute(vehicleRouteFromCache);
-    } else {
-      const fallbackRoute = buildLinearRouteFromStopIds(routeStopIds, routeStopsData);
-      if (fallbackRoute.length > 1) setSnappedRoute(fallbackRoute);
-    }
-
-    if (routeFetchInFlightRef.current === routeKey) {
+    const localRoute = readLocalRouteGeometry(routeKey, routeGeometryVersion);
+    if (localRoute.length > 1) {
+      const refinedLocalRoute = simplifyRouteForPaint(localRoute);
+      refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
+      refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
+      setSnappedRoute(refinedLocalRoute);
       return;
     }
 
-    if (lastFetchedRouteKeyRef.current === routeKey) {
-      // Already refined for this route signature.
-      return;
-    }
+    // Route is intentionally blank until real road/rail geometry is ready.
+    setSnappedRoute([]);
 
-    routeFetchInFlightRef.current = routeKey;
-
-    const tripId = String(selectedVehicle.tripId || '').trim();
-    let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    const fallbackRoute = buildLinearRouteFromStopIds(routeStopIds, routeStopsData);
-    fetchRouteShapeClient(tripId, routeStopIds, routeStopsData, {
-      skipOfficialShape: selectedVehicle.provider === 'marcel',
-    })
-      .then((points) => {
-        if (cancelled || routeFetchInFlightRef.current !== routeKey) return;
-        routeFetchInFlightRef.current = '';
+    const controller = new AbortController();
+    routeAbortRef.current = controller;
+    fetchRouteGeometryClient({
+      carrier: selectedVehicle.provider || 'pks',
+      line: selectedVehicle.routeShortName || selectedVehicle.routeId || selectedVehicle.name || 'unknown',
+      direction: selectedVehicle.direction || routeGeometryStops[routeGeometryStops.length - 1]?.name || 'unknown',
+      variant: String(
+        selectedVehicle.tripId ||
+        selectedVehicle.journeyId ||
+        selectedVehicle.serviceId ||
+        selectedVehicle.brigadeName ||
+        selectedVehicle.routeId ||
+        'default',
+      ),
+      dataVersion: routeGeometryVersion,
+      mode: routeMode,
+      stops: routeGeometryStops,
+    }, { signal: controller.signal })
+      .then((response) => {
+        if (requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
+        const points = (response.geometry?.coordinates || [])
+          .map(([lon, lat]) => [lat, lon] as [number, number])
+          .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
         if (points.length > 1) {
           const refinedRoute = simplifyRouteForPaint(points);
           refinedRouteCacheRef.current.set(routeKey, refinedRoute);
           refinedRouteByVehicleRef.current.set(currentIdentity, refinedRoute);
+          writeLocalRouteGeometry(routeKey, refinedRoute, routeGeometryVersion);
           if (refinedRouteCacheRef.current.size > 200) {
             const firstKey = refinedRouteCacheRef.current.keys().next().value;
             if (firstKey) refinedRouteCacheRef.current.delete(firstKey);
@@ -884,37 +1083,21 @@ export default function BusMap({
             const firstVehicleKey = refinedRouteByVehicleRef.current.keys().next().value;
             if (firstVehicleKey) refinedRouteByVehicleRef.current.delete(firstVehicleKey);
           }
-          lastFetchedRouteKeyRef.current = routeKey;
           setSnappedRoute(refinedRoute);
           return;
         }
-        if (fallbackRoute.length > 1) {
-          setSnappedRoute(fallbackRoute);
-          refinedRouteByVehicleRef.current.set(currentIdentity, fallbackRoute);
-        } else {
-          if (!vehicleRouteFromCache || vehicleRouteFromCache.length <= 1) setSnappedRoute([]);
-        }
-        lastFetchedRouteKeyRef.current = '';
-        retryTimer = setTimeout(() => setRouteRetryTick((value) => value + 1), 1800);
+        setSnappedRoute([]);
       })
-      .catch(() => {
-        if (cancelled || routeFetchInFlightRef.current !== routeKey) return;
-        routeFetchInFlightRef.current = '';
-        if (fallbackRoute.length > 1) {
-          setSnappedRoute(fallbackRoute);
-          refinedRouteByVehicleRef.current.set(currentIdentity, fallbackRoute);
-        } else {
-          if (!vehicleRouteFromCache || vehicleRouteFromCache.length <= 1) setSnappedRoute([]);
-        }
-        lastFetchedRouteKeyRef.current = '';
-        retryTimer = setTimeout(() => setRouteRetryTick((value) => value + 1), 1800);
+      .catch((error) => {
+        if ((error as any)?.name === 'AbortError') return;
+        if (requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
+        setSnappedRoute([]);
       });
 
     return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
+      controller.abort();
     };
-  }, [routeKey, routeStopIdsKey, routeStopsData, routeStopIds, selectedVehicle?.provider, selectedVehicle?.id, routeRetryTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeKey, routeStopsHash, selectedVehicle?.provider, selectedVehicle?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 
@@ -995,7 +1178,7 @@ export default function BusMap({
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
       >
-        <MapStateTracker onInteraction={handleInteraction} />
+        <MapStateTracker onInteraction={handleInteraction} onViewportChange={onViewportChange} />
         <MapClickListener onClick={onMapClick} />
         <MapCenterer center={forcedCenter} onComplete={onCenterComplete} />
         <ZoomControl position="bottomright" />
@@ -1028,17 +1211,18 @@ export default function BusMap({
         )}
 
         {/* Draw Route Line */}
-        <Pane name="routeLinePane" style={{ zIndex: 400 }}>
+        <Pane name="routeLinePane" style={{ zIndex: 430 }}>
           {snappedRoute.length > 0 && (
             <>
-              <Polyline key={`route-glow-${selectedVehicleId}-${routeStopIdsKey}`} positions={snappedRoute} pathOptions={routeGlowOpts} />
-              <Polyline key={`route-line-${selectedVehicleId}-${routeStopIdsKey}`} positions={snappedRoute} pathOptions={routePolylineOpts} />
+              <Polyline pane="routeLinePane" key={`route-halo-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routeHaloOpts} />
+              <Polyline pane="routeLinePane" key={`route-glow-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routeGlowOpts} />
+              <Polyline pane="routeLinePane" key={`route-line-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routePolylineOpts} />
             </>
           )}
         </Pane>
 
         {/* Draw Route Stops */}
-        <Pane name="routeStopsPane" style={{ zIndex: 410 }}>
+        <Pane name="routeStopsPane" style={{ zIndex: 470 }}>
           {selectedVehicle && (
             <RouteStopsLayer
               selectedVehicle={selectedVehicle}

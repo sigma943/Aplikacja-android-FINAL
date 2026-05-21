@@ -59,6 +59,7 @@ interface FirebaseContextType {
   loading: boolean;
   /** Lokalnie Ĺ›ledzony lastSeenAt (ms epoch) â€” nie migocze przy zmianie karty. */
   localLastSeenMs: number | null;
+  hiddenProviderIds: string[];
 }
 
 type NavigatorWithUAData = Navigator & {
@@ -79,6 +80,7 @@ const FirebaseContext = createContext<FirebaseContextType>({
   isBanned: false,
   loading: true,
   localLastSeenMs: null,
+  hiddenProviderIds: [],
 });
 
 export function useFirebase() {
@@ -140,6 +142,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [maintenanceLatched, setMaintenanceLatched] = useState(false);
   const [autoBanUnverified, setAutoBanUnverified] = useState(false);
   const [localLastSeenMs, setLocalLastSeenMs] = useState<number | null>(null);
+  const [hiddenProviderIds, setHiddenProviderIds] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -528,6 +531,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const data = snapshot.exists() ? snapshot.data() : {};
         const enabled = Boolean(data.maintenanceMode);
         setAutoBanUnverified(Boolean(data.autoBan));
+        const hiddenRaw = Array.isArray((data as any).hiddenProviderIds) ? (data as any).hiddenProviderIds : [];
+        setHiddenProviderIds(
+          hiddenRaw
+            .filter((value: unknown) => typeof value === 'string')
+            .map((value: string) => value.trim())
+            .filter(Boolean),
+        );
         setMaintenanceMode(enabled);
         if (enabled) setMaintenanceLatched(true);
         setSettingsLoading(false);
@@ -536,6 +546,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         window.clearTimeout(timeout);
         console.error('Global settings snapshot error', err);
         setMaintenanceMode(false);
+        setHiddenProviderIds([]);
         setSettingsLoading(false);
       },
     );
@@ -613,6 +624,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       const enabled = Boolean(data.maintenanceMode);
       setMaintenanceMode(enabled);
       setMaintenanceLatched(enabled);
+      const hiddenRaw = Array.isArray((data as any).hiddenProviderIds) ? (data as any).hiddenProviderIds : [];
+      setHiddenProviderIds(
+        hiddenRaw
+          .filter((value: unknown) => typeof value === 'string')
+          .map((value: string) => value.trim())
+          .filter(Boolean),
+      );
     } catch (err) {
       console.error('Manual maintenance status check failed', err);
     } finally {
@@ -621,7 +639,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs }}>
+    <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs, hiddenProviderIds }}>
       {shouldShowInitialOffline ? (
         <ConnectionTimeoutScreen />
       ) : connectionTimedOut ? (

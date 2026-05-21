@@ -2,6 +2,7 @@
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { fetchVehicleDetails, fetchVehiclesForProviders, getProvidersHealth } from './transport/service';
+import { resolveRouteGeometry } from './transport/route-geometry';
 
 initializeApp();
 const db = getFirestore();
@@ -504,14 +505,14 @@ const parseBboxParam = (value: unknown): [number, number, number, number] | null
   return [parts[0], parts[1], parts[2], parts[3]];
 };
 
-export const transportApi = onRequest({ cors: true, timeoutSeconds: 30 }, async (request, response) => {
+export const transportApi = onRequest({ cors: true, timeoutSeconds: 60 }, async (request, response) => {
   try {
     if (request.method === 'OPTIONS') {
       response.status(204).end();
       return;
     }
 
-    if (request.method !== 'GET') {
+    if (request.method !== 'GET' && request.method !== 'POST') {
       response.status(405).json({ error: 'Method not allowed' });
       return;
     }
@@ -522,12 +523,40 @@ export const transportApi = onRequest({ cors: true, timeoutSeconds: 30 }, async 
       response.json({
         ok: true,
         endpoints: [
-          '/vehicles?providers=mpk_rzeszow,marcel',
+          '/vehicles?providers=mpk_rzeszow,marcel,pkp_intercity',
           '/vehicle/mpk_rzeszow/:vehicleId',
           '/vehicle/marcel/:vehicleId',
+          '/vehicle/pkp_intercity/:vehicleId',
+          '/routes/geometry',
           '/health/providers',
         ],
       });
+      return;
+    }
+
+    if (path === '/routes/geometry') {
+      let body: any = {};
+      if (request.method === 'POST' && request.body) {
+        if (typeof request.body === 'string') {
+          body = JSON.parse(request.body || '{}');
+        } else if (typeof request.body === 'object') {
+          body = request.body;
+        }
+      }
+      const stopsFromQuery = typeof request.query.stops === 'string'
+        ? JSON.parse(request.query.stops)
+        : undefined;
+      const payload = {
+        carrier: request.query.carrier ?? body.carrier ?? body.provider,
+        line: request.query.line ?? body.line,
+        direction: request.query.direction ?? body.direction,
+        variant: request.query.variant ?? body.variant,
+        dataVersion: request.query.dataVersion ?? body.dataVersion,
+        mode: request.query.mode ?? body.mode,
+        stops: stopsFromQuery ?? body.stops,
+      };
+      const route = await resolveRouteGeometry(payload);
+      response.json(route);
       return;
     }
 

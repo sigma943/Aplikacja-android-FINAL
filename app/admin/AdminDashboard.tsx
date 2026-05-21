@@ -259,6 +259,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     loginEnabled: true,
     maintenanceMode: false,
     autoBan: false,
+    hiddenProviderIds: [] as string[],
   });
 
   const [activeView, setActiveView] = useState('devices');
@@ -414,6 +415,9 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
         loginEnabled: Boolean(data.loginEnabled),
         maintenanceMode: Boolean(data.maintenanceMode),
         autoBan: Boolean(data.autoBan),
+        hiddenProviderIds: Array.isArray(data.hiddenProviderIds)
+          ? data.hiddenProviderIds.filter((value): value is string => typeof value === 'string').map((value) => value.trim()).filter(Boolean)
+          : [],
       });
     });
     return () => unsub();
@@ -1398,7 +1402,8 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
             if (
               globalSettings.loginEnabled === settings.loginEnabled &&
               globalSettings.maintenanceMode === settings.maintenanceMode &&
-              globalSettings.autoBan === settings.autoBan
+              globalSettings.autoBan === settings.autoBan &&
+              JSON.stringify([...globalSettings.hiddenProviderIds].sort()) === JSON.stringify([...(settings.hiddenProviderIds || [])].sort())
             ) {
               return;
             }
@@ -1410,6 +1415,9 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
               settings.loginEnabled ? 'logowanie włączone' : 'logowanie wyłączone',
               settings.maintenanceMode ? 'konserwacja włączona' : 'konserwacja wyłączona',
               settings.autoBan ? 'auto-ban włączony' : 'auto-ban wyłączony',
+              (settings.hiddenProviderIds || []).includes('pkp_intercity')
+                ? 'PKP Intercity ukryty'
+                : 'PKP Intercity widoczny',
             ].join(' · ');
             await writeAuditLog({
               title: 'Zmieniono ustawienia globalne',

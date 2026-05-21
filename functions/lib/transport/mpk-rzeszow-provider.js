@@ -4,6 +4,7 @@ exports.mpkRzeszowProvider = void 0;
 const cache_1 = require("./cache");
 const VEHICLES_XML_URL = process.env.MPK_RZESZOW_VEHICLES_XML_URL || 'https://www.mpkrzeszow.pl/mpk/vehicles_proxy.php';
 const VEHICLES_DETAILS_URL = process.env.MPK_RZESZOW_VEHICLES_DETAILS_URL || 'https://www.mpkrzeszow.pl/mpk/get_vehicles.php';
+const TRIP_STOPS_URL = process.env.MPK_RZESZOW_TRIP_STOPS_URL || 'https://www.mpkrzeszow.pl/brygady/get_trip_stops_advanced.php';
 const STOPS_URL = 'http://einfo.zgpks.rzeszow.pl/api/stop-point';
 const REQUEST_HEADERS = {
     Accept: 'application/json',
@@ -135,6 +136,31 @@ async function loadStopsDictionary() {
         },
     });
 }
+async function loadStopPointIndex() {
+    return (0, cache_1.getCachedValue)('mpk_rzeszow:stop_point_index', {
+        ttlMs: 24 * 60 * 60 * 1000,
+        staleMs: 24 * 60 * 60 * 1000,
+        loader: async () => {
+            const data = await fetchJsonWithRetry(STOPS_URL, {
+                headers: REQUEST_HEADERS,
+            });
+            const index = {};
+            for (const stop of data.items || []) {
+                const stopId = String(stop.stop_point_id || '').trim();
+                if (!stopId)
+                    continue;
+                const lat = Number(stop.location?.lat ?? stop.location?.latitude);
+                const lng = Number(stop.location?.lon ?? stop.location?.lng ?? stop.location?.longitude);
+                index[stopId] = {
+                    name: String(stop.name || '').trim(),
+                    lat: Number.isFinite(lat) ? lat : undefined,
+                    lng: Number.isFinite(lng) ? lng : undefined,
+                };
+            }
+            return index;
+        },
+    });
+}
 function buildSchedule(nextStopPoints, stopsDictionary) {
     return (nextStopPoints || []).map((stopPoint) => {
         const stopId = Number(stopPoint.stop_point_id);
@@ -169,6 +195,66 @@ function buildRoutePath(route) {
             routePath.push(to);
     }
     return routePath;
+}
+function buildDateFromMpkTime(timeValue, anchorDate, previousDate) {
+    const raw = String(timeValue || '').trim();
+    const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(raw);
+    if (!match)
+        return null;
+    const date = new Date(anchorDate);
+    date.setHours(Number(match[1]), Number(match[2]), Number(match[3] || '0'), 0);
+    if (previousDate && date < previousDate)
+        date.setDate(date.getDate() + 1);
+    return date;
+}
+async function fetchMpkTripSchedule(tripId, delaySeconds) {
+    const normalizedTripId = String(tripId || '').trim();
+    if (!normalizedTripId)
+        return { schedule: [], routeStops: [], routePath: [] };
+    const params = new URLSearchParams({ trip_id: normalizedTripId });
+    const [{ stops = [] } = {}, { value: stopPointIndex }] = await Promise.all([
+        fetchJsonWithRetry(`${TRIP_STOPS_URL}?${params.toString()}`, { headers: REQUEST_HEADERS }).catch(() => ({ stops: [] })),
+        loadStopPointIndex(),
+    ]);
+    if (!Array.isArray(stops) || stops.length === 0)
+        return { schedule: [], routeStops: [], routePath: [] };
+    const anchorDate = new Date();
+    if (anchorDate.getHours() < 3)
+        anchorDate.setDate(anchorDate.getDate() - 1);
+    anchorDate.setHours(0, 0, 0, 0);
+    let previousDate = null;
+    const nowMs = Date.now();
+    const allStops = stops.map((stop) => {
+        const plannedDate = buildDateFromMpkTime(stop.departure_time || stop.arrival_time, anchorDate, previousDate);
+        if (plannedDate)
+            previousDate = plannedDate;
+        const realDate = plannedDate && Number.isFinite(delaySeconds) && Math.abs(delaySeconds) <= 18000
+            ? new Date(plannedDate.getTime() + delaySeconds * 1000)
+            : null;
+        const stopId = Number(stop.stop_id);
+        const indexed = stopPointIndex[String(stopId)];
+        const lat = Number(stop.lat ?? stop.latitude ?? stop.stop_lat ?? indexed?.lat);
+        const lng = Number(stop.lon ?? stop.lng ?? stop.long ?? stop.longitude ?? stop.stop_lon ?? indexed?.lng);
+        return {
+            id: Number.isFinite(stopId) ? stopId : Number(stop.stop_sequence || 0),
+            name: String(stop.stop_name || indexed?.name || `Przystanek ${stop.stop_sequence || ''}`).trim(),
+            planned: plannedDate ? plannedDate.toISOString() : null,
+            real: realDate ? realDate.toISOString() : null,
+            lat: Number.isFinite(lat) ? lat : undefined,
+            lng: Number.isFinite(lng) ? lng : undefined,
+        };
+    });
+    const upcomingStops = allStops.filter((stop) => {
+        const time = stop.real || stop.planned;
+        if (!time)
+            return true;
+        return new Date(time).getTime() >= nowMs - 2 * 60 * 1000;
+    });
+    return {
+        schedule: upcomingStops.length > 0 ? upcomingStops : allStops,
+        routeStops: allStops,
+        routePath: allStops.map((stop) => stop.id).filter((id) => Number.isFinite(Number(id))),
+    };
 }
 function inferVehicleStatus(vehicle, ageSec, speed, now, hasLine) {
     const nextStops = Array.isArray(vehicle.next_stop_points) ? vehicle.next_stop_points : [];
@@ -237,7 +323,7 @@ function getEffectiveMpkDelay(rawDelay, status) {
         return 0;
     return isMpkWaitingStatus(status) ? 0 : rawDelay;
 }
-function toTransportVehicle(rawVehicle, now, includeInactive, stopsDictionary, details) {
+function toTransportVehicle(rawVehicle, now, includeInactive, stopsDictionary, details, tripSchedule) {
     const lat = Number(rawVehicle.y);
     const lng = Number(rawVehicle.x);
     if (!Number.isFinite(lat) || !Number.isFinite(lng))
@@ -285,15 +371,18 @@ function toTransportVehicle(rawVehicle, now, includeInactive, stopsDictionary, d
         delaySeconds,
         delayMinutes: Math.round(delaySeconds / 60),
         dataAgeSec: ageSec,
-        schedule: Number.isFinite(nextStopId) && nextStopName
-            ? [{
-                    id: nextStopId,
-                    name: nextStopName,
-                    planned: null,
-                    real: null,
-                }]
-            : [],
-        routePath: [],
+        schedule: tripSchedule?.schedule?.length
+            ? tripSchedule.schedule
+            : Number.isFinite(nextStopId) && nextStopName
+                ? [{
+                        id: nextStopId,
+                        name: nextStopName,
+                        planned: null,
+                        real: null,
+                    }]
+                : [],
+        routeStops: tripSchedule?.routeStops || [],
+        routePath: tripSchedule?.routePath || [],
         model: details?.bus,
         lastStopDistance: Number.isFinite(Number(rawVehicle.dp)) ? Number(rawVehicle.dp) : undefined,
         lastStopId: Number.isFinite(Number(rawVehicle.ik)) ? Number(rawVehicle.ik) : undefined,
@@ -340,7 +429,9 @@ exports.mpkRzeszowProvider = {
         const rawVehicle = rawVehicles.find((candidate) => normalizeVehicleId(candidate?.nb || candidate?.id) === lookupVehicleId);
         if (!rawVehicle)
             return null;
-        const detail = vehicleDetails.find((candidate) => normalizeVehicleId(candidate?.nb) === lookupVehicleId);
-        return toTransportVehicle(rawVehicle, Date.now(), options?.includeInactive ?? true, stopsDictionary, detail);
+        const detail = vehicleDetails.find((candidate) => normalizeVehicleId(candidate?.nb) === lookupVehicleId) || {};
+        const statusCode = String(rawVehicle.s || detail?.status || '');
+        const tripSchedule = await fetchMpkTripSchedule(detail?.trip_id ?? rawVehicle.ik, getEffectiveMpkDelay(Number(rawVehicle.o ?? detail?.delay ?? 0), statusCode));
+        return toTransportVehicle(rawVehicle, Date.now(), options?.includeInactive ?? true, stopsDictionary, detail, tripSchedule);
     },
 };

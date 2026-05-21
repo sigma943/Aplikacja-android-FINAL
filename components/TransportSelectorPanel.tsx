@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
-import { Bus, Check, X } from 'lucide-react';
+import { Bus, Check, TrainFront, X } from 'lucide-react';
 import type { TransportProviderId } from '@/lib/pks-client';
 
 export type TransportOption = {
@@ -10,7 +10,7 @@ export type TransportOption = {
   color: string;
   enabled: boolean;
   type: 'bus' | 'train';
-  iconVariant: 'mpk_rzeszow' | 'marcel' | 'default_bus';
+  iconVariant: 'mpk_rzeszow' | 'marcel' | 'default_bus' | 'IC' | 'EIC' | 'EIP';
 };
 
 type TransportSelectorPanelProps = {
@@ -29,6 +29,7 @@ const providerMeta: Record<string, { name: string; image: string }> = {
   pks: { name: 'PKS Rzeszów', image: '/dodaj/pks.png' },
   mpk_rzeszow: { name: 'MPK Rzeszów', image: '/dodaj/mpk-rzeszow.png' },
   marcel: { name: 'Marcel', image: '/dodaj/marcel.png' },
+  pkp_intercity: { name: 'PKP Intercity', image: '/train-icons/IC.svg' },
 };
 
 function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) {
@@ -113,6 +114,7 @@ export default function TransportSelectorPanel({
   const selectedCount = selectedIds.length;
   const theme = panelTheme(isDark, themeMode, transparentUI);
   const busOptions = options.filter((option) => option.type === 'bus');
+  const trainOptions = options.filter((option) => option.type === 'train');
 
   return (
     <AnimatePresence>
@@ -207,6 +209,68 @@ export default function TransportSelectorPanel({
                   );
                 })}
               </div>
+
+              {trainOptions.length > 0 && (
+                <>
+                  <h3 className={`mb-3 mt-7 flex items-center gap-2 text-base font-black tracking-tight md:mb-4 md:mt-9 md:text-xl ${theme.section}`}>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#1d4ed8]/16 text-[#1d4ed8] md:h-9 md:w-9">
+                      <TrainFront className="h-[18px] w-[18px] md:h-5 md:w-5" />
+                    </span>
+                    Pociagi
+                  </h3>
+                  <div className="flex flex-wrap gap-2 sm:grid sm:grid-cols-3 sm:gap-5 md:gap-8">
+                    {trainOptions.map((option) => {
+                      const isSelected = selectedSet.has(option.id);
+                      const meta = providerMeta[option.id] || { name: option.label, image: '/train-icons/IC.svg' };
+
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          disabled={!option.enabled}
+                          onClick={() => option.enabled && onToggle(option.id)}
+                          className={`group w-[calc(25%-0.375rem)] min-w-0 text-center transition-transform active:scale-[0.985] sm:w-auto ${
+                            option.enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+                          }`}
+                        >
+                          <div
+                            className={`relative aspect-square overflow-hidden rounded-[14px] border transition-all sm:aspect-[1.24] sm:rounded-[22px] ${theme.cardBase} ${
+                              isSelected
+                                ? 'shadow-[0_20px_48px_rgba(0,0,0,0.22)]'
+                                : theme.cardIdle
+                            }`}
+                            style={{
+                              borderColor: isSelected ? option.color : undefined,
+                              boxShadow: isSelected
+                                ? `0 18px 46px ${option.color}22, inset 0 0 0 1px ${option.color}28`
+                                : undefined,
+                            }}
+                          >
+                            <img
+                              src={meta.image}
+                              alt=""
+                              className="h-full w-full bg-white object-contain p-4 transition-transform duration-300 group-hover:scale-[1.025]"
+                              draggable={false}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/4" />
+                            {isSelected && (
+                              <div
+                                className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white shadow-lg sm:right-3 sm:top-3 sm:h-9 sm:w-9"
+                                style={{ backgroundColor: option.color }}
+                              >
+                                <Check className="h-3 w-3 stroke-[3] sm:h-5 sm:w-5" />
+                              </div>
+                            )}
+                          </div>
+                          <div className={`mt-1.5 truncate text-[11px] font-black tracking-tight sm:mt-4 sm:text-lg md:text-xl ${theme.section}`}>
+                            {meta.name}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className={`flex justify-end border-t px-5 py-4 md:px-6 md:py-5 ${theme.footer}`}>

@@ -1,4 +1,4 @@
-export type ProviderId = 'mpk_rzeszow' | 'marcel';
+export type ProviderId = 'mpk_rzeszow' | 'marcel' | 'pkp_intercity';
 
 export type VehicleStatus = 'active' | 'break' | 'inactive' | 'technical' | 'cached';
 
@@ -15,6 +15,10 @@ export interface TransportStopSchedule {
   lng?: number;
   lon?: number;
   isPast?: boolean;
+  platform?: string;
+  track?: string;
+  stopDelayMinutes?: number;
+  timeType?: 'arrival' | 'departure';
 }
 
 export interface TransportVehicle {
@@ -50,6 +54,8 @@ export interface TransportVehicle {
   status?: VehicleStatus;
   statusText?: string;
   isHistorical?: boolean;
+  trainName?: string;
+  positionQuality?: 'known' | 'estimated';
 }
 
 export interface ProviderVehiclesResult {
