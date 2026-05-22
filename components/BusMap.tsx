@@ -14,6 +14,10 @@ const ROUTE_POINT_LIMIT = 5000;
 const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v3';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
+const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
+const ROUTE_GEOMETRY_DB_VERSION = 1;
+const ROUTE_GEOMETRY_DB_STORE = 'routes';
+let routeGeometryDbPromise: Promise<IDBDatabase | null> | null = null;
 
 function getVehicleColor(vehicle?: Pick<Vehicle, 'provider'> | null, fallback = PKS_COLOR) {
   if (vehicle?.provider === 'mpk_rzeszow') return MPK_RZESZOW_COLOR;
@@ -109,6 +113,56 @@ function readLocalRouteGeometry(cacheKey: string, version: string) {
   }
 }
 
+function openRouteGeometryDb() {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) return Promise.resolve(null);
+  if (!routeGeometryDbPromise) {
+    routeGeometryDbPromise = new Promise((resolve) => {
+      const request = window.indexedDB.open(ROUTE_GEOMETRY_DB_NAME, ROUTE_GEOMETRY_DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(ROUTE_GEOMETRY_DB_STORE)) {
+          db.createObjectStore(ROUTE_GEOMETRY_DB_STORE, { keyPath: 'key' });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+      request.onblocked = () => resolve(null);
+    });
+  }
+  return routeGeometryDbPromise;
+}
+
+async function readIndexedRouteGeometry(cacheKey: string, version: string) {
+  const db = await openRouteGeometryDb();
+  if (!db) return [];
+  return new Promise<[number, number][]>((resolve) => {
+    const transaction = db.transaction(ROUTE_GEOMETRY_DB_STORE, 'readonly');
+    const store = transaction.objectStore(ROUTE_GEOMETRY_DB_STORE);
+    const request = store.get(cacheKey);
+    request.onsuccess = () => {
+      const parsed = request.result as { version?: string; points?: [number, number][]; expiresAt?: number } | undefined;
+      if (!parsed || parsed.version !== version || (parsed.expiresAt && parsed.expiresAt <= Date.now())) {
+        resolve([]);
+        return;
+      }
+      const points = Array.isArray(parsed.points) ? parsed.points : [];
+      resolve(points.filter((point): point is [number, number] =>
+        Array.isArray(point) &&
+        point.length === 2 &&
+        Number.isFinite(point[0]) &&
+        Number.isFinite(point[1]),
+      ));
+    };
+    request.onerror = () => resolve([]);
+  });
+}
+
+async function readPersistentRouteGeometry(cacheKey: string, version: string) {
+  const indexed = await readIndexedRouteGeometry(cacheKey, version).catch(() => []);
+  if (indexed.length > 1) return indexed;
+  return readLocalRouteGeometry(cacheKey, version);
+}
+
 function writeLocalRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
   if (typeof window === 'undefined' || points.length <= 1) return;
   try {
@@ -124,6 +178,31 @@ function writeLocalRouteGeometry(cacheKey: string, points: [number, number][], v
   } catch {
     // localStorage may be full; memory cache still keeps the current session fast.
   }
+}
+
+async function writeIndexedRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
+  if (points.length <= 1) return;
+  const db = await openRouteGeometryDb();
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    const transaction = db.transaction(ROUTE_GEOMETRY_DB_STORE, 'readwrite');
+    const store = transaction.objectStore(ROUTE_GEOMETRY_DB_STORE);
+    store.put({
+      key: cacheKey,
+      version,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      points,
+    });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => resolve();
+    transaction.onabort = () => resolve();
+  });
+}
+
+function writePersistentRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
+  writeLocalRouteGeometry(cacheKey, points, version);
+  void writeIndexedRouteGeometry(cacheKey, points, version).catch(() => {});
 }
 
 function MapStateTracker({
@@ -985,14 +1064,6 @@ export default function BusMap({
     selectedVehicle?.routeId ||
     '',
   );
-  const routeVariant = normalizeRouteCachePart(
-    selectedVehicle?.tripId ||
-    selectedVehicle?.journeyId ||
-    selectedVehicle?.serviceId ||
-    selectedVehicle?.brigadeName ||
-    selectedVehicle?.routeId ||
-    'default',
-  );
   const routeMode = selectedVehicle?.provider === 'pkp_intercity' ? 'rail' : 'road';
   const routeGeometryVersion = routeMode === 'rail' ? RAIL_ROUTE_GEOMETRY_CACHE_VERSION : ROAD_ROUTE_GEOMETRY_CACHE_VERSION;
   const routeKey = selectedVehicle
@@ -1001,7 +1072,6 @@ export default function BusMap({
         normalizeRouteCachePart(selectedVehicle.provider || 'pks'),
         routeLine,
         routeDirection,
-        routeVariant,
         routeStopsHash,
       ].join(':')
     : '';
@@ -1036,46 +1106,53 @@ export default function BusMap({
       return;
     }
 
-    const localRoute = readLocalRouteGeometry(routeKey, routeGeometryVersion);
-    if (localRoute.length > 1) {
-      const refinedLocalRoute = simplifyRouteForPaint(localRoute);
-      refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
-      refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
-      setSnappedRoute(refinedLocalRoute);
-      return;
-    }
-
-    // Route is intentionally blank until real road/rail geometry is ready.
-    setSnappedRoute([]);
-
+    let cancelled = false;
     const controller = new AbortController();
     routeAbortRef.current = controller;
-    fetchRouteGeometryClient({
-      carrier: selectedVehicle.provider || 'pks',
-      line: selectedVehicle.routeShortName || selectedVehicle.routeId || selectedVehicle.name || 'unknown',
-      direction: selectedVehicle.direction || routeGeometryStops[routeGeometryStops.length - 1]?.name || 'unknown',
-      variant: String(
-        selectedVehicle.tripId ||
-        selectedVehicle.journeyId ||
-        selectedVehicle.serviceId ||
-        selectedVehicle.brigadeName ||
-        selectedVehicle.routeId ||
-        'default',
-      ),
-      dataVersion: routeGeometryVersion,
-      mode: routeMode,
-      stops: routeGeometryStops,
-    }, { signal: controller.signal })
-      .then((response) => {
-        if (requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
+
+    const loadRoute = async () => {
+      const localRoute = await readPersistentRouteGeometry(routeKey, routeGeometryVersion);
+      if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
+      if (localRoute.length > 1) {
+        const refinedLocalRoute = simplifyRouteForPaint(localRoute);
+        refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
+        refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
+        setSnappedRoute(refinedLocalRoute);
+        return;
+      }
+
+      // Route is intentionally blank until real road/rail geometry is ready.
+      setSnappedRoute([]);
+
+      const response = await fetchRouteGeometryClient({
+        carrier: selectedVehicle.provider || 'pks',
+        line: selectedVehicle.routeShortName || selectedVehicle.routeId || selectedVehicle.name || 'unknown',
+        direction: selectedVehicle.direction || routeGeometryStops[routeGeometryStops.length - 1]?.name || 'unknown',
+        variant: String(
+          selectedVehicle.tripId ||
+          selectedVehicle.journeyId ||
+          selectedVehicle.serviceId ||
+          selectedVehicle.brigadeName ||
+          selectedVehicle.routeId ||
+          'default',
+        ),
+        dataVersion: routeGeometryVersion,
+        mode: routeMode,
+        stops: routeGeometryStops,
+      }, { signal: controller.signal });
+      if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
         const points = (response.geometry?.coordinates || [])
           .map(([lon, lat]) => [lat, lon] as [number, number])
           .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
         if (points.length > 1) {
           const refinedRoute = simplifyRouteForPaint(points);
           refinedRouteCacheRef.current.set(routeKey, refinedRoute);
+          if (response.cacheKey) refinedRouteCacheRef.current.set(response.cacheKey, refinedRoute);
           refinedRouteByVehicleRef.current.set(currentIdentity, refinedRoute);
-          writeLocalRouteGeometry(routeKey, refinedRoute, routeGeometryVersion);
+          writePersistentRouteGeometry(routeKey, refinedRoute, routeGeometryVersion);
+          if (response.cacheKey && response.cacheKey !== routeKey) {
+            writePersistentRouteGeometry(response.cacheKey, refinedRoute, routeGeometryVersion);
+          }
           if (refinedRouteCacheRef.current.size > 200) {
             const firstKey = refinedRouteCacheRef.current.keys().next().value;
             if (firstKey) refinedRouteCacheRef.current.delete(firstKey);
@@ -1087,15 +1164,16 @@ export default function BusMap({
           setSnappedRoute(refinedRoute);
           return;
         }
-        setSnappedRoute([]);
-      })
-      .catch((error) => {
-        if ((error as any)?.name === 'AbortError') return;
-        if (requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
-        setSnappedRoute([]);
-      });
+    };
+
+    loadRoute().catch((error) => {
+      if ((error as any)?.name === 'AbortError') return;
+      if (requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
+      // Keep the last good rendered route when a transient network/backend error happens.
+    });
 
     return () => {
+      cancelled = true;
       controller.abort();
     };
   }, [routeKey, routeStopsHash, selectedVehicle?.provider, selectedVehicle?.id]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -1,13 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.__routeGeometryTestHooks = void 0;
 exports.resolveRouteGeometry = resolveRouteGeometry;
+const firestore_1 = require("firebase-admin/firestore");
 const routeGeometryCache = new Map();
+const routeGeometryInflight = new Map();
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_WAYPOINTS_PER_OSRM_REQUEST = 24;
 const MAX_SEGMENT_DISTANCE_METERS = 350000;
 const MAX_RAIL_SEGMENT_DISTANCE_METERS = 180000;
 const MIN_SEGMENT_DISTANCE_METERS = 8;
 const OVERPASS_API_URL = process.env.OVERPASS_API_URL || 'https://overpass-api.de/api/interpreter';
+const ROUTE_GEOMETRY_ALGORITHM_VERSION = 'hybrid-v1';
+const FIRESTORE_ROUTE_GEOMETRY_COLLECTION = 'route_geometries';
 function normalizeText(value, fallback = '') {
     return String(value ?? fallback).trim();
 }
@@ -26,6 +31,120 @@ function stableHash(value) {
         hash = Math.imul(hash, 16777619);
     }
     return (hash >>> 0).toString(36);
+}
+function normalizeIdentityPart(value, fallback = 'unknown') {
+    return slugCachePart(normalizeText(value, fallback).toLowerCase());
+}
+function endpointPart(stop, fallback) {
+    if (!stop)
+        return fallback;
+    const id = normalizeText(stop.id);
+    if (id)
+        return `id-${slugCachePart(id)}`;
+    const name = normalizeText(stop.name);
+    if (name)
+        return `name-${slugCachePart(name.toLowerCase())}`;
+    return [
+        Number(stop.lat).toFixed(5),
+        Number(stop.lon).toFixed(5),
+    ].join(',');
+}
+function stopFingerprint(stops) {
+    return stops
+        .map((stop) => [
+        normalizeText(stop.id),
+        Number(stop.lat).toFixed(5),
+        Number(stop.lon).toFixed(5),
+    ].join(':'))
+        .join('|');
+}
+function cacheIdentityForRequest(request, stops) {
+    const forwardFingerprint = stopFingerprint(stops);
+    const reverseFingerprint = stopFingerprint([...stops].reverse());
+    const forwardHash = stableHash(forwardFingerprint);
+    const reverseHash = stableHash(reverseFingerprint);
+    const canonicalHash = forwardHash <= reverseHash ? forwardHash : reverseHash;
+    const shouldReverseStoredGeometry = canonicalHash !== forwardHash;
+    const firstEndpoint = endpointPart(stops[0], 'start');
+    const lastEndpoint = endpointPart(stops[stops.length - 1], 'end');
+    const endpoints = [firstEndpoint, lastEndpoint].sort();
+    const baseParts = [
+        'routeGeometry',
+        normalizeIdentityPart(request.mode || 'road'),
+        normalizeIdentityPart(request.carrier),
+        normalizeIdentityPart(request.line),
+        endpoints[0],
+        endpoints[1],
+        normalizeIdentityPart(request.dataVersion || 'v1'),
+        ROUTE_GEOMETRY_ALGORITHM_VERSION,
+    ];
+    const canonicalKey = [...baseParts, canonicalHash].join(':');
+    const exactKey = [...baseParts, forwardHash].join(':');
+    const readablePrefix = [
+        normalizeIdentityPart(request.mode || 'road'),
+        normalizeIdentityPart(request.carrier),
+        normalizeIdentityPart(request.line),
+    ].join('_').slice(0, 90);
+    const firestoreDocId = `${readablePrefix}_${stableHash(canonicalKey)}`;
+    return {
+        exactKey,
+        canonicalKey,
+        firestoreDocId,
+        forwardHash,
+        reverseHash,
+        canonicalHash,
+        shouldReverseStoredGeometry,
+        endpoints,
+    };
+}
+function encodeSignedNumber(value) {
+    let next = value < 0 ? ~(value << 1) : value << 1;
+    let encoded = '';
+    while (next >= 0x20) {
+        encoded += String.fromCharCode((0x20 | (next & 0x1f)) + 63);
+        next >>= 5;
+    }
+    encoded += String.fromCharCode(next + 63);
+    return encoded;
+}
+function encodePolyline(points, precision = 5) {
+    const factor = 10 ** precision;
+    let previousLat = 0;
+    let previousLon = 0;
+    let encoded = '';
+    for (const [lat, lon] of points) {
+        const scaledLat = Math.round(lat * factor);
+        const scaledLon = Math.round(lon * factor);
+        encoded += encodeSignedNumber(scaledLat - previousLat);
+        encoded += encodeSignedNumber(scaledLon - previousLon);
+        previousLat = scaledLat;
+        previousLon = scaledLon;
+    }
+    return encoded;
+}
+function decodePolyline(encoded, precision = 5) {
+    const factor = 10 ** precision;
+    const points = [];
+    let index = 0;
+    let lat = 0;
+    let lon = 0;
+    const decodeValue = () => {
+        let result = 0;
+        let shift = 0;
+        let byte = 0;
+        do {
+            byte = encoded.charCodeAt(index++) - 63;
+            result |= (byte & 0x1f) << shift;
+            shift += 5;
+        } while (byte >= 0x20 && index <= encoded.length);
+        return (result & 1) ? ~(result >> 1) : (result >> 1);
+    };
+    while (index < encoded.length) {
+        lat += decodeValue();
+        lon += decodeValue();
+        points.push([lat / factor, lon / factor]);
+    }
+    return points;
 }
 function distanceMeters(a, b) {
     const meanLat = ((a[0] + b[0]) / 2) * Math.PI / 180;
@@ -70,27 +189,6 @@ function cleanStops(stops) {
         });
     }
     return clean;
-}
-function stopsHash(stops) {
-    return stableHash(stops
-        .map((stop) => [
-        normalizeText(stop.id),
-        Number(stop.lat).toFixed(6),
-        Number(stop.lon).toFixed(6),
-    ].join(':'))
-        .join('|'));
-}
-function cacheKeyForRequest(request, hash) {
-    return [
-        'routeGeometry',
-        slugCachePart(request.mode || 'road'),
-        slugCachePart(request.carrier),
-        slugCachePart(request.line),
-        slugCachePart(request.direction),
-        slugCachePart(request.variant || 'default'),
-        slugCachePart(request.dataVersion || 'v1'),
-        hash,
-    ].join(':');
 }
 function appendPoints(target, points) {
     for (const point of points) {
@@ -142,6 +240,51 @@ async function fetchOsrmRoute(points) {
     const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false`;
     const data = await fetchJsonWithTimeout(url);
     return data.routes?.[0]?.geometry?.coordinates?.map(([lon, lat]) => [lat, lon]) || [];
+}
+function decodeValhallaShape(shape) {
+    const points = [];
+    let index = 0;
+    let lat = 0;
+    let lon = 0;
+    const precision = 1e6;
+    while (index < shape.length) {
+        let result = 1;
+        let shift = 0;
+        let byte = 0;
+        do {
+            byte = shape.charCodeAt(index++) - 63 - 1;
+            result += byte << shift;
+            shift += 5;
+        } while (byte >= 0x1f && index < shape.length);
+        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+        result = 1;
+        shift = 0;
+        do {
+            byte = shape.charCodeAt(index++) - 63 - 1;
+            result += byte << shift;
+            shift += 5;
+        } while (byte >= 0x1f && index < shape.length);
+        lon += (result & 1) ? ~(result >> 1) : (result >> 1);
+        points.push([lat / precision, lon / precision]);
+    }
+    return points;
+}
+async function fetchValhallaRoute(points) {
+    if (points.length < 2)
+        return [];
+    const query = {
+        locations: points.map(([lat, lon]) => ({ lat, lon, type: 'break' })),
+        costing: 'bus',
+        directions_options: { units: 'kilometers' },
+    };
+    const url = `https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(JSON.stringify(query))}`;
+    const data = await fetchJsonWithTimeout(url, 14000);
+    const routePoints = [];
+    for (const leg of data.trip?.legs || []) {
+        const decoded = leg.shape ? decodeValhallaShape(leg.shape) : [];
+        appendPoints(routePoints, decoded);
+    }
+    return routePoints;
 }
 class MinHeap {
     constructor() {
@@ -458,6 +601,8 @@ function collapseLocalLoops(points, options) {
 async function generateRoadGeometry(points, options) {
     const merged = [];
     let skippedSegments = 0;
+    let osrmSegments = 0;
+    let valhallaSegments = 0;
     const isReasonableSegment = (segment, start, end) => {
         if (segment.length <= 1)
             return false;
@@ -497,16 +642,28 @@ async function generateRoadGeometry(points, options) {
             continue;
         }
         const segment = await fetchOsrmRoute([start, end]).catch(() => []);
-        if (isReasonableSegment(segment, start, end))
+        if (isReasonableSegment(segment, start, end)) {
             appendPoints(merged, segment);
-        else
+            osrmSegments += 1;
+            continue;
+        }
+        const valhallaSegment = await fetchValhallaRoute([start, end]).catch(() => []);
+        if (isReasonableSegment(valhallaSegment, start, end)) {
+            appendPoints(merged, valhallaSegment);
+            valhallaSegments += 1;
+        }
+        else {
             skippedSegments += 1;
+        }
     }
     const strict = Boolean(options?.strictShortSegments);
     const hairpinCollapsed = collapseHairpins(merged, { strict });
     const loopCollapsed = collapseLocalLoops(hairpinCollapsed, { strict });
     const simplified = loopCollapsed.length > 1600 ? simplifyRdp(loopCollapsed, 7) : loopCollapsed;
-    return { points: simplified, skippedSegments };
+    const source = valhallaSegments > 0
+        ? osrmSegments > 0 ? 'mixed-osrm-valhalla' : 'valhalla'
+        : 'osrm';
+    return { points: simplified, skippedSegments, source };
 }
 async function generateRailGeometry(points) {
     const merged = [];
@@ -521,10 +678,99 @@ async function generateRailGeometry(points) {
             skippedSegments += 1;
     }
     const simplified = merged.length > 2200 ? simplifyRdp(merged, 6) : merged;
-    return { points: simplified, skippedSegments };
+    return { points: simplified, skippedSegments, source: 'overpass-rail' };
+}
+function buildRouteResponse(request, identity, points, source, skippedSegments, cached) {
+    return {
+        carrier: request.carrier,
+        line: request.line,
+        direction: request.direction,
+        variant: request.variant || 'default',
+        stopsHash: identity.forwardHash,
+        cacheKey: identity.canonicalKey,
+        geometry: {
+            type: 'LineString',
+            coordinates: points.map(([lat, lon]) => [lon, lat]),
+        },
+        source,
+        cached,
+        skippedSegments,
+    };
+}
+function isCacheableGeometry(points, stopCount, skippedSegments) {
+    if (points.length < 2)
+        return false;
+    const lengthMeters = routeLengthMeters(points);
+    if (!Number.isFinite(lengthMeters) || lengthMeters < 50)
+        return false;
+    const segmentCount = Math.max(0, stopCount - 1);
+    if (segmentCount > 1 && skippedSegments >= segmentCount)
+        return false;
+    return true;
+}
+async function readStoredRouteGeometry(request, identity) {
+    try {
+        const snap = await (0, firestore_1.getFirestore)()
+            .collection(FIRESTORE_ROUTE_GEOMETRY_COLLECTION)
+            .doc(identity.firestoreDocId)
+            .get();
+        if (!snap.exists)
+            return null;
+        const data = snap.data();
+        if (data.algorithmVersion !== ROUTE_GEOMETRY_ALGORITHM_VERSION)
+            return null;
+        if (data.canonicalKey !== identity.canonicalKey)
+            return null;
+        if (data.expiresAt && data.expiresAt.toMillis() <= Date.now())
+            return null;
+        if (!data.encodedPolyline || !Number.isFinite(Number(data.pointCount)) || Number(data.pointCount) < 2)
+            return null;
+        const decoded = decodePolyline(data.encodedPolyline);
+        const points = identity.shouldReverseStoredGeometry ? [...decoded].reverse() : decoded;
+        if (points.length < 2)
+            return null;
+        return buildRouteResponse(request, identity, points, data.source || (request.mode === 'rail' ? 'overpass-rail' : 'cached-road'), Number(data.skippedSegments || 0), true);
+    }
+    catch {
+        return null;
+    }
+}
+async function writeStoredRouteGeometry(request, identity, points, source, skippedSegments) {
+    if (!isCacheableGeometry(points, request.stops.length, skippedSegments))
+        return;
+    const storedPoints = identity.shouldReverseStoredGeometry ? [...points].reverse() : points;
+    try {
+        await (0, firestore_1.getFirestore)()
+            .collection(FIRESTORE_ROUTE_GEOMETRY_COLLECTION)
+            .doc(identity.firestoreDocId)
+            .set({
+            cacheKey: identity.canonicalKey,
+            canonicalKey: identity.canonicalKey,
+            exactKey: identity.exactKey,
+            carrier: request.carrier,
+            line: request.line,
+            mode: request.mode,
+            dataVersion: request.dataVersion,
+            algorithmVersion: ROUTE_GEOMETRY_ALGORITHM_VERSION,
+            endpoints: identity.endpoints,
+            forwardHash: identity.forwardHash,
+            reverseHash: identity.reverseHash,
+            canonicalHash: identity.canonicalHash,
+            encodedPolyline: encodePolyline(storedPoints),
+            pointCount: storedPoints.length,
+            source,
+            skippedSegments,
+            routeLengthMeters: Math.round(routeLengthMeters(storedPoints)),
+            createdAt: firestore_1.Timestamp.now(),
+            expiresAt: firestore_1.Timestamp.fromMillis(Date.now() + CACHE_TTL_MS),
+        });
+    }
+    catch {
+        // Persistent cache is an optimization; route responses should still work if Firestore is unavailable.
+    }
 }
 async function resolveRouteGeometry(input) {
-    const request = {
+    const requestInput = {
         carrier: normalizeText(input.carrier, 'unknown'),
         line: normalizeText(input.line, 'unknown'),
         direction: normalizeText(input.direction, 'unknown'),
@@ -533,42 +779,50 @@ async function resolveRouteGeometry(input) {
         stops: Array.isArray(input.stops) ? input.stops : [],
         mode: input.mode === 'rail' ? 'rail' : 'road',
     };
-    const stops = cleanStops(request.stops);
-    const hash = stopsHash(stops);
-    const cacheKey = cacheKeyForRequest(request, hash);
-    const cached = routeGeometryCache.get(cacheKey);
+    const stops = cleanStops(requestInput.stops);
+    const request = { ...requestInput, stops };
+    const identity = cacheIdentityForRequest(request, stops);
+    const cached = routeGeometryCache.get(identity.exactKey);
     if (cached && cached.expiresAt > Date.now()) {
         return { ...cached.response, cached: true };
     }
-    const routePoints = stops.map((stop) => [stop.lat, stop.lon]);
-    const strictRoadSegments = request.carrier.toLowerCase() === 'mpk_rzeszow';
-    const { points, skippedSegments } = routePoints.length > 1
-        ? request.mode === 'rail'
-            ? await generateRailGeometry(routePoints)
-            : await generateRoadGeometry(routePoints, { strictShortSegments: strictRoadSegments })
-        : { points: [], skippedSegments: 0 };
-    const response = {
-        carrier: request.carrier,
-        line: request.line,
-        direction: request.direction,
-        variant: request.variant || 'default',
-        stopsHash: hash,
-        cacheKey,
-        geometry: {
-            type: 'LineString',
-            coordinates: points.map(([lat, lon]) => [lon, lat]),
-        },
-        source: request.mode === 'rail' ? 'overpass-rail' : 'osrm',
-        cached: false,
-        skippedSegments,
-    };
-    if (points.length > 1) {
-        routeGeometryCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, response });
-        if (routeGeometryCache.size > 500) {
-            const firstKey = routeGeometryCache.keys().next().value;
-            if (firstKey)
-                routeGeometryCache.delete(firstKey);
-        }
+    const stored = await readStoredRouteGeometry(request, identity);
+    if (stored) {
+        routeGeometryCache.set(identity.exactKey, { expiresAt: Date.now() + CACHE_TTL_MS, response: stored });
+        return stored;
     }
-    return response;
+    const inflight = routeGeometryInflight.get(identity.exactKey);
+    if (inflight)
+        return inflight;
+    const routePromise = (async () => {
+        const routePoints = stops.map((stop) => [stop.lat, stop.lon]);
+        const strictRoadSegments = request.carrier.toLowerCase() === 'mpk_rzeszow';
+        const { points, skippedSegments, source } = routePoints.length > 1
+            ? request.mode === 'rail'
+                ? await generateRailGeometry(routePoints)
+                : await generateRoadGeometry(routePoints, { strictShortSegments: strictRoadSegments })
+            : { points: [], skippedSegments: 0, source: request.mode === 'rail' ? 'overpass-rail' : 'osrm' };
+        const response = buildRouteResponse(request, identity, points, source, skippedSegments, false);
+        if (isCacheableGeometry(points, stops.length, skippedSegments)) {
+            routeGeometryCache.set(identity.exactKey, { expiresAt: Date.now() + CACHE_TTL_MS, response });
+            if (routeGeometryCache.size > 500) {
+                const firstKey = routeGeometryCache.keys().next().value;
+                if (firstKey)
+                    routeGeometryCache.delete(firstKey);
+            }
+            await writeStoredRouteGeometry(request, identity, points, source, skippedSegments);
+        }
+        return response;
+    })()
+        .finally(() => {
+        routeGeometryInflight.delete(identity.exactKey);
+    });
+    routeGeometryInflight.set(identity.exactKey, routePromise);
+    return routePromise;
 }
+exports.__routeGeometryTestHooks = {
+    cacheIdentityForRequest,
+    cleanStops,
+    decodePolyline,
+    encodePolyline,
+};
