@@ -251,8 +251,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const id = await Device.getId();
         const nativeId = String(id.identifier || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
         if (nativeId) {
-          localStorage.setItem(key, nativeId);
-          return nativeId;
+          const value = `android_${nativeId}`;
+          localStorage.setItem(key, value);
+          return value;
         }
       } catch (err) {
         console.warn('Native installation id unavailable', err);
@@ -275,6 +276,11 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
     const existing = localStorage.getItem(key);
     if (existing) {
+      if (Capacitor.isNativePlatform() && !existing.startsWith('android_')) {
+        const normalizedNative = `android_${existing}`;
+        localStorage.setItem(key, normalizedNative);
+        return normalizedNative;
+      }
       if (isWeb) writeCookie(existing);
       return existing;
     }

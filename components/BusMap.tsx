@@ -254,7 +254,7 @@ const createBusIcon = (
 
   let badgeHtml = '';
   if (delayInfo && delaySec !== undefined && Math.abs(delaySec) > 60) {
-    const delayPositionClass = delaySec > 0 ? '-top-[18px] -right-[14px]' : '-top-4 -right-3';
+    const delayPositionClass = delaySec > 0 ? '-top-[18px] left-[34px]' : '-top-4 -right-3';
     badgeHtml = `
       <div class="absolute ${delayPositionClass} px-1.5 py-0.5 rounded ${delayInfo.bg} ${delayInfo.class} text-[9px] font-black border border-white ${isHighVolume?'':'shadow-sm'} z-50 whitespace-nowrap">
         ${delaySec > 0 ? '+' : '-'}${Math.floor(Math.abs(delaySec)/60)}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
 import { Capacitor } from '@capacitor/core';
-import { Bus, Search, RefreshCw, AlertCircle, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, ChevronRight, Eye, Palette, ArrowLeft, Star, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
+import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, ChevronRight, Eye, Palette, ArrowLeft, Star, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
 import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
@@ -1252,7 +1252,7 @@ export default function Home() {
       ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.9)}, ${withAlpha(selectedVehicleColor, 0.68)})`
       : selectedVehicleColor,
   } as React.CSSProperties;
-  const showTopError = Boolean(error && !isOffline);
+  const showAlertDot = Boolean(error || isOffline);
 
   const transportOptions = useMemo<TransportOption[]>(() => {
     const options: TransportOption[] = [
@@ -1510,9 +1510,10 @@ export default function Home() {
                      >
                         <RefreshCw className={`w-4 h-4 ${isManualRefreshing ? 'animate-spin' : ''}`} />
                      </button>
-                     {showTopError ? (
-                        <span title={error || undefined}>
-                          <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                     {showAlertDot ? (
+                        <span className="relative flex h-2.5 w-2.5" title={error || (isOffline ? 'Offline' : 'Błąd')}>
+                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75"></span>
+                           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
                         </span>
                      ) : (
                         <span className="relative flex h-2.5 w-2.5" title="LIVE">
@@ -1522,11 +1523,6 @@ export default function Home() {
                      )}
                   </div>
                 </div>
-                {showTopError && (
-                  <div className={`mt-2 rounded-xl border px-3 py-1.5 text-[11px] font-semibold ${isDark ? 'border-rose-500/40 bg-rose-500/10 text-rose-200' : 'border-rose-300 bg-rose-50 text-rose-700'}`}>
-                    {error}
-                  </div>
-                )}
                 
                 <div className="relative shrink-0">
                   <Search className={`absolute left-3 top-2.5 h-4 w-4 opacity-60 ${textSub}`} />

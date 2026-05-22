@@ -2,8 +2,9 @@ import { randomBytes } from 'node:crypto';
 import * as signalR from '@microsoft/signalr';
 import { NextRequest, NextResponse } from 'next/server';
 
+const IS_EXPORT_BUILD = process.env.NEXT_OUTPUT_MODE === 'export';
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 const HUB_URL = process.env.PKP_INTERCITY_GPS_HUB_URL || 'https://mapa.portalpasazera.pl/alltrainshub';
 const REQUEST_BOUNDS: [number, number, number, number] = [49.6, 15.0, 54.2, 24.9];
@@ -196,6 +197,17 @@ async function getCachedGpsPoints() {
 }
 
 export async function GET(request: NextRequest) {
+  if (IS_EXPORT_BUILD) {
+    return NextResponse.json(
+      {
+        vehicles: [],
+        providers: { pkp_intercity: 'disabled' },
+        meta: { generatedAt: new Date().toISOString(), cache: 'static-export' },
+      },
+      { headers: { 'Cache-Control': 'public, max-age=3600' } },
+    );
+  }
+
   try {
     const bbox = parseBboxParam(request.nextUrl.searchParams.get('bbox'));
     const { value, cache } = await getCachedGpsPoints();

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const IS_EXPORT_BUILD = process.env.NEXT_OUTPUT_MODE === 'export';
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 const API_BASE_URL = (process.env.PKP_INTERCITY_API_BASE_URL || 'https://pdp-api.plk-sa.pl').replace(/\/$/, '');
 const API_KEY = String(process.env.PKP_INTERCITY_API_KEY || process.env.NEXT_PUBLIC_PKP_INTERCITY_API_KEY || '').trim();
@@ -24,6 +25,13 @@ function isEndpointAllowed(endpoint: string) {
 }
 
 export async function GET(request: NextRequest) {
+  if (IS_EXPORT_BUILD) {
+    return NextResponse.json(
+      { items: [], info: 'pkp-intercity operations disabled in static export build' },
+      { headers: { 'Cache-Control': 'public, max-age=3600' } },
+    );
+  }
+
   if (!API_KEY) {
     return NextResponse.json(
       { error: 'PKP_INTERCITY_API_KEY is not configured on server' },

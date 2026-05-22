@@ -270,19 +270,31 @@ const toClientDeviceItem = (id, data) => {
 exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
     try {
         const uid = requireAuth(request.auth?.uid);
-        const installationId = normalizeInstallationId(request.data?.installationId);
+        const requestedInstallationId = normalizeInstallationId(request.data?.installationId);
         const deviceInfo = normalizeDeviceInfo(request.data?.deviceInfo);
-        if (!installationId) {
+        if (!requestedInstallationId) {
             throw new https_1.HttpsError('invalid-argument', 'installationId is required.');
         }
+        const alternateInstallationId = requestedInstallationId.startsWith('android_')
+            ? normalizeInstallationId(requestedInstallationId.slice('android_'.length))
+            : normalizeInstallationId(`android_${requestedInstallationId}`);
         const deviceRef = db.collection('devices').doc(uid);
         const now = firestore_1.FieldValue.serverTimestamp();
-        const installationRef = db.collection('installations').doc(installationId);
-        const [existingSnap, blockedSnap, installationSnap] = await Promise.all([
+        const requestedInstallationRef = db.collection('installations').doc(requestedInstallationId);
+        const alternateInstallationRef = alternateInstallationId && alternateInstallationId !== requestedInstallationId
+            ? db.collection('installations').doc(alternateInstallationId)
+            : null;
+        const [existingSnap, blockedSnap, requestedInstallationSnap, alternateInstallationSnap] = await Promise.all([
             deviceRef.get(),
-            blockedInstallationRef(installationId).get(),
-            installationRef.get(),
+            blockedInstallationRef(requestedInstallationId).get(),
+            requestedInstallationRef.get(),
+            alternateInstallationRef ? alternateInstallationRef.get() : Promise.resolve(null),
         ]);
+        const installationSnap = requestedInstallationSnap.exists
+            ? requestedInstallationSnap
+            : (alternateInstallationSnap && alternateInstallationSnap.exists ? alternateInstallationSnap : requestedInstallationSnap);
+        const installationId = installationSnap.exists ? installationSnap.id : requestedInstallationId;
+        const installationRef = db.collection('installations').doc(installationId);
         const blocked = blockedSnap.exists ? blockedSnap.data() : null;
         const isBlocked = blocked?.active === true;
         const status = isBlocked ? 'banned' : 'active';
@@ -323,6 +335,52 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
                     if (typeof prev.displayName === 'string' && prev.displayName.trim()) {
                         patch.displayName = prev.displayName.trim().slice(0, 120);
                     }
+                }
+            }
+        }
+        // Fallback for Android reinstalls where installationId changed:
+        // restore identity only for previously privileged devices (owner/admin)
+        // matched by normalized deviceInfo. Never promote plain user this way.
+        if (!existingSnap.exists && !('role' in patch) && deviceInfo) {
+            const sameInfoSnap = await db
+                .collection('devices')
+                .where('deviceInfo', '==', deviceInfo)
+                .limit(20)
+                .get();
+            let privilegedCandidate = null;
+            for (const docSnap of sameInfoSnap.docs) {
+                const candidateUid = docSnap.id;
+                if (!candidateUid || candidateUid === uid)
+                    continue;
+                const candidate = docSnap.data();
+                const candidateRole = normalizeStoredRole(candidate?.role);
+                if (candidateRole !== 'owner' && candidateRole !== 'admin')
+                    continue;
+                privilegedCandidate = {
+                    uid: candidateUid,
+                    role: candidateRole,
+                    status: candidate?.status === 'banned' ? 'banned' : 'active',
+                    permissions: candidate?.permissions && typeof candidate.permissions === 'object'
+                        ? candidate.permissions
+                        : permissionsForRole(candidateRole),
+                    verified: true,
+                    banDetails: candidate?.banDetails,
+                    displayName: typeof candidate?.displayName === 'string' ? candidate.displayName : undefined,
+                };
+                break;
+            }
+            if (privilegedCandidate) {
+                previousUidToDeduplicate = privilegedCandidate.uid;
+                patch.role = privilegedCandidate.role;
+                patch.permissions = privilegedCandidate.permissions;
+                patch.verified = privilegedCandidate.verified;
+                if (!isBlocked)
+                    patch.status = privilegedCandidate.status;
+                if (privilegedCandidate.status === 'banned' && isPlainObject(privilegedCandidate.banDetails)) {
+                    patch.banDetails = privilegedCandidate.banDetails;
+                }
+                if (typeof privilegedCandidate.displayName === 'string' && privilegedCandidate.displayName.trim()) {
+                    patch.displayName = privilegedCandidate.displayName.trim().slice(0, 120);
                 }
             }
         }
