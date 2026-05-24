@@ -110,6 +110,8 @@ const MARCEL_API_BASE_URL = (process.env.NEXT_PUBLIC_MARCEL_API_BASE_URL || 'htt
 const MARCEL_DIRECT_VEHICLES_URL =
   process.env.NEXT_PUBLIC_MARCEL_VEHICLES_URL ||
   `${MARCEL_API_BASE_URL}/client/api/trasy/lokalizacjaBusow?appVersion=v1.67`;
+const MPK_RZESZOW_STOPS_URL = 'https://www.mpkrzeszow.pl/przystanki/stopscache';
+const MPK_RZESZOW_STOP_SCHEDULE_URL = 'https://www.mpkrzeszow.pl/przystanki/offline_schedule.php';
 const PKP_INTERCITY_GPS_PROXY_URL =
   process.env.NEXT_PUBLIC_PKP_INTERCITY_GPS_PROXY_URL ||
   '/api/pkp-intercity/gps';
@@ -120,6 +122,7 @@ const PKP_DEFAULT_CENTER: [number, number] = [50.0429, 22.0069]; // Rzeszow Glow
 const PKP_MAX_DISTANCE_KM = Number(process.env.NEXT_PUBLIC_PKP_INTERCITY_MAX_DISTANCE_KM || 120);
 const PKP_METADATA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PKP_METADATA_LOOKUP_LIMIT = 80;
+const mpkTripStopsByTripCache = new Map<string, Promise<any[]>>();
 const marcelCourseStopsCache = new Map<string, Promise<MarcelCourseStop[]>>();
 const marcelPositionFreshness = new Map<string, { signature: string; signalMs: number; lastSeenMs: number }>();
 const marcelProgressState = new Map<string, {
@@ -177,6 +180,14 @@ async function requestJson<T>(url: string, init?: RequestInit & {headers?: Recor
 
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`Request failed: ${response.status}`);
+    }
+
+    if (typeof response.data === 'string') {
+      try {
+        return JSON.parse(response.data) as T;
+      } catch {
+        throw new Error(`Invalid JSON (HTTP ${response.status}): ${response.data.slice(0, 120)}`);
+      }
     }
 
     return response.data as T;
@@ -820,6 +831,23 @@ function buildDateFromMpkTime(timeValue: unknown, anchorDate: Date, previousDate
   return date;
 }
 
+async function fetchMpkTripStops(tripId: string) {
+  if (!mpkTripStopsByTripCache.has(tripId)) {
+    const searchParams = new URLSearchParams({ trip_id: tripId });
+    mpkTripStopsByTripCache.set(
+      tripId,
+      requestJson<{ stops?: any[] }>(`${MPK_RZESZOW_TRIP_STOPS_URL}?${searchParams.toString()}`)
+        .then((data) => (Array.isArray(data?.stops) ? data.stops : []))
+        .catch(() => []),
+    );
+    if (mpkTripStopsByTripCache.size > 300) {
+      const firstKey = mpkTripStopsByTripCache.keys().next().value;
+      if (firstKey) mpkTripStopsByTripCache.delete(firstKey);
+    }
+  }
+  return mpkTripStopsByTripCache.get(tripId)!;
+}
+
 async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Promise<{
   schedule: Vehicle['schedule'];
   routeStops: Vehicle['routeStops'];
@@ -828,12 +856,10 @@ async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Prom
   const normalizedTripId = String(tripId || '').trim();
   if (!normalizedTripId) return { schedule: [], routeStops: [], routePath: [] };
 
-  const searchParams = new URLSearchParams({ trip_id: normalizedTripId });
-  const [data, stopPointIndex] = await Promise.all([
-    requestJson<{ stops?: any[] }>(`${MPK_RZESZOW_TRIP_STOPS_URL}?${searchParams.toString()}`).catch(() => null),
+  const [stops, stopPointIndex] = await Promise.all([
+    fetchMpkTripStops(normalizedTripId),
     loadStopPointIndex(),
   ]);
-  const stops = Array.isArray(data?.stops) ? data.stops : [];
   if (stops.length === 0) return { schedule: [], routeStops: [], routePath: [] };
 
   const anchorDate = new Date();
@@ -2416,6 +2442,133 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
   };
 }
 
+export type MpkRzeszowStop = {
+  stop_id: number | string;
+  stop_name: string;
+  stop_lat?: string | number;
+  stop_lon?: string | number;
+  lines?: string;
+};
+
+export type MpkRzeszowScheduleEntry = {
+  line: string;
+  trip_headsign?: string;
+  departure_time: string;
+  block_id?: string | number;
+  private_code?: string;
+  vehicle?: string | number | null;
+  trip_id?: string | number;
+  is_last_stop?: boolean;
+  start_stop_id?: string | number;
+  start_stop_name?: string;
+  end_stop_id?: string | number;
+  end_stop_name?: string;
+};
+
+export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSignal }) {
+  return requestJson<MpkRzeszowStop[]>(MPK_RZESZOW_STOPS_URL, {
+    signal: options?.signal,
+    headers: {Accept: 'application/json'},
+  });
+}
+
+function mpkServiceIdForDate(dateIso: string) {
+  const date = new Date(`${dateIso}T12:00:00`);
+  return date.getDay() === 6 ? '2' : '1';
+}
+
+export async function fetchMpkRzeszowDeparturesClient(
+  stopId: string,
+  dateIso: string,
+  options?: { signal?: AbortSignal },
+) {
+  const searchParams = new URLSearchParams({
+    stop_id: String(stopId),
+    service_id: mpkServiceIdForDate(dateIso),
+  });
+  const data = await requestJson<{ stop_name?: string; schedule?: Record<string, MpkRzeszowScheduleEntry[]> }>(
+    `${MPK_RZESZOW_STOP_SCHEDULE_URL}?${searchParams.toString()}`,
+    {signal: options?.signal, headers: {Accept: 'application/json'}},
+  );
+  return Object.values(data.schedule || {}).flat();
+}
+
+export type MarcelRoute = {
+  idTr: number;
+  nazTr: string;
+  nazMiOd?: string;
+  nazMiDo?: string;
+};
+
+export type MarcelCourse = {
+  idKu: number;
+  nazTr?: string;
+  nazPr?: string;
+  data?: string;
+  godz?: string;
+  godzPr?: string;
+  idTr?: number;
+};
+
+export type MarcelCourseStopPublic = {
+  kol?: number;
+  szGps?: number;
+  dlGps?: number;
+  nazTr?: string;
+  nazMi?: string;
+  nazPr?: string;
+  godz?: string;
+};
+
+let marcelRoutesPromise: Promise<MarcelRoute[]> | null = null;
+const marcelCoursesByRouteDateCache = new Map<string, Promise<MarcelCourse[]>>();
+const marcelPublicCourseStopsCache = new Map<string, Promise<MarcelCourseStopPublic[]>>();
+
+export async function fetchMarcelRoutesClient() {
+  if (!marcelRoutesPromise) {
+    marcelRoutesPromise = requestJson<MarcelRoute[]>(`${MARCEL_API_BASE_URL}/client/api/search/trasy?appVersion=v1.67`, {
+      headers: {Accept: 'application/json'},
+    });
+  }
+  return marcelRoutesPromise;
+}
+
+export async function fetchMarcelCoursesClient(routeId: number | string, dateIso: string) {
+  const key = `${routeId}:${dateIso}`;
+  if (!marcelCoursesByRouteDateCache.has(key)) {
+    marcelCoursesByRouteDateCache.set(
+      key,
+      requestJson<MarcelCourse[]>(
+        `${MARCEL_API_BASE_URL}/client/api/search/wariantTrasy/kusy?data=${encodeURIComponent(dateIso)}&idTr=${encodeURIComponent(String(routeId))}&appVersion=v1.67`,
+        {headers: {Accept: 'application/json'}},
+      ).catch(() => []),
+    );
+    if (marcelCoursesByRouteDateCache.size > 80) {
+      const firstKey = marcelCoursesByRouteDateCache.keys().next().value;
+      if (firstKey) marcelCoursesByRouteDateCache.delete(firstKey);
+    }
+  }
+  return marcelCoursesByRouteDateCache.get(key)!;
+}
+
+export async function fetchMarcelPublicCourseStopsClient(courseId: number | string) {
+  const key = String(courseId);
+  if (!marcelPublicCourseStopsCache.has(key)) {
+    marcelPublicCourseStopsCache.set(
+      key,
+      requestJson<MarcelCourseStopPublic[]>(
+        `${MARCEL_API_BASE_URL}/client/api/trasy/kurs/${encodeURIComponent(key)}?appVersion=v1.67`,
+        {headers: {Accept: 'application/json'}},
+      ).catch(() => []),
+    );
+    if (marcelPublicCourseStopsCache.size > 700) {
+      const firstKey = marcelPublicCourseStopsCache.keys().next().value;
+      if (firstKey) marcelPublicCourseStopsCache.delete(firstKey);
+    }
+  }
+  return marcelPublicCourseStopsCache.get(key)!;
+}
+
 export async function fetchRouteGeometryClient(
   request: RouteGeometryClientRequest,
   options?: { signal?: AbortSignal },
@@ -2449,7 +2602,6 @@ export async function fetchRouteGeometryClient(
         request.carrier,
         request.line,
         request.direction,
-        request.variant || 'default',
         stopCoords.map(([lat, lon]) => `${lat.toFixed(6)},${lon.toFixed(6)}`).join('|'),
       ].join(':'),
       { strictShortSegments: request.carrier === 'mpk_rzeszow' },
@@ -2471,6 +2623,10 @@ export async function fetchRouteGeometryClient(
       skippedSegments: 0,
     };
   };
+
+  if (isNative()) {
+    return fetchClientFallback();
+  }
 
   let response: RouteGeometryClientResponse | null = null;
   try {

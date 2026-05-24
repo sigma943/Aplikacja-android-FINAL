@@ -3,11 +3,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
 import { Capacitor } from '@capacitor/core';
-import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, ChevronRight, Eye, Palette, ArrowLeft, Star, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
+import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, Eye, Palette, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
 import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
 import TrainDetailsPanel from '@/components/TrainDetailsPanel';
+import StopsPanel from '@/components/stops-panel/StopsPanel';
+import type { Stop as StopsPanelStop } from '@/Panel/src/types';
 import {fetchDeparturesClient, fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type PkpQueryViewport, type TransportProviderId} from '@/lib/pks-client';
 import { useFirebase } from '@/components/FirebaseProvider';
 import { canAccessAdminDashboard } from '@/lib/admin/rbac';
@@ -20,10 +22,10 @@ const PKP_INTERCITY_COLOR = '#1d4ed8';
 const BusMap = dynamic(() => import('@/components/BusMap'), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full bg-slate-100 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-2 text-slate-500">
-        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
-        <p className="font-medium tracking-tight">Trwa wczytywanie mapy...</p>
+    <div className="pks-map-loading-screen h-full w-full flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="pks-map-loading-spinner h-10 w-10 rounded-full border-4 animate-spin"></div>
+        <p className="pks-map-loading-label text-sm font-black tracking-tight">Trwa wczytywanie mapy...</p>
       </div>
     </div>
   ),
@@ -98,6 +100,19 @@ const hasUsableRouteDetails = (vehicle?: Vehicle | null) => {
   return false;
 };
 
+const vehicleRouteDetailsCacheKey = (vehicle: Vehicle, provider: TransportProviderId, includeInactive: boolean) => {
+  const routeIdentity = String(
+    vehicle.journeyId ??
+    vehicle.tripId ??
+    vehicle.serviceId ??
+    vehicle.routeId ??
+    vehicle.direction ??
+    vehicle.routeShortName ??
+    'current',
+  ).trim();
+  return [provider, vehicle.id, routeIdentity || 'current', includeInactive ? 'inactive' : 'active'].join(':');
+};
+
 const withAlpha = (hex: string, alpha: number) => {
   const clean = hex.replace('#', '');
   if (clean.length !== 6) return hex;
@@ -108,6 +123,28 @@ const withAlpha = (hex: string, alpha: number) => {
 const DEFAULT_ACTIVE_PROVIDERS: TransportProviderId[] = ['pks'];
 const AVAILABLE_TRANSPORT_PROVIDERS = new Set<TransportProviderId>(['pks', 'mpk_rzeszow', 'marcel', 'pkp_intercity']);
 const PKP_INTERCITY_REFRESH_MS = 60_000;
+const NETWORK_REACHABILITY_URL = 'https://www.gstatic.com/generate_204';
+
+async function hasInternetReachability(timeoutMs = 2500) {
+  if (typeof window === 'undefined') return true;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    await fetch(`${NETWORK_REACHABILITY_URL}?ts=${Date.now()}`, {
+      method: 'GET',
+      mode: 'no-cors',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 
 const sanitizeProvidersWithVisibility = (
   providers: TransportProviderId[],
@@ -226,15 +263,14 @@ export default function Home() {
   }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled]);
   const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, lat?: number, lon?: number}[]>([]);
   const [stopsLoadError, setStopsLoadError] = useState(false);
-  const [stopsFilter, setStopsFilter] = useState('');
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [selectedExternalStop, setSelectedExternalStop] = useState<StopsPanelStop | null>(null);
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(true);
   const [stopDepartures, setStopDepartures] = useState<any[]>([]);
   const [isFetchingDepartures, setIsFetchingDepartures] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(7000);
   const [favsState, setFavsState] = useState<string[]>([]);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
-  const [departuresLineFilter, setDeparturesLineFilter] = useState('');
 
   useEffect(() => {
     if (!isLoading) {
@@ -250,6 +286,7 @@ export default function Home() {
     if (selectedBus || selectedStopId) {
       setSelectedBus(null);
       setSelectedStopId(null);
+      setSelectedExternalStop(null);
     }
   }, [selectedBus, selectedStopId]);
 
@@ -285,6 +322,7 @@ export default function Home() {
         if (selectedBus || selectedStopId) {
            setSelectedBus(null);
            setSelectedStopId(null);
+           setSelectedExternalStop(null);
         }
      };
      window.addEventListener('popstate', handlePopState);
@@ -315,7 +353,7 @@ export default function Home() {
         }
         if (selectedStopId) {
           setSelectedStopId(null);
-          setDeparturesLineFilter('');
+          setSelectedExternalStop(null);
           return;
         }
         if (activeTab === 'admin') {
@@ -374,8 +412,8 @@ export default function Home() {
     };
   }, []);
 
-  const toggleFavoriteStop = (stopId: string, e: React.MouseEvent) => {
-     e.stopPropagation();
+  const toggleFavoriteStop = (stopId: string, e?: React.MouseEvent) => {
+     e?.stopPropagation();
      const next = favsState.includes(stopId) ? favsState.filter(s => s !== stopId) : [...favsState, stopId];
      setFavsState(next);
      localStorage.setItem('mks_fav_stops', JSON.stringify(next));
@@ -529,10 +567,18 @@ export default function Home() {
       setTimeout(() => {
          setIsFetchingDepartures(true);
          setStopDepartures([]);
-         setDeparturesLineFilter('');
       }, 0);
       const stopInfo = stopsList.find(s => s.id === selectedStopId);
-      fetchDeparturesClient(selectedStopId, stopInfo?.areaId, stopInfo?.code || '')
+      const externalPksId = selectedExternalStop?.providerStopIds?.pks;
+      if (selectedExternalStop && !externalPksId) {
+        setStopDepartures([]);
+        setIsFetchingDepartures(false);
+        return;
+      }
+      const stopIdToFetch = externalPksId || selectedStopId;
+      const areaIdToFetch = stopInfo?.areaId || selectedExternalStop?.areaId;
+      const codeToFetch = stopInfo?.code || selectedExternalStop?.code || '';
+      fetchDeparturesClient(stopIdToFetch, areaIdToFetch, codeToFetch)
         .then(data => {
             if (data && data.journeys) {
                setStopDepartures(data.journeys);
@@ -549,7 +595,7 @@ export default function Home() {
     } else {
       setTimeout(() => setStopDepartures([]), 0);
     }
-  }, [selectedStopId, stopsList]);
+  }, [selectedExternalStop, selectedStopId, stopsList]);
 
   useEffect(() => {
     const storedProviders = sanitizeProvidersWithVisibility(readStoredTransportProviders(), hiddenProvidersSet);
@@ -595,15 +641,19 @@ export default function Home() {
             : actual === 'dark-aurora'
               ? '#06130f'
               : '#111027';
+    const text = actual === 'light'
+      ? '#020617'
+      : actual === 'light-warm'
+        ? '#272116'
+        : '#ffffff';
     document.documentElement.style.setProperty('--pks-initial-bg', bg);
+    document.documentElement.style.setProperty('--pks-loading-text', text);
     document.documentElement.style.backgroundColor = bg;
     document.body.style.backgroundColor = bg;
   };
   const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val)); };
 
   const deferredFilterRoute = useDeferredValue(filterRoute);
-  const deferredStopsFilter = useDeferredValue(stopsFilter);
-
   const handleManualRefresh = async () => {
     setIsManualRefreshing(true);
     // eslint-disable-next-line react-hooks/purity
@@ -727,7 +777,7 @@ export default function Home() {
     const force = Boolean(options?.force);
     const silent = Boolean(options?.silent);
     const provider = (vehicle.provider || 'pks') as TransportProviderId;
-    const cacheKey = `${provider}:${vehicle.id}`;
+    const cacheKey = vehicleRouteDetailsCacheKey(vehicle, provider, showInactive);
     const cached = vehicleDetailsCacheRef.current.get(cacheKey);
     if (!force && cached && cached.expiresAt > Date.now() && hasUsableRouteDetails(cached.vehicle)) {
       setSelectedBus((current) => current?.id === vehicle.id ? mergeVehicleDetails(current, cached.vehicle) : current);
@@ -744,7 +794,7 @@ export default function Home() {
           cacheKey,
           {
             vehicle: details,
-            expiresAt: Date.now() + (hasUsableRouteDetails(details) ? 45_000 : 8_000),
+            expiresAt: Date.now() + (hasUsableRouteDetails(details) ? 30 * 60_000 : 8_000),
           },
         );
         setSelectedBus((current) => current?.id === vehicle.id ? mergeVehicleDetails(current, details) : current);
@@ -764,7 +814,7 @@ export default function Home() {
 
     const refreshSelectedBusDetails = () => {
       const latestVehicle = vehiclesRef.current.find((vehicle) => vehicle.id === selectedBus.id) || selectedBus;
-      loadVehicleDetails(latestVehicle, { force: true, silent: true });
+      loadVehicleDetails(latestVehicle, { silent: true });
     };
 
     const initialTimer = window.setTimeout(() => {
@@ -934,13 +984,13 @@ export default function Home() {
     let nativeListenerPromise: Promise<{ remove: () => Promise<void> }> | null = null;
 
     const readOfflineState = async () => {
-      let offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+      let offline = !(await hasInternetReachability());
 
       if (Capacitor.isNativePlatform()) {
         try {
           const { Network } = await import('@capacitor/network');
           const status = await Network.getStatus();
-          offline = !status.connected;
+          if (!status.connected) offline = true;
         } catch (err) {
           console.warn('Native network status unavailable', err);
         }
@@ -971,8 +1021,6 @@ export default function Home() {
       applyOnlineState();
     };
     const handleOnline = () => {
-      setIsOffline(false);
-      if (isAppForegroundRef.current) fetchVehicles(showInactive, true);
       applyOnlineState().then((offline) => {
         if (!offline && isAppForegroundRef.current) fetchVehicles(showInactive, true);
       });
@@ -1062,15 +1110,6 @@ export default function Home() {
     fetchVehicles(showInactive, true);
   }, [fetchVehicles, isOffline, showInactive]);
 
-  const filteredStopsList = useMemo(() => {
-    const normalizedFilter = deferredStopsFilter.trim().toLowerCase();
-    const filtered = stopsList.filter((stop) =>
-      normalizedFilter ? stop.name.toLowerCase().includes(normalizedFilter) : true,
-    );
-    // Nie deduplikujemy po nazwie: przystanki z różnymi kodami (np. 03/04) mają być widoczne osobno.
-    return filtered;
-  }, [stopsList, deferredStopsFilter]);
-
   const stopsDataMap = useMemo(() => {
     const map: Record<string, any> = {};
     stopsList.forEach(s => {
@@ -1078,8 +1117,15 @@ export default function Home() {
          map[String(s.id)] = { n: s.name, lat: s.lat, lon: s.lon };
       }
     });
+    if (selectedExternalStop?.lat !== undefined && selectedExternalStop.lon !== undefined) {
+      map[String(selectedExternalStop.id)] = {
+        n: selectedExternalStop.name,
+        lat: selectedExternalStop.lat,
+        lon: selectedExternalStop.lon,
+      };
+    }
     return map;
-  }, [stopsList]);
+  }, [selectedExternalStop, stopsList]);
 
   // Keep live polling predictable and light. Details are fetched on demand after clicking a bus.
   useEffect(() => {
@@ -1121,20 +1167,20 @@ export default function Home() {
   const mapGlassPanel = transparentUI
      ? (isDark
         ? isOled
-          ? 'bg-black/45 backdrop-blur-2xl border-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.35)]'
+          ? 'bg-black/24 backdrop-blur-2xl border-white/12 shadow-[0_18px_60px_rgba(0,0,0,0.28)]'
           : isAurora
-            ? 'bg-[#120f24]/48 backdrop-blur-2xl border-fuchsia-300/15 shadow-[0_18px_60px_rgba(12,8,28,0.28)]'
-            : 'bg-[#07131a]/45 backdrop-blur-2xl border-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.28)]'
+            ? 'bg-[#120f24]/28 backdrop-blur-2xl border-fuchsia-300/18 shadow-[0_18px_60px_rgba(12,8,28,0.22)]'
+            : 'bg-[#07131a]/26 backdrop-blur-2xl border-white/12 shadow-[0_18px_60px_rgba(0,0,0,0.22)]'
         : isWarm
-          ? 'bg-[#faf7ef]/58 backdrop-blur-2xl border-[#8a7b5f]/18 shadow-[0_18px_55px_rgba(93,79,50,0.16)]'
-          : 'bg-white/58 backdrop-blur-2xl border-slate-900/10 shadow-[0_18px_55px_rgba(15,23,42,0.13)]')
+          ? 'bg-[#faf7ef]/34 backdrop-blur-2xl border-[#8a7b5f]/20 shadow-[0_18px_55px_rgba(93,79,50,0.12)]'
+          : 'bg-white/34 backdrop-blur-2xl border-slate-900/12 shadow-[0_18px_55px_rgba(15,23,42,0.10)]')
      : bgCard;
   const mapGlassInput = transparentUI
      ? (isDark
-        ? 'bg-white/[0.075] text-white placeholder-slate-300/70 border border-white/10'
+        ? 'bg-white/[0.045] text-white placeholder-slate-300/75 border border-white/12 backdrop-blur-xl'
         : isWarm
-          ? 'bg-[#fffaf0]/58 text-[#272116] placeholder-[#746a58]/70 border border-[#8a7b5f]/14'
-          : 'bg-white/58 text-slate-950 placeholder-slate-500 border border-slate-900/10')
+          ? 'bg-[#fffaf0]/36 text-[#272116] placeholder-[#746a58]/75 border border-[#8a7b5f]/16 backdrop-blur-xl'
+          : 'bg-white/36 text-slate-950 placeholder-slate-500 border border-slate-900/12 backdrop-blur-xl')
      : (isDark ? 'bg-slate-800 text-white placeholder-slate-400' : 'bg-slate-100/50 text-slate-900 placeholder-slate-500');
   const mapDetailPanel = transparentUI
      ? (isDark
@@ -1324,6 +1370,7 @@ export default function Home() {
     if (selectedBus && !nextProviderSet.has((selectedBus.provider || 'pks') as TransportProviderId)) {
       setSelectedBus(null);
       setSelectedStopId(null);
+      setSelectedExternalStop(null);
     }
   }, [draftProviders, hiddenProvidersSet, selectedBus]);
 
@@ -1331,6 +1378,7 @@ export default function Home() {
     if (!v) return;
     if (selectedBus?.id !== v.id || selectedBus?.provider !== v.provider) {
       setSelectedStopId(null);
+      setSelectedExternalStop(null);
     }
     setSelectedBus(v);
     setIsBusPanelExpanded(true);
@@ -1433,23 +1481,22 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {isOffline && (
+          <motion.div
+            initial={{ opacity: 0, y: -18, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -18, x: '-50%' }}
+            className={`fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[11000] flex items-center gap-3 rounded-2xl border px-5 py-3 shadow-2xl pointer-events-auto backdrop-blur-2xl ${isDark ? 'border-rose-400/20 bg-slate-950/88 text-white' : 'border-rose-200 bg-white/92 text-slate-950'}`}
+          >
+            <CloudOff className="h-5 w-5 shrink-0 text-rose-500" />
+            <span className="whitespace-nowrap text-sm font-black tracking-tight">Jesteś obecnie offline</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Main Content Area */}
       <div className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
          
-         <AnimatePresence>
-            {isOffline && (
-               <motion.div
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className={`absolute top-20 left-1/2 z-[9999] flex -translate-x-1/2 items-center gap-3 rounded-2xl border px-5 py-3 shadow-xl pointer-events-auto ${isDark ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-900'}`}
-               >
-                  <CloudOff className="h-5 w-5 shrink-0 text-rose-500" />
-                  <span className="whitespace-nowrap text-sm font-bold tracking-tight">Jesteś obecnie offline</span>
-               </motion.div>
-            )}
-         </AnimatePresence>
-
          <AnimatePresence mode="wait">
             {activeTab === 'admin' && canOpenAdminEmbed && (
                <motion.div
@@ -1479,14 +1526,16 @@ export default function Home() {
                onCenterComplete={() => setMapCenter(null)}
                highlightedStopId={selectedStopId}
                onStopClick={(stopId) => {
+                  setSelectedExternalStop(null);
                   setSelectedStopId(stopId);
                   setIsStopPanelExpanded(true);
                   setIsTransportPanelOpen(false);
                }}
-                onMapClick={() => {
+               onMapClick={() => {
                    setSelectedBus(null);
                    setSelectedBusDetailsLoading(false);
                    setSelectedStopId(null);
+                   setSelectedExternalStop(null);
                    setIsTransportPanelOpen(false);
                 }}
                 onViewportChange={handleMapViewportChange}
@@ -1583,6 +1632,7 @@ export default function Home() {
                              setActiveTab('admin');
                              setSelectedBus(null);
                              setSelectedStopId(null);
+                             setSelectedExternalStop(null);
                              setIsSettingsOpen(false);
                           }}
                           className={`flex items-center gap-2 text-sm font-bold transition-colors mr-2 ${activeTab === 'admin' ? '' : (isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
@@ -1626,8 +1676,12 @@ export default function Home() {
                   onClose={() => {
                     setSelectedBus(null);
                     setSelectedStopId(null);
+                    setSelectedExternalStop(null);
                   }}
-                  onStopSelect={(stopId) => setSelectedStopId(stopId)}
+                  onStopSelect={(stopId) => {
+                    setSelectedExternalStop(null);
+                    setSelectedStopId(stopId);
+                  }}
                 />
               ) : selectedBus && (
                 <motion.div
@@ -1805,8 +1859,8 @@ export default function Home() {
                                 const displayTime = realTime || plannedTime;
                                 let delayMin = 0;
                                 if (realTime && plannedTime) delayMin = Math.round((realTime.getTime() - plannedTime.getTime()) / 60000);
-                                const busDelayMin = canUseBusDelay
-                                  ? Math.sign(busDelaySec) * Math.floor(Math.abs(busDelaySec) / 60)
+                                const busDelayMin = canUseBusDelay && busDelaySec !== 0
+                                  ? Math.round(busDelaySec / 60)
                                   : delayMin;
                                 const formatTime = (time: Date) => {
                                    const isTomorrow = time.getDate() !== new Date().getDate();
@@ -1821,12 +1875,18 @@ export default function Home() {
                                 };
                                 const timeStr = displayTime ? formatTime(displayTime) : '';
                                 const timeClass = busDelayMin > 0 ? 'text-rose-500' : busDelayMin < 0 ? 'text-emerald-500' : textMain;
+                                const showStopDelayBadge = Math.abs(busDelayMin) > 1;
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = Boolean(sch.isPast) || Boolean(selectedBus.lastStopId && sch.id === selectedBus.lastStopId);
                                 return (
                                   <div 
                                      key={`${sch.id || idx}-${idx}`} 
-                                     onClick={() => { if (sch.id) setSelectedStopId(sch.id.toString()); }}
+                                     onClick={() => {
+                                       if (sch.id) {
+                                         setSelectedExternalStop(null);
+                                         setSelectedStopId(sch.id.toString());
+                                       }
+                                     }}
                                      className={`flex items-start gap-4 py-2 relative z-10 cursor-pointer transition-colors hover:bg-slate-500/10 rounded-xl px-2 -mx-2 ${isHighlighted ? (isDark ? 'bg-amber-500/20' : 'bg-amber-100') : ''} ${isPastStop ? 'opacity-50' : ''}`}
                                   >
                                      <div className={`w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm leading-none transition-colors ${isHighlighted ? 'border-red-500' : (isDark ? 'border-slate-800/80' : 'border-white/85')}`} style={{ backgroundColor: isHighlighted ? selectedVehicleColor : (isPastStop ? '#94a3b8' : selectedVehicleColor) }}></div>
@@ -1835,6 +1895,15 @@ export default function Home() {
                                         {timeStr && (
                                           <div className="flex items-center gap-2 mt-1">
                                              <span className={`text-xs font-bold font-mono ${timeClass}`}>{timeStr}</span>
+                                             {showStopDelayBadge && (
+                                               <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-black leading-none tracking-wide ${
+                                                 busDelayMin < 0
+                                                   ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                                                   : 'border-rose-500/20 bg-rose-500/10 text-rose-400'
+                                               }`}>
+                                                 {busDelayMin > 0 ? `+${busDelayMin}` : busDelayMin} min
+                                               </span>
+                                             )}
                                           </div>
                                         )}
                                      </div>
@@ -1868,7 +1937,10 @@ export default function Home() {
                        const swipeThreshold = 50;
                        if (info.offset.y > swipeThreshold) {
                           if (isStopPanelExpanded) setIsStopPanelExpanded(false);
-                          else setSelectedStopId(null);
+                          else {
+                            setSelectedStopId(null);
+                            setSelectedExternalStop(null);
+                          }
                        } else if (info.offset.y < -swipeThreshold) {
                           if (!isStopPanelExpanded) setIsStopPanelExpanded(true);
                        }
@@ -1890,7 +1962,7 @@ export default function Home() {
                         />
                         <div className="flex justify-between items-start mt-2 px-1">
                            <h2 className="text-2xl md:text-3xl font-black leading-tight drop-shadow-md pr-4">
-                              {stopsList.find(s => s.id === selectedStopId)?.name}
+                              {selectedExternalStop?.name || stopsList.find(s => s.id === selectedStopId)?.name || 'Przystanek'}
                            </h2>
 
                            <div className="flex items-center gap-2 relative z-[51]"></div>
@@ -1980,258 +2052,54 @@ export default function Home() {
               </AnimatePresence>
 
             </div>
-         {/* ============== STOPS VIEW ============== */}
+         {/* ============== NEW STOPS VIEW ============== */}
          <AnimatePresence mode="wait">
          {activeTab === 'stops' && (
-         <motion.div 
-            initial={{ opacity: 0, y: 30, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.96 }}
-            transition={{ type: "spring", stiffness: 700, damping: 35 }}
-            className={`absolute inset-0 overflow-y-auto z-10 ${transparentUI ? (isDark ? 'bg-slate-900/60 backdrop-blur-md' : 'bg-slate-200/60 backdrop-blur-md') : bgMain}`}
-         >
-            <AnimatePresence mode="wait">
-            {!selectedStopId ? (
-               <motion.div 
-                  key="stop-list"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ type: "spring", stiffness: 700, damping: 35 }}
-                  className={`flex flex-col h-full w-full max-w-2xl mx-auto shadow-sm ${transparentUI ? 'bg-transparent' : (isDark ? 'bg-slate-900' : 'bg-white')}`}
-               >
-                  <div className={`p-4 border-b sticky top-0 z-20 shadow-sm ${transparentUI ? (isDark ? 'bg-slate-900/80 backdrop-blur border-slate-800/50' : 'bg-white/80 backdrop-blur border-slate-200/50') : (isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100')}`}>
-                     <div className="flex justify-between items-center mb-4">
-                       <h2 className="text-xl font-black" style={{ color: themeColor }}>Znajdź Przystanek</h2>
-                       <button disabled={isMapTabDisabled} className={`p-1 rounded ${textSub} ${isMapTabDisabled ? 'cursor-not-allowed opacity-40' : (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100')}`} onClick={() => { if (!isMapTabDisabled) setActiveTab('map'); }}><X className="w-5 h-5"/></button>
-                     </div>
-                     <div className="relative">
-                       <Search className={`absolute left-3 top-3 h-4 w-4 ${textSub}`} />
-                       <input
-                         type="text"
-                         className={`w-full py-2.5 pl-10 pr-10 rounded-xl text-sm border-0 focus:outline-none focus:ring-2 transition-all font-medium ${isDark ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-slate-100 placeholder-slate-400'}`}
-                         style={{ '--tw-ring-color': themeColor + '80' } as React.CSSProperties}
-                         placeholder="Wpisz nazwę (np. Rejtana)..."
-                         value={stopsFilter}
-                         onChange={(e) => setStopsFilter(e.target.value)}
-                       />
-                       {stopsFilter && (
-                          <button onClick={() => setStopsFilter('')} className={`absolute right-3 top-3 opacity-60 hover:opacity-100 ${textSub}`}>
-                             <X className="w-4 h-4" />
-                          </button>
-                       )}
-                     </div>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-2 pb-24">
-                     {(() => {
-                        const uniqueStops = [...filteredStopsList];
-                        // Sort so that favorites are at the top
-                        uniqueStops.sort((a, b) => {
-                           const aFav = favsState.includes(a.id);
-                           const bFav = favsState.includes(b.id);
-                           if (aFav && !bFav) return -1;
-                           if (!aFav && bFav) return 1;
-                           // Alphabetical fallback
-                           if (aFav && bFav) return a.name.localeCompare(b.name);
-                           return 0; // Don't sort the rest if we don't have to, to keep original order which is somewhat alphabetical
-                        });
-
-                        return uniqueStops.slice(0, 150).map(stop => {
-                           const isFav = favsState.includes(stop.id);
-                           return (
-                           <div key={stop.id} className={`w-full flex items-center justify-between group py-1 border-b ${transparentUI ? (isDark ? 'border-slate-700/30' : 'border-slate-300/30') : (isDark ? 'border-slate-800' : 'border-slate-50')}`}>
-                              <button 
-                                 onClick={() => setSelectedStopId(stop.id)}
-                                 className={`flex-1 text-left py-2 px-4 flex items-center justify-between transition-colors rounded-l-lg ${transparentUI ? (isDark ? 'hover:bg-slate-800/50' : 'hover:bg-white/50') : (isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50')}`}
-                              >
-                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${transparentUI ? (isDark ? 'bg-slate-800/80' : 'bg-white/80') : (isDark ? 'bg-slate-800' : 'bg-slate-100')}`} style={{ color: themeColor }}>
-                                       <MapPin className="w-4 h-4" />
-                                    </div>
-                        <span className={`font-semibold ${textMain}`}>{stop.name}</span>
-                                 </div>
-                              </button>
-                              <motion.button
-                                 whileTap={{ scale: 0.8 }}
-                                 onClick={(e) => toggleFavoriteStop(stop.id, e)}
-                                 className="p-3 mr-1"
-                              >
-                                 <motion.div
-                                    animate={isFav ? { scale: [1, 1.4, 1] } : {}}
-                                    transition={{ duration: 0.3 }}
-                                 >
-                                    <Star className={`w-5 h-5 transition-colors ${isFav ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-300'}`} />
-                                 </motion.div>
-                              </motion.button>
-                           </div>
-                           );
-                        });
-                     })()}
-                     {stopsList.length === 0 && !stopsLoadError && (
-                        <div className={`p-8 text-center text-sm ${textSub}`}>Wczytywanie bazy przystanków...</div>
-                     )}
-                     {stopsLoadError && (
-                        <div className="p-8 text-center flex flex-col items-center gap-3">
-                           <p className={`text-sm ${textSub}`}>Nie udało się pobrać przystanków.</p>
-                           <button
-                              onClick={loadStops}
-                              className="px-4 py-2 rounded-full text-sm font-bold text-white transition-all"
-                              style={{ backgroundColor: themeColor }}
-                           >
-                              Spróbuj ponownie
-                           </button>
-                        </div>
-                     )}
-                  </div>
-               </motion.div>
-            ) : (
-               <motion.div 
-                  key="stop-details"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 10 }}
-                  transition={{ type: "spring", stiffness: 700, damping: 35 }}
-                  className={`flex flex-col h-full w-full max-w-2xl mx-auto shadow-sm ${transparentUI ? 'bg-transparent' : (isDark ? 'bg-slate-900' : 'bg-white')}`}
-               >
-                  <div className="p-4 pb-8 relative z-[30] text-white transition-colors shrink-0" style={{ backgroundColor: themeColor }}>
-                     <div className="flex justify-between items-start mb-2">
-                        <button 
-                           onClick={() => setSelectedStopId(null)}
-                           className="p-2 hover:bg-white/20 rounded-full transition-colors inline-flex items-center justify-center relative z-20"
-                           title="Wróć do listy"
-                        >
-                           <ArrowLeft className="w-6 h-6" />
-                        </button>
-                        
-                         <div className="flex gap-2">
-                            <button 
-                               disabled={isMapTabDisabled}
-                               onClick={() => {
-                                  if (isMapTabDisabled) return;
-                                  const stop = stopsList.find(s => s.id === selectedStopId);
-                                  if (stop && stop.lat !== undefined && stop.lon !== undefined) {
-                                     setMapCenter([stop.lat, stop.lon]);
-                                      setSelectedBus(null);
-                                     setActiveTab('map');
-                                  }
-                               }}
-                               className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-2 text-xs font-bold ${isMapTabDisabled ? 'cursor-not-allowed bg-white/10 opacity-40 grayscale' : 'bg-white/20 hover:bg-white/30'}`}
-                            >
-                               <MapIcon className="w-3.5 h-3.5" /> Pokaż na mapie
-                            </button>
-                         </div>
-                     </div>
-                     <h2 className="text-2xl font-black leading-tight drop-shadow-sm pr-12 relative z-20">
-                        {stopsList.find(s => s.id === selectedStopId)?.name}
-                     </h2>
-                  </div>
-                  <div className={`flex-1 p-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-4 -mt-4 rounded-t-2xl relative z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] overflow-y-auto ${transparentUI ? (isDark ? 'bg-slate-900/80 backdrop-blur' : 'bg-slate-50/80 backdrop-blur') : bgMain}`}>
-                     <div className="flex justify-between items-center mt-2 mb-4 pl-1">
-                        <h3 className={`text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 ${textSub}`}>
-                           <Clock className="w-4 h-4" /> Najbliższe odjazdy
-                        </h3>
-                        {stopDepartures && stopDepartures.length > 0 && (
-                           <div className="relative ml-auto">
-                               <select 
-                                  className={`appearance-none text-xs pl-3 pr-8 py-1.5 rounded-full font-bold outline-none cursor-pointer border shadow-sm transition-colors ${isDark ? 'bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-600' : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'}`}
-                                  value={departuresLineFilter}
-                                  onChange={(e) => setDeparturesLineFilter(e.target.value)}
-                               >
-                                  <option value="">Wszystkie linie</option>
-                                  {Array.from(new Set(stopDepartures.map(d => String(d.line_name || '').trim().replace(/^MKS\s+/, '')).filter(Boolean))).sort().map(line => (
-                                     <option key={line} value={line}>{line}</option>
-                                  ))}
-                               </select>
-                               <div className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                   <ChevronRight className="w-3.5 h-3.5 rotate-90" />
-                               </div>
-                           </div>
-                        )}
-                     </div>
-                     <div className="flex flex-col gap-3">
-                        {(() => {
-                           if (isFetchingDepartures) {
-                              return (
-                                 <div className="p-8 pb-12 rounded-2xl text-center flex flex-col items-center justify-center h-full">
-                                    <div className="w-8 h-8 mb-4 border-4 rounded-full animate-spin" style={{ borderColor: `${themeColor}40`, borderTopColor: themeColor }}></div>
-                                    <p className={`font-medium ${textSub}`}>Ładowanie rozkładu...</p>
-                                 </div>
-                              );
-                           }
-
-                           let incoming = processedDepartures;
-                           
-                           if (departuresLineFilter) {
-                              incoming = incoming.filter((inc: any) => String(inc.bus.routeShortName || '').trim().replace(/^MKS\s+/, '') === departuresLineFilter);
-                           }
-
-                           if (incoming.length === 0) {
-                              return (
-                                 <div className={`p-8 rounded-2xl border-2 border-dashed text-center flex flex-col items-center ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-                                    <Bus className={`w-8 h-8 mb-2 ${isDark ? 'text-slate-700' : 'text-slate-300'}`} />
-                                    <p className={`font-medium ${textSub}`}>Brak odjazdów w najbliższym czasie</p>
-                                    <p className={`text-xs mt-1 opacity-70 ${textSub}`}>Oczekuje na kolejne pojazdy na żywo...</p>
-                                 </div>
-                              );
-                           }
-                           let elements: any[] = [];
-                           let currentDayStr = '';
-                           
-                           incoming.forEach((inc: any, i: number) => {
-                               const d = new Date(Number.isFinite(inc.plannedTimeMs) ? inc.plannedTimeMs : inc.depTimeMs);
-                               const dayStr = d.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
-                               
-                               if (dayStr !== currentDayStr) {
-                                  elements.push(
-                                     <div key={`day-${i}`} className={`mt-4 mb-2 md:mt-6 first:mt-0 text-[11px] font-bold uppercase tracking-widest pl-1 opacity-70 ${textSub}`}>
-                                        {dayStr}
-                                     </div>
-                                  );
-                                  currentDayStr = dayStr;
-                               }
-                               
-                               elements.push(
-                                  <div key={`inc-${i}`} className={`flex items-center justify-between p-4 rounded-2xl border w-full shadow-sm transition-colors relative overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-200/60 hover:border-slate-300'}`}>
-                                     <div className="flex flex-col gap-1.5 z-20">
-                                        <div className="flex items-center gap-2">
-                                           <span className="text-base font-black px-2 py-0.5 rounded shadow-sm text-white" style={{ backgroundColor: themeColor }}>
-                                              {inc.bus.routeShortName}
-                                           </span>
-                                           <span className={`font-bold text-sm md:text-base leading-tight max-w-[140px] md:max-w-[200px] truncate ${textMain}`}>{inc.bus.direction || 'Zjazd'}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                           <span className={`text-[10px] items-center flex font-bold uppercase tracking-wider ${textSub}`}>
-                                              {inc.vehicleNum ? `Nr: ${inc.vehicleNum}` : ''}
-                                           </span>
-                                        </div>
-                                     </div>
-                                     <div className="text-right flex flex-col items-end justify-center h-full z-20 pr-1">
-                                        <span className={`text-xl md:text-2xl font-black tracking-tight leading-none ${inc.diffMin < 30 ? (inc.diffMin <= 0 ? 'text-rose-500' : (isDark ? 'text-emerald-400' : 'text-emerald-600')) : textMain}`}>
-                                           {inc.diffMin < 0 ? 'Odjechał' : (inc.diffMin === 0 ? 'Teraz' : (inc.diffMin < 30 ? `${inc.diffMin} min` : inc.actualTimeStr))}
-                                        </span>
-                                     </div>
-                                  </div>
-                               );
-                           });
-                           return elements;
-                        })()}
-                     </div>
-                  </div>
-               </motion.div>
-            )}
-            </AnimatePresence>
-         </motion.div>
+            <motion.div
+               key="new-stops-panel"
+               initial={{ opacity: 0, y: 30, scale: 0.98 }}
+               animate={{ opacity: 1, y: 0, scale: 1 }}
+               exit={{ opacity: 0, y: 20, scale: 0.96 }}
+               transition={{ type: "spring", stiffness: 700, damping: 35 }}
+               className={
+                  transparentUI
+                     ? 'absolute inset-0 z-10 overflow-hidden bg-slate-950/18 backdrop-blur-2xl backdrop-saturate-150 before:pointer-events-none before:absolute before:inset-0 before:bg-white/[0.025] before:content-[""]'
+                     : 'absolute inset-0 z-10 overflow-hidden bg-[#03060a]'
+               }
+            >
+               <StopsPanel
+                  stops={stopsList}
+                  isLoading={stopsList.length === 0 && !stopsLoadError}
+                  hasError={stopsLoadError}
+                  favorites={favsState}
+                  vehicles={vehicles}
+                  transparentUI={transparentUI}
+                  onRetry={loadStops}
+                  onClose={() => { if (!isMapTabDisabled) setActiveTab('map'); }}
+                  onToggleFavorite={toggleFavoriteStop}
+                  onShowOnMap={(stop) => {
+                     if (isMapTabDisabled) return;
+                     if (stop.lat !== undefined && stop.lon !== undefined) {
+                        setMapCenter([stop.lat, stop.lon]);
+                     }
+                     setSelectedBus(null);
+                     setSelectedExternalStop(stop);
+                     setSelectedStopId(stop.id);
+                     setActiveTab('map');
+                  }}
+               />
+            </motion.div>
          )}
          </AnimatePresence>
 
       </div>
 
-      {/* Bottom Navigation for Mobile */}
+         {/* Bottom Navigation for Mobile */}
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] md:hidden">
          <div className={`pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${bottomGlassShell}`}>
             <button 
                disabled={isMapTabDisabled}
-               onClick={() => { if (!isMapTabDisabled) { setActiveTab('map'); setSelectedBus(null); setSelectedStopId(null); } }}
+               onClick={() => { if (!isMapTabDisabled) { setActiveTab('map'); setSelectedBus(null); setSelectedStopId(null); setSelectedExternalStop(null); } }}
                className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${isMapTabDisabled ? 'cursor-not-allowed opacity-35 grayscale' : activeTab === 'map' ? '' : 'hover:text-current/90'}`}
                style={activeTab === 'map' ? { color: themeColor } : {}}
             >
@@ -2252,7 +2120,7 @@ export default function Home() {
             {canOpenAdminEmbed && (
                <button 
                   type="button"
-                  onClick={() => { setActiveTab('admin'); setSelectedBus(null); setSelectedStopId(null); setIsSettingsOpen(false); }}
+                  onClick={() => { setActiveTab('admin'); setSelectedBus(null); setSelectedStopId(null); setSelectedExternalStop(null); setIsSettingsOpen(false); }}
                   className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${activeTab === 'admin' ? '' : 'hover:text-current/90'}`}
                   style={activeTab === 'admin' ? { color: themeColor } : {}}
                >

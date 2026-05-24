@@ -354,7 +354,17 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if false;
+      allow delete: if isSignedIn() &&
+                    isValidDeviceDocId(deviceId) &&
+                    request.auth.uid != deviceId &&
+                    (
+                      isCallerOwner() ||
+                      (
+                        hasAdminPerm('users') &&
+                        callerDeviceData().role == 'admin' &&
+                        existing().role == 'user'
+                      )
+                    );
     }
 
     match /installations/{installationId} {
@@ -383,7 +393,16 @@ service cloud.firestore {
                       ) ||
                       userInstallationUpdateAllowed(incoming())
                     );
-      allow delete: if false;
+      allow delete: if isSignedIn() &&
+                    isValidId(installationId) &&
+                    (
+                      isCallerOwner() ||
+                      (
+                        hasAdminPerm('users') &&
+                        callerDeviceData().role == 'admin' &&
+                        existing().role == 'user'
+                      )
+                    );
     }
 
     match /blocked_installations/{installationId} {
@@ -405,7 +424,7 @@ service cloud.firestore {
 
     match /admin_logs/{logId} {
       allow read: if canReadAdminLogs();
-      allow create: if isSignedIn() && isValidId(logId) && (isCallerOwner() || hasAdminPerm('canChangeRoles') || hasAdminPerm('canBan') || hasAdminPerm('globalSettingsEdit'));
+      allow create: if isSignedIn() && isValidId(logId) && (isCallerOwner() || hasAdminPerm('canChangeRoles') || hasAdminPerm('users') || hasAdminPerm('canBan') || hasAdminPerm('globalSettingsEdit'));
       allow update: if false;
       allow delete: if isSignedIn() && isValidId(logId) && isCallerOwner();
     }

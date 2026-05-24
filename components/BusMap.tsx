@@ -28,21 +28,55 @@ function getVehicleColor(vehicle?: Pick<Vehicle, 'provider'> | null, fallback = 
 }
 
 function simplifyRouteForPaint(points: [number, number][], maxPoints = ROUTE_POINT_LIMIT) {
-  if (points.length <= maxPoints) return points;
-  const step = Math.ceil(points.length / maxPoints);
+  const cleaned = removeRoutePaintSpikes(points);
+  if (cleaned.length <= maxPoints) return cleaned;
+  const step = Math.ceil(cleaned.length / maxPoints);
   const simplified: [number, number][] = [];
 
-  for (let i = 0; i < points.length; i += step) {
-    simplified.push(points[i]);
+  for (let i = 0; i < cleaned.length; i += step) {
+    simplified.push(cleaned[i]);
   }
 
-  const last = points[points.length - 1];
+  const last = cleaned[cleaned.length - 1];
   const currentLast = simplified[simplified.length - 1];
   if (!currentLast || currentLast[0] !== last[0] || currentLast[1] !== last[1]) {
     simplified.push(last);
   }
 
   return simplified;
+}
+
+function routePaintDistanceMeters(a: [number, number], b: [number, number]) {
+  const meanLat = ((a[0] + b[0]) / 2) * Math.PI / 180;
+  const metersPerLat = 111_320;
+  const metersPerLon = Math.cos(meanLat) * 111_320;
+  const dx = (a[1] - b[1]) * metersPerLon;
+  const dy = (a[0] - b[0]) * metersPerLat;
+  return Math.hypot(dx, dy);
+}
+
+function removeRoutePaintSpikes(points: [number, number][]) {
+  if (points.length < 4) return points;
+  const cleaned: [number, number][] = [points[0]];
+
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const prev = cleaned[cleaned.length - 1];
+    const current = points[i];
+    const next = points[i + 1];
+    const prevCurrent = routePaintDistanceMeters(prev, current);
+    const currentNext = routePaintDistanceMeters(current, next);
+    const prevNext = routePaintDistanceMeters(prev, next);
+    const spikeLength = prevCurrent + currentNext;
+
+    if (prevNext > 30 && spikeLength > prevNext * 4.5 && Math.max(prevCurrent, currentNext) > 90) {
+      continue;
+    }
+
+    cleaned.push(current);
+  }
+
+  cleaned.push(points[points.length - 1]);
+  return cleaned;
 }
 
 function dedupeStableStopIds(stopIds: Array<string | number>) {

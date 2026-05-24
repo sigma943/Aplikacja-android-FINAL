@@ -64,11 +64,16 @@ type AdminLogRaw = {
   iconType: Log['iconType'];
 };
 
+const ONLINE_GRACE_MS = 5 * 60_000;
+
 function lastSeenInfoFromMs(ms: number | null | undefined, nowMs = Date.now()): { label: string; online: boolean } {
   if (!ms || Number.isNaN(ms)) return { label: 'Brak sygnału', online: false };
   const diff = Math.max(0, nowMs - ms);
-  if (diff <= 150_000) return { label: 'teraz', online: true };
-  if (diff < 3600_000) return { label: `${Math.max(1, Math.floor(diff / 60_000))} min temu`, online: false };
+  if (diff <= ONLINE_GRACE_MS) return { label: 'teraz', online: true };
+  if (diff < 3600_000) {
+    const offlineMinutes = Math.max(1, Math.floor((diff - ONLINE_GRACE_MS) / 60_000) + 1);
+    return { label: `${offlineMinutes} min temu`, online: false };
+  }
   const hours = Math.max(1, Math.floor(diff / 3600_000));
   return { label: `${hours} godz. temu`, online: false };
 }
@@ -116,10 +121,11 @@ function dedupeDevicesByInstallation(devices: ({ id: string } & DeviceData)[]): 
     const currentLastSeen = deviceLastSeenMs(current);
     const nextLastSeen = deviceLastSeenMs(device);
     const isClearlyNewerDevice = nextLastSeen > 0 && nextLastSeen > currentLastSeen + 60_000;
+    const currentRoleRank = roleRank(current.role);
+    const nextRoleRank = roleRank(device.role);
     const shouldReplace =
-      isClearlyNewerDevice ||
-      roleRank(device.role) > roleRank(current.role) ||
-      (roleRank(device.role) === roleRank(current.role) && nextLastSeen >= currentLastSeen);
+      nextRoleRank > currentRoleRank ||
+      (nextRoleRank === currentRoleRank && (isClearlyNewerDevice || nextLastSeen >= currentLastSeen));
 
     if (shouldReplace) byInstallation.set(installationId, device);
   }
@@ -503,6 +509,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
 
   const canBanUi = currentDevice.role === 'owner' || myCaps.ban;
   const canChangeRolesUi = currentDevice.role === 'owner' || myCaps.canChangeRoles;
+  const canDeleteDevicesUi = currentDevice.role === 'owner' || myCaps.users;
 
   const lastSeenInfoFor = (d: { id: string; role?: DeviceRole; status?: DeviceData['status']; lastSeenAt?: { toDate?: () => Date } | null }) => {
     const firestoreMs = d.lastSeenAt?.toDate?.()?.getTime();
@@ -645,6 +652,46 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     }
 
     if (deleted === 0) return;
+  };
+
+  const deleteDeviceFromFirebase = async (device: Device) => {
+    const rank = (role?: DeviceRole) => role === 'owner' ? 3 : role === 'admin' ? 2 : 1;
+    if (!uid || !canDeleteDevicesUi) {
+      throw new Error('Brak uprawnień do usuwania użytkowników.');
+    }
+    if (device.id === uid) {
+      throw new Error('Nie możesz usunąć własnego użytkownika.');
+    }
+
+    const target = devicesData.find((x) => x.id === device.id);
+    if (!target) {
+      throw new Error('Nie znaleziono użytkownika w Firebase.');
+    }
+    if (currentDevice.role !== 'owner' && rank(target.role) >= rank(currentDevice.role)) {
+      throw new Error('Możesz usuwać tylko użytkowników z niższą rangą.');
+    }
+
+    const label = formatDeviceLabel({
+      displayName: target.displayName,
+      deviceInfo: target.deviceInfo,
+      deviceId: target.id,
+    });
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'devices', target.id));
+    if (target.installationId) {
+      const installationRef = doc(db, 'installations', target.installationId);
+      const installationSnap = await getDoc(installationRef);
+      if (installationSnap.exists()) {
+        batch.delete(installationRef);
+      }
+    }
+    await batch.commit();
+
+    await writeAuditLog({
+      title: 'Usunięto urządzenie',
+      description: `${label} (${target.id}) został usunięty z Firebase`,
+      iconType: 'disconnect',
+    });
   };
 
   const syncInstallationProfile = async (
@@ -1345,11 +1392,13 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
             currentDeviceRole={currentDevice.role}
             canBan={canBanUi}
             canChangeRoles={canChangeRolesUi}
+            canDeleteDevices={canDeleteDevicesUi}
             onOpenRolesModal={(device) => setSelectedDeviceForRole(device)}
             onOpenBanModal={(device) => setSelectedDeviceForBan(device)}
             onNavigateToBanScreen={() => setActiveView('banned')}
             onMenuClick={() => setIsSidebarOpen(true)}
             onRenameDevice={currentDevice.role === 'owner' ? saveDeviceModelAlias : undefined}
+            onDeleteDevice={canDeleteDevicesUi ? deleteDeviceFromFirebase : undefined}
           />
         )}
 

@@ -1,4 +1,4 @@
-import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown, Pencil, X, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown, Pencil, X, Check, CheckCircle2, Trash2 } from 'lucide-react';
 import { Badge } from './Badge';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -12,11 +12,13 @@ interface DeviceTableProps {
   currentDeviceRole?: 'owner' | 'admin' | 'user';
   canBan?: boolean;
   canChangeRoles?: boolean;
+  canDeleteDevices?: boolean;
   onOpenBanModal: (device: any) => void;
   onOpenRolesModal: (device: any) => void;
   onNavigateToBanScreen: () => void;
   onMenuClick: () => void;
   onRenameDevice?: (device: Device, label: string) => Promise<void>;
+  onDeleteDevice?: (device: Device) => Promise<void>;
 }
 
 type SortKey = 'firstLogin' | 'lastSeen' | 'role' | 'status';
@@ -29,11 +31,13 @@ export function DeviceTable({
   currentDeviceRole = 'user',
   canBan = true,
   canChangeRoles = true,
+  canDeleteDevices = false,
   onOpenBanModal,
   onOpenRolesModal,
   onNavigateToBanScreen: _onNavigateToBanScreen,
   onMenuClick,
   onRenameDevice,
+  onDeleteDevice,
 }: DeviceTableProps) {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('ALL');
@@ -44,6 +48,9 @@ export function DeviceTable({
   const [renameDevice, setRenameDevice] = useState<Device | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
+  const [deleteDevice, setDeleteDevice] = useState<Device | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const toolbarDropdownsRef = useRef<HTMLDivElement | null>(null);
   const itemsPerPage = 5;
 
@@ -196,6 +203,33 @@ export function DeviceTable({
   const banTitle = (device: Device, isSelf: boolean) => (canBanTarget(device, isSelf) ? 'Zablokuj' : undefined);
   const manageTitle = (device: Device, isSelf: boolean) => (canManageTarget(device, isSelf) ? 'Opcje' : undefined);
   const canRenameModels = Boolean(onRenameDevice && currentDeviceRole === 'owner');
+  const deleteRoleRank = (role?: Device['rawRole']) => role === 'owner' ? 3 : role === 'admin' ? 2 : 1;
+  const canDeleteTarget = (device: Device, isSelf: boolean) => {
+    if (!onDeleteDevice || !canDeleteDevices || isSelf) return false;
+    if (currentDeviceRole === 'owner') return true;
+    if (currentDeviceRole !== 'admin') return false;
+    return deleteRoleRank(device.rawRole) < deleteRoleRank(currentDeviceRole);
+  };
+  const deleteTitle = (device: Device, isSelf: boolean) => (canDeleteTarget(device, isSelf) ? 'Usuń urządzenie' : 'Brak uprawnień do usunięcia');
+
+  const openDeleteConfirm = (device: Device) => {
+    setDeleteError(null);
+    setDeleteDevice(device);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteDevice || !onDeleteDevice || deleteSaving) return;
+    setDeleteSaving(true);
+    setDeleteError(null);
+    try {
+      await onDeleteDevice(deleteDevice);
+      setDeleteDevice(null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDeleteSaving(false);
+    }
+  };
 
   const openRename = (device: Device) => {
     if (!canRenameModels) return;
@@ -284,6 +318,54 @@ export function DeviceTable({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-[calc(env(safe-area-inset-bottom)+4rem)]">
       <AnimatePresence>
+        {deleteDevice && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            className="fixed left-0 right-0 top-4 z-[12000] flex justify-center px-4"
+          >
+            <div className="relative w-full max-w-sm overflow-hidden rounded-[1.25rem] border border-white/5 bg-[#0F131D]/95 p-4 shadow-2xl shadow-[0_10px_40px_rgba(244,63,94,0.15)] backdrop-blur-xl">
+              <div className="absolute bottom-0 left-0 top-0 w-1 bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,1)]" />
+              <div className="flex gap-4 pl-2">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-500/20 bg-rose-500/10 text-rose-400">
+                  <Trash2 size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 text-sm font-bold leading-tight text-white">Usunąć użytkownika?</div>
+                  <div className="text-[13px] font-medium leading-snug text-slate-400">
+                    Czy na pewno chcesz usunąć użytkownika <span className="font-bold text-slate-200">{deleteDevice.name}</span>? Tej operacji nie da się cofnąć.
+                  </div>
+                </div>
+              </div>
+              {deleteError && (
+                <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-[12px] font-semibold leading-snug text-rose-100">
+                  Nie udało się usunąć użytkownika: {deleteError}
+                </div>
+              )}
+              <div className="mt-4 flex justify-end gap-2 pl-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteDevice(null)}
+                  disabled={deleteSaving}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <X size={14} />
+                  Anuluj
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  disabled={deleteSaving}
+                  className="flex items-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-rose-200 transition-all hover:bg-rose-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Check size={14} />
+                  {deleteSaving ? 'Usuwanie' : 'Potwierdź'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
         {renameDevice && (
           <motion.div
             className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/60 p-4 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] backdrop-blur-sm sm:pb-4"
@@ -437,6 +519,7 @@ export function DeviceTable({
             const isSelf = Boolean(currentUserId && device.id === currentUserId);
             const banDisabled = !canBanTarget(device, isSelf);
             const rolesDisabled = !canManageTarget(device, isSelf);
+            const deleteDisabled = !canDeleteTarget(device, isSelf);
             const primaryLabel = device.name;
             return (
               <motion.div key={device.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative overflow-hidden">
@@ -460,6 +543,9 @@ export function DeviceTable({
                         <Settings size={18} />
                       </button>
                     )}
+                    <button type="button" disabled={deleteDisabled} title={deleteTitle(device, isSelf)} onClick={() => !deleteDisabled && openDeleteConfirm(device)} className="cursor-pointer rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-400 shadow-lg transition-all hover:bg-rose-500 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30">
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 </div>
 
@@ -506,7 +592,7 @@ export function DeviceTable({
                 <th className="px-6 py-5">OSTATNIO ONLINE</th>
                 <th className="px-6 py-5">ROLA</th>
                 <th className="px-6 py-5">STATUS</th>
-                <th className="px-6 py-5 text-right px-10">AKCJE</th>
+                <th className="px-6 py-5 text-left">AKCJE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -515,6 +601,7 @@ export function DeviceTable({
                   const isSelf = Boolean(currentUserId && device.id === currentUserId);
                   const banDisabled = !canBanTarget(device, isSelf);
                   const rolesDisabled = !canManageTarget(device, isSelf);
+                  const deleteDisabled = !canDeleteTarget(device, isSelf);
                   return (
                     <motion.tr key={device.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ delay: idx * 0.03 }} className="group hover:bg-white/[0.02] transition-colors">
                       <td className="px-6 py-4 min-w-[200px]">
@@ -534,7 +621,7 @@ export function DeviceTable({
                       <td className="px-6 py-4"><Badge role={device.role} /></td>
                       <td className="px-6 py-4 w-32"><Badge status={device.status} /></td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2 pr-4">
+                        <div className="flex items-center justify-start gap-2">
                           <button type="button" disabled={banDisabled} onClick={() => !banDisabled && onOpenBanModal(device)} className="cursor-pointer rounded-xl p-2.5 text-slate-500 transition-all hover:scale-110 hover:bg-rose-500/10 hover:text-rose-400 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30" title={banTitle(device, isSelf)}>
                             <Lock size={18} />
                           </button>
@@ -543,6 +630,9 @@ export function DeviceTable({
                               <Settings size={18} />
                             </button>
                           )}
+                          <button type="button" disabled={deleteDisabled} onClick={() => !deleteDisabled && openDeleteConfirm(device)} className="cursor-pointer rounded-xl p-2.5 text-slate-500 transition-all hover:scale-110 hover:bg-rose-500/10 hover:text-rose-400 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30" title={deleteTitle(device, isSelf)}>
+                            <Trash2 size={18} />
+                          </button>
                         </div>
                       </td>
                     </motion.tr>
