@@ -72,6 +72,7 @@ type InternalStop = Stop & {
   lineSet: Set<string>;
   carrierMap: Map<string, Carrier>;
   baseNameKey: string;
+  displayNamesByProvider: Record<string, string>;
 };
 
 type MarcelIndexedStop = {
@@ -91,6 +92,7 @@ const LIVE_DETAILS_TTL_MS = 90_000;
 const LIVE_DELAY_LIMIT_SECONDS = 18_000;
 const LIVE_DEPARTURE_MATCH_WINDOW_MS = 8 * 60_000;
 const LIVE_DETAILS_CACHE = new Map<string, { expiresAt: number; promise: Promise<Vehicle | null> }>();
+const GEO_BUCKET_PRECISION = 0.002;
 
 type LiveDepartureProvider = 'pks' | 'mpk_rzeszow';
 
@@ -134,8 +136,7 @@ function providerFromDeparture(departure: Departure): LiveDepartureProvider | nu
 function stopIdsForLiveProvider(stop: Stop, provider: LiveDepartureProvider) {
   const ids = new Set<string>();
   const add = (value: unknown) => {
-    const normalized = String(value || '').trim();
-    if (normalized) ids.add(normalized);
+    splitCsvValues(value).forEach((normalized) => ids.add(normalized));
   };
 
   add(stop.id);
@@ -198,6 +199,11 @@ function normalizeStopName(value: unknown) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\bdw\.\b/g, 'dworzec')
+    .replace(/\bul\.\b/g, 'ulica')
+    .replace(/\bal\.\b/g, 'aleja')
+    .replace(/\bpl\.\b/g, 'plac')
+    .replace(/\bos\.\b/g, 'osiedle')
     .replace(/\s+/g, ' ');
 }
 
@@ -211,17 +217,28 @@ function stopDisplayName(value: unknown) {
 
 function normalizeMpkDisplayName(value: unknown) {
   const base = stopDisplayName(value).replace(/\bmatuszczka\b/gi, 'Matuszczaka');
-  if (!base) return '';
-  if (/^rzeszow\b/i.test(normalizeStopName(base))) return base;
-  return `Rzeszów ${base}`;
+  return base;
+}
+
+function preferredStopDisplayName(namesByProvider: Record<string, string>) {
+  return (
+    namesByProvider.pks ||
+    namesByProvider.mpk_rzeszow ||
+    namesByProvider.marcel ||
+    Object.values(namesByProvider).find(Boolean) ||
+    ''
+  );
 }
 
 function stopBaseNameKey(value: unknown) {
   return normalizeStopName(value)
     .replace(/[()]/g, ' ')
     .replace(/\s*[-/]\s*/g, ' ')
+    .replace(/\b(?:rzeszow|przystanek|przyst|autobusowy|autobusowa)\b/g, ' ')
+    .replace(/\bdworzec\s+autobusowy\b/g, 'dworzec')
     .replace(/\b(?:st|skr)\.?\s*\d{1,3}[a-z]?\b/gi, (m) => m.replace(/\d{1,3}[a-z]?/i, ''))
     .replace(/\b\d{1,3}[a-z]?\b$/i, '')
+    .replace(/\b\d{1,2}\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -279,6 +296,23 @@ function distanceMeters(aLat?: number, aLon?: number, bLat?: number, bLon?: numb
   return 2 * 6371000 * Math.asin(Math.sqrt(h));
 }
 
+function hasFinitePoint(lat?: number, lon?: number) {
+  return Number.isFinite(lat) && Number.isFinite(lon);
+}
+
+function geoBucketKeys(lat?: number, lon?: number) {
+  if (!hasFinitePoint(lat, lon)) return [];
+  const latBucket = Math.floor((lat as number) / GEO_BUCKET_PRECISION);
+  const lonBucket = Math.floor((lon as number) / GEO_BUCKET_PRECISION);
+  const keys: string[] = [];
+  for (let latOffset = -1; latOffset <= 1; latOffset += 1) {
+    for (let lonOffset = -1; lonOffset <= 1; lonOffset += 1) {
+      keys.push(`${latBucket + latOffset}:${lonBucket + lonOffset}`);
+    }
+  }
+  return keys;
+}
+
 function stripMarcelStopName(value: unknown) {
   const cleaned = String(value || '')
     .replace(/^\(\d+[a-z]?\)\s*/i, '')
@@ -323,13 +357,16 @@ async function mapWithConcurrency<T, R>(
 function mergeCsvValues(...values: Array<string | undefined>) {
   const next = new Set<string>();
   values.forEach((value) => {
-    String(value || '')
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .forEach((part) => next.add(part));
+    splitCsvValues(value).forEach((part) => next.add(part));
   });
   return [...next].join(',');
+}
+
+function splitCsvValues(value: unknown) {
+  return String(value || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function marcelCourseStopMatchKey(stop: MarcelCourseStopPublic) {
@@ -777,6 +814,7 @@ export default function StopsPanel({
     const byTechnical = new Map<string, InternalStop>();
     const baseBuckets = new Map<string, InternalStop[]>();
     const tokenBuckets = new Map<string, Set<InternalStop>>();
+    const geoBuckets = new Map<string, Set<InternalStop>>();
     const crossMatchCache = new Map<string, InternalStop | null>();
 
     const technicalKey = (provider: string, id: string) => `${provider}:${String(id).trim()}`;
@@ -798,6 +836,11 @@ export default function StopsPanel({
         bucket.add(stop);
         tokenBuckets.set(`num:${token}`, bucket);
       });
+      geoBucketKeys(stop.lat, stop.lon).forEach((key) => {
+        const bucket = geoBuckets.get(key) || new Set<InternalStop>();
+        bucket.add(stop);
+        geoBuckets.set(key, bucket);
+      });
     };
 
     const attachProvider = (
@@ -813,8 +856,20 @@ export default function StopsPanel({
         carrier: Carrier;
       },
     ) => {
-      target.providerStopIds = { ...(target.providerStopIds || {}), [raw.provider]: String(raw.id) };
+      target.providerStopIds = {
+        ...(target.providerStopIds || {}),
+        [raw.provider]: mergeCsvValues(target.providerStopIds?.[raw.provider], String(raw.id)),
+      };
+      if (raw.provider === 'pks') {
+        target.providerStopIds.pksAreaIds = mergeCsvValues(target.providerStopIds.pksAreaIds, raw.areaId);
+        target.providerStopIds.pksCodes = mergeCsvValues(target.providerStopIds.pksCodes, raw.code);
+      }
       target.sourceProviderIds = [...new Set([...(target.sourceProviderIds || []), raw.provider])];
+      target.displayNamesByProvider = {
+        ...(target.displayNamesByProvider || {}),
+        [raw.provider]: target.displayNamesByProvider?.[raw.provider] || stopDisplayName(raw.name),
+      };
+      target.name = preferredStopDisplayName(target.displayNamesByProvider) || target.name;
       target.carrierMap.set(raw.carrier.id, raw.carrier);
       if (target.lat === undefined && raw.lat !== undefined) target.lat = raw.lat;
       if (target.lon === undefined && raw.lon !== undefined) target.lon = raw.lon;
@@ -843,13 +898,17 @@ export default function StopsPanel({
         carrierMap: new Map([[raw.carrier.id, raw.carrier]]),
         lines: [],
         lineSet: new Set<string>(),
+        displayNamesByProvider: { [raw.provider]: displayName },
         isFavorite: favoriteSet.has(publicId),
         areaId: raw.areaId,
         code: raw.code,
         lat: raw.lat,
         lon: raw.lon,
         sourceProviderIds: [raw.provider],
-        providerStopIds: { [raw.provider]: String(raw.id) },
+        providerStopIds: {
+          [raw.provider]: String(raw.id),
+          ...(raw.provider === 'pks' ? { pksAreaIds: String(raw.areaId || ''), pksCodes: String(raw.code || '') } : {}),
+        },
         baseNameKey,
       };
       byTechnical.set(technicalKey(raw.provider, raw.id), next);
@@ -884,7 +943,8 @@ export default function StopsPanel({
       if (!baseNameKey) return null;
       const latKey = Number.isFinite(raw.lat) ? Number(raw.lat).toFixed(4) : 'x';
       const lonKey = Number.isFinite(raw.lon) ? Number(raw.lon).toFixed(4) : 'x';
-      const cacheKey = `${baseNameKey}|${latKey}|${lonKey}`;
+      const providerKey = [...candidateProviders].sort().join('+');
+      const cacheKey = `${providerKey}|${baseNameKey}|${latKey}|${lonKey}`;
       if (crossMatchCache.has(cacheKey)) return crossMatchCache.get(cacheKey) || null;
 
       const exactCandidates = (baseBuckets.get(baseNameKey) || []).filter((candidate) => {
@@ -902,6 +962,10 @@ export default function StopsPanel({
         const bucket = tokenBuckets.get(`num:${token}`);
         if (bucket) bucket.forEach((candidate) => fallbackSet.add(candidate));
       });
+      geoBucketKeys(raw.lat, raw.lon).forEach((key) => {
+        const bucket = geoBuckets.get(key);
+        if (bucket) bucket.forEach((candidate) => fallbackSet.add(candidate));
+      });
       const fallbackPool = [...fallbackSet].filter((candidate) => {
         const providers = candidate.sourceProviderIds || [];
         return providers.some((provider) => candidateProviders.has(provider));
@@ -916,10 +980,22 @@ export default function StopsPanel({
 
       for (const candidate of pool) {
         const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
-        if (weakName && Number.isFinite(distance) && distance > 900) continue;
+        const hasGeo = Number.isFinite(distance);
+        if (weakName && hasGeo && distance > 300) continue;
         const similarity = nameSimilarityScore(raw.name, candidate.name);
         const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.32 : 0;
-        const distanceScore = Number.isFinite(distance) ? Math.max(0, 1 - distance / 1200) : 0;
+        if (hasGeo && distance > 900 && similarity < 0.94) continue;
+        const distanceScore = hasGeo
+          ? distance <= 45
+            ? 1
+            : distance <= 120
+              ? 0.78
+              : distance <= 250
+                ? 0.48
+                : distance <= 450
+                  ? 0.22
+                  : 0
+          : 0;
         const score = similarity * 0.7 + distanceScore * 0.3 + exactBaseBoost;
         if (score > bestScore || (score === bestScore && distance < bestDistance)) {
           bestScore = score;
@@ -934,16 +1010,20 @@ export default function StopsPanel({
       }
 
       if (weakName) {
-        const weakMatch = Number.isFinite(bestDistance) && bestDistance <= 800 ? bestCandidate : null;
+        const weakMatch = Number.isFinite(bestDistance) && bestDistance <= 260 ? bestCandidate : null;
         crossMatchCache.set(cacheKey, weakMatch);
         return weakMatch;
       }
 
-      if (bestScore >= 0.42 && (!Number.isFinite(bestDistance) || bestDistance <= 650)) {
+      if (Number.isFinite(bestDistance) && bestScore >= 0.78 && bestDistance <= 450) {
         crossMatchCache.set(cacheKey, bestCandidate);
         return bestCandidate;
       }
-      if (bestScore >= 0.34 && Number.isFinite(bestDistance) && bestDistance <= 320) {
+      if (Number.isFinite(bestDistance) && bestScore >= 0.68 && bestDistance <= 140) {
+        crossMatchCache.set(cacheKey, bestCandidate);
+        return bestCandidate;
+      }
+      if (!Number.isFinite(bestDistance) && bestScore >= 1.02 && bestCandidate.baseNameKey === baseNameKey) {
         crossMatchCache.set(cacheKey, bestCandidate);
         return bestCandidate;
       }
@@ -962,13 +1042,19 @@ export default function StopsPanel({
     };
 
     stops.forEach((stop) => {
-      ensureTechnicalStop({
+      const raw = {
         ...stop,
         id: String(stop.id),
         name: stopDisplayName(stop.name),
         provider: 'pks',
         carrier: PKS_CARRIER,
-      });
+      };
+      const matched = findSafeCrossProviderMatch(raw, new Set(['pks']));
+      if (matched) {
+        attachProvider(matched, raw);
+      } else {
+        ensureTechnicalStop(raw);
+      }
     });
 
     mpkStops.forEach((mpkStop) => {
@@ -979,7 +1065,9 @@ export default function StopsPanel({
         provider: 'mpk_rzeszow',
         carrier: MPK_CARRIER,
       };
-      const matched = findSafeCrossProviderMatch(raw, new Set(['pks']));
+      const matched =
+        findSafeCrossProviderMatch(raw, new Set(['pks'])) ||
+        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']));
       const stop = matched ? matched : ensureTechnicalStop(raw);
       if (matched) attachProvider(matched, raw);
       mpkStop.lines.forEach((line) => stop.lineSet.add(line));
@@ -989,7 +1077,9 @@ export default function StopsPanel({
       const displayName = stopDisplayName(marcelStop.name);
       const baseName = stopBaseNameKey(displayName);
       if (!baseName) return;
-      const matched = findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon });
+      const matched =
+        findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['pks'])) ||
+        findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel']));
       if (matched) {
         attachProvider(matched, {
           ...marcelStop,
@@ -1026,10 +1116,10 @@ export default function StopsPanel({
       carrier: Carrier;
     }>();
 
-    panelVehicles.forEach((vehicle) => {
+    [...vehicles, ...panelVehicles].forEach((vehicle) => {
       if (vehicle.type === 'train') return;
       const provider = String(vehicle.provider || 'pks');
-      if (provider !== 'mpk_rzeszow' && provider !== 'marcel') return;
+      if (provider !== 'pks' && provider !== 'mpk_rzeszow' && provider !== 'marcel') return;
       const line = cleanLine(vehicle.routeShortName);
       const carrier = providerCarrier(provider);
       const scheduleStops = [...(vehicle.routeStops || []), ...(vehicle.schedule || [])];
@@ -1055,8 +1145,22 @@ export default function StopsPanel({
 
     snapshotStops.forEach((entry) => {
       let matched: InternalStop | null = null;
-      if (entry.provider === 'mpk_rzeszow') {
-        matched = findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon });
+      if (entry.provider === 'pks') {
+        matched = findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['pks']));
+        if (matched) {
+          attachProvider(matched, {
+            id: entry.id,
+            name: entry.name,
+            lat: entry.lat,
+            lon: entry.lon,
+            provider: entry.provider,
+            carrier: entry.carrier,
+          });
+        }
+      } else if (entry.provider === 'mpk_rzeszow') {
+        matched =
+          findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['pks'])) ||
+          findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['mpk_rzeszow']));
         if (!matched) {
           matched = ensureTechnicalStop({
             id: entry.id,
@@ -1077,7 +1181,9 @@ export default function StopsPanel({
           });
         }
       } else if (entry.provider === 'marcel') {
-        matched = findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon });
+        matched =
+          findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['pks'])) ||
+          findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['mpk_rzeszow', 'marcel']));
         if (matched) {
           attachProvider(matched, {
             id: entry.id,
@@ -1108,7 +1214,7 @@ export default function StopsPanel({
     return [...byTechnical.values()]
       .filter((stop) => stop.id && stop.name)
       .map((stop) => {
-        const { lineSet, carrierMap, baseNameKey, ...cleanStop } = stop;
+        const { lineSet, carrierMap, baseNameKey, displayNamesByProvider, ...cleanStop } = stop;
         return {
           ...cleanStop,
           carriers: [...carrierMap.values()].sort((left, right) => ['pks', 'mpk', 'marcel'].indexOf(left.id) - ['pks', 'mpk', 'marcel'].indexOf(right.id)),
@@ -1117,7 +1223,7 @@ export default function StopsPanel({
         };
       })
       .sort((left, right) => left.name.localeCompare(right.name, 'pl'));
-  }, [favorites, marcelStops, mpkStops, panelVehicles, stops]);
+  }, [favorites, marcelStops, mpkStops, panelVehicles, stops, vehicles]);
 
   const toggleFavorite = useCallback((stopId: string) => {
     onToggleFavorite(stopId);
@@ -1129,15 +1235,34 @@ export default function StopsPanel({
     const dateIso = selectedDateIso(dayIndex);
 
     if (stop.sourceProviderIds?.includes('pks') || !stop.sourceProviderIds?.length) {
-      const pksStopId = stop.providerStopIds?.pks || stop.id;
-      const response = await fetchDeparturesClient(pksStopId, stop.areaId, stop.code || '');
-      const journeys = Array.isArray(response?.journeys) ? response.journeys : [];
-      departures.push(...journeys.map((journey: unknown, index: number) => mapJourneyToDeparture(journey as Record<string, unknown>, index)));
+      const pksStopIds = splitCsvValues(stop.providerStopIds?.pks || stop.id);
+      const pksAreaIds = splitCsvValues(stop.providerStopIds?.pksAreaIds || stop.areaId);
+      const pksCodes = splitCsvValues(stop.providerStopIds?.pksCodes || stop.code);
+      const pksResponses = await Promise.all(
+        pksStopIds.map((pksStopId, sourceIndex) =>
+          fetchDeparturesClient(
+            pksStopId,
+            pksAreaIds[sourceIndex] || pksAreaIds[0] || stop.areaId,
+            pksCodes[sourceIndex] || pksCodes[0] || stop.code || '',
+          ).catch(() => ({ journeys: [] })),
+        ),
+      );
+      pksResponses.forEach((response) => {
+        const journeys = Array.isArray(response?.journeys) ? response.journeys : [];
+        departures.push(...journeys.map((journey: unknown, index: number) => mapJourneyToDeparture(journey as Record<string, unknown>, index)));
+      });
     }
 
     if (stop.sourceProviderIds?.includes('mpk_rzeszow') && stop.providerStopIds?.mpk_rzeszow) {
-      const mpkDepartures = await fetchMpkRzeszowDeparturesClient(stop.providerStopIds.mpk_rzeszow, dateIso).catch(() => []);
-      departures.push(...mpkDepartures.map((entry, index) => departureFromMpkSchedule(entry as unknown as Record<string, unknown>, dateIso, index)).filter((departure): departure is Departure => Boolean(departure)));
+      const mpkResponses = await Promise.all(
+        splitCsvValues(stop.providerStopIds.mpk_rzeszow).map((mpkStopId) =>
+          fetchMpkRzeszowDeparturesClient(mpkStopId, dateIso).catch(() => []),
+        ),
+      );
+      mpkResponses.flat().forEach((entry, index) => {
+        const departure = departureFromMpkSchedule(entry as unknown as Record<string, unknown>, dateIso, index);
+        if (departure) departures.push(departure);
+      });
     }
 
     if (stop.sourceProviderIds?.includes('marcel')) {

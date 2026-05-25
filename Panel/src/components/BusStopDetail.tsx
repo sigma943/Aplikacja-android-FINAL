@@ -148,7 +148,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
   const stopLines = stop.lines || [];
   const uniqueLinesFromDeps = Array.from(new Set(departures.map(d => d.line))).filter(Boolean);
-  const combinedLines = stopLines.length > 0 ? stopLines : uniqueLinesFromDeps;
+  const combinedLines = Array.from(new Set([...stopLines, ...uniqueLinesFromDeps])).filter(Boolean);
   const lines = ['Wszystkie', ...combinedLines.filter(l => l !== 'Wszystkie')];
 
   const isPastDeparture = (timeStr: string) => {
@@ -217,7 +217,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 15 }}
       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-      className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[#05080c]/18 text-slate-200 font-sans pb-[calc(env(safe-area-inset-bottom)+6.75rem)] md:pb-8 backdrop-blur-2xl backdrop-saturate-150"
+      className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[#05080c]/18 text-slate-200 font-sans pb-[calc(env(safe-area-inset-bottom)+9.5rem)] md:pb-8 backdrop-blur-2xl backdrop-saturate-150"
     >
       <div className="w-full max-w-3xl min-w-0 mx-auto">
         {/* Header */}
@@ -525,10 +525,10 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
           </div>
 
           {/* Lines serving stop */}
-          <div className="pb-6">
+          <div className="pb-[calc(env(safe-area-inset-bottom)+9.5rem)] md:pb-6">
              <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-3 ml-1">Linie obsługujące przystanek</h3>
              <div className="flex flex-wrap gap-2">
-               {stop.lines.map(line => (
+               {combinedLines.map(line => (
                   <div key={line} className={`px-4 py-2 rounded-xl border font-bold text-[13px] transition-all duration-300 hover:opacity-80 ${getLineStyle(line)}`}>
                     {line}
                   </div>

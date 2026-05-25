@@ -2606,6 +2606,7 @@ export async function fetchRouteGeometryClient(
       ].join(':'),
       { strictShortSegments: request.carrier === 'mpk_rzeszow' },
     );
+    const safeFallbackPoints = fallbackPoints.length > 1 ? fallbackPoints : createQuickCurvedRoute(stopCoords);
 
     return {
       carrier: request.carrier,
@@ -2616,17 +2617,13 @@ export async function fetchRouteGeometryClient(
       cacheKey: '',
       geometry: {
         type: 'LineString',
-        coordinates: fallbackPoints.map(([lat, lon]) => [lon, lat]),
+        coordinates: safeFallbackPoints.map(([lat, lon]) => [lon, lat]),
       },
-      source: 'osrm-client-fallback',
+      source: fallbackPoints.length > 1 ? 'osrm-client-fallback' : 'synthetic-client-fallback',
       cached: false,
       skippedSegments: 0,
     };
   };
-
-  if (isNative()) {
-    return fetchClientFallback();
-  }
 
   let response: RouteGeometryClientResponse | null = null;
   try {
