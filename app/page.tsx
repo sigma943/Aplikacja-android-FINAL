@@ -1262,7 +1262,11 @@ export default function Home() {
   const textSub = isDark ? (isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
     selectedBus?.status === 'break'
-      ? (selectedBus.schedule?.[0]?.planned ? new Date(selectedBus.schedule[0].planned).getTime() : NaN)
+      ? (Number.isFinite(selectedBus.nextTripStartAtMs)
+          ? Number(selectedBus.nextTripStartAtMs)
+          : selectedBus.schedule?.[0]?.planned
+            ? new Date(selectedBus.schedule[0].planned).getTime()
+            : NaN)
       : NaN;
   const breakCountdown =
     Number.isFinite(selectedBusBreakUntil)
@@ -1788,15 +1792,9 @@ export default function Home() {
                                 ? (Number.isFinite(selectedBus.speed)
                                     ? `${Math.round(selectedBus.speed || 0)} km/h`
                                     : 'Brak danych')
-                                : selectedBus.provider === 'marcel'
-                                ? 'Nieznana'
-                                : selectedBus.status === 'break' ||
-                                  selectedBus.statusText?.toLowerCase().includes('postoj') ||
-                                  selectedBus.statusText?.toLowerCase().includes('przerwa') ||
-                                  selectedBus.speed === 0 ||
-                                  !selectedBus.speed
-                                ? '0 km/h'
-                                : `${Math.round(selectedBus.speed)} km/h`}
+                                : Number.isFinite(selectedBus.speed)
+                                  ? `${Math.round(selectedBus.speed || 0)} km/h`
+                                  : 'Brak danych'}
                            </span>
                         </div>
                         

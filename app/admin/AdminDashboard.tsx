@@ -66,16 +66,31 @@ type AdminLogRaw = {
 
 const ONLINE_GRACE_MS = 5 * 60_000;
 
+function formatElapsedAgoPl(diffMs: number): string {
+  const diff = Math.max(0, diffMs);
+  if (diff < 60_000) return '1 min temu';
+  if (diff < 3600_000) return `${Math.max(1, Math.floor(diff / 60_000))} min temu`;
+  if (diff < 86400_000) return `${Math.max(1, Math.floor(diff / 3600_000))} godz. temu`;
+
+  const days = Math.max(1, Math.floor(diff / 86400_000));
+  if (days < 7) {
+    if (days === 1) return '1 dzień temu';
+    return `${days} dni temu`;
+  }
+  if (days < 30) return `${Math.max(1, Math.floor(days / 7))} tyg. temu`;
+  if (days < 365) return `${Math.max(1, Math.floor(days / 30))} mies. temu`;
+
+  const years = Math.max(1, Math.floor(days / 365));
+  if (years === 1) return '1 rok temu';
+  if (years < 5) return `${years} lata temu`;
+  return `${years} lat temu`;
+}
+
 function lastSeenInfoFromMs(ms: number | null | undefined, nowMs = Date.now()): { label: string; online: boolean } {
   if (!ms || Number.isNaN(ms)) return { label: 'Brak sygnału', online: false };
   const diff = Math.max(0, nowMs - ms);
   if (diff <= ONLINE_GRACE_MS) return { label: 'teraz', online: true };
-  if (diff < 3600_000) {
-    const offlineMinutes = Math.max(1, Math.floor((diff - ONLINE_GRACE_MS) / 60_000) + 1);
-    return { label: `${offlineMinutes} min temu`, online: false };
-  }
-  const hours = Math.max(1, Math.floor(diff / 3600_000));
-  return { label: `${hours} godz. temu`, online: false };
+  return { label: formatElapsedAgoPl(diff), online: false };
 }
 
 function lastSeenInfoOfflineFromMs(ms: number | null | undefined): { label: string; online: boolean } {

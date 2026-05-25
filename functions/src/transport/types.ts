@@ -47,6 +47,10 @@ export interface TransportVehicle {
   lastStopDistance?: number;
   lastStopId?: number;
   lastUpdate?: string;
+  previousTripEndedAtMs?: number;
+  nextTripStartAtMs?: number;
+  nextTripFirstStopId?: number;
+  computedSpeed?: number;
   journeyId?: string | number;
   serviceId?: string | number;
   tripId?: string | number;

@@ -2,6 +2,7 @@ import {Capacitor, CapacitorHttp} from '@capacitor/core';
 import type {Vehicle} from '@/components/BusMap';
 
 type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: string; code?: string}>;
+type FullStopRecord = { id?: string; name?: string; areaId?: string; code?: string };
 type PersistentCacheEnvelope<T> = {
   version: number;
   savedAt: number;
@@ -75,6 +76,10 @@ type TransportApiVehicle = {
   lastStopDistance?: number;
   lastStopId?: number;
   lastUpdate?: string;
+  previousTripEndedAtMs?: number;
+  nextTripStartAtMs?: number;
+  nextTripFirstStopId?: number;
+  computedSpeed?: number;
   journeyId?: string | number;
   serviceId?: string | number;
   tripId?: string | number;
@@ -96,6 +101,7 @@ type TransportApiVehiclesResponse = {
 };
 
 let stopsDictionaryPromise: Promise<Record<string, string>> | null = null;
+let fullStopsDictionaryPromise: Promise<Record<string, FullStopRecord>> | null = null;
 let stopPointIndexPromise: Promise<StopPointIndex> | null = null;
 let shapeIndexPromise: Promise<Record<string, string>> | null = null;
 let routeStopShapeIndexPromise: Promise<Record<string, string>> | null = null;
@@ -138,11 +144,12 @@ const marcelProgressState = new Map<string, {
   tripProgressSinceMs: number;
   lastSeenMs: number;
 }>();
+const vehicleSpeedHistory = new Map<string, { lat: number; lon: number; atMs: number; lastSeenMs: number }>();
 const MARCEL_STALE_MS = 7 * 60 * 1000;
-const CLIENT_STOP_CACHE_VERSION = 3;
+const CLIENT_STOP_CACHE_VERSION = 4;
 const CLIENT_STOP_CACHE_TTL_MS = 15 * 60 * 1000;
-const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v3';
-const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v3';
+const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v4';
+const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v4';
 
 type MarcelCourseStop = {
   id: number;
@@ -335,8 +342,67 @@ async function requestText(url: string, init?: RequestInit & {headers?: Record<s
   return text;
 }
 
+async function fetchPksVehiclesSnapshot(signal?: AbortSignal) {
+  const panelFeedUrl = isNative() ? 'http://185.214.67.112/api/its/vehicles' : '/api/pks/vehicles';
+  const panelFeed = await requestJson<any>(panelFeedUrl, {
+    signal,
+    headers: isNative()
+      ? {
+          Host: 'einfo.zgpks.rzeszow.pl',
+          Accept: 'application/json',
+        }
+      : { Accept: 'application/json' },
+  }).catch(() => null);
+  const panelItems = Array.isArray(panelFeed?.items) ? panelFeed.items : Array.isArray(panelFeed) ? panelFeed : [];
+  if (panelItems.length > 0) return panelItems;
+
+  const wsItems = await fetchPksVehiclesFromPanelWebSocket(signal).catch(() => []);
+  if (wsItems.length > 0) return wsItems;
+
+  return requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal }).catch(() => []);
+}
+
+function fetchPksVehiclesFromPanelWebSocket(signal?: AbortSignal): Promise<any[]> {
+  if (typeof WebSocket === 'undefined') return Promise.resolve([]);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let ws: WebSocket | null = null;
+    const finish = (items: any[]) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', abortHandler);
+      try {
+        ws?.close();
+      } catch {}
+      resolve(items);
+    };
+    const abortHandler = () => finish([]);
+    const timeoutId = window.setTimeout(() => finish([]), 3500);
+
+    signal?.addEventListener('abort', abortHandler, { once: true });
+    try {
+      ws = new WebSocket('ws://185.214.67.112:3000/rist');
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(String(event.data || ''));
+          const items = Array.isArray(payload?.items) ? payload.items : [];
+          if (items.length > 0) finish(items);
+        } catch {
+          finish([]);
+        }
+      };
+      ws.onerror = () => finish([]);
+      ws.onclose = () => finish([]);
+    } catch {
+      finish([]);
+    }
+  });
+}
+
 async function fetchPksVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
-  const rawVehicles = await requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal });
+  const rawVehicles = await fetchPksVehiclesSnapshot(signal);
   const now = Date.now();
 
   return (Array.isArray(rawVehicles) ? rawVehicles : [])
@@ -352,11 +418,11 @@ async function fetchPksVehiclesClient(includeInactive: boolean, signal?: AbortSi
 
 async function fetchPksVehicleDetailsClient(vehicleId: string, includeInactive: boolean) {
   const [rawVehicles, stopsDict] = await Promise.all([
-    requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php'),
+    fetchPksVehiclesSnapshot(),
     loadStopsDictionary(),
   ]);
   const rawVehicle = (Array.isArray(rawVehicles) ? rawVehicles : []).find((vehicle) =>
-    String(vehicle?.vehicle_id ?? `json-${getTripBase(vehicle?.trip_id) || ''}`) === String(vehicleId),
+    String(vehicle?.vehicle_id ?? vehicle?.id ?? `json-${getTripBase(vehicle?.trip_id) || ''}`) === String(vehicleId),
   );
   if (!rawVehicle) return null;
 
@@ -666,6 +732,45 @@ function distanceMeters(a: ShapePoint, b: ShapePoint) {
   return Math.sqrt(dLat * dLat + dLon * dLon);
 }
 
+function computeObservedSpeedKmh(vehicleKey: string, lat: number, lon: number, observedAtMs: number, rawSpeed?: number) {
+  if (Number.isFinite(rawSpeed) && rawSpeed! > 0) {
+    vehicleSpeedHistory.set(vehicleKey, { lat, lon, atMs: observedAtMs, lastSeenMs: Date.now() });
+    return Math.max(0, rawSpeed!);
+  }
+
+  const previous = vehicleSpeedHistory.get(vehicleKey);
+  vehicleSpeedHistory.set(vehicleKey, { lat, lon, atMs: observedAtMs, lastSeenMs: Date.now() });
+
+  if (!previous) return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed!) : undefined;
+  const elapsedSec = Math.max(0, (observedAtMs - previous.atMs) / 1000);
+  const movedMeters = distanceMeters([lat, lon], [previous.lat, previous.lon]);
+  if (elapsedSec < 3 || movedMeters < 8) return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed!) : 0;
+
+  const speed = (movedMeters / elapsedSec) * 3.6;
+  if (!Number.isFinite(speed) || speed > 140) return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed!) : undefined;
+
+  if (vehicleSpeedHistory.size > 900) {
+    const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+    for (const [key, value] of vehicleSpeedHistory) {
+      if (value.lastSeenMs < cutoff) vehicleSpeedHistory.delete(key);
+    }
+  }
+
+  return Math.round(speed);
+}
+
+function firstFutureStopMs(stops: Array<{ planned?: string | null; real?: string | null; id?: unknown }>, nowMs: number) {
+  for (const stop of stops) {
+    const raw = String(stop.real || stop.planned || '').trim();
+    if (!raw) continue;
+    const ms = new Date(raw.replace(' ', 'T')).getTime();
+    if (Number.isFinite(ms) && ms > nowMs + 2 * 60_000) {
+      return { ms, id: Number(stop.id) };
+    }
+  }
+  return null;
+}
+
 function estimateMarcelDelaySeconds(lat: number, lon: number, stops: MarcelCourseStop[], nowMs: number) {
   if (stops.length === 0) return 0;
   if (stops.length === 1) return Math.round((nowMs - stops[0].plannedMs) / 1000);
@@ -734,16 +839,8 @@ function inferMarcelStatus(
 
   const firstStop = stops[0];
   const firstDepartureMs = firstStop ? firstStop.plannedMs + delaySeconds * 1000 : NaN;
-  const isNearFirstStop = firstStop
-    ? distanceMeters([lat, lon], [firstStop.lat, firstStop.lon]) <= 350
-    : false;
-
-  if (Number.isFinite(firstDepartureMs) && firstDepartureMs - nowMs > 2 * 60 * 1000 && isNearFirstStop) {
+  if (Number.isFinite(firstDepartureMs) && firstDepartureMs - nowMs > 2 * 60 * 1000) {
     return { status: 'break' as const, statusText: `Przerwa do ${formatClock(firstDepartureMs)}` };
-  }
-
-  if (dataAgeSec > 90) {
-    return { status: 'active' as const, statusText: 'Postój na trasie' };
   }
 
   return { status: 'active' as const, statusText: 'W trasie' };
@@ -776,7 +873,8 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
   const fullRoutePath = routeStops.map((stop) => stop.id);
   const hasLine = line !== '?';
   const vehicleStatus = inferMarcelStatus(hasLine, lat, lon, courseStops, delay, dataAgeSec, now);
-  const speed = readMarcelNumber(raw, ['speed', 'predkosc', 'prędkość', 'v', 'velocity', 'position.speed']);
+  const rawSpeed = readMarcelNumber(raw, ['speed', 'predkosc', 'prędkość', 'v', 'velocity', 'position.speed']);
+  const speed = computeObservedSpeedKmh(`marcel:${rawVehicleId}`, lat, lon, signalMs, rawSpeed);
   const nextStopId = schedule[0]?.id ?? routeStops.find((stop) => !stop.isPast)?.id ?? '';
   const progressState = getMarcelProgressState(String(rawVehicleId), lat, lon, tripId, nextStopId, now);
   const firstStop = routeStops[0];
@@ -790,7 +888,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
   if (dataAgeSec > MARCEL_STALE_MS / 1000) return null;
   if (shouldHideDeadMarcelVehicle({
     delaySeconds: delay,
-    speed,
+    speed: speed ?? Number.NaN,
     positionUnchangedMinutes: progressState.positionUnchangedMinutes,
     tripProgressUnchangedMinutes: progressState.tripProgressUnchangedMinutes,
     isAtTerminalOrDepot,
@@ -809,6 +907,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     lat,
     lon,
     speed: Number.isFinite(speed) ? speed : undefined,
+    computedSpeed: speed,
     direction,
     delay,
     dataAgeSec,
@@ -817,6 +916,9 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     routePath: fullRoutePath,
     model: readMarcelString(raw, ['model', 'vehicle.model']),
     lastSignalTime: new Date(signalMs).toISOString(),
+    previousTripEndedAtMs: vehicleStatus.status === 'break' ? now : undefined,
+    nextTripStartAtMs: vehicleStatus.status === 'break' && courseStops[0] ? courseStops[0].plannedMs + delay * 1000 : undefined,
+    nextTripFirstStopId: vehicleStatus.status === 'break' ? courseStops[0]?.id : undefined,
     journeyId: tripId,
     serviceId: readMarcelString(raw, ['serviceId', 'service_id', 'brygada']) || undefined,
     tripId,
@@ -909,6 +1011,14 @@ function getEffectiveMpkDelay(
   }
 
   return rawDelay;
+}
+
+function inferMpkBreakFromSchedule(schedule: Vehicle['schedule'], nowMs: number) {
+  const nextTrip = firstFutureStopMs(schedule || [], nowMs);
+  return nextTrip ? {
+    nextTripStartAtMs: nextTrip.ms,
+    nextTripFirstStopId: Number.isFinite(nextTrip.id) ? nextTrip.id : undefined,
+  } : null;
 }
 
 function buildDateFromMpkTime(timeValue: unknown, anchorDate: Date, previousDate: Date | null) {
@@ -1019,14 +1129,17 @@ function mapMpkDirectVehicle(
   const movedDistance = Number.isFinite(previousLat) && Number.isFinite(previousLon)
     ? Math.hypot(lat - previousLat, lon - previousLon)
     : 0;
-  const speed = movedDistance > 0 ? Math.min(55, Math.round(movedDistance * 100000)) : 0;
+  const geometrySpeed = movedDistance > 0 ? Math.min(55, Math.round(movedDistance * 100000)) : 0;
+  const speed = computeObservedSpeedKmh(`mpk_rzeszow:${vehicleNumber}`, lat, lon, now - dataAgeSec * 1000, geometrySpeed) ?? 0;
   const rawDelay = Number(rawVehicle.o ?? details?.delay ?? 0);
   const statusCode = String(rawVehicle.s || details?.status || '');
   const delay = getEffectiveMpkDelay(rawDelay, statusCode, speed, tripSchedule?.schedule);
   const nextStopId = Number(rawVehicle.nk || details?.end_stop_id);
   const nextStopName = String(rawVehicle.nop || details?.end_stop_name || '').trim();
-  const direction = String(rawVehicle.op || details?.op || rawVehicle.nop || '').trim() || (speed > 3 ? 'W trasie' : 'Postój');
-  const isBreak = isMpkBreakStatus(statusCode);
+  const direction = String(rawVehicle.op || details?.op || rawVehicle.nop || '').trim() || 'W trasie';
+  const scheduleBreak = inferMpkBreakFromSchedule(tripSchedule?.schedule, now);
+  const isBreak = Boolean(scheduleBreak) || isMpkBreakStatus(statusCode);
+  const breakUntilMs = scheduleBreak?.nextTripStartAtMs;
 
   return {
     id: `mpk_rzeszow_${vehicleNumber}`,
@@ -1041,6 +1154,7 @@ function mapMpkDirectVehicle(
     lat,
     lon,
     speed,
+    computedSpeed: speed,
     direction,
     delay,
     dataAgeSec,
@@ -1055,12 +1169,15 @@ function mapMpkDirectVehicle(
     lastStopDistance: Number.isFinite(Number(rawVehicle.dp)) ? Number(rawVehicle.dp) : undefined,
     lastStopId: Number.isFinite(Number(rawVehicle.ik)) ? Number(rawVehicle.ik) : undefined,
     lastSignalTime: new Date(now - dataAgeSec * 1000).toISOString(),
+    previousTripEndedAtMs: isBreak ? now : undefined,
+    nextTripStartAtMs: breakUntilMs,
+    nextTripFirstStopId: scheduleBreak?.nextTripFirstStopId,
     journeyId: details?.rawBrygada ?? rawVehicle.kwi?.trim() ?? undefined,
     serviceId: rawVehicle.kwi?.trim() || details?.brygada,
     tripId: details?.trip_id ?? rawVehicle.ik ?? undefined,
     brigadeName: rawVehicle.kwi?.trim() || details?.brygada,
     status: isBreak ? 'break' : 'active',
-    statusText: isBreak ? 'Postój na pętli' : speed <= 1 ? 'Postój na trasie' : 'W trasie',
+    statusText: isBreak && Number.isFinite(breakUntilMs) ? `Przerwa do ${formatClock(breakUntilMs as number)}` : isBreak ? 'Przerwa' : 'W trasie',
   };
 }
 
@@ -1106,6 +1223,15 @@ async function loadStopsDictionary() {
     stopsDictionaryPromise = fetch('/data/stops-dictionary.json', {cache: 'force-cache'}).then((res) => res.json());
   }
   return stopsDictionaryPromise;
+}
+
+async function loadFullStopsDictionary() {
+  if (!fullStopsDictionaryPromise) {
+    fullStopsDictionaryPromise = fetch('/data/stops-dictionary-full.json', {cache: 'force-cache'})
+      .then((res) => (res.ok ? res.json() : {}))
+      .catch(() => ({}));
+  }
+  return fullStopsDictionaryPromise;
 }
 
 async function loadStopPointIndex() {
@@ -1572,6 +1698,10 @@ function mapTransportVehicleToClient(vehicle: TransportApiVehicle): Vehicle {
     lastStopDistance: vehicle.lastStopDistance,
     lastStopId: vehicle.lastStopId,
     lastSignalTime: vehicle.lastUpdate,
+    previousTripEndedAtMs: vehicle.previousTripEndedAtMs,
+    nextTripStartAtMs: vehicle.nextTripStartAtMs,
+    nextTripFirstStopId: vehicle.nextTripFirstStopId,
+    computedSpeed: vehicle.computedSpeed,
     journeyId: vehicle.journeyId,
     serviceId: vehicle.serviceId,
     tripId: vehicle.tripId,
@@ -1591,12 +1721,21 @@ function formatStopName(rawName: string | undefined) {
 }
 
 function buildSchedule(nextStopPoints: any[] | undefined, stopsDict: Record<string, string>) {
-  return (nextStopPoints || []).map((sp: any) => ({
-    id: Number(sp.stop_point_id),
-    name: formatStopName(stopsDict[String(sp.stop_point_id)]),
-    planned: sp.planned_departure_time ? String(sp.planned_departure_time).replace(' ', 'T') : null,
-    real: sp.real_departure_time ? String(sp.real_departure_time).replace(' ', 'T') : null,
-  }));
+  return (nextStopPoints || []).map((sp: any) => {
+    const stopId = Number(sp.stop_point_id ?? sp.stopPointId ?? sp.id);
+    const plannedRaw = sp.planned_departure_time ?? sp.timetable_time ?? sp.planned;
+    const realRaw = sp.real_departure_time ?? sp.real;
+    const lat = Number(sp.location?.lat ?? sp.lat ?? sp.latitude);
+    const lon = Number(sp.location?.lon ?? sp.location?.lng ?? sp.lon ?? sp.lng ?? sp.long ?? sp.longitude);
+    return {
+      id: stopId,
+      name: formatStopName(sp.name || stopsDict[String(stopId)]),
+      planned: plannedRaw ? String(plannedRaw).replace(' ', 'T') : null,
+      real: realRaw ? String(realRaw).replace(' ', 'T') : null,
+      lat: Number.isFinite(lat) ? lat : undefined,
+      lon: Number.isFinite(lon) ? lon : undefined,
+    };
+  });
 }
 
 function buildRoutePath(route: any): number[] {
@@ -1626,12 +1765,22 @@ function formatClock(ts: number) {
   return new Date(ts).toLocaleTimeString('pl-PL', {hour: '2-digit', minute: '2-digit'});
 }
 
-function inferVehicleStatus(v: any, ageSec: number, speed: number, now: number, hasLine: boolean) {
+function inferVehicleStatus(
+  v: any,
+  ageSec: number,
+  speed: number,
+  now: number,
+  hasLine: boolean,
+  schedule: ReturnType<typeof buildSchedule>,
+): {
+  status: 'active' | 'break' | 'inactive' | 'technical';
+  statusText: string;
+  nextTripStartAtMs?: number;
+  nextTripFirstStopId?: number;
+} {
   const nextStops = Array.isArray(v.next_stop_points) ? v.next_stop_points : [];
-  const firstNext = nextStops[0];
-  const plannedMs = firstNext?.planned_departure_time
-    ? new Date(String(firstNext.planned_departure_time).replace(' ', 'T')).getTime()
-    : NaN;
+  const nextTrip = firstFutureStopMs(schedule, now);
+  const plannedMs = nextTrip?.ms ?? NaN;
   const lastStopNumber = Number(v.position?.last_stop_point_number);
   const lastStopDistance = Number(v.position?.last_stop_point_distance);
   const isAtTripStart = lastStopNumber === 0 && (lastStopDistance === 0 || Number.isNaN(lastStopDistance));
@@ -1648,19 +1797,17 @@ function inferVehicleStatus(v: any, ageSec: number, speed: number, now: number, 
     return {status: 'technical' as const, statusText: 'Przejazd techniczny'};
   }
 
-  if (isAtTripStart && Number.isFinite(waitMs) && waitMs > 120000 && speed <= 5) {
+  if (Number.isFinite(waitMs) && waitMs > 120000 && (isAtTripStart || schedule.length > 0)) {
     return {
       status: 'break' as const,
       statusText: `Przerwa do ${formatClock(plannedMs)}`,
+      nextTripStartAtMs: plannedMs,
+      nextTripFirstStopId: Number.isFinite(nextTrip?.id) ? nextTrip?.id : undefined,
     };
   }
 
   if (speed <= 1 && nextStops.length === 0) {
-    return {status: 'inactive' as const, statusText: 'Postoj po kursie'};
-  }
-
-  if (speed <= 1) {
-    return {status: 'active' as const, statusText: 'Postoj na trasie'};
+    return {status: 'inactive' as const, statusText: 'Pojazd bez przypisanej linii'};
   }
 
   return {status: 'active' as const, statusText: 'W trasie'};
@@ -1673,37 +1820,51 @@ function mapVehicle(
   stopsDict: Record<string, string>,
   includeDetails = true,
 ): Vehicle | null {
-  if (!v.position || v.position.lat == null || v.position.long == null) return null;
+  const position = v.position || v.location || {};
+  const lat = Number(position.lat ?? position.latitude);
+  const lon = Number(position.long ?? position.lon ?? position.lng ?? position.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
-  const signalRaw = v.position.position_date ? String(v.position.position_date).replace(' ', 'T') : '';
+  const signalRaw = (position.position_date || position.timestamp || v.lastUpdate || v.updatedAt)
+    ? String(position.position_date || position.timestamp || v.lastUpdate || v.updatedAt).replace(' ', 'T')
+    : '';
   const signalMs = signalRaw ? new Date(signalRaw).getTime() : now;
   const lineName = String(v.journey?.line?.line_name || v.journey?.line?.name || '').trim() || '---';
-  const hasLine = lineName !== '---';
+  const fallbackLineName = String(v.line_name || v.line || '').trim();
+  const effectiveLineName = lineName !== '---' ? lineName : (fallbackLineName || '---');
+  const hasLine = effectiveLineName !== '---' && effectiveLineName !== '?';
   const ageSec = Math.max(0, Math.floor((now - (Number.isNaN(signalMs) ? now : signalMs)) / 1000));
   if (!includeInactive && !hasLine) return null;
   if (ageSec > 7 * 60) return null;
 
-  const speed = Number(v.position.speed || 0);
-  let destination = v.journey?.route?.description || v.journey?.route?.name || (speed > 3 ? 'W trasie' : 'Postoj');
-  const vehicleStatus = inferVehicleStatus(v, ageSec, speed, now, hasLine);
+  const vehicleId = String(v.vehicle_id ?? v.id ?? `json-${getTripBase(v.trip_id) || now}`);
+  const rawSpeed = Number(position.speed);
+  const speed = computeObservedSpeedKmh(`pks:${vehicleId}`, lat, lon, Number.isNaN(signalMs) ? now : signalMs, rawSpeed);
+  const destination = v.journey?.route?.description || v.journey?.route?.name || v.route_description || v.direction || 'W trasie';
+  const schedule = includeDetails ? buildSchedule(v.next_stop_points, stopsDict) : [];
+  const vehicleStatus = inferVehicleStatus(v, ageSec, speed ?? 0, now, hasLine, schedule);
 
   return {
-    id: String(v.vehicle_id ?? `json-${getTripBase(v.trip_id) || now}`),
-    routeId: lineName,
-    name: `PKS ${lineName !== '---' ? lineName : String(v.vehicle_id ?? '?')}`,
-    routeShortName: lineName !== '---' ? lineName : '?',
-    lat: Number(v.position.lat),
-    lon: Number(v.position.long),
+    id: vehicleId,
+    routeId: effectiveLineName,
+    name: `PKS ${effectiveLineName !== '---' ? effectiveLineName : vehicleId}`,
+    routeShortName: effectiveLineName !== '---' ? effectiveLineName : '?',
+    lat,
+    lon,
     speed,
+    computedSpeed: speed,
     direction: destination,
-    delay: typeof v.delay === 'number' ? v.delay : 0,
+    delay: typeof v.delay === 'number' ? v.delay : typeof v.deviation === 'number' ? v.deviation * 60 : 0,
     dataAgeSec: ageSec,
-    schedule: includeDetails ? buildSchedule(v.next_stop_points, stopsDict) : [],
+    schedule,
     routePath: includeDetails ? buildRoutePath(v.journey?.route) : [],
     model: v.model,
-    lastStopDistance: typeof v.position.last_stop_point_distance === 'number' ? v.position.last_stop_point_distance : undefined,
-    lastStopId: typeof v.position.last_stop_point_number === 'number' ? v.position.last_stop_point_number : undefined,
+    lastStopDistance: typeof position.last_stop_point_distance === 'number' ? position.last_stop_point_distance : undefined,
+    lastStopId: typeof position.last_stop_point_number === 'number' ? position.last_stop_point_number : undefined,
     lastSignalTime: signalRaw || undefined,
+    previousTripEndedAtMs: Number.isFinite(vehicleStatus.nextTripStartAtMs) ? now : undefined,
+    nextTripStartAtMs: vehicleStatus.nextTripStartAtMs,
+    nextTripFirstStopId: vehicleStatus.nextTripFirstStopId,
     journeyId: v.journey?.journey_id ?? v.trip_id ?? undefined,
     tripId: v.trip_id ?? undefined,
     serviceId:
@@ -2331,6 +2492,19 @@ async function fetchStopsFromNetwork(): Promise<StopsMap> {
   const data = await requestEinfoJson<any>('stop-point', {
     headers: {'Accept': 'application/json'},
   }).catch(async () => {
+    const fullDict = await loadFullStopsDictionary();
+    if (Object.keys(fullDict).length > 0) {
+      return {
+        items: Object.entries(fullDict).map(([id, record]) => ({
+          stop_point_id: id,
+          name: record.name || '',
+          stop_area_name: record.name || '',
+          stop_area_id: record.areaId || '',
+          stop_point_code: record.code || '',
+          location: {},
+        })),
+      };
+    }
     const dict = await loadStopsDictionary();
     return {
       items: Object.entries(dict).map(([id, name]) => ({
@@ -2360,8 +2534,15 @@ async function fetchStopsFromNetwork(): Promise<StopsMap> {
       const isRzeszowDA = isRzeszow && (formattedName.includes('D.A.') || formattedName.toLowerCase().includes('dworzec'));
 
       if (!isRzeszowDA && /^0\d$/.test(code)) code = code.substring(1);
+      const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedRawCode = stop.stop_point_code.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const alreadyHasCode =
+        new RegExp(`(?:^|\\s)${escapedCode}$`).test(formattedName) ||
+        new RegExp(`(?:^|\\s)${escapedRawCode}$`).test(formattedName);
 
-      if (isRzeszow) {
+      if (alreadyHasCode) {
+        // Full local fallback names already include the stop-side code.
+      } else if (isRzeszow) {
         if (isRzeszowDA) {
           if (/^0+\d+$/.test(code)) code = String(Number(code));
           if (!formattedName.toLowerCase().includes('st.')) formattedName += ` st. ${code}`;

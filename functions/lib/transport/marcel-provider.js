@@ -9,6 +9,7 @@ const ICON_VARIANT = 'marcel';
 const MARCEL_STALE_MS = 7 * 60 * 1000;
 const positionFreshness = new Map();
 const progressFreshness = new Map();
+const speedHistory = new Map();
 const REQUEST_HEADERS = {
     Accept: 'application/json',
     'Accept-Language': 'pl,en;q=0.9',
@@ -327,6 +328,24 @@ function distanceMeters(a, b) {
     const dLng = (a[1] - b[1]) * Math.cos(meanLat) * 111320;
     return Math.sqrt(dLat * dLat + dLng * dLng);
 }
+function computeObservedSpeedKmh(vehicleKey, lat, lng, observedAtMs, rawSpeed) {
+    if (Number.isFinite(rawSpeed) && rawSpeed > 0) {
+        speedHistory.set(vehicleKey, { lat, lng, atMs: observedAtMs, lastSeenMs: Date.now() });
+        return Math.max(0, rawSpeed);
+    }
+    const previous = speedHistory.get(vehicleKey);
+    speedHistory.set(vehicleKey, { lat, lng, atMs: observedAtMs, lastSeenMs: Date.now() });
+    if (!previous)
+        return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed) : undefined;
+    const elapsedSec = Math.max(0, (observedAtMs - previous.atMs) / 1000);
+    const movedMeters = distanceMeters([lat, lng], [previous.lat, previous.lng]);
+    if (elapsedSec < 3 || movedMeters < 8)
+        return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed) : 0;
+    const speed = (movedMeters / elapsedSec) * 3.6;
+    if (!Number.isFinite(speed) || speed > 140)
+        return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed) : undefined;
+    return Math.round(speed);
+}
 function estimateDelaySeconds(lat, lng, stops, nowMs) {
     if (stops.length === 0)
         return 0;
@@ -381,14 +400,9 @@ function inferStatus(hasLine, lat, lng, stops, delaySeconds, dataAgeSec, nowMs) 
         return { status: 'inactive', statusText: 'Pojazd bez przypisanej linii' };
     const firstStop = stops[0];
     const firstDepartureMs = firstStop ? firstStop.plannedMs + delaySeconds * 1000 : NaN;
-    const isNearFirstStop = firstStop
-        ? distanceMeters([lat, lng], [firstStop.lat, firstStop.lng]) <= 350
-        : false;
-    if (Number.isFinite(firstDepartureMs) && firstDepartureMs - nowMs > 2 * 60 * 1000 && isNearFirstStop) {
+    if (Number.isFinite(firstDepartureMs) && firstDepartureMs - nowMs > 2 * 60 * 1000) {
         return { status: 'break', statusText: `Przerwa do ${formatClock(firstDepartureMs)}` };
     }
-    if (dataAgeSec > 90)
-        return { status: 'active', statusText: 'Postój na trasie' };
     return { status: 'active', statusText: 'W trasie' };
 }
 async function toTransportVehicle(rawVehicle, now, includeInactive) {
@@ -421,7 +435,8 @@ async function toTransportVehicle(rawVehicle, now, includeInactive) {
     const routeStops = buildRouteStops(courseStops, delaySeconds, now);
     const direction = getDestination(routeName || readFirstString(source, ['kierunek', 'direction', 'relacja', 'opisTrasy', 'routeDescription']));
     const vehicleStatus = inferStatus(hasLine, lat, lng, courseStops, delaySeconds, dataAgeSec, now);
-    const speed = readFirstNumber(source, ['speed', 'predkosc', 'prędkość', 'v', 'velocity']);
+    const rawSpeed = readFirstNumber(source, ['speed', 'predkosc', 'prędkość', 'v', 'velocity']);
+    const speed = computeObservedSpeedKmh(`marcel:${rawVehicleId}`, lat, lng, signalMs, rawSpeed);
     const nextStopId = schedule[0]?.id ?? routeStops.find((stop) => !stop.isPast)?.id ?? '';
     const progress = getProgressFreshness(String(rawVehicleId), lat, lng, tripId, nextStopId, now);
     const firstStop = routeStops[0];
@@ -430,7 +445,7 @@ async function toTransportVehicle(rawVehicle, now, includeInactive) {
         (lastStop && distanceMeters([lat, lng], [lastStop.lat, lastStop.lng]) <= 350));
     if (shouldHideDeadVehicle({
         delaySeconds,
-        speed,
+        speed: speed ?? Number.NaN,
         positionUnchangedMinutes: progress.positionUnchangedMinutes,
         tripProgressUnchangedMinutes: progress.tripProgressUnchangedMinutes,
         isAtTerminalOrDepot,
@@ -451,6 +466,7 @@ async function toTransportVehicle(rawVehicle, now, includeInactive) {
         lng,
         bearing: readFirstNumber(source, ['bearing', 'heading', 'azymut', 'kierunekJazdy']),
         speed: Number.isFinite(speed) ? speed : undefined,
+        computedSpeed: speed,
         direction,
         delaySeconds,
         delayMinutes: Math.round(delaySeconds / 60),
@@ -460,6 +476,9 @@ async function toTransportVehicle(rawVehicle, now, includeInactive) {
         routePath: routeStops.map((stop) => stop.id),
         model: readFirstString(source, ['model', 'marka', 'typ']),
         lastUpdate: new Date(signalMs).toISOString(),
+        previousTripEndedAtMs: vehicleStatus.status === 'break' ? now : undefined,
+        nextTripStartAtMs: vehicleStatus.status === 'break' && courseStops[0] ? courseStops[0].plannedMs + delaySeconds * 1000 : undefined,
+        nextTripFirstStopId: vehicleStatus.status === 'break' ? courseStops[0]?.id : undefined,
         journeyId: tripId || undefined,
         serviceId: serviceId || undefined,
         tripId: tripId || undefined,

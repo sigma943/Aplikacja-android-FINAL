@@ -1,6 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
 
@@ -23,7 +22,7 @@ const CARRIER_FILTERS: Array<{ id: CarrierFilterId; label: string; dotClass: str
   { id: 'marcel', label: 'Marcel', dotClass: 'bg-lime-400' },
 ];
 
-function filterAndSortStops(stops: Stop[], query: string, carrierFilter: CarrierFilterId) {
+function filterStops(stops: Stop[], query: string, carrierFilter: CarrierFilterId) {
   const normalizedQuery = query.trim().toLowerCase();
   return stops
     .filter((stop) => {
@@ -31,10 +30,6 @@ function filterAndSortStops(stops: Stop[], query: string, carrierFilter: Carrier
       if (carrierFilter !== 'all' && !stop.carriers.some((carrier) => carrier.id === carrierFilter)) return false;
       if (!normalizedQuery) return true;
       return stop.name.toLowerCase().includes(normalizedQuery);
-    })
-    .sort((left, right) => {
-      if (left.isFavorite !== right.isFavorite) return left.isFavorite ? -1 : 1;
-      return left.name.localeCompare(right.name, 'pl');
     });
 }
 
@@ -51,9 +46,27 @@ export default function StopList({
   const [fullInputValue, setFullInputValue] = useState('');
   const [carrierFilter, setCarrierFilter] = useState<CarrierFilterId>('all');
   const [visibleFullCount, setVisibleFullCount] = useState(40);
+  const deferredInputValue = useDeferredValue(inputValue);
+  const deferredFullInputValue = useDeferredValue(fullInputValue);
+  const sortedStops = useMemo(
+    () =>
+      stops
+        .filter((stop) => (ENABLE_TRAINS ? true : stop.type === 'bus'))
+        .sort((left, right) => {
+          if (left.isFavorite !== right.isFavorite) return left.isFavorite ? -1 : 1;
+          return left.name.localeCompare(right.name, 'pl');
+        }),
+    [stops],
+  );
 
-  const filteredStops = useMemo(() => filterAndSortStops(stops, inputValue, carrierFilter), [stops, inputValue, carrierFilter]);
-  const fullFilteredStops = useMemo(() => filterAndSortStops(stops, fullInputValue, carrierFilter), [stops, fullInputValue, carrierFilter]);
+  const filteredStops = useMemo(
+    () => filterStops(sortedStops, deferredInputValue, carrierFilter),
+    [sortedStops, deferredInputValue, carrierFilter],
+  );
+  const fullFilteredStops = useMemo(
+    () => filterStops(sortedStops, deferredFullInputValue, carrierFilter),
+    [sortedStops, deferredFullInputValue, carrierFilter],
+  );
   const displayStops = useMemo(() => filteredStops.slice(0, 30), [filteredStops]);
   const slicedFullStops = useMemo(() => fullFilteredStops.slice(0, visibleFullCount), [fullFilteredStops, visibleFullCount]);
 
@@ -113,14 +126,9 @@ export default function StopList({
   const renderStopCard = (stop: Stop, index: number, full = false) => {
     const isBus = stop.type === 'bus';
     return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -8, scale: 0.98 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.8, delay: Math.min(index * 0.012, 0.12) }}
+      <div
         key={`${full ? 'full' : 'list'}-${stop.id}`}
-        className={`group flex cursor-pointer items-center border border-white/[0.08] bg-[#0d1622]/34 shadow-[0_18px_45px_rgba(0,0,0,0.14)] backdrop-blur-2xl transition-colors duration-200 hover:border-teal-400/35 hover:bg-[#142238]/48 hover:shadow-[0_20px_45px_-10px_rgba(20,184,166,0.14)] active:scale-[0.99] ${
+        className={`group flex cursor-pointer items-center border border-white/[0.08] bg-[#0d1622]/34 transition-colors duration-150 hover:border-teal-400/35 hover:bg-[#142238]/48 active:scale-[0.99] ${
           full ? 'rounded-[22px] p-4' : 'rounded-[24px] p-4 lg:p-5'
         }`}
         onClick={() => {
@@ -161,12 +169,7 @@ export default function StopList({
           className="shrink-0 cursor-pointer rounded-xl p-2.5 text-slate-500 transition-all duration-200 hover:bg-white/5 hover:text-white"
           aria-label={stop.isFavorite ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}
         >
-          <motion.span
-            layout
-            animate={{ scale: stop.isFavorite ? 1.14 : 1 }}
-            transition={{ type: 'spring', stiffness: 520, damping: 24 }}
-            className="block"
-          >
+          <span className="block">
             <Star
               size={full ? 18 : 20}
               className={
@@ -175,9 +178,9 @@ export default function StopList({
                   : 'text-slate-500 group-hover:text-slate-400'
               }
             />
-          </motion.span>
+          </span>
         </button>
-      </motion.div>
+      </div>
     );
   };
 
@@ -205,6 +208,16 @@ export default function StopList({
             value={inputValue}
             onChange={(event) => setInputValue(event.target.value)}
           />
+          {inputValue && (
+            <button
+              type="button"
+              onClick={() => setInputValue('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Wyczysc wyszukiwanie"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
         {renderCarrierFilters()}
       </div>
@@ -229,9 +242,7 @@ export default function StopList({
           ))
         ) : (
           <>
-            <AnimatePresence mode="popLayout">
-              {displayStops.map((stop, index) => renderStopCard(stop, index))}
-            </AnimatePresence>
+            {displayStops.map((stop, index) => renderStopCard(stop, index))}
 
             {filteredStops.length > 30 && (
               <div className="col-span-full mb-8 mt-6 flex w-full justify-center">
@@ -286,14 +297,25 @@ export default function StopList({
                   setVisibleFullCount(40);
                 }}
               />
+              {fullInputValue && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFullInputValue('');
+                    setVisibleFullCount(40);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label="Wyczysc wyszukiwanie"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
             {renderCarrierFilters(true)}
           </div>
 
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
-            <AnimatePresence mode="popLayout">
-              {slicedFullStops.map((stop, index) => renderStopCard(stop, index, true))}
-            </AnimatePresence>
+            {slicedFullStops.map((stop, index) => renderStopCard(stop, index, true))}
 
             {fullFilteredStops.length > visibleFullCount && (
               <div className="mb-6 mt-4 flex justify-center">

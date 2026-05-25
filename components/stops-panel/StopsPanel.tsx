@@ -93,9 +93,9 @@ const LIVE_DELAY_LIMIT_SECONDS = 18_000;
 const LIVE_DEPARTURE_MATCH_WINDOW_MS = 8 * 60_000;
 const LIVE_DETAILS_CACHE = new Map<string, { expiresAt: number; promise: Promise<Vehicle | null> }>();
 const GEO_BUCKET_PRECISION = 0.002;
-const STOP_CACHE_VERSION = 2;
+const STOP_CACHE_VERSION = 4;
 const STOP_CACHE_TTL_MS = 15 * 60 * 1000;
-const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v2:';
+const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v4:';
 
 type LiveDepartureProvider = 'pks' | 'mpk_rzeszow';
 
@@ -298,6 +298,12 @@ function mpkStopDisplayName(stop: { stop_name?: string; zone_id?: string | numbe
   return base;
 }
 
+function ensureMpkCityPrefix(value: unknown) {
+  const base = normalizeMpkDisplayName(value);
+  if (base && !hasKnownCityPrefix(base)) return `Rzesz\u00f3w ${base}`;
+  return base;
+}
+
 function preferredStopDisplayName(namesByProvider: Record<string, string>) {
   return (
     namesByProvider.pks ||
@@ -492,6 +498,230 @@ function splitCsvValues(value: unknown) {
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean);
+}
+
+function isMpkOnlyStop(stop: Stop) {
+  const providers = stop.sourceProviderIds || [];
+  return providers.includes('mpk_rzeszow') && providers.every((provider) => provider === 'mpk_rzeszow');
+}
+
+function mergeStopArraysUnique(...values: Array<string[] | undefined>) {
+  const next = new Set<string>();
+  values.forEach((list) => {
+    (list || []).forEach((entry) => {
+      const normalized = String(entry || '').trim();
+      if (normalized) next.add(normalized);
+    });
+  });
+  return [...next];
+}
+
+function mergeStopProviderIds(
+  left: Record<string, string> | undefined,
+  right: Record<string, string> | undefined,
+) {
+  const merged: Record<string, string> = { ...(left || {}) };
+  Object.entries(right || {}).forEach(([key, value]) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return;
+    merged[key] = mergeCsvValues(merged[key], normalized);
+  });
+  return merged;
+}
+
+function shouldMergeMpkStops(left: Stop, right: Stop) {
+  const leftNameKey = normalizeStopName(stopDisplayName(left.name));
+  const rightNameKey = normalizeStopName(stopDisplayName(right.name));
+  if (!leftNameKey || leftNameKey !== rightNameKey) return false;
+  return true;
+}
+
+function mergeMpkStopsForList(stops: Stop[]) {
+  const buckets = new Map<string, Stop[]>();
+  stops.forEach((stop) => {
+    if (!isMpkOnlyStop(stop)) {
+      const standaloneKey = `standalone:${stop.id}`;
+      const standaloneBucket = buckets.get(standaloneKey);
+      if (standaloneBucket) standaloneBucket.push(stop);
+      else buckets.set(standaloneKey, [stop]);
+      return;
+    }
+    const key = normalizeStopName(stopDisplayName(stop.name));
+    const bucketKey = `mpk:${key}`;
+    const bucket = buckets.get(bucketKey);
+    if (bucket) bucket.push(stop);
+    else buckets.set(bucketKey, [stop]);
+  });
+
+  const mergedStops: Stop[] = [];
+
+  buckets.forEach((bucket) => {
+    const remaining = [...bucket];
+    while (remaining.length > 0) {
+      const seed = remaining.shift() as Stop;
+      if (!isMpkOnlyStop(seed)) {
+        mergedStops.push(seed);
+        continue;
+      }
+
+      const cluster = [seed];
+      for (let index = remaining.length - 1; index >= 0; index -= 1) {
+        const candidate = remaining[index];
+        if (!isMpkOnlyStop(candidate)) continue;
+        if (!cluster.some((current) => shouldMergeMpkStops(current, candidate))) continue;
+        cluster.push(candidate);
+        remaining.splice(index, 1);
+      }
+
+      if (cluster.length === 1) {
+        mergedStops.push(seed);
+        continue;
+      }
+
+      const canonical = cluster[0];
+      const mergedLines = new Set<string>();
+      const mergedCarriers = new Map<string, Carrier>();
+
+      cluster.forEach((stop) => {
+        (stop.lines || []).forEach((line) => mergedLines.add(line));
+        (stop.carriers || []).forEach((carrier) => mergedCarriers.set(carrier.id, carrier));
+      });
+
+      const merged = {
+        ...canonical,
+        name: ensureMpkCityPrefix(cluster
+          .map((stop) => stopDisplayName(stop.name))
+          .sort((left, right) => right.length - left.length)[0] || canonical.name),
+        lines: sortedLines(mergedLines),
+        carriers: [...mergedCarriers.values()],
+        isFavorite: cluster.some((stop) => stop.isFavorite),
+        sourceProviderIds: mergeStopArraysUnique(...cluster.map((stop) => stop.sourceProviderIds)),
+        providerStopIds: cluster.reduce<Record<string, string>>(
+          (acc, stop) => mergeStopProviderIds(acc, stop.providerStopIds),
+          {},
+        ),
+      };
+      mergedStops.push(merged);
+    }
+  });
+
+  return mergedStops;
+}
+
+function normalizeStopMergeName(value: unknown) {
+  return normalizeStopName(stopDisplayName(value))
+    .replace(/\bpodkarp\.\b/g, 'podkarpacka')
+    .replace(/\bn[żz]\b/g, ' ')
+    .replace(/\bna zadanie\b/g, ' ')
+    .replace(/[.,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stopMergeTokenSet(value: unknown) {
+  const tokens = normalizeStopMergeName(value).split(' ').map((token) => token.trim()).filter(Boolean);
+  return new Set(tokens);
+}
+
+function stopMergeNumberSet(value: unknown) {
+  return new Set((normalizeStopMergeName(value).match(/\b\d{1,3}[a-z]?\b/g) || []).map((token) => token.toLowerCase()));
+}
+
+function stopMergeNameScore(left: unknown, right: unknown) {
+  const leftTokens = stopMergeTokenSet(left);
+  const rightTokens = stopMergeTokenSet(right);
+  if (!leftTokens.size || !rightTokens.size) return 0;
+  let shared = 0;
+  leftTokens.forEach((token) => {
+    if (rightTokens.has(token)) shared += 1;
+  });
+  return shared / Math.max(leftTokens.size, rightTokens.size);
+}
+
+function hasConflictingStopNumbers(left: unknown, right: unknown) {
+  const leftNumbers = stopMergeNumberSet(left);
+  const rightNumbers = stopMergeNumberSet(right);
+  if (!leftNumbers.size || !rightNumbers.size) return false;
+  for (const token of leftNumbers) {
+    if (rightNumbers.has(token)) return false;
+  }
+  return true;
+}
+
+function shouldMergeStopsByGps(left: Stop, right: Stop) {
+  const distance = distanceMeters(left.lat, left.lon, right.lat, right.lon);
+  if (!Number.isFinite(distance) || distance > 35) return false;
+  if (hasConflictingStopNumbers(left.name, right.name)) return false;
+  return stopMergeNameScore(left.name, right.name) >= 0.52;
+}
+
+function mergeStopsCluster(cluster: Stop[]) {
+  const byProviderPriority = (stop: Stop) => {
+    const providers = stop.sourceProviderIds || [];
+    if (providers.includes('pks')) return 0;
+    if (providers.includes('mpk_rzeszow')) return 1;
+    if (providers.includes('marcel')) return 2;
+    return 9;
+  };
+
+  const canonical = [...cluster].sort((left, right) => byProviderPriority(left) - byProviderPriority(right))[0];
+  const mergedLines = new Set<string>();
+  const mergedCarriers = new Map<string, Carrier>();
+
+  cluster.forEach((stop) => {
+    (stop.lines || []).forEach((line) => mergedLines.add(line));
+    (stop.carriers || []).forEach((carrier) => mergedCarriers.set(carrier.id, carrier));
+  });
+
+  const bestName = cluster
+    .map((stop) => stopDisplayName(stop.name))
+    .sort((left, right) => right.length - left.length)[0] || canonical.name;
+
+  return {
+    ...canonical,
+    name: ensureMpkCityPrefix(bestName),
+    lines: sortedLines(mergedLines),
+    carriers: [...mergedCarriers.values()],
+    isFavorite: cluster.some((stop) => stop.isFavorite),
+    sourceProviderIds: mergeStopArraysUnique(...cluster.map((stop) => stop.sourceProviderIds)),
+    providerStopIds: cluster.reduce<Record<string, string>>(
+      (acc, stop) => mergeStopProviderIds(acc, stop.providerStopIds),
+      {},
+    ),
+  };
+}
+
+function mergeStopsByGpsAndName(stops: Stop[]) {
+  const remaining = [...stops];
+  const merged: Stop[] = [];
+
+  while (remaining.length > 0) {
+    const seed = remaining.shift() as Stop;
+    const cluster = [seed];
+
+    for (let index = remaining.length - 1; index >= 0; index -= 1) {
+      const candidate = remaining[index];
+      if (!cluster.some((current) => shouldMergeStopsByGps(current, candidate))) continue;
+      cluster.push(candidate);
+      remaining.splice(index, 1);
+    }
+
+    merged.push(cluster.length === 1 ? seed : mergeStopsCluster(cluster));
+  }
+
+  return merged;
+}
+
+function pksLinesForStop(
+  stop: Pick<Stop, 'id' | 'providerStopIds'>,
+  pksLinesByStopId: Record<string, string[]>,
+) {
+  const lineSet = new Set<string>();
+  const ids = splitCsvValues(stop.providerStopIds?.pks || stop.id);
+  ids.forEach((id) => {
+    (pksLinesByStopId[id] || []).forEach((line) => lineSet.add(line));
+  });
+  return sortedLines(lineSet);
 }
 
 function marcelCourseStopMatchKey(stop: MarcelCourseStopPublic) {
@@ -897,6 +1127,7 @@ export default function StopsPanel({
   const [panelVehicles, setPanelVehicles] = useState<Vehicle[]>([]);
   const [mpkStops, setMpkStops] = useState<Array<{ id: string; name: string; lat?: number; lon?: number; lines: string[] }>>([]);
   const [marcelStops, setMarcelStops] = useState<MarcelIndexedStop[]>([]);
+  const [pksLinesByStopId, setPksLinesByStopId] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -916,7 +1147,7 @@ export default function StopsPanel({
       data
         .map((stop) => ({
           id: String(stop.stop_id),
-          name: mpkStopDisplayName(stop),
+          name: ensureMpkCityPrefix(stop.stop_name || ''),
           lat: Number.isFinite(Number(stop.stop_lat)) ? Number(stop.stop_lat) : undefined,
           lon: Number.isFinite(Number(stop.stop_lon)) ? Number(stop.stop_lon) : undefined,
           lines: sortedLines(String(stop.lines || '').split(',').map((line) => line.trim())),
@@ -961,6 +1192,33 @@ export default function StopsPanel({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const next = new Map<string, Set<string>>();
+    vehicles.forEach((vehicle) => {
+      if (vehicle.type === 'train') return;
+      if (String(vehicle.provider || 'pks') !== 'pks') return;
+      const line = cleanLine(vehicle.routeShortName);
+      if (!line || line === '?') return;
+      const routeStops = [...(vehicle.routeStops || []), ...(vehicle.schedule || [])];
+      routeStops.forEach((routeStop) => {
+        const stopId = String(routeStop?.id || '').trim();
+        if (!stopId) return;
+        const lineSet = next.get(stopId) || new Set<string>();
+        lineSet.add(line);
+        next.set(stopId, lineSet);
+      });
+    });
+
+    const nextIndex: Record<string, string[]> = {};
+    next.forEach((lineSet, stopId) => {
+      nextIndex[stopId] = sortedLines(lineSet);
+    });
+
+    setPksLinesByStopId((current) =>
+      stopCacheSignature(current) === stopCacheSignature(nextIndex) ? current : nextIndex,
+    );
+  }, [vehicles]);
 
   const uiStops = useMemo<Stop[]>(() => {
     const favoriteSet = new Set(favorites);
@@ -1215,19 +1473,14 @@ export default function StopsPanel({
         provider: 'pks',
         carrier: PKS_CARRIER,
       };
-      const matched = findSafeCrossProviderMatch(raw, new Set(['pks']));
-      if (matched) {
-        attachProvider(matched, raw);
-      } else {
-        ensureTechnicalStop(raw);
-      }
+      ensureTechnicalStop(raw);
     });
 
     mpkStops.forEach((mpkStop) => {
       const raw = {
         ...mpkStop,
         id: String(mpkStop.id),
-        name: normalizeMpkDisplayName(mpkStop.name),
+        name: ensureMpkCityPrefix(mpkStop.name),
         provider: 'mpk_rzeszow',
         carrier: MPK_CARRIER,
       };
@@ -1273,125 +1526,23 @@ export default function StopsPanel({
       mergeMarcelMetadata(marcelStandalone, marcelStop.routeIds, marcelStop.matchKey || baseName);
     });
 
-    // Enrich providers/lines from a single live snapshot without rebuilding on each map tick.
-    const snapshotStops = new Map<string, {
-      provider: string;
-      id: string;
-      name: string;
-      lat?: number;
-      lon?: number;
-      line: string;
-      carrier: Carrier;
-    }>();
-
-    [...vehicles, ...panelVehicles].forEach((vehicle) => {
-      if (vehicle.type === 'train') return;
-      const provider = String(vehicle.provider || 'pks');
-      if (provider !== 'pks' && provider !== 'mpk_rzeszow' && provider !== 'marcel') return;
-      const line = cleanLine(vehicle.routeShortName);
-      const carrier = providerCarrier(provider);
-      const scheduleStops = [...(vehicle.routeStops || []), ...(vehicle.schedule || [])];
-      scheduleStops.forEach((scheduleStop) => {
-        if (!scheduleStop?.id || !scheduleStop.name) return;
-        const rawName = provider === 'mpk_rzeszow'
-          ? normalizeMpkDisplayName(scheduleStop.name)
-          : stopDisplayName(scheduleStop.name);
-        const key = `${provider}:${String(scheduleStop.id)}:${stopBaseNameKey(rawName)}`;
-        if (!snapshotStops.has(key)) {
-          snapshotStops.set(key, {
-            provider,
-            id: String(scheduleStop.id),
-            name: rawName,
-            lat: scheduleStop.lat,
-            lon: scheduleStop.lon,
-            line,
-            carrier,
-          });
-        }
-      });
-    });
-
-    snapshotStops.forEach((entry) => {
-      let matched: InternalStop | null = null;
-      if (entry.provider === 'pks') {
-        matched = findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['pks']));
-        if (matched) {
-          attachProvider(matched, {
-            id: entry.id,
-            name: entry.name,
-            lat: entry.lat,
-            lon: entry.lon,
-            provider: entry.provider,
-            carrier: entry.carrier,
-          });
-        }
-      } else if (entry.provider === 'mpk_rzeszow') {
-        matched =
-          findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['pks'])) ||
-          findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['mpk_rzeszow']));
-        if (!matched) {
-          matched = ensureTechnicalStop({
-            id: entry.id,
-            name: entry.name,
-            lat: entry.lat,
-            lon: entry.lon,
-            provider: entry.provider,
-            carrier: entry.carrier,
-          });
-        } else {
-          attachProvider(matched, {
-            id: entry.id,
-            name: entry.name,
-            lat: entry.lat,
-            lon: entry.lon,
-            provider: entry.provider,
-            carrier: entry.carrier,
-          });
-        }
-      } else if (entry.provider === 'marcel') {
-        matched =
-          findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['pks'])) ||
-          findSafeCrossProviderMatch({ name: entry.name, lat: entry.lat, lon: entry.lon }, new Set(['mpk_rzeszow', 'marcel']));
-        if (matched) {
-          attachProvider(matched, {
-            id: entry.id,
-            name: entry.name,
-            lat: entry.lat,
-            lon: entry.lon,
-            provider: entry.provider,
-            carrier: entry.carrier,
-          });
-          mergeMarcelMetadata(matched, [], matched.providerStopIds?.marcelMatchKey || stopBaseNameKey(entry.name));
-        } else if (!isWeakMarcelName(entry.name) && canExposeStandaloneMarcelStop(entry.name)) {
-          matched = ensureTechnicalStop({
-            id: entry.id,
-            name: entry.name,
-            lat: entry.lat,
-            lon: entry.lon,
-            provider: entry.provider,
-            carrier: entry.carrier,
-          });
-          mergeMarcelMetadata(matched, [], matched.providerStopIds?.marcelMatchKey || stopBaseNameKey(entry.name));
-        }
-      }
-      if (!matched) return;
-      if (entry.line && entry.line !== '?') matched.lineSet.add(entry.line);
-      if (entry.provider === 'marcel') matched.lineSet.add('M');
-    });
-
-    return [...byTechnical.values()]
+    const normalizedStops = [...byTechnical.values()]
       .filter((stop) => stop.id && stop.name)
       .map((stop) => {
         const { lineSet, carrierMap, baseNameKey, displayNamesByProvider, ...cleanStop } = stop;
+        const pksLines = pksLinesForStop(cleanStop, pksLinesByStopId);
+        const mergedLineSet = new Set<string>([...lineSet, ...pksLines]);
         return {
           ...cleanStop,
           carriers: [...carrierMap.values()].sort((left, right) => ['pks', 'mpk', 'marcel'].indexOf(left.id) - ['pks', 'mpk', 'marcel'].indexOf(right.id)),
-          lines: sortedLines(lineSet),
+          lines: sortedLines(mergedLineSet),
           isFavorite: favoriteSet.has(cleanStop.id),
         };
-      })
-      .sort((left, right) => left.name.localeCompare(right.name, 'pl'));
-  }, [favorites, marcelStops, mpkStops, panelVehicles, stops, vehicles]);
+      });
+
+    const mergedMpkStops = mergeMpkStopsForList(normalizedStops);
+    return mergeStopsByGpsAndName(mergedMpkStops).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
+  }, [favorites, marcelStops, mpkStops, pksLinesByStopId, stops]);
 
   const toggleFavorite = useCallback((stopId: string) => {
     onToggleFavorite(stopId);

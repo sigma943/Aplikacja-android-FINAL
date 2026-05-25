@@ -13,12 +13,49 @@ const REQUEST_HEADERS = {
     Origin: 'http://einfo.zgpks.rzeszow.pl',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
 };
+const speedHistory = new Map();
 function parseJsonDate(value, fallbackMs) {
     const raw = String(value || '').trim();
     if (!raw)
         return fallbackMs;
     const parsed = new Date(raw.replace(' ', 'T')).getTime();
     return Number.isFinite(parsed) ? parsed : fallbackMs;
+}
+function distanceMeters(a, b) {
+    const meanLat = ((a[0] + b[0]) / 2) * Math.PI / 180;
+    const dLat = (a[0] - b[0]) * 111320;
+    const dLng = (a[1] - b[1]) * Math.cos(meanLat) * 111320;
+    return Math.sqrt(dLat * dLat + dLng * dLng);
+}
+function computeObservedSpeedKmh(vehicleKey, lat, lng, observedAtMs, rawSpeed) {
+    if (Number.isFinite(rawSpeed) && rawSpeed > 0) {
+        speedHistory.set(vehicleKey, { lat, lng, atMs: observedAtMs, lastSeenMs: Date.now() });
+        return Math.max(0, rawSpeed);
+    }
+    const previous = speedHistory.get(vehicleKey);
+    speedHistory.set(vehicleKey, { lat, lng, atMs: observedAtMs, lastSeenMs: Date.now() });
+    if (!previous)
+        return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed) : undefined;
+    const elapsedSec = Math.max(0, (observedAtMs - previous.atMs) / 1000);
+    const movedMeters = distanceMeters([lat, lng], [previous.lat, previous.lng]);
+    if (elapsedSec < 3 || movedMeters < 8)
+        return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed) : 0;
+    const speed = (movedMeters / elapsedSec) * 3.6;
+    if (!Number.isFinite(speed) || speed > 140)
+        return Number.isFinite(rawSpeed) ? Math.max(0, rawSpeed) : undefined;
+    return Math.round(speed);
+}
+function firstFutureStopMs(stops, nowMs) {
+    for (const stop of stops || []) {
+        const raw = String(stop.real || stop.planned || '').trim();
+        if (!raw)
+            continue;
+        const ms = new Date(raw.replace(' ', 'T')).getTime();
+        if (Number.isFinite(ms) && ms > nowMs + 2 * 60000) {
+            return { ms, id: Number(stop.id) };
+        }
+    }
+    return null;
 }
 function isRzeszowCityPoint(lat, lng) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng))
@@ -311,10 +348,7 @@ function inferVehicleStatus(vehicle, ageSec, speed, now, hasLine) {
         };
     }
     if (speed <= 1 && nextStops.length === 0) {
-        return { status: 'inactive', statusText: 'Postoj po kursie' };
-    }
-    if (speed <= 1) {
-        return { status: 'active', statusText: 'Postoj na trasie' };
+        return { status: 'inactive', statusText: 'Pojazd bez przypisanej linii' };
     }
     return { status: 'active', statusText: 'W trasie' };
 }
@@ -332,12 +366,6 @@ function toCleanLine(value) {
     return raw || '?';
 }
 function getMpkStatusText(status, speed) {
-    if (status === '2')
-        return 'Postoj na przystanku';
-    if (status === '3' || status === '6' || status === '7' || status === '10')
-        return 'Postoj na petli';
-    if (speed <= 1)
-        return 'Postoj na trasie';
     return 'W trasie';
 }
 function isMpkBreakStatus(status) {
@@ -370,11 +398,18 @@ function toTransportVehicle(rawVehicle, now, includeInactive, stopsDictionary, d
     const movedDistance = Number.isFinite(previousLat) && Number.isFinite(previousLng)
         ? Math.hypot(lat - previousLat, lng - previousLng)
         : 0;
-    const speed = movedDistance > 0 ? Math.min(55, Math.round(movedDistance * 100000)) : 0;
+    const geometrySpeed = movedDistance > 0 ? Math.min(55, Math.round(movedDistance * 100000)) : 0;
+    const speed = computeObservedSpeedKmh(`mpk_rzeszow:${rawVehicleNumber}`, lat, lng, now - ageSec * 1000, geometrySpeed) ?? 0;
     const statusCode = String(rawVehicle.s || details?.status || '');
-    const statusText = getMpkStatusText(statusCode, speed);
-    const direction = String(rawVehicle.op || details?.op || rawVehicle.nop || '').trim() || (speed > 3 ? 'W trasie' : 'Postoj');
+    const direction = String(rawVehicle.op || details?.op || rawVehicle.nop || '').trim() || 'W trasie';
     const delaySeconds = getEffectiveMpkDelay(Number(rawVehicle.o ?? details?.delay ?? 0), statusCode);
+    const scheduleBreak = firstFutureStopMs(tripSchedule?.schedule, now);
+    const isBreak = Boolean(scheduleBreak) || isMpkBreakStatus(statusCode);
+    const statusText = isBreak && Number.isFinite(scheduleBreak?.ms)
+        ? `Przerwa do ${new Date(scheduleBreak.ms).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`
+        : isBreak
+            ? 'Przerwa'
+            : getMpkStatusText(statusCode, speed);
     const prefixedId = `mpk_rzeszow_${rawVehicleNumber}`;
     const nextStopId = Number(rawVehicle.nk || details?.end_stop_id);
     const nextStopName = formatMpkStopName(rawVehicle.nop || details?.end_stop_name) ||
@@ -395,6 +430,7 @@ function toTransportVehicle(rawVehicle, now, includeInactive, stopsDictionary, d
         lng,
         bearing: undefined,
         speed,
+        computedSpeed: speed,
         direction,
         delaySeconds,
         delayMinutes: Math.round(delaySeconds / 60),
@@ -415,11 +451,14 @@ function toTransportVehicle(rawVehicle, now, includeInactive, stopsDictionary, d
         lastStopDistance: Number.isFinite(Number(rawVehicle.dp)) ? Number(rawVehicle.dp) : undefined,
         lastStopId: Number.isFinite(Number(rawVehicle.ik)) ? Number(rawVehicle.ik) : undefined,
         lastUpdate: new Date(now - ageSec * 1000).toISOString(),
+        previousTripEndedAtMs: isBreak ? now : undefined,
+        nextTripStartAtMs: scheduleBreak?.ms,
+        nextTripFirstStopId: Number.isFinite(scheduleBreak?.id) ? scheduleBreak?.id : undefined,
         journeyId: details?.rawBrygada ?? rawVehicle.kwi?.trim() ?? undefined,
         serviceId: rawVehicle.kwi?.trim() || details?.brygada,
         tripId: details?.trip_id ?? rawVehicle.ik ?? undefined,
         brigadeName: rawVehicle.kwi?.trim() || details?.brygada,
-        status: isMpkBreakStatus(statusCode) ? 'break' : 'active',
+        status: isBreak ? 'break' : 'active',
         statusText,
     };
 }

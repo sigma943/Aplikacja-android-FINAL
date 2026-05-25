@@ -56,8 +56,11 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [isLive, setIsLive] = useState<boolean>(false);
   const [isFetchingLive, setIsFetchingLive] = useState<boolean>(false);
+  const [animateDepartures, setAnimateDepartures] = useState<boolean>(true);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loadDeparturesRef = useRef(loadDepartures);
+  const hasLoadedOnceRef = useRef(false);
   const departuresRequestStop = useMemo(() => ({
     id: stop.id,
     name: stop.name,
@@ -72,6 +75,10 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     sourceProviderIds: stop.sourceProviderIds,
     providerStopIds: stop.providerStopIds,
   }), [stop.areaId, stop.code, stop.id, stop.lat, stop.lon, stop.name, stop.providerStopIds, stop.sourceProviderIds, stop.type]);
+
+  useEffect(() => {
+    loadDeparturesRef.current = loadDepartures;
+  }, [loadDepartures]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -104,13 +111,20 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       setIsLoading(true);
     }, 0);
     const selectedDayIndex = Math.max(0, days.findIndex(d => d.key === selectedDay));
-    loadDepartures(departuresRequestStop, selectedDayIndex)
+    const runRefresh = (initial = false) => {
+      if (!initial) setIsFetchingLive(true);
+      loadDeparturesRef.current(departuresRequestStop, selectedDayIndex)
       .then(loadedDepartures => {
         if (active) {
           setDepartures(loadedDepartures);
           setIsLive(loadedDepartures.length > 0);
           setIsLoading(false);
           setIsFetchingLive(false);
+          if (!hasLoadedOnceRef.current) {
+            hasLoadedOnceRef.current = true;
+          } else {
+            setAnimateDepartures(false);
+          }
         }
       })
       .catch(err => {
@@ -122,18 +136,23 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
           setIsFetchingLive(false);
         }
       });
+    };
+
+    runRefresh(true);
+    const interval = window.setInterval(() => runRefresh(false), 30_000);
 
     return () => {
       active = false;
       window.clearTimeout(resetTimer);
+      window.clearInterval(interval);
     };
-  }, [days, departuresRequestStop, selectedDay, loadDepartures]);
+  }, [days, departuresRequestStop, selectedDay]);
 
   const refreshLiveDepartures = () => {
     setIsFetchingLive(true);
     
     const selectedDayIndex = Math.max(0, days.findIndex(d => d.key === selectedDay));
-    loadDepartures(departuresRequestStop, selectedDayIndex)
+    loadDeparturesRef.current(departuresRequestStop, selectedDayIndex)
       .then(loadedDepartures => {
         setDepartures(loadedDepartures);
         setIsLive(loadedDepartures.length > 0);
@@ -439,10 +458,10 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                     return (
                       <motion.div 
                         layout="position"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: isPast ? 0.45 : 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.98 }}
-                        transition={{ duration: 0.18, delay: Math.min(idx * 0.05, 0.3) }}
+                        initial={animateDepartures ? { opacity: 0, y: 8 } : false}
+                        animate={animateDepartures ? { opacity: isPast ? 0.45 : 1, y: 0 } : { opacity: isPast ? 0.45 : 1, y: 0 }}
+                        exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
+                        transition={animateDepartures ? { duration: 0.18, delay: Math.min(idx * 0.05, 0.3) } : { duration: 0 }}
                         key={dep.id} 
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? 'border-b border-white/[0.03]' : ''} hover:bg-white/[0.02] transition-colors cursor-pointer ${isPast ? 'bg-black/15' : ''}`}
                       >

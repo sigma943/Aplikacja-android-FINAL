@@ -11,7 +11,7 @@ const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v3';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v4';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -544,6 +544,10 @@ export interface Vehicle {
   lastStopDistance?: number;
   lastStopId?: number;
   lastSignalTime?: string;
+  previousTripEndedAtMs?: number;
+  nextTripStartAtMs?: number;
+  nextTripFirstStopId?: number;
+  computedSpeed?: number;
   journeyId?: string | number;
   serviceId?: string | number;
   tripId?: string | number;
@@ -799,19 +803,17 @@ function VehicleMarkerLayer({
     };
   }, [getVehicleMarkerKey, vehicles]);
 
-  useEffect(() => {
-    for (const vehicle of renderVehicles) {
-      const marker = markerRefs.current.get(getVehicleMarkerKey(vehicle));
-      if (marker) marker.setLatLng([vehicle.lat, vehicle.lon]);
-    }
-  }, [getVehicleMarkerKey, renderVehicles]);
-
   const zoom = map.getZoom();
   const isHighVolumeLayer = renderVehicles.length > 35;
-  const shouldCluster = renderVehicles.length > 8 && (zoom <= 14 || (isHighVolumeLayer && zoom <= 15));
+  const viewportVehicles = useMemo(() => {
+    if (renderVehicles.length <= 120) return renderVehicles;
+    const paddedBounds = map.getBounds().pad(0.2);
+    return renderVehicles.filter((vehicle) => paddedBounds.contains([vehicle.lat, vehicle.lon]));
+  }, [map, renderVehicles, viewTick, zoom]);
+  const shouldCluster = viewportVehicles.length > 8 && (zoom <= 14 || (isHighVolumeLayer && zoom <= 15));
   const groups = useMemo(() => {
     if (!shouldCluster) {
-      return renderVehicles.map((vehicle) => ({
+      return viewportVehicles.map((vehicle) => ({
         vehicles: [vehicle],
         lat: vehicle.lat,
         lon: vehicle.lon,
@@ -824,7 +826,7 @@ function VehicleMarkerLayer({
     const gridSize = zoom <= 10 ? 104 : zoom <= 12 ? 86 : zoom <= 14 ? 66 : 54;
     const providerCells = new Map<string, Set<string>>();
     const grouped = new Map<string, { vehicles: Vehicle[]; lat: number; lon: number; provider: string; overlapKey: string }>();
-    for (const vehicle of renderVehicles) {
+    for (const vehicle of viewportVehicles) {
       const point = map.project([vehicle.lat, vehicle.lon], zoom);
       const provider = vehicle.provider || 'pks';
       const cellX = Math.floor(point.x / gridSize);
@@ -854,7 +856,14 @@ function VehicleMarkerLayer({
         ? group.provider === 'mpk_rzeszow' ? 7 : group.provider === 'marcel' ? 0 : group.provider === 'pkp_intercity' ? 14 : -7
         : 0,
     }));
-  }, [map, shouldCluster, renderVehicles, viewTick, zoom]);
+  }, [map, shouldCluster, viewportVehicles, viewTick, zoom]);
+
+  useEffect(() => {
+    for (const vehicle of viewportVehicles) {
+      const marker = markerRefs.current.get(getVehicleMarkerKey(vehicle));
+      if (marker) marker.setLatLng([vehicle.lat, vehicle.lon]);
+    }
+  }, [getVehicleMarkerKey, viewportVehicles]);
 
   return (
     <>
