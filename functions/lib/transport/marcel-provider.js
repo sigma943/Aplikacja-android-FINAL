@@ -150,6 +150,27 @@ function inBoundingBox(lat, lng, bbox) {
     const [south, west, north, east] = bbox;
     return lat >= south && lat <= north && lng >= west && lng <= east;
 }
+function getVehicleSource(rawVehicle) {
+    const position = rawVehicle.position && typeof rawVehicle.position === 'object' ? rawVehicle.position : {};
+    const gps = rawVehicle.gps && typeof rawVehicle.gps === 'object' ? rawVehicle.gps : {};
+    return { ...rawVehicle, ...position, ...gps };
+}
+function readVehicleCoordinates(rawVehicle) {
+    const source = getVehicleSource(rawVehicle);
+    const lat = readFirstNumber(source, ['lat', 'latitude', 'szGps', 'szerokosc', 'szer_geo', 'y']);
+    const lng = readFirstNumber(source, ['lng', 'lon', 'long', 'longitude', 'dlGps', 'dlugosc', 'dl_geo', 'x']);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng, source } : null;
+}
+function readVehicleLookupKeys(rawVehicle) {
+    const coordinates = readVehicleCoordinates(rawVehicle);
+    const source = coordinates?.source || getVehicleSource(rawVehicle);
+    const tripId = readFirstString(source, ['trip_id', 'idKu', 'id_ku', 'kursId']);
+    const rawVehicleId = readFirstString(source, ['vehicle_id', 'idPo', 'id_po', 'idPojazdu', 'pojazdId']) ||
+        tripId ||
+        (coordinates ? `${coordinates.lat.toFixed(5)}_${coordinates.lng.toFixed(5)}` : '');
+    const vehicleNumber = readFirstString(source, ['nrRej', 'rejestracja', 'vehicleNumber', 'numerBoczny', 'nazwa']);
+    return { rawVehicleId, vehicleNumber };
+}
 async function fetchJsonWithRetry(url, init, retries = 1) {
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -371,13 +392,10 @@ function inferStatus(hasLine, lat, lng, stops, delaySeconds, dataAgeSec, nowMs) 
     return { status: 'active', statusText: 'W trasie' };
 }
 async function toTransportVehicle(rawVehicle, now, includeInactive) {
-    const position = rawVehicle.position && typeof rawVehicle.position === 'object' ? rawVehicle.position : {};
-    const gps = rawVehicle.gps && typeof rawVehicle.gps === 'object' ? rawVehicle.gps : {};
-    const source = { ...rawVehicle, ...position, ...gps };
-    const lat = readFirstNumber(source, ['lat', 'latitude', 'szGps', 'szerokosc', 'szer_geo', 'y']);
-    const lng = readFirstNumber(source, ['lng', 'lon', 'long', 'longitude', 'dlGps', 'dlugosc', 'dl_geo', 'x']);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng))
+    const coordinates = readVehicleCoordinates(rawVehicle);
+    if (!coordinates)
         return null;
+    const { lat, lng, source } = coordinates;
     const tripId = readFirstString(source, ['trip_id', 'idKu', 'id_ku', 'kursId']);
     const rawVehicleId = readFirstString(source, ['vehicle_id', 'idPo', 'id_po', 'idPojazdu', 'pojazdId']) ||
         tripId ||
@@ -461,7 +479,13 @@ exports.marcelProvider = {
     async getVehicles(options) {
         const { value: rawVehicles, cache } = await loadRawVehicles();
         const now = Date.now();
-        const mapped = await mapWithConcurrency(rawVehicles, 6, (rawVehicle) => toTransportVehicle(rawVehicle, now, options.includeInactive));
+        const rawVehiclesInScope = options.bbox
+            ? rawVehicles.filter((rawVehicle) => {
+                const coordinates = readVehicleCoordinates(rawVehicle);
+                return coordinates ? inBoundingBox(coordinates.lat, coordinates.lng, options.bbox) : false;
+            })
+            : rawVehicles;
+        const mapped = await mapWithConcurrency(rawVehiclesInScope, 6, (rawVehicle) => toTransportVehicle(rawVehicle, now, options.includeInactive));
         const vehicles = mapped
             .filter((vehicle) => Boolean(vehicle))
             .filter((vehicle) => inBoundingBox(vehicle.lat, vehicle.lng, options.bbox));
@@ -472,10 +496,11 @@ exports.marcelProvider = {
         const { value: rawVehicles } = await loadRawVehicles();
         const now = Date.now();
         for (const rawVehicle of rawVehicles) {
-            const vehicle = await toTransportVehicle(rawVehicle, now, options?.includeInactive ?? true);
-            if (!vehicle)
+            const keys = readVehicleLookupKeys(rawVehicle);
+            if (keys.rawVehicleId !== lookupVehicleId && keys.vehicleNumber !== lookupVehicleId)
                 continue;
-            if (parseLookupVehicleId(vehicle.id) === lookupVehicleId || vehicle.vehicleNumber === lookupVehicleId)
+            const vehicle = await toTransportVehicle(rawVehicle, now, options?.includeInactive ?? true);
+            if (vehicle)
                 return vehicle;
         }
         return null;

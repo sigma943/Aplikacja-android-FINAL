@@ -195,6 +195,31 @@ function inBoundingBox(lat: number, lng: number, bbox?: [number, number, number,
   return lat >= south && lat <= north && lng >= west && lng <= east;
 }
 
+function getVehicleSource(rawVehicle: Record<string, unknown>) {
+  const position = rawVehicle.position && typeof rawVehicle.position === 'object' ? rawVehicle.position as Record<string, unknown> : {};
+  const gps = rawVehicle.gps && typeof rawVehicle.gps === 'object' ? rawVehicle.gps as Record<string, unknown> : {};
+  return { ...rawVehicle, ...position, ...gps };
+}
+
+function readVehicleCoordinates(rawVehicle: Record<string, unknown>) {
+  const source = getVehicleSource(rawVehicle);
+  const lat = readFirstNumber(source, ['lat', 'latitude', 'szGps', 'szerokosc', 'szer_geo', 'y']);
+  const lng = readFirstNumber(source, ['lng', 'lon', 'long', 'longitude', 'dlGps', 'dlugosc', 'dl_geo', 'x']);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng, source } : null;
+}
+
+function readVehicleLookupKeys(rawVehicle: Record<string, unknown>) {
+  const coordinates = readVehicleCoordinates(rawVehicle);
+  const source = coordinates?.source || getVehicleSource(rawVehicle);
+  const tripId = readFirstString(source, ['trip_id', 'idKu', 'id_ku', 'kursId']);
+  const rawVehicleId =
+    readFirstString(source, ['vehicle_id', 'idPo', 'id_po', 'idPojazdu', 'pojazdId']) ||
+    tripId ||
+    (coordinates ? `${coordinates.lat.toFixed(5)}_${coordinates.lng.toFixed(5)}` : '');
+  const vehicleNumber = readFirstString(source, ['nrRej', 'rejestracja', 'vehicleNumber', 'numerBoczny', 'nazwa']);
+  return { rawVehicleId, vehicleNumber };
+}
+
 async function fetchJsonWithRetry<T>(url: string, init?: RequestInit, retries = 1): Promise<T> {
   let lastError: unknown;
 
@@ -442,13 +467,9 @@ function inferStatus(
 }
 
 async function toTransportVehicle(rawVehicle: Record<string, unknown>, now: number, includeInactive: boolean): Promise<TransportVehicle | null> {
-  const position = rawVehicle.position && typeof rawVehicle.position === 'object' ? rawVehicle.position as Record<string, unknown> : {};
-  const gps = rawVehicle.gps && typeof rawVehicle.gps === 'object' ? rawVehicle.gps as Record<string, unknown> : {};
-  const source = { ...rawVehicle, ...position, ...gps };
-
-  const lat = readFirstNumber(source, ['lat', 'latitude', 'szGps', 'szerokosc', 'szer_geo', 'y']);
-  const lng = readFirstNumber(source, ['lng', 'lon', 'long', 'longitude', 'dlGps', 'dlugosc', 'dl_geo', 'x']);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const coordinates = readVehicleCoordinates(rawVehicle);
+  if (!coordinates) return null;
+  const { lat, lng, source } = coordinates;
 
   const tripId = readFirstString(source, ['trip_id', 'idKu', 'id_ku', 'kursId']);
   const rawVehicleId =
@@ -541,7 +562,13 @@ export const marcelProvider: TransportProvider = {
   async getVehicles(options: GetVehiclesOptions): Promise<ProviderVehiclesResult> {
     const { value: rawVehicles, cache } = await loadRawVehicles();
     const now = Date.now();
-    const mapped = await mapWithConcurrency(rawVehicles, 6, (rawVehicle) =>
+    const rawVehiclesInScope = options.bbox
+      ? rawVehicles.filter((rawVehicle) => {
+          const coordinates = readVehicleCoordinates(rawVehicle);
+          return coordinates ? inBoundingBox(coordinates.lat, coordinates.lng, options.bbox) : false;
+        })
+      : rawVehicles;
+    const mapped = await mapWithConcurrency(rawVehiclesInScope, 6, (rawVehicle) =>
       toTransportVehicle(rawVehicle, now, options.includeInactive),
     );
     const vehicles = mapped
@@ -557,9 +584,10 @@ export const marcelProvider: TransportProvider = {
     const now = Date.now();
 
     for (const rawVehicle of rawVehicles) {
+      const keys = readVehicleLookupKeys(rawVehicle);
+      if (keys.rawVehicleId !== lookupVehicleId && keys.vehicleNumber !== lookupVehicleId) continue;
       const vehicle = await toTransportVehicle(rawVehicle, now, options?.includeInactive ?? true);
-      if (!vehicle) continue;
-      if (parseLookupVehicleId(vehicle.id) === lookupVehicleId || vehicle.vehicleNumber === lookupVehicleId) return vehicle;
+      if (vehicle) return vehicle;
     }
 
     return null;

@@ -18,40 +18,78 @@ app.use(express.json());
 // Initialize background tasks
 startVehicleSync();
 
-function findStaticStopForRealStop(realName: string) {
-  const normalize = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/rzeszow/g, "rzeszów")
-      .replace(/da\b/g, "d.a.")
-      .replace(/\s+/g, " ")
-      .trim();
-  };
-  
-  const normReal = normalize(realName);
-  
-  // Try exact normalized name match
-  let match = STOPS.find(s => normalize(s.name) === normReal);
-  if (match) return match;
+type ApiStop = {
+  id: string;
+  name: string;
+  lines: string[];
+  type: 'bus' | 'train';
+  isFavorite: boolean;
+  carriers: any[];
+};
 
-  // Try partial name match (one contains the other)
+const collator = new Intl.Collator('pl', { sensitivity: 'base', numeric: true });
+const stopMatchCache = new Map<string, any | null>();
+let staticStopIndexes: { normalized: Map<string, any>; compact: Map<string, any> } | null = null;
+let stopsResponseCache: {
+  source: Record<string, any>;
+  allStops: ApiStop[];
+  queryCache: Map<string, ApiStop[]>;
+} | null = null;
+
+function normalizeStopNameForMatch(name: string) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/rzeszow/g, "rzeszów")
+    .replace(/da\b/g, "d.a.")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactStopNameForMatch(name: string) {
+  return normalizeStopNameForMatch(name)
+    .replace(/[0-9]+/g, "")
+    .replace(/stanowisko|st\./g, "")
+    .replace(/[,\(\)\.\-]/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+function getStaticStopIndexes() {
+  if (staticStopIndexes) return staticStopIndexes;
+  const normalized = new Map<string, any>();
+  const compact = new Map<string, any>();
+
+  for (const stop of STOPS) {
+    normalized.set(normalizeStopNameForMatch(stop.name), stop);
+    compact.set(compactStopNameForMatch(stop.name), stop);
+  }
+
+  staticStopIndexes = { normalized, compact };
+  return staticStopIndexes;
+}
+
+function findStaticStopForRealStopFast(realName: string) {
+  const indexes = getStaticStopIndexes();
+  const normReal = normalizeStopNameForMatch(realName);
+  if (stopMatchCache.has(normReal)) return stopMatchCache.get(normReal) || null;
+
+  let match = indexes.normalized.get(normReal);
+  if (match) {
+    stopMatchCache.set(normReal, match);
+    return match;
+  }
+
   match = STOPS.find(s => {
-    const normStatic = normalize(s.name);
+    const normStatic = normalizeStopNameForMatch(s.name);
     return normReal.includes(normStatic) || normStatic.includes(normReal);
   });
-  if (match) return match;
+  if (match) {
+    stopMatchCache.set(normReal, match);
+    return match;
+  }
 
-  const clean = (name: string) => {
-    return normalize(name)
-      .replace(/[0-9]+/g, "")
-      .replace(/stanowisko|st\./g, "")
-      .replace(/[,\(\)\.\-]/g, "")
-      .replace(/\s+/g, "")
-      .trim();
-  };
-
-  const cleanReal = clean(realName);
-  match = STOPS.find(s => clean(s.name) === cleanReal);
+  match = indexes.compact.get(compactStopNameForMatch(realName));
+  stopMatchCache.set(normReal, match || null);
   return match || null;
 }
 
@@ -79,46 +117,62 @@ function getSyntheticLinesAndCarriers(stopName: string) {
   return { lines: stopLines.sort(), carriers };
 }
 
+function buildStopsArray(dict: Record<string, any>): ApiStop[] {
+  return Object.values(dict).map(entry => {
+    const staticMatch = findStaticStopForRealStopFast(entry.name);
+
+    let lines: string[] = [];
+    let carriers: any[] = [];
+    let type: 'bus' | 'train' = 'bus';
+
+    if (staticMatch) {
+      lines = staticMatch.lines;
+      carriers = staticMatch.carriers;
+      type = staticMatch.type;
+    } else {
+      const synth = getSyntheticLinesAndCarriers(entry.name);
+      lines = synth.lines;
+      carriers = synth.carriers;
+      type = 'bus';
+    }
+
+    return {
+      id: entry.id,
+      name: entry.name,
+      lines,
+      type,
+      isFavorite: false,
+      carriers
+    };
+  }).sort((a, b) => collator.compare(a.name, b.name));
+}
+
+function getCachedStopsArray(dict: Record<string, any>) {
+  if (stopsResponseCache?.source === dict) return stopsResponseCache;
+  stopsResponseCache = {
+    source: dict,
+    allStops: buildStopsArray(dict),
+    queryCache: new Map()
+  };
+  return stopsResponseCache;
+}
+
 // Endpoints required by user
 app.get("/api/stops", (req, res) => {
   try {
     const dict = loadStopsDictionary();
-    const stopsArray = Object.values(dict).map(entry => {
-      const staticMatch = findStaticStopForRealStop(entry.name);
-      
-      let lines: string[] = [];
-      let carriers: any[] = [];
-      let type: 'bus' | 'train' = 'bus';
-
-      if (staticMatch) {
-        lines = staticMatch.lines;
-        carriers = staticMatch.carriers;
-        type = staticMatch.type;
-      } else {
-        const synth = getSyntheticLinesAndCarriers(entry.name);
-        lines = synth.lines;
-        carriers = synth.carriers;
-        type = 'bus';
-      }
-
-      return {
-        id: entry.id,
-        name: entry.name,
-        lines,
-        type,
-        isFavorite: false,
-        carriers
-      };
-    });
-    
-    // Sort alphabetically by name
-    stopsArray.sort((a, b) => a.name.localeCompare(b.name));
-    
-    // Apply local search filter from query if present
-    const q = req.query.q ? String(req.query.q).toLowerCase() : "";
-    let results = stopsArray;
+    const cache = getCachedStopsArray(dict);
+    const q = req.query.q ? normalizeStopNameForMatch(String(req.query.q)) : "";
+    let results = cache.allStops;
     if (q) {
-      results = results.filter(s => s.name.toLowerCase().includes(q));
+      const cached = cache.queryCache.get(q);
+      if (cached) {
+        results = cached;
+      } else {
+        results = cache.allStops.filter(s => normalizeStopNameForMatch(s.name).includes(q));
+        if (cache.queryCache.size > 300) cache.queryCache.clear();
+        cache.queryCache.set(q, results);
+      }
     }
     
     res.json({ stops: results });
@@ -131,15 +185,19 @@ app.get("/api/stops", (req, res) => {
 function mappedMerge(staticList: any[], liveList: any[]): any[] {
   const result: any[] = [];
   const matchedLiveIds = new Set<string>();
+  const liveByLine = new Map<string, any[]>();
+
+  liveList.forEach(lv => {
+    const bucket = liveByLine.get(lv.line) || [];
+    bucket.push(lv);
+    liveByLine.set(lv.line, bucket);
+  });
 
   staticList.forEach(st => {
-    const matchingLive = liveList.find(lv => {
+    const staticMinutes = timeToMinutes(st.time);
+    const matchingLive = (liveByLine.get(st.line) || []).find(lv => {
       if (matchedLiveIds.has(lv.id)) return false;
-      if (lv.line !== st.line) return false;
-      
-      const [sh, sm] = st.time.split(':').map(Number);
-      const [lh, lm] = lv.time.split(':').map(Number);
-      const diff = Math.abs((sh * 60 + sm) - (lh * 60 + lm));
+      const diff = Math.abs(staticMinutes - timeToMinutes(lv.time));
       return diff <= 25; // 25-minute matching window
     });
 
@@ -169,6 +227,11 @@ function mappedMerge(staticList: any[], liveList: any[]): any[] {
   return result.sort((a, b) => a.time.localeCompare(b.time));
 }
 
+function timeToMinutes(value: string) {
+  const [hour, minute] = String(value || '00:00').split(':').map(Number);
+  return (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0);
+}
+
 app.get("/api/departures", async (req, res) => {
   const { stopId, dayIndex, line } = req.query;
   
@@ -188,7 +251,7 @@ app.get("/api/departures", async (req, res) => {
     let fallbackDepartures: any[] = [];
     let generated: any[] = [];
 
-    const staticMatch = findStaticStopForRealStop(stopName);
+    const staticMatch = findStaticStopForRealStopFast(stopName);
     if (staticMatch) {
       generated = getDeparturesForStop(
         staticMatch.id,
@@ -343,7 +406,7 @@ app.get("/api/departures", async (req, res) => {
       });
     }
 
-    const liveMapped = liveData.journeys.map((j: any) => {
+    const liveMapped = liveData.journeys.map((j: any, index: number) => {
       const isMarcel = j.line === 'M' || j.line === 'Marcel' || j.line === 'M1' || j.line === 'M2';
       const displayLine = isMarcel ? "M" : j.line;
       const carrierObj = isMarcel 
@@ -351,7 +414,7 @@ app.get("/api/departures", async (req, res) => {
         : { id: 'pks', name: 'PKS Rzeszów', colorClass: 'text-teal-400', borderClass: 'border-teal-400/30', bgClass: 'bg-teal-400/10', dotClass: 'bg-teal-400' };
 
       return {
-        id: `its_${displayLine}_${j.plannedDeparture}_${Math.floor(Math.random() * 1000)}`,
+        id: `its_${displayLine}_${j.plannedDeparture || j.realDeparture || '00:00'}_${j.vehicleId || index}`,
         line: displayLine,
         direction: j.direction,
         time: j.plannedDeparture || j.realDeparture || "00:00",

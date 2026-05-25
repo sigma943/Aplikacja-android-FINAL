@@ -20,6 +20,23 @@ function parseJsonDate(value, fallbackMs) {
     const parsed = new Date(raw.replace(' ', 'T')).getTime();
     return Number.isFinite(parsed) ? parsed : fallbackMs;
 }
+function isRzeszowCityPoint(lat, lng) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng))
+        return false;
+    return lat >= 49.95 && lat <= 50.13 && lng >= 21.88 && lng <= 22.12;
+}
+function formatMpkStopName(value, lat, lng) {
+    const raw = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!raw)
+        return '';
+    const withoutDuplicateCity = raw.replace(/^(Rzesz(?:ow|\u00f3w)\s+)+/i, 'Rzesz\u00f3w ');
+    if (/^Rzesz(?:ow|\u00f3w)\b/i.test(withoutDuplicateCity))
+        return withoutDuplicateCity.replace(/^Rzeszow\b/i, 'Rzesz\u00f3w');
+    if (isRzeszowCityPoint(lat, lng) && !/^Przystanek\s+\d+$/i.test(withoutDuplicateCity)) {
+        return `Rzesz\u00f3w ${withoutDuplicateCity}`;
+    }
+    return withoutDuplicateCity;
+}
 async function fetchJsonWithRetry(url, init, retries = 1) {
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -121,13 +138,13 @@ async function loadStopsDictionary() {
         ttlMs: 24 * 60 * 60 * 1000,
         staleMs: 24 * 60 * 60 * 1000,
         loader: async () => {
-            const data = await fetchJsonWithRetry(STOPS_URL, {
-                headers: REQUEST_HEADERS,
-            });
+            const data = await loadRawStopPoints();
             const dictionary = {};
-            for (const stop of data.items || []) {
+            for (const stop of data) {
                 const stopId = String(stop.stop_point_id || '').trim();
-                const stopName = String(stop.name || '').trim();
+                const lat = Number(stop.location?.lat ?? stop.location?.latitude);
+                const lng = Number(stop.location?.lon ?? stop.location?.lng ?? stop.location?.longitude);
+                const stopName = formatMpkStopName(stop.name, lat, lng);
                 if (!stopId || !stopName)
                     continue;
                 dictionary[stopId] = stopName;
@@ -136,23 +153,34 @@ async function loadStopsDictionary() {
         },
     });
 }
-async function loadStopPointIndex() {
-    return (0, cache_1.getCachedValue)('mpk_rzeszow:stop_point_index', {
+async function loadRawStopPoints() {
+    const { value } = await (0, cache_1.getCachedValue)('mpk_rzeszow:raw_stop_points', {
         ttlMs: 24 * 60 * 60 * 1000,
         staleMs: 24 * 60 * 60 * 1000,
         loader: async () => {
             const data = await fetchJsonWithRetry(STOPS_URL, {
                 headers: REQUEST_HEADERS,
             });
+            return Array.isArray(data.items) ? data.items : [];
+        },
+    });
+    return value;
+}
+async function loadStopPointIndex() {
+    return (0, cache_1.getCachedValue)('mpk_rzeszow:stop_point_index', {
+        ttlMs: 24 * 60 * 60 * 1000,
+        staleMs: 24 * 60 * 60 * 1000,
+        loader: async () => {
+            const data = await loadRawStopPoints();
             const index = {};
-            for (const stop of data.items || []) {
+            for (const stop of data) {
                 const stopId = String(stop.stop_point_id || '').trim();
                 if (!stopId)
                     continue;
                 const lat = Number(stop.location?.lat ?? stop.location?.latitude);
                 const lng = Number(stop.location?.lon ?? stop.location?.lng ?? stop.location?.longitude);
                 index[stopId] = {
-                    name: String(stop.name || '').trim(),
+                    name: formatMpkStopName(stop.name, lat, lng),
                     lat: Number.isFinite(lat) ? lat : undefined,
                     lng: Number.isFinite(lng) ? lng : undefined,
                 };
@@ -237,7 +265,7 @@ async function fetchMpkTripSchedule(tripId, delaySeconds) {
         const lng = Number(stop.lon ?? stop.lng ?? stop.long ?? stop.longitude ?? stop.stop_lon ?? indexed?.lng);
         return {
             id: Number.isFinite(stopId) ? stopId : Number(stop.stop_sequence || 0),
-            name: String(stop.stop_name || indexed?.name || `Przystanek ${stop.stop_sequence || ''}`).trim(),
+            name: formatMpkStopName(stop.stop_name || indexed?.name || `Przystanek ${stop.stop_sequence || ''}`, Number.isFinite(lat) ? lat : undefined, Number.isFinite(lng) ? lng : undefined),
             planned: plannedDate ? plannedDate.toISOString() : null,
             real: realDate ? realDate.toISOString() : null,
             lat: Number.isFinite(lat) ? lat : undefined,
@@ -349,7 +377,7 @@ function toTransportVehicle(rawVehicle, now, includeInactive, stopsDictionary, d
     const delaySeconds = getEffectiveMpkDelay(Number(rawVehicle.o ?? details?.delay ?? 0), statusCode);
     const prefixedId = `mpk_rzeszow_${rawVehicleNumber}`;
     const nextStopId = Number(rawVehicle.nk || details?.end_stop_id);
-    const nextStopName = String(rawVehicle.nop || details?.end_stop_name || '').trim() ||
+    const nextStopName = formatMpkStopName(rawVehicle.nop || details?.end_stop_name) ||
         stopsDictionary[String(nextStopId)] ||
         (Number.isFinite(nextStopId) ? `Przystanek ${nextStopId}` : '');
     return {
