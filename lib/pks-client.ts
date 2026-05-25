@@ -2,6 +2,12 @@ import {Capacitor, CapacitorHttp} from '@capacitor/core';
 import type {Vehicle} from '@/components/BusMap';
 
 type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: string; code?: string}>;
+type PersistentCacheEnvelope<T> = {
+  version: number;
+  savedAt: number;
+  signature: string;
+  data: T;
+};
 type ShapePoint = [number, number];
 type ShapeMetadata = { id: string; bbox: [number, number, number, number]; samples: ShapePoint[] };
 type StopPointIndex = Record<string, { n: string; lat?: number; lon?: number }>;
@@ -133,6 +139,10 @@ const marcelProgressState = new Map<string, {
   lastSeenMs: number;
 }>();
 const MARCEL_STALE_MS = 7 * 60 * 1000;
+const CLIENT_STOP_CACHE_VERSION = 3;
+const CLIENT_STOP_CACHE_TTL_MS = 15 * 60 * 1000;
+const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v3';
+const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v3';
 
 type MarcelCourseStop = {
   id: number;
@@ -213,6 +223,87 @@ async function requestJson<T>(url: string, init?: RequestInit & {headers?: Recor
 
 async function requestEinfoJson<T>(pathAndOptionalQuery: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
   return requestJson<T>(einfoFallbackUrl(pathAndOptionalQuery), init);
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function cacheSignature(value: unknown) {
+  const normalized = stableStringify(value);
+  const size = Array.isArray(value)
+    ? value.length
+    : value && typeof value === 'object'
+      ? Object.keys(value as Record<string, unknown>).length
+      : 0;
+  return `${size}:${hashString(normalized)}`;
+}
+
+function readPersistentClientCache<T>(key: string): PersistentCacheEnvelope<T> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) || 'null') as PersistentCacheEnvelope<T> | null;
+    if (!parsed || parsed.version !== CLIENT_STOP_CACHE_VERSION || !parsed.data) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistentClientCache<T>(key: string, data: T) {
+  if (typeof window === 'undefined') return cacheSignature(data);
+  const signature = cacheSignature(data);
+  const current = readPersistentClientCache<T>(key);
+  if (current?.signature === signature) return signature;
+  try {
+    window.localStorage.setItem(key, JSON.stringify({
+      version: CLIENT_STOP_CACHE_VERSION,
+      savedAt: Date.now(),
+      signature,
+      data,
+    } satisfies PersistentCacheEnvelope<T>));
+  } catch {
+    // The in-memory/network result is still used if persistent storage is full.
+  }
+  return signature;
+}
+
+function normalizeNameForComparison(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function bestPksStopName(areaName: string, stopName: string) {
+  const area = areaName.trim();
+  const name = stopName.trim();
+  if (!area) return name;
+  if (!name) return area;
+  const normalizedArea = normalizeNameForComparison(area);
+  const normalizedName = normalizeNameForComparison(name);
+  const areaHasCity = /\b(rzeszow|boguchwala|babica|czudec|gwoznica|wyzne|lutoryz|zarzecze|polomia|baryczka)\b/.test(normalizedArea);
+  const nameHasCity = /\b(rzeszow|boguchwala|babica|czudec|gwoznica|wyzne|lutoryz|zarzecze|polomia|baryczka)\b/.test(normalizedName);
+  if (!areaHasCity && nameHasCity && normalizedName.includes(normalizedArea)) return name;
+  return area;
 }
 
 async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
@@ -2236,7 +2327,7 @@ export async function fetchVehicleDetailsClient(provider: TransportProviderId, v
   return mapTransportVehicleToClient(response.vehicle);
 }
 
-export async function fetchStopsClient(): Promise<StopsMap> {
+async function fetchStopsFromNetwork(): Promise<StopsMap> {
   const data = await requestEinfoJson<any>('stop-point', {
     headers: {'Accept': 'application/json'},
   }).catch(async () => {
@@ -2260,7 +2351,7 @@ export async function fetchStopsClient(): Promise<StopsMap> {
     const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
     const areaName = stop.stop_area_name ? stop.stop_area_name.trim() : '';
     const name = stop.name ? stop.name.trim() : '';
-    const finalNameRaw = areaName || name;
+    const finalNameRaw = bestPksStopName(areaName, name);
     let formattedName = toTitleCase(finalNameRaw);
 
     if (stop.stop_point_code && stop.stop_point_code.trim()) {
@@ -2294,6 +2385,28 @@ export async function fetchStopsClient(): Promise<StopsMap> {
   }
 
   return compressedMap;
+}
+
+export async function fetchStopsClient(options?: { forceRefresh?: boolean }): Promise<StopsMap> {
+  const cached = readPersistentClientCache<StopsMap>(PKS_STOPS_CACHE_KEY);
+  const isFresh = cached && Date.now() - cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
+  if (cached && !options?.forceRefresh) {
+    if (!isFresh) {
+      fetchStopsFromNetwork()
+        .then((fresh) => writePersistentClientCache(PKS_STOPS_CACHE_KEY, fresh))
+        .catch(() => undefined);
+    }
+    return cached.data;
+  }
+
+  try {
+    const fresh = await fetchStopsFromNetwork();
+    writePersistentClientCache(PKS_STOPS_CACHE_KEY, fresh);
+    return fresh;
+  } catch (error) {
+    if (cached) return cached.data;
+    throw error;
+  }
 }
 
 function isJourneyRunning(legends: string[], dateIso: string) {
@@ -2447,6 +2560,7 @@ export type MpkRzeszowStop = {
   stop_name: string;
   stop_lat?: string | number;
   stop_lon?: string | number;
+  zone_id?: string | number;
   lines?: string;
 };
 
@@ -2465,11 +2579,33 @@ export type MpkRzeszowScheduleEntry = {
   end_stop_name?: string;
 };
 
-export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSignal }) {
+async function fetchMpkRzeszowStopsFromNetwork(options?: { signal?: AbortSignal }) {
   return requestJson<MpkRzeszowStop[]>(MPK_RZESZOW_STOPS_URL, {
     signal: options?.signal,
     headers: {Accept: 'application/json'},
   });
+}
+
+export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSignal; forceRefresh?: boolean }) {
+  const cached = readPersistentClientCache<MpkRzeszowStop[]>(MPK_STOPS_CACHE_KEY);
+  const isFresh = cached && Date.now() - cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
+  if (cached && !options?.forceRefresh) {
+    if (!isFresh) {
+      fetchMpkRzeszowStopsFromNetwork()
+        .then((fresh) => writePersistentClientCache(MPK_STOPS_CACHE_KEY, fresh))
+        .catch(() => undefined);
+    }
+    return cached.data;
+  }
+
+  try {
+    const fresh = await fetchMpkRzeszowStopsFromNetwork(options);
+    writePersistentClientCache(MPK_STOPS_CACHE_KEY, fresh);
+    return fresh;
+  } catch (error) {
+    if (cached) return cached.data;
+    throw error;
+  }
 }
 
 function mpkServiceIdForDate(dateIso: string) {

@@ -93,6 +93,9 @@ const LIVE_DELAY_LIMIT_SECONDS = 18_000;
 const LIVE_DEPARTURE_MATCH_WINDOW_MS = 8 * 60_000;
 const LIVE_DETAILS_CACHE = new Map<string, { expiresAt: number; promise: Promise<Vehicle | null> }>();
 const GEO_BUCKET_PRECISION = 0.002;
+const STOP_CACHE_VERSION = 2;
+const STOP_CACHE_TTL_MS = 15 * 60 * 1000;
+const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v2:';
 
 type LiveDepartureProvider = 'pks' | 'mpk_rzeszow';
 
@@ -207,6 +210,69 @@ function normalizeStopName(value: unknown) {
     .replace(/\s+/g, ' ');
 }
 
+function stableCacheString(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableCacheString).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableCacheString((value as Record<string, unknown>)[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function hashCacheString(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function stopCacheSignature(value: unknown) {
+  const size = Array.isArray(value)
+    ? value.length
+    : value && typeof value === 'object'
+      ? Object.keys(value as Record<string, unknown>).length
+      : 0;
+  return `${size}:${hashCacheString(stableCacheString(value))}`;
+}
+
+function readStopCache<T>(key: string): { savedAt: number; signature: string; data: T } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) || 'null') as {
+      version?: number;
+      savedAt?: number;
+      signature?: string;
+      data?: T;
+    } | null;
+    if (!parsed || parsed.version !== STOP_CACHE_VERSION || !parsed.data || !parsed.savedAt || !parsed.signature) return null;
+    return { savedAt: parsed.savedAt, signature: parsed.signature, data: parsed.data };
+  } catch {
+    return null;
+  }
+}
+
+function writeStopCache<T>(key: string, data: T) {
+  const signature = stopCacheSignature(data);
+  if (typeof window === 'undefined') return signature;
+  const current = readStopCache<T>(key);
+  if (current?.signature === signature) return signature;
+  try {
+    window.localStorage.setItem(key, JSON.stringify({
+      version: STOP_CACHE_VERSION,
+      savedAt: Date.now(),
+      signature,
+      data,
+    }));
+  } catch {
+    // Keep the current session data even if persistent storage is full.
+  }
+  return signature;
+}
+
 function stopDisplayName(value: unknown) {
   return String(value || '')
     .replace(/\s+/g, ' ')
@@ -217,6 +283,18 @@ function stopDisplayName(value: unknown) {
 
 function normalizeMpkDisplayName(value: unknown) {
   const base = stopDisplayName(value).replace(/\bmatuszczka\b/gi, 'Matuszczaka');
+  return base;
+}
+
+function hasKnownCityPrefix(value: unknown) {
+  return /^(rzeszow|rzeszów|boguchwala|boguchwała|babica|czudec|gwoznica|gwoźnica|wyzne|wyżne|lutoryz|lutoryż|zarzecze|polomia|połomia|baryczka|jasionka)\b/i
+    .test(stopDisplayName(value));
+}
+
+function mpkStopDisplayName(stop: { stop_name?: string; zone_id?: string | number }) {
+  const base = normalizeMpkDisplayName(stop.stop_name || '');
+  const zone = String(stop.zone_id || '').trim().toUpperCase();
+  if (base && zone === 'A' && !hasKnownCityPrefix(base)) return `Rzeszów ${base}`;
   return base;
 }
 
@@ -281,6 +359,41 @@ function nameSimilarityScore(left: unknown, right: unknown) {
   });
   const numScore = leftNums.size > 0 && rightNums.size > 0 ? numsOverlap / Math.max(leftNums.size, rightNums.size) : 0;
   return tokenScore * 0.75 + numScore * 0.25;
+}
+
+function stopTokenSet(value: unknown) {
+  return new Set(mergeTokens(value));
+}
+
+function sharedStopTokenCount(left: unknown, right: unknown) {
+  const leftTokens = stopTokenSet(left);
+  const rightTokens = stopTokenSet(right);
+  let count = 0;
+  leftTokens.forEach((token) => {
+    if (rightTokens.has(token)) count += 1;
+  });
+  return count;
+}
+
+function hasConflictingCityToken(left: unknown, right: unknown) {
+  const cityTokens = new Set([
+    'rzeszow',
+    'boguchwala',
+    'babica',
+    'czudec',
+    'gwoznica',
+    'wyzne',
+    'lutoryz',
+    'zarzecze',
+    'polomia',
+    'baryczka',
+    'jasionka',
+  ]);
+  const tokens = (value: unknown) => normalizeStopName(value).split(' ').filter(Boolean);
+  const leftCities = tokens(left).filter((token) => cityTokens.has(token));
+  const rightCities = tokens(right).filter((token) => cityTokens.has(token));
+  if (leftCities.length === 0 || rightCities.length === 0) return false;
+  return !leftCities.some((token) => rightCities.includes(token));
 }
 
 function distanceMeters(aLat?: number, aLon?: number, bLat?: number, bLon?: number) {
@@ -362,6 +475,18 @@ function mergeCsvValues(...values: Array<string | undefined>) {
   return [...next].join(',');
 }
 
+function mergeDebugNames(current: string | undefined, nextName: string) {
+  const next = new Set(
+    String(current || '')
+      .split(' | ')
+      .map((part) => part.trim())
+      .filter(Boolean),
+  );
+  const clean = stopDisplayName(nextName);
+  if (clean) next.add(clean);
+  return [...next].join(' | ');
+}
+
 function splitCsvValues(value: unknown) {
   return String(value || '')
     .split(',')
@@ -377,7 +502,18 @@ function marcelCourseStopIndexKey(stop: MarcelCourseStopPublic) {
   return [normalizeStopName(stop.nazMi), marcelCourseStopMatchKey(stop)].filter(Boolean).join('|');
 }
 
-function getMarcelStopsIndex(dateIso: string) {
+function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean }) {
+  const cacheKey = `${MARCEL_STOPS_PERSISTENT_PREFIX}${dateIso}`;
+  const cached = readStopCache<MarcelIndexedStop[]>(cacheKey);
+  const isFresh = cached && Date.now() - cached.savedAt < STOP_CACHE_TTL_MS;
+  if (cached && !options?.forceRefresh) {
+    if (!isFresh) {
+      getMarcelStopsIndex(dateIso, { forceRefresh: true }).catch(() => undefined);
+    }
+    return Promise.resolve(cached.data);
+  }
+
+  if (options?.forceRefresh) MARCEL_STOPS_INDEX_CACHE.delete(dateIso);
   if (!MARCEL_STOPS_INDEX_CACHE.has(dateIso)) {
     MARCEL_STOPS_INDEX_CACHE.set(dateIso, (async () => {
       const routes = await fetchMarcelRoutesClient();
@@ -421,13 +557,18 @@ function getMarcelStopsIndex(dateIso: string) {
         });
       });
 
-      return [...indexedStops.values()].map(({ routeIdSet, ...stop }) => ({
+      const stops = [...indexedStops.values()].map(({ routeIdSet, ...stop }) => ({
         ...stop,
         routeIds: [...routeIdSet],
       }));
+      writeStopCache(cacheKey, stops);
+      return stops;
     })());
   }
-  return MARCEL_STOPS_INDEX_CACHE.get(dateIso)!;
+  return MARCEL_STOPS_INDEX_CACHE.get(dateIso)!.catch((error) => {
+    if (cached) return cached.data;
+    throw error;
+  });
 }
 
 function canExposeStandaloneMarcelStop(value: unknown) {
@@ -771,19 +912,28 @@ export default function StopsPanel({
 
   useEffect(() => {
     const controller = new AbortController();
+    const mapMpkStops = (data: Awaited<ReturnType<typeof fetchMpkRzeszowStopsClient>>) =>
+      data
+        .map((stop) => ({
+          id: String(stop.stop_id),
+          name: mpkStopDisplayName(stop),
+          lat: Number.isFinite(Number(stop.stop_lat)) ? Number(stop.stop_lat) : undefined,
+          lon: Number.isFinite(Number(stop.stop_lon)) ? Number(stop.stop_lon) : undefined,
+          lines: sortedLines(String(stop.lines || '').split(',').map((line) => line.trim())),
+        }))
+        .filter((stop) => stop.id && stop.name);
+    const signature = (items: typeof mpkStops) => stopCacheSignature(items);
+
     fetchMpkRzeszowStopsClient({ signal: controller.signal })
       .then((data) => {
-        setMpkStops(
-          data
-            .map((stop) => ({
-              id: String(stop.stop_id),
-              name: normalizeMpkDisplayName(stop.stop_name || ''),
-              lat: Number.isFinite(Number(stop.stop_lat)) ? Number(stop.stop_lat) : undefined,
-              lon: Number.isFinite(Number(stop.stop_lon)) ? Number(stop.stop_lon) : undefined,
-              lines: sortedLines(String(stop.lines || '').split(',').map((line) => line.trim())),
-            }))
-            .filter((stop) => stop.id && stop.name),
-        );
+        const cachedStops = mapMpkStops(data);
+        setMpkStops(cachedStops);
+        return fetchMpkRzeszowStopsClient({ forceRefresh: true })
+          .then((fresh) => {
+            const freshStops = mapMpkStops(fresh);
+            setMpkStops((current) => (signature(current) === signature(freshStops) ? current : freshStops));
+          })
+          .catch(() => undefined);
       })
       .catch((error: unknown) => {
         if ((error as { name?: string })?.name === 'AbortError') return;
@@ -801,6 +951,9 @@ export default function StopsPanel({
       const indexedStops = await getMarcelStopsIndex(dateIso);
       if (!active) return;
       setMarcelStops(indexedStops);
+      const freshStops = await getMarcelStopsIndex(dateIso, { forceRefresh: true }).catch(() => null);
+      if (!active || !freshStops) return;
+      setMarcelStops((current) => (stopCacheSignature(current) === stopCacheSignature(freshStops) ? current : freshStops));
     };
 
     loadMarcelStops().catch((error) => console.warn('[StopsPanel] Marcel stops unavailable', error));
@@ -859,6 +1012,7 @@ export default function StopsPanel({
       target.providerStopIds = {
         ...(target.providerStopIds || {}),
         [raw.provider]: mergeCsvValues(target.providerStopIds?.[raw.provider], String(raw.id)),
+        [`${raw.provider}Names`]: mergeDebugNames(target.providerStopIds?.[`${raw.provider}Names`], raw.name),
       };
       if (raw.provider === 'pks') {
         target.providerStopIds.pksAreaIds = mergeCsvValues(target.providerStopIds.pksAreaIds, raw.areaId);
@@ -870,6 +1024,8 @@ export default function StopsPanel({
         [raw.provider]: target.displayNamesByProvider?.[raw.provider] || stopDisplayName(raw.name),
       };
       target.name = preferredStopDisplayName(target.displayNamesByProvider) || target.name;
+      target.baseNameKey = stopBaseNameKey(target.name);
+      registerBucket(target);
       target.carrierMap.set(raw.carrier.id, raw.carrier);
       if (target.lat === undefined && raw.lat !== undefined) target.lat = raw.lat;
       if (target.lon === undefined && raw.lon !== undefined) target.lon = raw.lon;
@@ -907,6 +1063,7 @@ export default function StopsPanel({
         sourceProviderIds: [raw.provider],
         providerStopIds: {
           [raw.provider]: String(raw.id),
+          [`${raw.provider}Names`]: displayName,
           ...(raw.provider === 'pks' ? { pksAreaIds: String(raw.areaId || ''), pksCodes: String(raw.code || '') } : {}),
         },
         baseNameKey,
@@ -981,22 +1138,26 @@ export default function StopsPanel({
       for (const candidate of pool) {
         const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
         const hasGeo = Number.isFinite(distance);
-        if (weakName && hasGeo && distance > 300) continue;
+        if (hasConflictingCityToken(raw.name, candidate.name)) continue;
+        if (weakName && hasGeo && distance > 320) continue;
         const similarity = nameSimilarityScore(raw.name, candidate.name);
-        const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.32 : 0;
+        const sharedTokens = sharedStopTokenCount(raw.name, candidate.name);
+        const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.34 : 0;
         if (hasGeo && distance > 900 && similarity < 0.94) continue;
+        if (!hasGeo && candidate.baseNameKey !== baseNameKey && similarity < 0.92) continue;
         const distanceScore = hasGeo
-          ? distance <= 45
+          ? distance <= 60
             ? 1
-            : distance <= 120
-              ? 0.78
-              : distance <= 250
-                ? 0.48
-                : distance <= 450
-                  ? 0.22
+            : distance <= 110
+              ? 0.86
+              : distance <= 180
+                ? 0.62
+                : distance <= 320
+                  ? 0.34
                   : 0
           : 0;
-        const score = similarity * 0.7 + distanceScore * 0.3 + exactBaseBoost;
+        const gpsDominantBoost = hasGeo && sharedTokens > 0 && distance <= 90 ? 0.45 : 0;
+        const score = similarity * 0.58 + distanceScore * 0.42 + exactBaseBoost + gpsDominantBoost;
         if (score > bestScore || (score === bestScore && distance < bestDistance)) {
           bestScore = score;
           bestDistance = distance;
@@ -1009,17 +1170,22 @@ export default function StopsPanel({
         return null;
       }
 
+      const sharedTokens = sharedStopTokenCount(raw.name, bestCandidate.name);
       if (weakName) {
         const weakMatch = Number.isFinite(bestDistance) && bestDistance <= 260 ? bestCandidate : null;
         crossMatchCache.set(cacheKey, weakMatch);
         return weakMatch;
       }
 
-      if (Number.isFinite(bestDistance) && bestScore >= 0.78 && bestDistance <= 450) {
+      if (Number.isFinite(bestDistance) && bestDistance <= 90 && sharedTokens > 0) {
         crossMatchCache.set(cacheKey, bestCandidate);
         return bestCandidate;
       }
-      if (Number.isFinite(bestDistance) && bestScore >= 0.68 && bestDistance <= 140) {
+      if (Number.isFinite(bestDistance) && bestScore >= 0.78 && bestDistance <= 360) {
+        crossMatchCache.set(cacheKey, bestCandidate);
+        return bestCandidate;
+      }
+      if (Number.isFinite(bestDistance) && bestScore >= 0.66 && bestDistance <= 160 && sharedTokens > 0) {
         crossMatchCache.set(cacheKey, bestCandidate);
         return bestCandidate;
       }
@@ -1078,7 +1244,9 @@ export default function StopsPanel({
       const baseName = stopBaseNameKey(displayName);
       if (!baseName) return;
       const matched =
+        findSafeCrossProviderMatch({ name: displayName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['pks'])) ||
         findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['pks'])) ||
+        findSafeCrossProviderMatch({ name: displayName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel'])) ||
         findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel']));
       if (matched) {
         attachProvider(matched, {

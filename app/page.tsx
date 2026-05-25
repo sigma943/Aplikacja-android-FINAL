@@ -1054,16 +1054,28 @@ export default function Home() {
 
   const loadStops = () => {
     setStopsLoadError(false);
-    fetchStopsClient()
-      .then(d => {
-        setStopsList(Object.entries(d).map(([id, val]: any) => ({ 
+    const mapStops = (d: Awaited<ReturnType<typeof fetchStopsClient>>) =>
+      Object.entries(d).map(([id, val]: any) => ({
            id, 
            name: val.n, 
            areaId: val.areaId, 
            code: val.code,
            lat: val.lat,
            lon: val.lon
-        })).sort((a,b) => a.name.localeCompare(b.name)));
+      })).sort((a,b) => a.name.localeCompare(b.name));
+    const signature = (items: typeof stopsList) =>
+      JSON.stringify(items.map((stop) => [stop.id, stop.name, stop.areaId, stop.code, stop.lat, stop.lon]));
+
+    fetchStopsClient()
+      .then(d => {
+        const cachedStops = mapStops(d);
+        setStopsList(cachedStops);
+        return fetchStopsClient({forceRefresh: true})
+          .then((fresh) => {
+            const freshStops = mapStops(fresh);
+            setStopsList((current) => (signature(current) === signature(freshStops) ? current : freshStops));
+          })
+          .catch(() => undefined);
       })
       .catch(e => {
         console.error('Fetch stops fail:', e);
@@ -1875,7 +1887,6 @@ export default function Home() {
                                 };
                                 const timeStr = displayTime ? formatTime(displayTime) : '';
                                 const timeClass = busDelayMin > 0 ? 'text-rose-500' : busDelayMin < 0 ? 'text-emerald-500' : textMain;
-                                const showStopDelayBadge = Math.abs(busDelayMin) > 1;
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = Boolean(sch.isPast) || Boolean(selectedBus.lastStopId && sch.id === selectedBus.lastStopId);
                                 return (
@@ -1895,15 +1906,6 @@ export default function Home() {
                                         {timeStr && (
                                           <div className="flex items-center gap-2 mt-1">
                                              <span className={`text-xs font-bold font-mono ${timeClass}`}>{timeStr}</span>
-                                             {showStopDelayBadge && (
-                                               <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-black leading-none tracking-wide ${
-                                                 busDelayMin < 0
-                                                   ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                                                   : 'border-rose-500/20 bg-rose-500/10 text-rose-400'
-                                               }`}>
-                                                 {busDelayMin > 0 ? `+${busDelayMin}` : busDelayMin} min
-                                               </span>
-                                             )}
                                           </div>
                                         )}
                                      </div>

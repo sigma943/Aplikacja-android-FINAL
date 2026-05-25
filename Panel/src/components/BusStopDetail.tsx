@@ -195,11 +195,6 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
   const activeDepartures = filteredDeparturesByLine.filter(d => showPastDepartures ? true : !d.isPast);
   const displayedDepartures = showAllDepartures ? activeDepartures : activeDepartures.slice(0, 5);
-  const formatDelay = (value?: number) => {
-    const rounded = Math.round(Number(value || 0));
-    if (rounded > 0) return `+${rounded}`;
-    return String(rounded);
-  };
   const formatDepartureTime = (departure: Departure) => {
     if (selectedDay !== 'today') return departure.time;
     if (!currentTimeMs) return departure.time;
@@ -439,9 +434,6 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                   <>
                     <AnimatePresence mode="popLayout">
                   {displayedDepartures.map((dep, idx) => {
-                    const delayValue = Math.round(Number(dep.delayMins || 0));
-                    const isDelayed = delayValue > 1;
-                    const isEarly = delayValue < -1;
                     const isPast = (dep as any).isPast;
                     const departureTimeLabel = formatDepartureTime(dep);
                     return (
@@ -487,17 +479,6 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         {/* Right Side: Departure Time & Delayed/On-time Badge */}
                         <div className="min-w-[4.4rem] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
                            <div className={`font-black tracking-tight text-[15px] sm:text-[16px] ${isPast ? 'text-slate-500 line-through' : 'text-white'}`}>{departureTimeLabel}</div>
-                           {(isDelayed || isEarly) && !isPast && (
-                             <div className="mt-1 mr-[-4px]">
-                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[9px] font-black tracking-wider uppercase ${
-                                 isEarly
-                                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/15'
-                                   : 'bg-rose-500/10 text-rose-400 border-rose-500/10'
-                               }`}>
-                                 {formatDelay(dep.delayMins)} min
-                               </span>
-                             </div>
-                           )}
                         </div>
                       </motion.div>
                     );

@@ -14,12 +14,21 @@ interface StopListProps {
 }
 
 const ENABLE_TRAINS = false;
+type CarrierFilterId = 'all' | 'pks' | 'mpk' | 'marcel';
 
-function filterAndSortStops(stops: Stop[], query: string) {
+const CARRIER_FILTERS: Array<{ id: CarrierFilterId; label: string; dotClass: string }> = [
+  { id: 'all', label: 'Wszystkie', dotClass: 'bg-teal-400' },
+  { id: 'pks', label: 'PKS Rzeszów', dotClass: 'bg-teal-400' },
+  { id: 'mpk', label: 'MPK Rzeszów', dotClass: 'bg-orange-500' },
+  { id: 'marcel', label: 'Marcel', dotClass: 'bg-lime-400' },
+];
+
+function filterAndSortStops(stops: Stop[], query: string, carrierFilter: CarrierFilterId) {
   const normalizedQuery = query.trim().toLowerCase();
   return stops
     .filter((stop) => {
       if (!ENABLE_TRAINS && stop.type !== 'bus') return false;
+      if (carrierFilter !== 'all' && !stop.carriers.some((carrier) => carrier.id === carrierFilter)) return false;
       if (!normalizedQuery) return true;
       return stop.name.toLowerCase().includes(normalizedQuery);
     })
@@ -40,10 +49,11 @@ export default function StopList({
   const [inputValue, setInputValue] = useState('');
   const [isFullListOpen, setIsFullListOpen] = useState(false);
   const [fullInputValue, setFullInputValue] = useState('');
+  const [carrierFilter, setCarrierFilter] = useState<CarrierFilterId>('all');
   const [visibleFullCount, setVisibleFullCount] = useState(40);
 
-  const filteredStops = useMemo(() => filterAndSortStops(stops, inputValue), [stops, inputValue]);
-  const fullFilteredStops = useMemo(() => filterAndSortStops(stops, fullInputValue), [stops, fullInputValue]);
+  const filteredStops = useMemo(() => filterAndSortStops(stops, inputValue, carrierFilter), [stops, inputValue, carrierFilter]);
+  const fullFilteredStops = useMemo(() => filterAndSortStops(stops, fullInputValue, carrierFilter), [stops, fullInputValue, carrierFilter]);
   const displayStops = useMemo(() => filteredStops.slice(0, 30), [filteredStops]);
   const slicedFullStops = useMemo(() => fullFilteredStops.slice(0, visibleFullCount), [fullFilteredStops, visibleFullCount]);
 
@@ -52,6 +62,32 @@ export default function StopList({
     setVisibleFullCount(40);
     setIsFullListOpen(false);
   };
+
+  const renderCarrierFilters = (compact = false) => (
+    <div className={`flex gap-2 overflow-x-auto pb-1 custom-scrollbar ${compact ? 'mt-3' : 'mt-4'}`}>
+      {CARRIER_FILTERS.map((filter) => {
+        const isActive = carrierFilter === filter.id;
+        return (
+          <button
+            type="button"
+            key={filter.id}
+            onClick={() => {
+              setCarrierFilter(filter.id);
+              setVisibleFullCount(40);
+            }}
+            className={`flex shrink-0 items-center gap-2 rounded-2xl border px-3.5 py-2 text-[11px] font-black transition-all ${
+              isActive
+                ? 'border-teal-400/45 bg-teal-400/16 text-teal-200 shadow-[0_0_18px_rgba(20,184,166,0.14)]'
+                : 'border-white/8 bg-white/[0.03] text-slate-400 hover:border-white/16 hover:bg-white/[0.06] hover:text-white'
+            }`}
+          >
+            {filter.id !== 'all' && <span className={`h-2 w-2 rounded-full ${filter.dotClass}`} />}
+            {filter.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   const renderLineBadges = (lines: string[], expanded = false) => {
     const visibleCount = expanded ? lines.length : Math.min(lines.length, 5);
@@ -170,6 +206,7 @@ export default function StopList({
             onChange={(event) => setInputValue(event.target.value)}
           />
         </div>
+        {renderCarrierFilters()}
       </div>
 
       <div
@@ -250,6 +287,7 @@ export default function StopList({
                 }}
               />
             </div>
+            {renderCarrierFilters(true)}
           </div>
 
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
