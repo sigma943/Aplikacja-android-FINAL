@@ -354,7 +354,7 @@ export function RolesModal({
 
         </div>
 
-        <div className="p-6 border-t border-white/5 bg-[#0a0f18]/80 backdrop-blur-xl shrink-0">
+        <div className="p-6 border-t border-white/5 bg-[#111623]/50 backdrop-blur-xl shrink-0">
           <button 
             type="button"
             onClick={async () => {

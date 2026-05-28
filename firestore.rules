@@ -280,12 +280,18 @@ service cloud.firestore {
           )
         ) ||
 
-        // Own display name only.
+        // Own display/device name only.
         (
           isOwner(deviceId) &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['displayName']) &&
-          incoming().displayName is string &&
-          incoming().displayName.size() <= 120
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'deviceName']) &&
+          (
+            !incoming().diff(existing()).affectedKeys().hasAny(['displayName']) ||
+            (incoming().displayName is string && incoming().displayName.size() <= 120)
+          ) &&
+          (
+            !incoming().diff(existing()).affectedKeys().hasAny(['deviceName']) ||
+            (incoming().deviceName is string && incoming().deviceName.size() <= 120)
+          )
         ) ||
 
         // Own auto-ban when global verification enforcement is enabled.
@@ -329,14 +335,14 @@ service cloud.firestore {
           incoming().verified is bool
         ) ||
 
-        // Role / permissions / displayName edits for others.
+        // Role / permissions / displayName / deviceName edits for others.
         (
           request.auth.uid != deviceId &&
           (isCallerOwner() || hasAdminPerm('canChangeRoles')) &&
           (isCallerOwner() || keepsTabAccessRestrictionsUnchanged()) &&
           (!(existing().role in ['owner', 'admin']) || isCallerOwner()) &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['role', 'permissions', 'displayName', 'verified']) &&
-          incoming().diff(existing()).affectedKeys().hasAny(['role', 'permissions', 'displayName', 'verified']) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['role', 'permissions', 'displayName', 'deviceName', 'verified']) &&
+          incoming().diff(existing()).affectedKeys().hasAny(['role', 'permissions', 'displayName', 'deviceName', 'verified']) &&
           incoming().role in ['owner', 'admin', 'user'] &&
           incomingPermissionsKnown() &&
           adminPermissionGrantAllowed() &&
@@ -349,6 +355,11 @@ service cloud.firestore {
             !incoming().diff(existing()).affectedKeys().hasAny(['displayName']) ||
             !('displayName' in incoming()) ||
             (incoming().displayName is string && incoming().displayName.size() <= 120)
+          ) &&
+          (
+            !incoming().diff(existing()).affectedKeys().hasAny(['deviceName']) ||
+            !('deviceName' in incoming()) ||
+            (incoming().deviceName is string && incoming().deviceName.size() <= 120)
           ) &&
           (incoming().role != 'owner' || existing().role == 'owner' || isCallerOwner())
         )
@@ -434,6 +445,16 @@ service cloud.firestore {
         (settingId == 'security' || canReadGlobalAdminSettings());
       allow create, update: if isSignedIn() && isValidId(settingId) && canWriteGlobalAdminSettings();
       allow delete: if false;
+    }
+
+    match /maintenance_endpoints/{endpointId} {
+      allow read: if isSignedIn() && isValidId(endpointId) && canReadGlobalAdminSettings();
+      allow create, update, delete: if false;
+    }
+
+    match /maintenance_changes/{changeId} {
+      allow read: if isSignedIn() && isValidId(changeId) && canReadGlobalAdminSettings();
+      allow create, update, delete: if false;
     }
   }
 }

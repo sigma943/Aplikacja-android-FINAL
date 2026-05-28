@@ -1,5 +1,5 @@
 ﻿import type { CSSProperties } from 'react';
-import { Bus, Monitor, Users, Activity, Lock, X, Pencil, type LucideIcon } from 'lucide-react';
+import { Bus, Monitor, Users, Activity, Lock, X, Pencil, Wrench, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SIDEBAR_NAV_DEF: { id: string; label: string; icon: LucideIcon }[] = [
@@ -7,6 +7,7 @@ const SIDEBAR_NAV_DEF: { id: string; label: string; icon: LucideIcon }[] = [
   { icon: Users, label: 'Administratorzy', id: 'operators' },
   { icon: Lock, label: 'Bany / Blokady', id: 'bans' },
   { icon: Activity, label: 'Logi aktywności', id: 'logs' },
+  { icon: Wrench, label: 'Konserwacja', id: 'maintenance' },
 ];
 
 interface SidebarProps {

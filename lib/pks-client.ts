@@ -46,6 +46,8 @@ export type RouteGeometryClientResponse = {
     coordinates?: [number, number][];
   };
   source?: string;
+  sourceQuality?: 'high' | 'fallback' | 'none';
+  isSynthetic?: boolean;
   cached?: boolean;
   skippedSegments?: number;
 };
@@ -2665,7 +2667,7 @@ function processTimetable(ttData: any, dayIso: string, codeToCompare: string) {
   return mapped;
 }
 
-export async function fetchDeparturesClient(stopId: string, areaId?: string, code?: string) {
+export async function fetchDeparturesClient(stopId: string, areaId?: string, code?: string, dateIso?: string) {
   const nearestData = await requestEinfoJson<any>(`its/infoboard/nearest-departures/${stopId}`, {
     headers: {Accept: 'application/json'},
   }).catch(() => ({journeys: []}));
@@ -2695,21 +2697,26 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
   });
   const todayIso = warsawSvc.format(now);
   const tomorrowIso = warsawSvc.format(new Date(now.getTime() + 86400000));
+  const daysToFetch = dateIso ? [dateIso] : [todayIso, tomorrowIso];
 
-  const [ttDataT, ttDataN] = await Promise.all([
-    requestEinfoJson<any>(`stop-point-timetable/${areaId}?day=${todayIso}`, {headers: {Accept: 'application/json'}}).catch(() => ({items: []})),
-    requestEinfoJson<any>(`stop-point-timetable/${areaId}?day=${tomorrowIso}`, {headers: {Accept: 'application/json'}}).catch(() => ({items: []})),
-  ]);
+  const timetableResponses = await Promise.all(
+    daysToFetch.map((day) =>
+      requestEinfoJson<any>(`stop-point-timetable/${areaId}?day=${day}`, {headers: {Accept: 'application/json'}}).catch(() => ({items: []})),
+    ),
+  );
 
-  const originalLiveJourneys = [...(nearestData.journeys || [])].map((journey: any) => ({
+  const originalLiveJourneys = dateIso && dateIso !== todayIso ? [] : [...(nearestData.journeys || [])].map((journey: any) => ({
     ...journey,
     timetable_time: String(journey.timetable_time || '').replace(' ', 'T'),
+    provider_id: 'pks',
   }));
   const combinedJourneys = [...originalLiveJourneys];
-  const mapped = [
-    ...processTimetable(ttDataT, todayIso, String(code).trim()),
-    ...processTimetable(ttDataN, tomorrowIso, String(code).trim()),
-  ];
+  const mapped = timetableResponses.flatMap((data, index) =>
+    processTimetable(data, daysToFetch[index], String(code).trim()).map((journey: any) => ({
+      ...journey,
+      provider_id: 'pks',
+    })),
+  );
 
   mapped.forEach((journey) => {
     const journeyTimeMs = new Date(journey.timetable_time).getTime();
@@ -2731,7 +2738,11 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
     ...nearestData,
     journeys: combinedJourneys.filter((journey: any) => {
       const t = new Date(journey.timetable_time).getTime();
-      return Number.isFinite(t) && t >= nowMs - 15 * 60000 && t <= nowMs + 24 * 3600000;
+      if (!Number.isFinite(t)) return false;
+      if (dateIso) {
+        return new Date(t).toLocaleDateString('en-CA', {timeZone: 'Europe/Warsaw'}) === dateIso;
+      }
+      return t >= nowMs - 15 * 60000 && t <= nowMs + 24 * 3600000;
     }),
   };
 }
@@ -2905,6 +2916,8 @@ export async function fetchRouteGeometryClient(
           coordinates: [],
         },
         source: 'rail-empty-fallback',
+        sourceQuality: 'none',
+        isSynthetic: false,
         cached: false,
         skippedSegments: 0,
       };
@@ -2923,7 +2936,25 @@ export async function fetchRouteGeometryClient(
       ].join(':'),
       { strictShortSegments: request.carrier === 'mpk_rzeszow' },
     );
-    const safeFallbackPoints = fallbackPoints.length > 1 ? fallbackPoints : createQuickCurvedRoute(stopCoords);
+    if (fallbackPoints.length <= 1) {
+      return {
+        carrier: request.carrier,
+        line: request.line,
+        direction: request.direction,
+        variant: request.variant || 'default',
+        stopsHash: '',
+        cacheKey: '',
+        geometry: {
+          type: 'LineString',
+          coordinates: [],
+        },
+        source: 'road-empty-fallback',
+        sourceQuality: 'none',
+        isSynthetic: false,
+        cached: false,
+        skippedSegments: 0,
+      };
+    }
 
     return {
       carrier: request.carrier,
@@ -2934,9 +2965,11 @@ export async function fetchRouteGeometryClient(
       cacheKey: '',
       geometry: {
         type: 'LineString',
-        coordinates: safeFallbackPoints.map(([lat, lon]) => [lon, lat]),
+        coordinates: fallbackPoints.map(([lat, lon]) => [lon, lat]),
       },
-      source: fallbackPoints.length > 1 ? 'osrm-client-fallback' : 'synthetic-client-fallback',
+      source: 'osrm-client-fallback',
+      sourceQuality: 'fallback',
+      isSynthetic: false,
       cached: false,
       skippedSegments: 0,
     };
@@ -2959,11 +2992,22 @@ export async function fetchRouteGeometryClient(
   }
 
   const coordinates = response.geometry?.coordinates || [];
+  const source = String(response.source || '').toLowerCase();
+  const isSynthetic = response.isSynthetic === true || source.includes('synthetic');
+  if (isSynthetic) {
+    return fetchClientFallback();
+  }
   if (response.geometry?.type !== 'LineString' || coordinates.length <= 1) {
     return fetchClientFallback();
   }
 
-  return response;
+  const sourceQuality = response.sourceQuality
+    || (source.includes('fallback') ? 'fallback' : 'high');
+  return {
+    ...response,
+    sourceQuality,
+    isSynthetic: false,
+  };
 }
 
 export async function fetchRouteShapeClient(

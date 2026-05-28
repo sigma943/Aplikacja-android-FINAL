@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.clearAdminLogs = exports.unblockDevice = exports.blockDevice = exports.setOperatorRole = exports.transportApi = exports.einfoProxyGet = exports.listDevicesForAdmin = exports.registerDeviceIdentity = void 0;
+exports.clearAdminLogs = exports.unblockDevice = exports.blockDevice = exports.setOperatorRole = exports.rollbackMaintenanceEndpoint = exports.disableMaintenanceEndpoint = exports.setActiveMaintenanceEndpoint = exports.testMaintenanceEndpoint = exports.saveMaintenanceEndpoint = exports.transportApi = exports.transportGateway = exports.einfoProxyGet = exports.listDevicesForAdmin = exports.registerDeviceIdentity = void 0;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -60,6 +60,20 @@ const canReadDevicesList = (caller) => {
         return false;
     const perms = caller?.permissions;
     return hasAnyTrue(perms, ['monitor', 'canViewList']);
+};
+const canReadMaintenance = (caller) => {
+    if (caller?.role === 'owner')
+        return true;
+    if (caller?.role !== 'admin')
+        return false;
+    return hasAnyTrue(caller?.permissions, ['globalSettings', 'globalSettingsEdit']);
+};
+const canWriteMaintenance = (caller) => {
+    if (caller?.role === 'owner')
+        return true;
+    if (caller?.role !== 'admin')
+        return false;
+    return caller?.permissions?.globalSettingsEdit === true;
 };
 const PERMISSION_KEYS = [
     'monitor',
@@ -511,6 +525,187 @@ const parseBboxParam = (value) => {
         return null;
     return [parts[0], parts[1], parts[2], parts[3]];
 };
+const DEFAULT_TRANSPORT_ENDPOINT_ID = 'default-transport-api';
+const DEFAULT_TRANSPORT_API_URL = 'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi';
+const MAINTENANCE_ENDPOINT_ROLES = new Set(['production', 'backup', 'staging', 'legacy', 'test']);
+const cleanIdPart = (value) => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+const normalizeEndpointUrl = (value) => {
+    const raw = String(value || '').trim().replace(/\/+$/, '');
+    let parsed;
+    try {
+        parsed = new URL(raw);
+    }
+    catch {
+        throw new https_1.HttpsError('invalid-argument', 'Endpoint URL is invalid.');
+    }
+    if (parsed.protocol !== 'https:') {
+        throw new https_1.HttpsError('invalid-argument', 'Endpoint URL must use HTTPS.');
+    }
+    return parsed.toString().replace(/\/+$/, '');
+};
+const endpointHealthUrl = (baseUrl) => `${baseUrl.replace(/\/+$/, '')}/health/providers`;
+const sanitizeMaintenanceEndpoint = (input, existing) => {
+    const url = normalizeEndpointUrl(input.url ?? existing?.url ?? DEFAULT_TRANSPORT_API_URL);
+    const role = String(input.role ?? existing?.role ?? 'production').trim().toLowerCase();
+    if (!MAINTENANCE_ENDPOINT_ROLES.has(role)) {
+        throw new https_1.HttpsError('invalid-argument', 'Invalid endpoint role.');
+    }
+    const priority = Number(input.priority ?? existing?.priority ?? 1);
+    if (!Number.isFinite(priority) || priority < 1 || priority > 99) {
+        throw new https_1.HttpsError('invalid-argument', 'Priority must be between 1 and 99.');
+    }
+    return {
+        name: String(input.name ?? existing?.name ?? 'Główny (PROD)').trim().slice(0, 80) || 'Endpoint',
+        url,
+        role,
+        priority: Math.round(priority),
+        region: String(input.region ?? existing?.region ?? 'PL').trim().slice(0, 24) || 'PL',
+        source: String(input.source ?? existing?.source ?? 'Firestore').trim().slice(0, 60) || 'Firestore',
+        fallbackEnabled: Boolean(input.fallbackEnabled ?? existing?.fallbackEnabled ?? true),
+        enabled: input.enabled == null ? Boolean(existing?.enabled ?? true) : Boolean(input.enabled),
+    };
+};
+const testMaintenanceUrl = async (url) => {
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 9000);
+    try {
+        const res = await fetch(endpointHealthUrl(url), {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            signal: controller.signal,
+        });
+        const latencyMs = Date.now() - startedAt;
+        let providerCount = 0;
+        try {
+            const payload = await res.clone().json();
+            if (payload && typeof payload === 'object') {
+                providerCount = Object.keys(payload.providers || payload || {}).length;
+            }
+        }
+        catch {
+            providerCount = 0;
+        }
+        return {
+            ok: res.ok,
+            status: res.ok ? 'success' : 'error',
+            statusCode: res.status,
+            latencyMs,
+            providerCount,
+            testedAt: new Date().toISOString(),
+            message: res.ok ? 'OK' : `HTTP ${res.status}`,
+        };
+    }
+    catch (error) {
+        return {
+            ok: false,
+            status: 'error',
+            statusCode: 0,
+            latencyMs: Date.now() - startedAt,
+            providerCount: 0,
+            testedAt: new Date().toISOString(),
+            message: error instanceof Error ? error.message : String(error),
+        };
+    }
+    finally {
+        clearTimeout(timeout);
+    }
+};
+const ensureDefaultMaintenanceEndpoint = async () => {
+    const endpointRef = db.collection('maintenance_endpoints').doc(DEFAULT_TRANSPORT_ENDPOINT_ID);
+    const settingsRef = db.collection('admin_settings').doc('maintenance');
+    const [endpointSnap, settingsSnap] = await Promise.all([endpointRef.get(), settingsRef.get()]);
+    if (!endpointSnap.exists) {
+        await endpointRef.set({
+            name: 'Główny (PROD)',
+            url: DEFAULT_TRANSPORT_API_URL,
+            role: 'production',
+            priority: 1,
+            region: 'PL',
+            source: 'Firestore',
+            fallbackEnabled: true,
+            enabled: true,
+            active: !settingsSnap.exists,
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedBy: 'system',
+        }, { merge: true });
+    }
+    if (!settingsSnap.exists || !String(settingsSnap.data()?.activeEndpointId || '').trim()) {
+        await settingsRef.set({
+            activeEndpointId: DEFAULT_TRANSPORT_ENDPOINT_ID,
+            previousEndpointId: '',
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedBy: 'system',
+        }, { merge: true });
+    }
+};
+const writeMaintenanceChange = async (action, endpointId, actorId, summary, before, after) => {
+    await db.collection('maintenance_changes').add({
+        action,
+        endpointId,
+        actorId,
+        summary,
+        before: before ?? null,
+        after: after ?? null,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+};
+const activeMaintenanceEndpoint = async () => {
+    await ensureDefaultMaintenanceEndpoint();
+    const settingsSnap = await db.collection('admin_settings').doc('maintenance').get();
+    const activeEndpointId = String(settingsSnap.data()?.activeEndpointId || DEFAULT_TRANSPORT_ENDPOINT_ID);
+    const endpointSnap = await db.collection('maintenance_endpoints').doc(activeEndpointId).get();
+    const data = endpointSnap.exists ? endpointSnap.data() || {} : {};
+    const url = String(data.url || DEFAULT_TRANSPORT_API_URL).trim().replace(/\/+$/, '');
+    const enabled = data.enabled !== false;
+    return enabled ? url : DEFAULT_TRANSPORT_API_URL;
+};
+const proxyTargetUrl = (baseUrl, request) => {
+    const base = baseUrl.replace(/\/+$/, '');
+    const path = String(request.path || '/');
+    const query = request.url.includes('?') ? request.url.slice(request.url.indexOf('?')) : '';
+    const url = `${base}${path}${query}`;
+    if (url.startsWith('https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportGateway')) {
+        return `${DEFAULT_TRANSPORT_API_URL}${path}${query}`;
+    }
+    return url;
+};
+exports.transportGateway = (0, https_1.onRequest)({ cors: true, timeoutSeconds: 60 }, async (request, response) => {
+    try {
+        if (request.method === 'OPTIONS') {
+            response.status(204).end();
+            return;
+        }
+        if (request.method !== 'GET' && request.method !== 'POST') {
+            response.status(405).json({ error: 'Method not allowed' });
+            return;
+        }
+        const targetBase = await activeMaintenanceEndpoint();
+        const target = proxyTargetUrl(targetBase, request);
+        const headers = { Accept: 'application/json' };
+        const contentType = request.get('content-type');
+        if (contentType)
+            headers['Content-Type'] = contentType;
+        const upstream = await fetch(target, {
+            method: request.method,
+            headers,
+            body: request.method === 'POST' ? JSON.stringify(request.body || {}) : undefined,
+        });
+        const text = await upstream.text();
+        response.status(upstream.status);
+        response.set('content-type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
+        response.send(text);
+    }
+    catch (error) {
+        response.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+});
 exports.transportApi = (0, https_1.onRequest)({ cors: true, timeoutSeconds: 60 }, async (request, response) => {
     try {
         if (request.method === 'OPTIONS') {
@@ -598,6 +793,150 @@ exports.transportApi = (0, https_1.onRequest)({ cors: true, timeoutSeconds: 60 }
         const message = error instanceof Error ? error.message : String(error);
         response.status(500).json({ error: message });
     }
+});
+exports.saveMaintenanceEndpoint = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (!canWriteMaintenance(caller)) {
+        throw new https_1.HttpsError('permission-denied', 'Insufficient permissions.');
+    }
+    await ensureDefaultMaintenanceEndpoint();
+    const payload = (request.data?.endpoint || request.data || {});
+    const explicitId = cleanIdPart(payload.id);
+    const endpointId = explicitId || cleanIdPart(payload.name) || `endpoint-${Date.now()}`;
+    const ref = db.collection('maintenance_endpoints').doc(endpointId);
+    const beforeSnap = await ref.get();
+    const before = beforeSnap.exists ? beforeSnap.data() : null;
+    const endpoint = sanitizeMaintenanceEndpoint(payload, before || undefined);
+    await ref.set({
+        ...endpoint,
+        active: Boolean(before?.active),
+        createdAt: before?.createdAt || firestore_1.FieldValue.serverTimestamp(),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedBy: uid,
+    }, { merge: true });
+    await writeMaintenanceChange('save', endpointId, uid, `Zapisano endpoint ${endpoint.name}`, before, endpoint);
+    await writeAudit('Konserwacja: zapisano endpoint', `${endpoint.name} (${endpoint.url})`, 'edit_role', uid);
+    return { ok: true, endpointId };
+});
+exports.testMaintenanceEndpoint = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (!canReadMaintenance(caller)) {
+        throw new https_1.HttpsError('permission-denied', 'Insufficient permissions.');
+    }
+    await ensureDefaultMaintenanceEndpoint();
+    const endpointId = cleanIdPart(request.data?.endpointId);
+    let url = request.data?.url ? normalizeEndpointUrl(request.data.url) : '';
+    if (!url && endpointId) {
+        const snap = await db.collection('maintenance_endpoints').doc(endpointId).get();
+        if (!snap.exists)
+            throw new https_1.HttpsError('not-found', 'Endpoint not found.');
+        url = normalizeEndpointUrl(snap.data()?.url);
+    }
+    if (!url)
+        throw new https_1.HttpsError('invalid-argument', 'Endpoint URL or endpointId is required.');
+    const result = await testMaintenanceUrl(url);
+    if (endpointId) {
+        await db.collection('maintenance_endpoints').doc(endpointId).set({
+            lastTest: result,
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedBy: uid,
+        }, { merge: true });
+        await writeMaintenanceChange('test', endpointId, uid, `Test endpointu: ${result.status} ${result.latencyMs} ms`, null, result);
+    }
+    return { ok: true, result };
+});
+exports.setActiveMaintenanceEndpoint = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (!canWriteMaintenance(caller)) {
+        throw new https_1.HttpsError('permission-denied', 'Insufficient permissions.');
+    }
+    await ensureDefaultMaintenanceEndpoint();
+    const endpointId = cleanIdPart(request.data?.endpointId);
+    if (!endpointId)
+        throw new https_1.HttpsError('invalid-argument', 'endpointId is required.');
+    const endpointRef = db.collection('maintenance_endpoints').doc(endpointId);
+    const endpointSnap = await endpointRef.get();
+    if (!endpointSnap.exists)
+        throw new https_1.HttpsError('not-found', 'Endpoint not found.');
+    const endpoint = endpointSnap.data() || {};
+    if (endpoint.enabled === false)
+        throw new https_1.HttpsError('failed-precondition', 'Disabled endpoint cannot be active.');
+    const settingsRef = db.collection('admin_settings').doc('maintenance');
+    const settingsSnap = await settingsRef.get();
+    const previousEndpointId = String(settingsSnap.data()?.activeEndpointId || '');
+    const batch = db.batch();
+    if (previousEndpointId) {
+        batch.set(db.collection('maintenance_endpoints').doc(previousEndpointId), { active: false }, { merge: true });
+    }
+    batch.set(endpointRef, { active: true, updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedBy: uid }, { merge: true });
+    batch.set(settingsRef, {
+        activeEndpointId: endpointId,
+        previousEndpointId: previousEndpointId && previousEndpointId !== endpointId ? previousEndpointId : String(settingsSnap.data()?.previousEndpointId || ''),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedBy: uid,
+    }, { merge: true });
+    await batch.commit();
+    await writeMaintenanceChange('activate', endpointId, uid, `Ustawiono aktywny endpoint: ${endpoint.name || endpointId}`, { previousEndpointId }, endpoint);
+    await writeAudit('Konserwacja: zmieniono aktywny endpoint', `${previousEndpointId || '-'} -> ${endpointId}`, 'edit_role', uid);
+    return { ok: true };
+});
+exports.disableMaintenanceEndpoint = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (!canWriteMaintenance(caller)) {
+        throw new https_1.HttpsError('permission-denied', 'Insufficient permissions.');
+    }
+    await ensureDefaultMaintenanceEndpoint();
+    const endpointId = cleanIdPart(request.data?.endpointId);
+    if (!endpointId)
+        throw new https_1.HttpsError('invalid-argument', 'endpointId is required.');
+    const ref = db.collection('maintenance_endpoints').doc(endpointId);
+    const snap = await ref.get();
+    if (!snap.exists)
+        throw new https_1.HttpsError('not-found', 'Endpoint not found.');
+    const endpoint = snap.data() || {};
+    if (endpoint.active === true) {
+        throw new https_1.HttpsError('failed-precondition', 'Active endpoint cannot be disabled. Activate another endpoint first.');
+    }
+    await ref.set({ enabled: false, updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedBy: uid }, { merge: true });
+    await writeMaintenanceChange('disable', endpointId, uid, `Wyłączono endpoint: ${endpoint.name || endpointId}`, endpoint, { enabled: false });
+    await writeAudit('Konserwacja: wyłączono endpoint', `${endpoint.name || endpointId}`, 'edit_role', uid);
+    return { ok: true };
+});
+exports.rollbackMaintenanceEndpoint = (0, https_1.onCall)(async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const caller = await getCaller(uid);
+    if (!canWriteMaintenance(caller)) {
+        throw new https_1.HttpsError('permission-denied', 'Insufficient permissions.');
+    }
+    await ensureDefaultMaintenanceEndpoint();
+    const settingsRef = db.collection('admin_settings').doc('maintenance');
+    const settingsSnap = await settingsRef.get();
+    const activeEndpointId = String(settingsSnap.data()?.activeEndpointId || DEFAULT_TRANSPORT_ENDPOINT_ID);
+    const previousEndpointId = String(settingsSnap.data()?.previousEndpointId || '').trim();
+    if (!previousEndpointId) {
+        throw new https_1.HttpsError('failed-precondition', 'No previous endpoint to rollback.');
+    }
+    const previousSnap = await db.collection('maintenance_endpoints').doc(previousEndpointId).get();
+    if (!previousSnap.exists || previousSnap.data()?.enabled === false) {
+        throw new https_1.HttpsError('failed-precondition', 'Previous endpoint is unavailable.');
+    }
+    const batch = db.batch();
+    batch.set(db.collection('maintenance_endpoints').doc(activeEndpointId), { active: false }, { merge: true });
+    batch.set(db.collection('maintenance_endpoints').doc(previousEndpointId), { active: true, updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedBy: uid }, { merge: true });
+    batch.set(settingsRef, {
+        activeEndpointId: previousEndpointId,
+        previousEndpointId: activeEndpointId,
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedBy: uid,
+    }, { merge: true });
+    await batch.commit();
+    await writeMaintenanceChange('rollback', previousEndpointId, uid, `Rollback: ${activeEndpointId} -> ${previousEndpointId}`);
+    await writeAudit('Konserwacja: rollback endpointu', `${activeEndpointId} -> ${previousEndpointId}`, 'edit_role', uid);
+    return { ok: true };
 });
 exports.setOperatorRole = (0, https_1.onCall)(async (request) => {
     const uid = requireAuth(request.auth?.uid);

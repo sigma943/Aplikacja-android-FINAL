@@ -11,7 +11,7 @@ const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v4';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v5';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -1097,9 +1097,9 @@ export default function BusMap({
   }, [routeStopIds, routeStopsData]);
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
-  const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.15 } as L.PolylineOptions;
-  const routeGlowOpts = { pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.15 } as L.PolylineOptions;
-  const routePolylineOpts = { pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 1.15 } as L.PolylineOptions;
+  const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
+  const routeGlowOpts = { pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
+  const routePolylineOpts = { pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
   const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
   const routeDirection = normalizeRouteCachePart(
     selectedVehicle?.direction ||

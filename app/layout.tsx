@@ -23,7 +23,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
           }}
         />
       </head>
-      <body suppressHydrationWarning className="text-white">
+      <body suppressHydrationWarning>
         <FirebaseProvider>
           {children}
         </FirebaseProvider>

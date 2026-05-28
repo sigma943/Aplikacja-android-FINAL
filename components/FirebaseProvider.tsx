@@ -20,8 +20,10 @@ const registerDeviceIdentityFn = httpsCallable<
 
 export interface DeviceData {
   deviceInfo: string;
-  /** Optional friendly name set by an admin (stored on `devices/{id}`). */
+  /** Optional person/operator name set by an admin (stored on `devices/{id}`). */
   displayName?: string;
+  /** Optional friendly hardware name shown in the devices list. */
+  deviceName?: string;
   role: DeviceRole;
   firstLogin: string;
   status: 'active' | 'banned';
@@ -47,6 +49,7 @@ interface InstallationProfile {
   role?: DeviceRole;
   permissions?: ReturnType<typeof buildDevicePermissions>;
   displayName?: string;
+  deviceName?: string;
   status?: 'active' | 'banned';
   verified?: boolean;
   banDetails?: DeviceData['banDetails'];
@@ -632,24 +635,24 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     !initialRenderReleased && (!networkStatusReady || browserOffline || loading || (!isPrivilegedDevice && settingsLoading));
 
   useEffect(() => {
-    if (!shouldHoldInitialRender && !initialRenderReleased) {
+    if (!connectionTimedOut && !shouldHoldInitialRender && !initialRenderReleased) {
       const releaseTimer = window.setTimeout(() => setInitialRenderReleased(true), 0);
       return () => window.clearTimeout(releaseTimer);
     }
-  }, [initialRenderReleased, shouldHoldInitialRender]);
+  }, [connectionTimedOut, initialRenderReleased, shouldHoldInitialRender]);
 
   useEffect(() => {
     if (!shouldHoldInitialRender) {
-      setConnectionTimedOut(false);
       return;
     }
+    if (connectionTimedOut) return;
 
     const timer = window.setTimeout(() => {
       setConnectionTimedOut(true);
     }, 30_000);
 
     return () => window.clearTimeout(timer);
-  }, [shouldHoldInitialRender]);
+  }, [connectionTimedOut, shouldHoldInitialRender]);
 
   const refreshMaintenanceStatus = async () => {
     if (checkingMaintenance) return;
@@ -672,10 +675,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs, hiddenProviderIds }}>
-      {shouldShowInitialOffline ? (
-        <ConnectionTimeoutScreen />
-      ) : connectionTimedOut ? (
+      {connectionTimedOut ? (
         <ConnectionTimeoutScreen timeout />
+      ) : shouldShowInitialOffline ? (
+        <ConnectionTimeoutScreen />
       ) : shouldHoldInitialRender ? (
         <LoadingScreen />
       ) : isBanned && device ? (
@@ -818,7 +821,7 @@ function LoadingScreen() {
   }, []);
 
   return (
-    <div className={`pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`} style={theme.pageStyle}>
+    <div className={`pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
       {theme.glow && <div className={`absolute inset-0 ${theme.glow}`} />}
       {theme.grid && <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />}
       <div className="relative z-10 flex flex-col items-center gap-5">
@@ -871,13 +874,8 @@ function ConnectionTimeoutScreen({ timeout = false }: { timeout?: boolean }) {
         <h1 className={`text-2xl font-black tracking-tight ${theme.main}`}>
           {timeout ? 'Przekroczono czas połączenia' : 'Brak połączenia z internetem'}
         </h1>
-        <p className={`mx-auto mt-5 max-w-xs text-sm leading-6 ${theme.sub}`}>
-          {timeout ? 'Aplikacja ładuje się zbyt długo.' : 'Aplikacja nie może wystartować bez internetu.'}
-          <br />
-          Szczegóły błędu:
-        </p>
         <p className="mt-5 font-mono text-base font-bold text-red-400">
-          {timeout ? 'Interval Time Error' : 'Network Connection Error'}
+          {timeout ? 'ConnectionTimeoutError' : 'NetworkError'}
         </p>
         <div className="my-7 h-px w-full bg-white/10" />
         <button

@@ -9,6 +9,7 @@ import { DeviceTable } from './components/DeviceTable';
 import { OperatorsView } from './components/OperatorsView';
 import { LogsView } from './components/LogsView';
 import { BansView } from './components/BansView';
+import { MaintenanceView } from './components/MaintenanceView';
 import { RolesModal } from './components/RolesModal';
 import { BanModal } from './components/BanModal';
 import { BanScreen } from './components/BanScreen';
@@ -491,6 +492,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     if (activeView === 'logs' && !caps.logs) setActiveView('devices');
     if (activeView === 'operators' && !caps.shield) setActiveView('devices');
     if (activeView === 'bans' && currentDevice.role !== 'owner' && !caps.group) setActiveView('devices');
+    if (activeView === 'maintenance' && currentDevice.role !== 'owner' && !caps.globalSettings && !caps.globalSettingsEdit) setActiveView('devices');
   }, [activeView, currentDevice, loading]);
 
   const logsData = useMemo(() => enrichAdminLogsForUi(adminLogRaws, devicesData), [adminLogRaws, devicesData]);
@@ -521,6 +523,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
   if (currentDevice.role === 'owner' || myCaps.shield) allowedNavIds.push('operators');
   if (currentDevice.role === 'owner' || myCaps.group) allowedNavIds.push('bans');
   if (currentDevice.role === 'owner' || myCaps.logs) allowedNavIds.push('logs');
+  if (currentDevice.role === 'owner' || myCaps.globalSettings || myCaps.globalSettingsEdit) allowedNavIds.push('maintenance');
 
   const canBanUi = currentDevice.role === 'owner' || myCaps.ban;
   const canChangeRolesUi = currentDevice.role === 'owner' || myCaps.canChangeRoles;
@@ -539,11 +542,16 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
 
   const devices: Device[] = devicesData.map((d) => ({
     id: d.id,
-    name: formatDeviceTechnicalLabel(d.deviceInfo, d.id, modelAliases),
+    name: String(d.deviceName || '').trim() || formatDeviceLabel({
+      deviceInfo: d.deviceInfo,
+      deviceId: '',
+      aliases: modelAliases,
+    }),
     deviceInfo: d.deviceInfo,
     modelCode: extractDeviceModelCode(d.deviceInfo),
     os: formatDeviceOsSummary(d.deviceInfo, modelAliases),
     displayName: d.displayName,
+    deviceName: d.deviceName,
     deviceId: d.id,
     firstLogin: new Date(d.firstLogin).toLocaleString('pl-PL'),
     role: mapRole(d.role),
@@ -811,21 +819,32 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     if (currentDevice.role !== 'owner') {
       throw new Error('Tylko właściciel może zmieniać nazwy urządzeń.');
     }
-    const code = String(device.modelCode || extractDeviceModelCode(device.deviceInfo || '')).trim().toUpperCase();
     const cleanLabel = label.trim().slice(0, 80);
-    if (!code) throw new Error('Nie udało się wykryć kodu modelu tego urządzenia.');
-    if (!cleanLabel) throw new Error('Nazwa modelu nie może być pusta.');
+    if (!cleanLabel) throw new Error('Nazwa urządzenia nie może być pusta.');
 
-    await setDoc(doc(db, 'device_model_aliases', code), {
-      code,
-      label: cleanLabel,
-      updatedAt: serverTimestamp(),
-      updatedBy: user?.uid || null,
-    }, { merge: true });
+    const target = devicesData.find((row) => row.id === device.id);
+    if (!target) throw new Error('Nie znaleziono urządzenia w Firebase.');
+
+    await updateDoc(doc(db, 'devices', device.id), {
+      deviceName: cleanLabel,
+    });
+
+    const installationId = String(target.installationId || '').trim();
+    if (installationId) {
+      await setDoc(doc(db, 'installations', installationId), {
+        installationId,
+        deviceName: cleanLabel,
+        updatedAt: serverTimestamp(),
+        updatedBy: user?.uid || null,
+        lastUid: user?.uid || null,
+      }, { merge: true }).catch((error) => {
+        console.warn('Nie udało się zsynchronizować nazwy urządzenia z installation profile', error);
+      });
+    }
 
     await writeAuditLog({
-      title: 'Zmieniono nazwę modelu urządzenia',
-      description: `${code} → ${cleanLabel}`,
+      title: 'Zmieniono nazwę urządzenia',
+      description: `${device.id} → ${cleanLabel}`,
       iconType: 'edit_role',
     });
   };
@@ -1187,7 +1206,10 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           .admin-light .bg-\\[\\#0d1117\\],
           .admin-light .bg-\\[\\#0F131D\\],
           .admin-light .bg-\\[\\#0f131d\\],
+          .admin-light .bg-\\[\\#0F131D\\]\\/95,
+          .admin-light .bg-\\[\\#0f131d\\]\\/95,
           .admin-light .bg-\\[\\#111623\\],
+          .admin-light .bg-\\[\\#111623\\]\\/50,
           .admin-light .bg-\\[\\#151B28\\],
           .admin-light .bg-\\[\\#0a0f18\\] {
             background-color: #ffffff !important;
@@ -1202,6 +1224,11 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           .admin-light .bg-black\\/50,
           .admin-light .bg-black\\/60 {
             background-color: rgba(15, 23, 42, 0.35) !important;
+          }
+          .admin-light .bg-black\\/10,
+          .admin-light .bg-black\\/20,
+          .admin-light .bg-black\\/30 {
+            background-color: rgba(15, 23, 42, 0.06) !important;
           }
           .admin-light .border-white\\/5,
           .admin-light .border-white\\/10,
@@ -1267,7 +1294,10 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           .theme-warm .admin-light .bg-\\[\\#0d1117\\],
           .theme-warm .admin-light .bg-\\[\\#0F131D\\],
           .theme-warm .admin-light .bg-\\[\\#0f131d\\],
+          .theme-warm .admin-light .bg-\\[\\#0F131D\\]\\/95,
+          .theme-warm .admin-light .bg-\\[\\#0f131d\\]\\/95,
           .theme-warm .admin-light .bg-\\[\\#111623\\],
+          .theme-warm .admin-light .bg-\\[\\#111623\\]\\/50,
           .theme-warm .admin-light .bg-\\[\\#151B28\\],
           .theme-warm .admin-light .bg-\\[\\#0a0f18\\] {
             background-color: #faf7ef !important;
@@ -1278,6 +1308,11 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           }
           .theme-warm .admin-light .bg-white\\/10 {
             background-color: rgba(93, 79, 50, 0.09) !important;
+          }
+          .theme-warm .admin-light .bg-black\\/10,
+          .theme-warm .admin-light .bg-black\\/20,
+          .theme-warm .admin-light .bg-black\\/30 {
+            background-color: rgba(93, 79, 50, 0.08) !important;
           }
           .theme-warm .admin-light .border-white\\/5,
           .theme-warm .admin-light .border-white\\/10,
@@ -1490,9 +1525,16 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
             });
           }}
         />
-      )}
+        )}
 
-      {activeView === 'logs' && (
+        {activeView === 'maintenance' && (
+          <MaintenanceView
+            onMenuClick={() => setIsSidebarOpen(true)}
+            canEdit={globalSettingsCanSave}
+          />
+        )}
+
+        {activeView === 'logs' && (
         <LogsView
           logs={logsData}
           subscriptionError={logsError}

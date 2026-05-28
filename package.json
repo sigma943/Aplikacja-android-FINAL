@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npx cross-env NODE_ENV=production next build",
-    "build:android:web": "npx cross-env NODE_ENV=production NEXT_OUTPUT_MODE=export next build && node scripts/prepare-android-web.mjs",
+    "build:android:web": "npx cross-env NODE_ENV=production next build && node scripts/prepare-android-web.mjs",
     "start": "next start",
     "lint": "eslint .",
     "update:route-shapes": "node scripts/update-route-shapes.mjs",

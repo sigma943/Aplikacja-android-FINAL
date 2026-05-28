@@ -12,7 +12,6 @@ import {
   fetchMpkRzeszowDeparturesClient,
   fetchMpkRzeszowStopsClient,
   fetchVehicleDetailsClient,
-  fetchVehiclesClient,
   type MarcelCourse,
   type MarcelCourseStopPublic,
   type TransportProviderId,
@@ -35,6 +34,7 @@ interface StopsPanelProps {
   favorites: string[];
   vehicles: Vehicle[];
   transparentUI: boolean;
+  isDarkTheme: boolean;
   onRetry: () => void;
   onClose: () => void;
   onToggleFavorite: (stopId: string) => void;
@@ -68,13 +68,6 @@ const MPK_CARRIER: Carrier = {
   dotClass: 'bg-orange-500',
 };
 
-type InternalStop = Stop & {
-  lineSet: Set<string>;
-  carrierMap: Map<string, Carrier>;
-  baseNameKey: string;
-  displayNamesByProvider: Record<string, string>;
-};
-
 type MarcelIndexedStop = {
   id: string;
   name: string;
@@ -85,6 +78,13 @@ type MarcelIndexedStop = {
   routeIds: string[];
 };
 
+type InternalStop = Stop & {
+  lineSet: Set<string>;
+  carrierMap: Map<string, Carrier>;
+  baseNameKey: string;
+  displayNamesByProvider: Record<string, string>;
+};
+
 const TOKEN_CACHE = new Map<string, string[]>();
 const NUM_TOKEN_CACHE = new Map<string, Set<string>>();
 const MARCEL_STOPS_INDEX_CACHE = new Map<string, Promise<MarcelIndexedStop[]>>();
@@ -92,10 +92,12 @@ const LIVE_DETAILS_TTL_MS = 90_000;
 const LIVE_DELAY_LIMIT_SECONDS = 18_000;
 const LIVE_DEPARTURE_MATCH_WINDOW_MS = 8 * 60_000;
 const LIVE_DETAILS_CACHE = new Map<string, { expiresAt: number; promise: Promise<Vehicle | null> }>();
-const GEO_BUCKET_PRECISION = 0.002;
-const STOP_CACHE_VERSION = 4;
+const STOP_CACHE_VERSION = 7;
 const STOP_CACHE_TTL_MS = 15 * 60 * 1000;
-const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v4:';
+const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v7:';
+const MERGED_STOPS_RUNTIME_CACHE = new Map<string, Stop[]>();
+const MERGED_STOPS_RUNTIME_CACHE_LIMIT = 3;
+const GEO_BUCKET_PRECISION = 0.001;
 
 type LiveDepartureProvider = 'pks' | 'mpk_rzeszow';
 
@@ -106,7 +108,7 @@ type LiveDepartureCorrection = {
   plannedAtMs: number;
   realAtMs: number;
   delayMins: number;
-  vehicleDesc: string;
+  vehicleDesc?: string;
 };
 
 function cleanLine(value: unknown) {
@@ -196,8 +198,39 @@ function fetchCachedVehicleDetails(provider: LiveDepartureProvider, vehicle: Veh
   return promise;
 }
 
+const TEXT_ENCODING_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/Ăł/g, 'ó'],
+  [/Ă“/g, 'Ó'],
+  [/Ä…/g, 'ą'],
+  [/Ä„/g, 'Ą'],
+  [/Ä‡/g, 'ć'],
+  [/Ä/g, 'ć'],
+  [/ÄĆ/g, 'Ć'],
+  [/Ä™/g, 'ę'],
+  [/Ä/g, 'Ę'],
+  [/Ĺ‚/g, 'ł'],
+  [/Ĺ/g, 'Ł'],
+  [/Ĺ„/g, 'ń'],
+  [/Ĺ/g, 'Ń'],
+  [/Ĺ›/g, 'ś'],
+  [/Ĺš/g, 'Ś'],
+  [/Ĺş/g, 'ź'],
+  [/Ĺą/g, 'Ź'],
+  [/ĹĽ/g, 'ż'],
+  [/Ĺ»/g, 'Ż'],
+  [/Â/g, ''],
+];
+
+function repairTextEncoding(value: unknown) {
+  let text = String(value || '');
+  TEXT_ENCODING_REPLACEMENTS.forEach(([pattern, replacement]) => {
+    text = text.replace(pattern, replacement);
+  });
+  return text;
+}
+
 function normalizeStopName(value: unknown) {
-  return String(value || '')
+  return repairTextEncoding(value)
     .trim()
     .toLowerCase()
     .normalize('NFD')
@@ -208,6 +241,50 @@ function normalizeStopName(value: unknown) {
     .replace(/\bpl\.\b/g, 'plac')
     .replace(/\bos\.\b/g, 'osiedle')
     .replace(/\s+/g, ' ');
+}
+
+const TECHNICAL_TERMS = [
+  'zjazd',
+  'zajezd',
+  'baza',
+  'technicz',
+  'technic',
+  'serwis',
+  'warsztat',
+  'przejazd techn',
+  'przejazd sluzbowy',
+  'przejazd służbowy',
+  'bez pasazer',
+  'bez pasażer',
+  'manewr',
+  'rezerwowy',
+  'out of service',
+  'deadhead',
+  'depot',
+  'garaz',
+  'garaż',
+  'do bazy',
+  'do zajezdni',
+  'poza linia',
+  'poza linią',
+];
+
+function normalizeTechnicalText(value: unknown) {
+  return normalizeStopName(value)
+    .replace(/[.,/\\_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasTechnicalTerm(value: unknown) {
+  const text = normalizeTechnicalText(value);
+  if (!text) return false;
+  return TECHNICAL_TERMS.some((term) => text.includes(normalizeTechnicalText(term)));
+}
+
+function isTechnicalDepartureData(line: unknown, direction: unknown, extras: unknown[] = []) {
+  if (hasTechnicalTerm(line) || hasTechnicalTerm(direction)) return true;
+  return extras.some((value) => hasTechnicalTerm(value));
 }
 
 function stableCacheString(value: unknown): string {
@@ -237,6 +314,40 @@ function stopCacheSignature(value: unknown) {
       ? Object.keys(value as Record<string, unknown>).length
       : 0;
   return `${size}:${hashCacheString(stableCacheString(value))}`;
+}
+
+function stopCollectionSignature(items: unknown) {
+  if (!Array.isArray(items)) return stopCacheSignature(items);
+  const parts = items.map((item) => {
+    if (!item || typeof item !== 'object') return String(item ?? '');
+    const record = item as Record<string, unknown>;
+    const lat = Number(record.lat);
+    const lon = Number(record.lon);
+    const lines = Array.isArray(record.lines) ? record.lines.join(',') : '';
+    const routeIds = Array.isArray(record.routeIds) ? record.routeIds.join(',') : '';
+    const providers = Array.isArray(record.sourceProviderIds) ? record.sourceProviderIds.join(',') : '';
+    return [
+      record.id,
+      record.name,
+      record.matchName,
+      record.matchKey,
+      record.areaId,
+      record.code,
+      Number.isFinite(lat) ? lat.toFixed(5) : '',
+      Number.isFinite(lon) ? lon.toFixed(5) : '',
+      lines,
+      routeIds,
+      providers,
+    ].map((value) => repairTextEncoding(value)).join('\u001f');
+  });
+  return `${items.length}:${hashCacheString(parts.join('\u001e'))}`;
+}
+
+function stopLinesIndexSignature(index: Record<string, string[]>) {
+  const parts = Object.keys(index)
+    .sort()
+    .map((key) => `${key}:${(index[key] || []).join(',')}`);
+  return `${parts.length}:${hashCacheString(parts.join('|'))}`;
 }
 
 function readStopCache<T>(key: string): { savedAt: number; signature: string; data: T } | null {
@@ -274,7 +385,7 @@ function writeStopCache<T>(key: string, data: T) {
 }
 
 function stopDisplayName(value: unknown) {
-  return String(value || '')
+  return repairTextEncoding(value)
     .replace(/\s+/g, ' ')
     .replace(/\s+,/g, ',')
     .replace(/,\s+/g, ', ')
@@ -287,6 +398,20 @@ function normalizeMpkDisplayName(value: unknown) {
 }
 
 function hasKnownCityPrefix(value: unknown) {
+  const firstToken = normalizeStopName(value).split(' ')[0] || '';
+  if ([
+    'rzeszow',
+    'boguchwala',
+    'babica',
+    'czudec',
+    'gwoznica',
+    'wyzne',
+    'lutoryz',
+    'zarzecze',
+    'polomia',
+    'baryczka',
+    'jasionka',
+  ].includes(firstToken)) return true;
   return /^(rzeszow|rzeszów|boguchwala|boguchwała|babica|czudec|gwoznica|gwoźnica|wyzne|wyżne|lutoryz|lutoryż|zarzecze|polomia|połomia|baryczka|jasionka)\b/i
     .test(stopDisplayName(value));
 }
@@ -298,24 +423,40 @@ function mpkStopDisplayName(stop: { stop_name?: string; zone_id?: string | numbe
   return base;
 }
 
-function ensureMpkCityPrefix(value: unknown) {
+function shouldPrefixAsRzeszow(lat?: number, lon?: number) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const dLat = toRad((lat as number) - 50.0413);
+  const dLon = toRad((lon as number) - 21.999);
+  const lat1 = toRad(50.0413);
+  const lat2 = toRad(lat as number);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const distance = 2 * 6371000 * Math.asin(Math.sqrt(h));
+  return Number.isFinite(distance) && distance <= 7_500;
+}
+
+function ensureMpkCityPrefix(value: unknown, lat?: number, lon?: number) {
   const base = normalizeMpkDisplayName(value);
+  if (!base) return base;
+  if (!shouldPrefixAsRzeszow(lat, lon)) return base;
   if (base && !hasKnownCityPrefix(base)) return `Rzesz\u00f3w ${base}`;
   return base;
 }
 
-function preferredStopDisplayName(namesByProvider: Record<string, string>) {
-  return (
-    namesByProvider.pks ||
-    namesByProvider.mpk_rzeszow ||
-    namesByProvider.marcel ||
-    Object.values(namesByProvider).find(Boolean) ||
-    ''
+function preferredStopDisplayName(displayNamesByProvider: Record<string, string>) {
+  return stopDisplayName(
+    displayNamesByProvider.pks ||
+    displayNamesByProvider.mpk_rzeszow ||
+    displayNamesByProvider.marcel ||
+    '',
   );
 }
 
 function stopBaseNameKey(value: unknown) {
   return normalizeStopName(value)
+    .replace(/\bpodkarp(?:acka)?\b/g, 'podkarpacka')
+    .replace(/\bpodkar\b/g, 'podkarpacka')
+    .replace(/\bmatuszczka\b/g, 'matuszczaka')
     .replace(/[()]/g, ' ')
     .replace(/\s*[-/]\s*/g, ' ')
     .replace(/\b(?:rzeszow|przystanek|przyst|autobusowy|autobusowa)\b/g, ' ')
@@ -323,6 +464,22 @@ function stopBaseNameKey(value: unknown) {
     .replace(/\b(?:st|skr)\.?\s*\d{1,3}[a-z]?\b/gi, (m) => m.replace(/\d{1,3}[a-z]?/i, ''))
     .replace(/\b\d{1,3}[a-z]?\b$/i, '')
     .replace(/\b\d{1,2}\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stopPreciseNameKey(value: unknown) {
+  return normalizeStopName(stripMarcelStopName(value))
+    .replace(/\bpodkarp\.\b/g, 'podkarpacka')
+    .replace(/\bpodkarp(?:acka)?\b/g, 'podkarpacka')
+    .replace(/\bpodkarp\b/g, 'podkarpacka')
+    .replace(/\bpodkar\b/g, 'podkarpacka')
+    .replace(/\bmatuszczka\b/g, 'matuszczaka')
+    .replace(/[()]/g, ' ')
+    .replace(/\s*[-/]\s*/g, ' ')
+    .replace(/\b(?:rzeszow|przystanek|przyst|autobusowy|autobusowa)\b/g, ' ')
+    .replace(/\bdworzec\s+autobusowy\b/g, 'dworzec')
+    .replace(/\b(?:st|skr)\.?\s*(\d{1,3}[a-z]?)\b/gi, '$1')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -351,38 +508,25 @@ function numericTokens(value: unknown) {
 function nameSimilarityScore(left: unknown, right: unknown) {
   const leftTokens = new Set(mergeTokens(left));
   const rightTokens = new Set(mergeTokens(right));
-  if (leftTokens.size === 0 || rightTokens.size === 0) return 0;
-  let overlap = 0;
+  if (!leftTokens.size || !rightTokens.size) return 0;
+  let shared = 0;
   leftTokens.forEach((token) => {
-    if (rightTokens.has(token)) overlap += 1;
+    if (rightTokens.has(token)) shared += 1;
   });
-  const tokenScore = overlap / Math.max(leftTokens.size, rightTokens.size);
-  const leftNums = numericTokens(left);
-  const rightNums = numericTokens(right);
-  let numsOverlap = 0;
-  leftNums.forEach((token) => {
-    if (rightNums.has(token)) numsOverlap += 1;
-  });
-  const numScore = leftNums.size > 0 && rightNums.size > 0 ? numsOverlap / Math.max(leftNums.size, rightNums.size) : 0;
-  return tokenScore * 0.75 + numScore * 0.25;
-}
-
-function stopTokenSet(value: unknown) {
-  return new Set(mergeTokens(value));
+  return shared / Math.max(leftTokens.size, rightTokens.size);
 }
 
 function sharedStopTokenCount(left: unknown, right: unknown) {
-  const leftTokens = stopTokenSet(left);
-  const rightTokens = stopTokenSet(right);
-  let count = 0;
-  leftTokens.forEach((token) => {
-    if (rightTokens.has(token)) count += 1;
+  const rightTokens = new Set(mergeTokens(right));
+  let shared = 0;
+  mergeTokens(left).forEach((token) => {
+    if (rightTokens.has(token)) shared += 1;
   });
-  return count;
+  return shared;
 }
 
 function hasConflictingCityToken(left: unknown, right: unknown) {
-  const cityTokens = new Set([
+  const knownCities = [
     'rzeszow',
     'boguchwala',
     'babica',
@@ -394,42 +538,11 @@ function hasConflictingCityToken(left: unknown, right: unknown) {
     'polomia',
     'baryczka',
     'jasionka',
-  ]);
-  const tokens = (value: unknown) => normalizeStopName(value).split(' ').filter(Boolean);
-  const leftCities = tokens(left).filter((token) => cityTokens.has(token));
-  const rightCities = tokens(right).filter((token) => cityTokens.has(token));
-  if (leftCities.length === 0 || rightCities.length === 0) return false;
-  return !leftCities.some((token) => rightCities.includes(token));
-}
-
-function distanceMeters(aLat?: number, aLon?: number, bLat?: number, bLon?: number) {
-  if (!Number.isFinite(aLat) || !Number.isFinite(aLon) || !Number.isFinite(bLat) || !Number.isFinite(bLon)) {
-    return Number.POSITIVE_INFINITY;
-  }
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const dLat = toRad((bLat as number) - (aLat as number));
-  const dLon = toRad((bLon as number) - (aLon as number));
-  const lat1 = toRad(aLat as number);
-  const lat2 = toRad(bLat as number);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 2 * 6371000 * Math.asin(Math.sqrt(h));
-}
-
-function hasFinitePoint(lat?: number, lon?: number) {
-  return Number.isFinite(lat) && Number.isFinite(lon);
-}
-
-function geoBucketKeys(lat?: number, lon?: number) {
-  if (!hasFinitePoint(lat, lon)) return [];
-  const latBucket = Math.floor((lat as number) / GEO_BUCKET_PRECISION);
-  const lonBucket = Math.floor((lon as number) / GEO_BUCKET_PRECISION);
-  const keys: string[] = [];
-  for (let latOffset = -1; latOffset <= 1; latOffset += 1) {
-    for (let lonOffset = -1; lonOffset <= 1; lonOffset += 1) {
-      keys.push(`${latBucket + latOffset}:${lonBucket + lonOffset}`);
-    }
-  }
-  return keys;
+  ];
+  const cityFor = (value: unknown) => knownCities.find((city) => normalizeStopName(value).split(' ').includes(city));
+  const leftCity = cityFor(left);
+  const rightCity = cityFor(right);
+  return Boolean(leftCity && rightCity && leftCity !== rightCity);
 }
 
 function stripMarcelStopName(value: unknown) {
@@ -500,20 +613,8 @@ function splitCsvValues(value: unknown) {
     .filter(Boolean);
 }
 
-function isMpkOnlyStop(stop: Stop) {
-  const providers = stop.sourceProviderIds || [];
-  return providers.includes('mpk_rzeszow') && providers.every((provider) => provider === 'mpk_rzeszow');
-}
-
-function mergeStopArraysUnique(...values: Array<string[] | undefined>) {
-  const next = new Set<string>();
-  values.forEach((list) => {
-    (list || []).forEach((entry) => {
-      const normalized = String(entry || '').trim();
-      if (normalized) next.add(normalized);
-    });
-  });
-  return [...next];
+function mergeStopArraysUnique(...arrays: Array<string[] | undefined>) {
+  return [...new Set(arrays.flatMap((items) => items || []).filter(Boolean))];
 }
 
 function mergeStopProviderIds(
@@ -522,95 +623,55 @@ function mergeStopProviderIds(
 ) {
   const merged: Record<string, string> = { ...(left || {}) };
   Object.entries(right || {}).forEach(([key, value]) => {
-    const normalized = String(value || '').trim();
-    if (!normalized) return;
-    merged[key] = mergeCsvValues(merged[key], normalized);
+    merged[key] = key.endsWith('Names')
+      ? mergeDebugNames(merged[key], value)
+      : mergeCsvValues(merged[key], value);
   });
   return merged;
 }
 
-function shouldMergeMpkStops(left: Stop, right: Stop) {
-  const leftNameKey = normalizeStopName(stopDisplayName(left.name));
-  const rightNameKey = normalizeStopName(stopDisplayName(right.name));
-  if (!leftNameKey || leftNameKey !== rightNameKey) return false;
-  return true;
+function hasFinitePoint(lat?: number, lon?: number) {
+  return Number.isFinite(lat) && Number.isFinite(lon);
 }
 
-function mergeMpkStopsForList(stops: Stop[]) {
-  const buckets = new Map<string, Stop[]>();
-  stops.forEach((stop) => {
-    if (!isMpkOnlyStop(stop)) {
-      const standaloneKey = `standalone:${stop.id}`;
-      const standaloneBucket = buckets.get(standaloneKey);
-      if (standaloneBucket) standaloneBucket.push(stop);
-      else buckets.set(standaloneKey, [stop]);
-      return;
-    }
-    const key = normalizeStopName(stopDisplayName(stop.name));
-    const bucketKey = `mpk:${key}`;
-    const bucket = buckets.get(bucketKey);
-    if (bucket) bucket.push(stop);
-    else buckets.set(bucketKey, [stop]);
-  });
-
-  const mergedStops: Stop[] = [];
-
-  buckets.forEach((bucket) => {
-    const remaining = [...bucket];
-    while (remaining.length > 0) {
-      const seed = remaining.shift() as Stop;
-      if (!isMpkOnlyStop(seed)) {
-        mergedStops.push(seed);
-        continue;
-      }
-
-      const cluster = [seed];
-      for (let index = remaining.length - 1; index >= 0; index -= 1) {
-        const candidate = remaining[index];
-        if (!isMpkOnlyStop(candidate)) continue;
-        if (!cluster.some((current) => shouldMergeMpkStops(current, candidate))) continue;
-        cluster.push(candidate);
-        remaining.splice(index, 1);
-      }
-
-      if (cluster.length === 1) {
-        mergedStops.push(seed);
-        continue;
-      }
-
-      const canonical = cluster[0];
-      const mergedLines = new Set<string>();
-      const mergedCarriers = new Map<string, Carrier>();
-
-      cluster.forEach((stop) => {
-        (stop.lines || []).forEach((line) => mergedLines.add(line));
-        (stop.carriers || []).forEach((carrier) => mergedCarriers.set(carrier.id, carrier));
-      });
-
-      const merged = {
-        ...canonical,
-        name: ensureMpkCityPrefix(cluster
-          .map((stop) => stopDisplayName(stop.name))
-          .sort((left, right) => right.length - left.length)[0] || canonical.name),
-        lines: sortedLines(mergedLines),
-        carriers: [...mergedCarriers.values()],
-        isFavorite: cluster.some((stop) => stop.isFavorite),
-        sourceProviderIds: mergeStopArraysUnique(...cluster.map((stop) => stop.sourceProviderIds)),
-        providerStopIds: cluster.reduce<Record<string, string>>(
-          (acc, stop) => mergeStopProviderIds(acc, stop.providerStopIds),
-          {},
-        ),
-      };
-      mergedStops.push(merged);
-    }
-  });
-
-  return mergedStops;
+function distanceMeters(lat1?: number, lon1?: number, lat2?: number, lon2?: number) {
+  if (!hasFinitePoint(lat1, lon1) || !hasFinitePoint(lat2, lon2)) return Number.POSITIVE_INFINITY;
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRad((lat2 as number) - (lat1 as number));
+  const dLon = toRad((lon2 as number) - (lon1 as number));
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1 as number)) *
+      Math.cos(toRad(lat2 as number)) *
+      Math.sin(dLon / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(a));
 }
+
+function geoBucketKeys(lat?: number, lon?: number) {
+  if (!hasFinitePoint(lat, lon)) return [];
+  const latBucket = Math.floor((lat as number) / GEO_BUCKET_PRECISION);
+  const lonBucket = Math.floor((lon as number) / GEO_BUCKET_PRECISION);
+  const keys: string[] = [];
+  for (let latOffset = -1; latOffset <= 1; latOffset += 1) {
+    for (let lonOffset = -1; lonOffset <= 1; lonOffset += 1) {
+      keys.push(`${latBucket + latOffset}:${lonBucket + lonOffset}`);
+    }
+  }
+  return keys;
+}
+
 
 function normalizeStopMergeName(value: unknown) {
   return normalizeStopName(stopDisplayName(value))
     .replace(/\bpodkarp\.\b/g, 'podkarpacka')
+    .replace(/\bpodkarp(?:acka)?\b/g, 'podkarpacka')
+    .replace(/\bpodkarp\b/g, 'podkarpacka')
+    .replace(/\bpodkar\b/g, 'podkarpacka')
+    .replace(/\bmatuszczka\b/g, 'matuszczaka')
+    .replace(/\bskrzyzowanie\b/g, 'skr')
+    .replace(/\bskrz\.\b/g, 'skr')
+    .replace(/\bprzed\s+torami\b/g, 'przedtorami')
+    .replace(/\s*[-/]\s*/g, ' ')
     .replace(/\bn[żz]\b/g, ' ')
     .replace(/\bna zadanie\b/g, ' ')
     .replace(/[.,]/g, ' ')
@@ -638,6 +699,16 @@ function stopMergeNameScore(left: unknown, right: unknown) {
   return shared / Math.max(leftTokens.size, rightTokens.size);
 }
 
+function stopMergeSharedTokenCount(left: unknown, right: unknown) {
+  const leftTokens = stopMergeTokenSet(left);
+  const rightTokens = stopMergeTokenSet(right);
+  let shared = 0;
+  leftTokens.forEach((token) => {
+    if (rightTokens.has(token)) shared += 1;
+  });
+  return shared;
+}
+
 function hasConflictingStopNumbers(left: unknown, right: unknown) {
   const leftNumbers = stopMergeNumberSet(left);
   const rightNumbers = stopMergeNumberSet(right);
@@ -648,11 +719,52 @@ function hasConflictingStopNumbers(left: unknown, right: unknown) {
   return true;
 }
 
+function providerValueSet(stop: Pick<Stop, 'providerStopIds'>, key: string) {
+  return new Set(splitCsvValues(stop.providerStopIds?.[key]));
+}
+
+function setsOverlap(left: Set<string>, right: Set<string>) {
+  for (const value of left) {
+    if (right.has(value)) return true;
+  }
+  return false;
+}
+
+function shouldKeepSameProviderStopsSeparate(left: Stop, right: Stop) {
+  const leftProviders = new Set(left.sourceProviderIds || []);
+  const rightProviders = new Set(right.sourceProviderIds || []);
+
+  for (const provider of ['pks', 'mpk_rzeszow', 'marcel']) {
+    if (!leftProviders.has(provider) || !rightProviders.has(provider)) continue;
+    const leftIds = providerValueSet(left, provider);
+    const rightIds = providerValueSet(right, provider);
+    if (leftIds.size && rightIds.size && !setsOverlap(leftIds, rightIds)) return true;
+  }
+
+  const leftMarcelKeys = new Set([
+    ...splitCsvValues(left.providerStopIds?.marcelMatchKeys),
+    ...splitCsvValues(left.providerStopIds?.marcelMatchKey),
+  ]);
+  const rightMarcelKeys = new Set([
+    ...splitCsvValues(right.providerStopIds?.marcelMatchKeys),
+    ...splitCsvValues(right.providerStopIds?.marcelMatchKey),
+  ]);
+  return Boolean(leftMarcelKeys.size && rightMarcelKeys.size && !setsOverlap(leftMarcelKeys, rightMarcelKeys));
+}
+
 function shouldMergeStopsByGps(left: Stop, right: Stop) {
-  const distance = distanceMeters(left.lat, left.lon, right.lat, right.lon);
-  if (!Number.isFinite(distance) || distance > 35) return false;
   if (hasConflictingStopNumbers(left.name, right.name)) return false;
-  return stopMergeNameScore(left.name, right.name) >= 0.52;
+  if (shouldKeepSameProviderStopsSeparate(left, right)) return false;
+  const nameScore = stopMergeNameScore(left.name, right.name);
+  const sharedTokens = stopMergeSharedTokenCount(left.name, right.name);
+  const distance = distanceMeters(left.lat, left.lon, right.lat, right.lon);
+  const lightNameMatch = sharedTokens >= 1 || nameScore >= 0.22;
+  if (Number.isFinite(distance)) {
+    if (distance <= 35 && lightNameMatch) return true;
+    if (distance <= 70 && nameScore >= 0.56 && sharedTokens >= 2) return true;
+    return false;
+  }
+  return nameScore >= 0.9 && sharedTokens >= 2;
 }
 
 function mergeStopsCluster(cluster: Stop[]) {
@@ -679,7 +791,7 @@ function mergeStopsCluster(cluster: Stop[]) {
 
   return {
     ...canonical,
-    name: ensureMpkCityPrefix(bestName),
+    name: ensureMpkCityPrefix(bestName, canonical.lat, canonical.lon),
     lines: sortedLines(mergedLines),
     carriers: [...mergedCarriers.values()],
     isFavorite: cluster.some((stop) => stop.isFavorite),
@@ -692,24 +804,129 @@ function mergeStopsCluster(cluster: Stop[]) {
 }
 
 function mergeStopsByGpsAndName(stops: Stop[]) {
-  const remaining = [...stops];
+  if (stops.length <= 1) return stops;
+
+  const precision = Math.min(GEO_BUCKET_PRECISION, 0.0015);
+  const geoBuckets = new Map<string, number[]>();
+  const nameBuckets = new Map<string, number[]>();
+  const visited = new Array<boolean>(stops.length).fill(false);
   const merged: Stop[] = [];
 
-  while (remaining.length > 0) {
-    const seed = remaining.shift() as Stop;
-    const cluster = [seed];
+  const geoKey = (lat: number, lon: number) =>
+    `${Math.floor(lat / precision)}:${Math.floor(lon / precision)}`;
 
-    for (let index = remaining.length - 1; index >= 0; index -= 1) {
-      const candidate = remaining[index];
-      if (!cluster.some((current) => shouldMergeStopsByGps(current, candidate))) continue;
-      cluster.push(candidate);
-      remaining.splice(index, 1);
+  const neighboringGeoKeys = (lat?: number, lon?: number) => {
+    if (!hasFinitePoint(lat, lon)) return [];
+    const latBucket = Math.floor((lat as number) / precision);
+    const lonBucket = Math.floor((lon as number) / precision);
+    const keys: string[] = [];
+    for (let latOffset = -1; latOffset <= 1; latOffset += 1) {
+      for (let lonOffset = -1; lonOffset <= 1; lonOffset += 1) {
+        keys.push(`${latBucket + latOffset}:${lonBucket + lonOffset}`);
+      }
+    }
+    return keys;
+  };
+
+  stops.forEach((stop, index) => {
+    const nameKey = stopBaseNameKey(stop.name);
+    if (nameKey) {
+      const bucket = nameBuckets.get(nameKey) || [];
+      bucket.push(index);
+      nameBuckets.set(nameKey, bucket);
     }
 
-    merged.push(cluster.length === 1 ? seed : mergeStopsCluster(cluster));
+    if (hasFinitePoint(stop.lat, stop.lon)) {
+      const key = geoKey(stop.lat as number, stop.lon as number);
+      const bucket = geoBuckets.get(key) || [];
+      bucket.push(index);
+      geoBuckets.set(key, bucket);
+    }
+  });
+
+  for (let seedIndex = 0; seedIndex < stops.length; seedIndex += 1) {
+    if (visited[seedIndex]) continue;
+    visited[seedIndex] = true;
+
+    const queue = [seedIndex];
+    const clusterIndices = [seedIndex];
+
+    while (queue.length > 0) {
+      const currentIndex = queue.pop() as number;
+      const current = stops[currentIndex];
+      const candidateIndices = new Set<number>();
+
+      const nameKey = stopBaseNameKey(current.name);
+      if (nameKey) {
+        (nameBuckets.get(nameKey) || []).forEach((index) => candidateIndices.add(index));
+      }
+      neighboringGeoKeys(current.lat, current.lon).forEach((key) => {
+        (geoBuckets.get(key) || []).forEach((index) => candidateIndices.add(index));
+      });
+
+      candidateIndices.forEach((candidateIndex) => {
+        if (candidateIndex === currentIndex || visited[candidateIndex]) return;
+        const candidate = stops[candidateIndex];
+        if (!shouldMergeStopsByGps(current, candidate)) return;
+        visited[candidateIndex] = true;
+        queue.push(candidateIndex);
+        clusterIndices.push(candidateIndex);
+      });
+    }
+
+    const cluster = clusterIndices.map((index) => stops[index]);
+    merged.push(cluster.length === 1 ? cluster[0] : mergeStopsCluster(cluster));
   }
 
   return merged;
+}
+
+function isMpkOnlyStop(stop: Stop) {
+  const providers = stop.sourceProviderIds || [];
+  return providers.includes('mpk_rzeszow') && !providers.includes('pks') && !providers.includes('marcel');
+}
+
+function shouldMergeMpkStops(left: Stop, right: Stop) {
+  if (!isMpkOnlyStop(left) || !isMpkOnlyStop(right)) return false;
+  if (hasConflictingStopNumbers(left.name, right.name)) return false;
+  const distance = distanceMeters(left.lat, left.lon, right.lat, right.lon);
+  const score = stopMergeNameScore(left.name, right.name);
+  const sharedTokens = stopMergeSharedTokenCount(left.name, right.name);
+  if (Number.isFinite(distance)) {
+    if (distance <= 35 && sharedTokens >= 1) return true;
+    if (distance <= 90 && score >= 0.58 && sharedTokens >= 2) return true;
+    return false;
+  }
+  return score >= 0.92 && sharedTokens >= 2;
+}
+
+function mergeMpkStopsForList(stops: Stop[]) {
+  const visited = new Set<number>();
+  const result: Stop[] = [];
+
+  for (let index = 0; index < stops.length; index += 1) {
+    if (visited.has(index)) continue;
+    const seed = stops[index];
+    if (!isMpkOnlyStop(seed)) {
+      visited.add(index);
+      result.push(seed);
+      continue;
+    }
+
+    const cluster = [seed];
+    visited.add(index);
+    for (let candidateIndex = index + 1; candidateIndex < stops.length; candidateIndex += 1) {
+      if (visited.has(candidateIndex)) continue;
+      const candidate = stops[candidateIndex];
+      if (!shouldMergeMpkStops(seed, candidate)) continue;
+      visited.add(candidateIndex);
+      cluster.push(candidate);
+    }
+
+    result.push(cluster.length === 1 ? seed : mergeStopsCluster(cluster));
+  }
+
+  return result;
 }
 
 function pksLinesForStop(
@@ -725,7 +942,7 @@ function pksLinesForStop(
 }
 
 function marcelCourseStopMatchKey(stop: MarcelCourseStopPublic) {
-  return stopBaseNameKey(stripMarcelStopName(stop.nazPr));
+  return stopPreciseNameKey(stripMarcelStopName(stop.nazPr)) || stopBaseNameKey(stripMarcelStopName(stop.nazPr));
 }
 
 function marcelCourseStopIndexKey(stop: MarcelCourseStopPublic) {
@@ -749,7 +966,7 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
       const routes = await fetchMarcelRoutesClient();
       const routeCourses = await mapWithConcurrency(routes, 6, async (route) => ({
         routeId: String(route.idTr),
-        courses: await fetchMarcelCoursesClient(route.idTr, dateIso),
+        courses: await fetchMarcelCoursesClient(route.idTr, dateIso).catch(() => []),
       }));
       const courseRefs = routeCourses.flatMap(({ routeId, courses }) =>
         courses.map((course) => ({ routeId, courseId: course.idKu })),
@@ -758,7 +975,7 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
       const indexedStops = new Map<string, MarcelIndexedStop & { routeIdSet: Set<string> }>();
 
       await mapWithConcurrency(uniqueCourseRefs, 10, async ({ routeId, courseId }) => {
-        const stopsForCourse = await fetchMarcelPublicCourseStopsClient(courseId);
+        const stopsForCourse = await fetchMarcelPublicCourseStopsClient(courseId).catch(() => []);
         stopsForCourse.forEach((courseStop) => {
           const matchName = stripMarcelStopName(courseStop.nazPr);
           const matchKey = marcelCourseStopMatchKey(courseStop);
@@ -897,18 +1114,32 @@ function formatWarsawTime(ms: number | undefined, fallback?: unknown) {
   return match ? `${match[1].padStart(2, '0')}:${match[2]}` : '--:--';
 }
 
-function mapJourneyToDeparture(journey: Record<string, unknown>, index: number): Departure {
+function mapJourneyToDeparture(journey: Record<string, unknown>, index: number): Departure | null {
   const line = cleanLine(journey.line_name || journey.line || '?') || '?';
   const plannedAtMs = timestampFromJourney(journey);
   const vehicleId = String(journey.vehicle_id || journey.vehicleId || journey.vehicle_number || '').trim();
-  const hasRealtimeMarker = Boolean(vehicleId || journey.realDeparture || journey.real_departure_time);
+  const hasRealtimeMarker = Boolean(
+    vehicleId || journey.realDeparture || journey.real_departure_time,
+  );
   const delayMinutes = hasRealtimeMarker ? Number(journey.deviation ?? journey.delayMinutes ?? 0) : 0;
   const hasDelay = hasRealtimeMarker && Number.isFinite(delayMinutes) && Math.abs(delayMinutes) > 1;
   const realAtMs = Number.isFinite(plannedAtMs) && Number.isFinite(delayMinutes)
     ? (plannedAtMs as number) + delayMinutes * 60_000
     : plannedAtMs;
   const direction = String(journey.route_description || journey.direction || journey.destination || 'Nieznany kierunek');
-  const carrier = carrierForLine(line);
+  if (
+    isTechnicalDepartureData(line, direction, [
+      journey.status,
+      journey.trip_type,
+      journey.service_type,
+      journey.course_type,
+      journey.note,
+      journey.route_name,
+    ])
+  ) {
+    return null;
+  }
+  const carrier = PKS_CARRIER;
 
   return {
     id: [line, plannedAtMs || journey.timetable_time || index, direction, vehicleId || 'schedule'].join(':'),
@@ -917,7 +1148,6 @@ function mapJourneyToDeparture(journey: Record<string, unknown>, index: number):
     time: formatWarsawTime(realAtMs, journey.realDeparture || journey.plannedDeparture || journey.timetable_time),
     status: hasDelay ? 'delayed' : 'on_time',
     delayMins: hasDelay ? Math.round(delayMinutes) : 0,
-    vehicleDesc: vehicleId ? `${carrier.name} - pojazd ${vehicleId}` : carrier.name,
     carrier,
     type: 'departure',
     plannedAtMs,
@@ -930,6 +1160,16 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
   if (!line) return null;
   const plannedAtMs = parseTimeOnDate(dateIso, entry.departure_time);
   const direction = String(entry.trip_headsign || entry.end_stop_name || 'Nieznany kierunek').trim();
+  if (
+    isTechnicalDepartureData(line, direction, [
+      entry.trip_type,
+      entry.service_type,
+      entry.route_desc,
+      entry.note,
+    ])
+  ) {
+    return null;
+  }
   return {
     id: `mpk:${entry.trip_id || entry.block_id || index}:${plannedAtMs || entry.departure_time}`,
     line,
@@ -950,6 +1190,14 @@ function departureFromMarcelCourseStop(
   dateIso: string,
   index: number,
 ): Departure | null {
+  if (
+    isTechnicalDepartureData('M', course.nazTr || stop.nazTr || '', [
+      (course as Record<string, unknown>).nazLin,
+      stop.nazPr,
+    ])
+  ) {
+    return null;
+  }
   const plannedAtMs = parseTimeOnDate(dateIso, stop.godz || course.godz);
   return {
     id: `marcel:${course.idKu}:${stop.kol || index}:${plannedAtMs || stop.godz || course.godz}`,
@@ -979,6 +1227,7 @@ async function enrichVehiclesForLiveStop(
     if (vehicle.status === 'break' || vehicle.status === 'inactive' || vehicle.status === 'technical') return;
     const line = normalizeLineKey(vehicle.routeShortName || vehicle.routeId);
     if (!line || !departureLines.has(line)) return;
+    if (isTechnicalDepartureData(vehicle.routeShortName || line, vehicle.routeId, [vehicle.statusText, vehicle.name])) return;
     uniqueVehicles.set(`${provider}:${vehicle.id}`, vehicle);
   });
 
@@ -1014,9 +1263,11 @@ function correctionsFromLiveVehicles(vehicles: Vehicle[], stop: Stop): LiveDepar
     const provider = providerFromVehicle(vehicle);
     if (!provider) return;
     if (vehicle.status === 'break' || vehicle.status === 'inactive' || vehicle.status === 'technical') return;
+    if (vehicle.status !== 'active') return;
 
     const line = normalizeLineKey(vehicle.routeShortName || vehicle.routeId);
     if (!line) return;
+    if (isTechnicalDepartureData(vehicle.routeShortName || line, vehicle.routeId, [vehicle.statusText, vehicle.name])) return;
 
     const rawDelaySeconds = Number(vehicle.delay || 0);
     const hasUsableVehicleDelay =
@@ -1048,8 +1299,13 @@ function correctionsFromLiveVehicles(vehicles: Vehicle[], stop: Stop): LiveDepar
       const delayMins = Math.round((realAtMs - plannedAtMs) / 60_000);
       if (Math.abs(delayMins) <= 1) return;
 
-      const carrier = provider === 'mpk_rzeszow' ? MPK_CARRIER : PKS_CARRIER;
       const vehicleNumber = vehicleDisplayNumber(vehicle);
+      const vehicleModel = String(vehicle.model || '').trim();
+      const vehicleDesc = vehicleNumber
+        ? vehicleModel
+          ? `Autobus ${vehicleNumber}, ${vehicleModel}`
+          : `Autobus ${vehicleNumber}`
+        : undefined;
       corrections.push({
         key: `${provider}:${vehicle.id}:${String(entry.id || '')}:${plannedAtMs}`,
         provider,
@@ -1057,7 +1313,7 @@ function correctionsFromLiveVehicles(vehicles: Vehicle[], stop: Stop): LiveDepar
         plannedAtMs,
         realAtMs,
         delayMins,
-        vehicleDesc: vehicleNumber ? `${carrier.name} - pojazd ${vehicleNumber}` : carrier.name,
+        vehicleDesc,
       });
     });
   });
@@ -1118,78 +1374,76 @@ export default function StopsPanel({
   favorites,
   vehicles,
   transparentUI,
+  isDarkTheme,
   onRetry,
   onClose,
   onToggleFavorite,
   onShowOnMap,
 }: StopsPanelProps) {
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
-  const [panelVehicles, setPanelVehicles] = useState<Vehicle[]>([]);
   const [mpkStops, setMpkStops] = useState<Array<{ id: string; name: string; lat?: number; lon?: number; lines: string[] }>>([]);
   const [marcelStops, setMarcelStops] = useState<MarcelIndexedStop[]>([]);
   const [pksLinesByStopId, setPksLinesByStopId] = useState<Record<string, string[]>>({});
+  const [mergedStopsBase, setMergedStopsBase] = useState<Stop[]>([]);
+  const [isPreparingStops, setIsPreparingStops] = useState(false);
+  const mergedStopsCacheKey = useMemo(
+    () =>
+      [
+        stopCollectionSignature(stops),
+        stopCollectionSignature(mpkStops),
+        stopCollectionSignature(marcelStops),
+      ].join('|'),
+    [marcelStops, mpkStops, stops],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchVehiclesClient(true, ['mpk_rzeszow', 'marcel'], { signal: controller.signal })
-      .then((next) => setPanelVehicles(next.filter((vehicle) => vehicle.type !== 'train')))
-      .catch((error: unknown) => {
-        if ((error as { name?: string })?.name === 'AbortError') return;
-        console.warn('[StopsPanel] bus providers unavailable', error);
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const mapMpkStops = (data: Awaited<ReturnType<typeof fetchMpkRzeszowStopsClient>>) =>
-      data
-        .map((stop) => ({
-          id: String(stop.stop_id),
-          name: ensureMpkCityPrefix(stop.stop_name || ''),
-          lat: Number.isFinite(Number(stop.stop_lat)) ? Number(stop.stop_lat) : undefined,
-          lon: Number.isFinite(Number(stop.stop_lon)) ? Number(stop.stop_lon) : undefined,
-          lines: sortedLines(String(stop.lines || '').split(',').map((line) => line.trim())),
-        }))
-        .filter((stop) => stop.id && stop.name);
-    const signature = (items: typeof mpkStops) => stopCacheSignature(items);
-
-    fetchMpkRzeszowStopsClient({ signal: controller.signal })
-      .then((data) => {
-        const cachedStops = mapMpkStops(data);
-        setMpkStops(cachedStops);
-        return fetchMpkRzeszowStopsClient({ forceRefresh: true })
-          .then((fresh) => {
-            const freshStops = mapMpkStops(fresh);
-            setMpkStops((current) => (signature(current) === signature(freshStops) ? current : freshStops));
-          })
-          .catch(() => undefined);
-      })
-      .catch((error: unknown) => {
-        if ((error as { name?: string })?.name === 'AbortError') return;
-        console.warn('[StopsPanel] MPK stops unavailable', error);
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
     let active = true;
     const dateIso = selectedDateIso(0);
+    const mapMpkStops = (data: Awaited<ReturnType<typeof fetchMpkRzeszowStopsClient>>) =>
+      data
+        .map((stop) => {
+          const lat = Number.isFinite(Number(stop.stop_lat)) ? Number(stop.stop_lat) : undefined;
+          const lon = Number.isFinite(Number(stop.stop_lon)) ? Number(stop.stop_lon) : undefined;
+          return {
+            id: String(stop.stop_id),
+            name: ensureMpkCityPrefix(stop.stop_name || '', lat, lon),
+            lat,
+            lon,
+            lines: sortedLines(String(stop.lines || '').split(',').map((line) => line.trim())),
+          };
+        })
+        .filter((stop) => stop.id && stop.name);
+    const mpkSignature = (items: typeof mpkStops) => stopCollectionSignature(items);
 
-    const loadMarcelStops = async () => {
-      const indexedStops = await getMarcelStopsIndex(dateIso);
-      if (!active) return;
-      setMarcelStops(indexedStops);
-      const freshStops = await getMarcelStopsIndex(dateIso, { forceRefresh: true }).catch(() => null);
-      if (!active || !freshStops) return;
-      setMarcelStops((current) => (stopCacheSignature(current) === stopCacheSignature(freshStops) ? current : freshStops));
+    const loadMpkStopsSnapshot = async () => {
+      try {
+        const cachedStops = await fetchMpkRzeszowStopsClient({ signal: controller.signal }).then(mapMpkStops);
+        if (!active) return;
+        setMpkStops((current) => (mpkSignature(current) === mpkSignature(cachedStops) ? current : cachedStops));
+      } catch (error) {
+        if ((error as { name?: string })?.name !== 'AbortError') {
+          console.warn('[StopsPanel] MPK stops unavailable', error);
+        }
+      }
     };
 
-    loadMarcelStops().catch((error) => console.warn('[StopsPanel] Marcel stops unavailable', error));
+    const loadMarcelStopsSnapshot = async () => {
+      try {
+        const cachedStops = await getMarcelStopsIndex(dateIso);
+        if (!active) return;
+        setMarcelStops((current) => (stopCollectionSignature(current) === stopCollectionSignature(cachedStops) ? current : cachedStops));
+      } catch (error) {
+        console.warn('[StopsPanel] Marcel stops unavailable', error);
+      }
+    };
+
+    loadMpkStopsSnapshot();
+    loadMarcelStopsSnapshot();
+
     return () => {
       active = false;
+      controller.abort();
     };
   }, []);
 
@@ -1198,8 +1452,10 @@ export default function StopsPanel({
     vehicles.forEach((vehicle) => {
       if (vehicle.type === 'train') return;
       if (String(vehicle.provider || 'pks') !== 'pks') return;
+      if (vehicle.status === 'technical') return;
       const line = cleanLine(vehicle.routeShortName);
       if (!line || line === '?') return;
+      if (isTechnicalDepartureData(line, vehicle.routeId, [vehicle.statusText, vehicle.name])) return;
       const routeStops = [...(vehicle.routeStops || []), ...(vehicle.schedule || [])];
       routeStops.forEach((routeStop) => {
         const stopId = String(routeStop?.id || '').trim();
@@ -1215,13 +1471,19 @@ export default function StopsPanel({
       nextIndex[stopId] = sortedLines(lineSet);
     });
 
-    setPksLinesByStopId((current) =>
-      stopCacheSignature(current) === stopCacheSignature(nextIndex) ? current : nextIndex,
-    );
+    const timeoutId = window.setTimeout(() => {
+      setPksLinesByStopId((current) =>
+        stopLinesIndexSignature(current) === stopLinesIndexSignature(nextIndex) ? current : nextIndex,
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [vehicles]);
 
-  const uiStops = useMemo<Stop[]>(() => {
-    const favoriteSet = new Set(favorites);
+  const buildMergedStopsBase = useCallback<() => Stop[]>(() => {
+    const cached = MERGED_STOPS_RUNTIME_CACHE.get(mergedStopsCacheKey);
+    if (cached) return cached;
+
     const byTechnical = new Map<string, InternalStop>();
     const baseBuckets = new Map<string, InternalStop[]>();
     const tokenBuckets = new Map<string, Set<InternalStop>>();
@@ -1313,7 +1575,7 @@ export default function StopsPanel({
         lines: [],
         lineSet: new Set<string>(),
         displayNamesByProvider: { [raw.provider]: displayName },
-        isFavorite: favoriteSet.has(publicId),
+        isFavorite: false,
         areaId: raw.areaId,
         code: raw.code,
         lat: raw.lat,
@@ -1362,30 +1624,32 @@ export default function StopsPanel({
       const cacheKey = `${providerKey}|${baseNameKey}|${latKey}|${lonKey}`;
       if (crossMatchCache.has(cacheKey)) return crossMatchCache.get(cacheKey) || null;
 
-      const exactCandidates = (baseBuckets.get(baseNameKey) || []).filter((candidate) => {
-        const providers = candidate.sourceProviderIds || [];
-        return providers.some((provider) => candidateProviders.has(provider));
+      const localGpsSet = new Set<InternalStop>();
+      geoBucketKeys(raw.lat, raw.lon).forEach((key) => {
+        const bucket = geoBuckets.get(key);
+        if (bucket) bucket.forEach((candidate) => localGpsSet.add(candidate));
       });
-      const fallbackSet = new Set<InternalStop>();
+      const lexicalSet = new Set<InternalStop>();
       const rawTokens = mergeTokens(raw.name).slice(0, 4);
       rawTokens.forEach((token) => {
         const bucket = tokenBuckets.get(token);
-        if (bucket) bucket.forEach((candidate) => fallbackSet.add(candidate));
+        if (bucket) bucket.forEach((candidate) => lexicalSet.add(candidate));
       });
       const rawNumbers = numericTokens(raw.name);
       rawNumbers.forEach((token) => {
         const bucket = tokenBuckets.get(`num:${token}`);
-        if (bucket) bucket.forEach((candidate) => fallbackSet.add(candidate));
+        if (bucket) bucket.forEach((candidate) => lexicalSet.add(candidate));
       });
-      geoBucketKeys(raw.lat, raw.lon).forEach((key) => {
-        const bucket = geoBuckets.get(key);
-        if (bucket) bucket.forEach((candidate) => fallbackSet.add(candidate));
-      });
-      const fallbackPool = [...fallbackSet].filter((candidate) => {
+      const exactCandidates = (baseBuckets.get(baseNameKey) || []).filter((candidate) => {
         const providers = candidate.sourceProviderIds || [];
         return providers.some((provider) => candidateProviders.has(provider));
       });
-      const pool = exactCandidates.length > 0 ? exactCandidates : fallbackPool;
+
+      const candidateSet = new Set<InternalStop>([...localGpsSet, ...lexicalSet, ...exactCandidates]);
+      const pool = [...candidateSet].filter((candidate) => {
+        const providers = candidate.sourceProviderIds || [];
+        return providers.some((provider) => candidateProviders.has(provider));
+      });
       if (pool.length === 0) return null;
 
       const weakName = isWeakMarcelName(raw.name);
@@ -1397,25 +1661,26 @@ export default function StopsPanel({
         const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
         const hasGeo = Number.isFinite(distance);
         if (hasConflictingCityToken(raw.name, candidate.name)) continue;
-        if (weakName && hasGeo && distance > 320) continue;
+        if (hasConflictingStopNumbers(raw.name, candidate.name)) continue;
+        if (weakName && hasGeo && distance > 120) continue;
         const similarity = nameSimilarityScore(raw.name, candidate.name);
         const sharedTokens = sharedStopTokenCount(raw.name, candidate.name);
         const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.34 : 0;
-        if (hasGeo && distance > 900 && similarity < 0.94) continue;
+        if (hasGeo && distance > 550 && similarity < 0.95) continue;
         if (!hasGeo && candidate.baseNameKey !== baseNameKey && similarity < 0.92) continue;
         const distanceScore = hasGeo
-          ? distance <= 60
+          ? distance <= 35
             ? 1
-            : distance <= 110
-              ? 0.86
-              : distance <= 180
-                ? 0.62
-                : distance <= 320
-                  ? 0.34
+            : distance <= 70
+              ? 0.8
+              : distance <= 140
+                ? 0.56
+                : distance <= 240
+                  ? 0.2
                   : 0
           : 0;
-        const gpsDominantBoost = hasGeo && sharedTokens > 0 && distance <= 90 ? 0.45 : 0;
-        const score = similarity * 0.58 + distanceScore * 0.42 + exactBaseBoost + gpsDominantBoost;
+        const gpsDominantBoost = hasGeo && sharedTokens > 0 && distance <= 35 ? 0.5 : 0;
+        const score = similarity * 0.52 + distanceScore * 0.48 + exactBaseBoost + gpsDominantBoost;
         if (score > bestScore || (score === bestScore && distance < bestDistance)) {
           bestScore = score;
           bestDistance = distance;
@@ -1430,24 +1695,20 @@ export default function StopsPanel({
 
       const sharedTokens = sharedStopTokenCount(raw.name, bestCandidate.name);
       if (weakName) {
-        const weakMatch = Number.isFinite(bestDistance) && bestDistance <= 260 ? bestCandidate : null;
+        const weakMatch = Number.isFinite(bestDistance) && bestDistance <= 90 ? bestCandidate : null;
         crossMatchCache.set(cacheKey, weakMatch);
         return weakMatch;
       }
 
-      if (Number.isFinite(bestDistance) && bestDistance <= 90 && sharedTokens > 0) {
+      if (Number.isFinite(bestDistance) && bestDistance <= 35 && (sharedTokens > 0 || bestScore >= 0.35)) {
         crossMatchCache.set(cacheKey, bestCandidate);
         return bestCandidate;
       }
-      if (Number.isFinite(bestDistance) && bestScore >= 0.78 && bestDistance <= 360) {
+      if (Number.isFinite(bestDistance) && bestScore >= 0.72 && bestDistance <= 70 && sharedTokens >= 2) {
         crossMatchCache.set(cacheKey, bestCandidate);
         return bestCandidate;
       }
-      if (Number.isFinite(bestDistance) && bestScore >= 0.66 && bestDistance <= 160 && sharedTokens > 0) {
-        crossMatchCache.set(cacheKey, bestCandidate);
-        return bestCandidate;
-      }
-      if (!Number.isFinite(bestDistance) && bestScore >= 1.02 && bestCandidate.baseNameKey === baseNameKey) {
+      if (!Number.isFinite(bestDistance) && bestScore >= 0.95 && bestCandidate.baseNameKey === baseNameKey) {
         crossMatchCache.set(cacheKey, bestCandidate);
         return bestCandidate;
       }
@@ -1480,7 +1741,7 @@ export default function StopsPanel({
       const raw = {
         ...mpkStop,
         id: String(mpkStop.id),
-        name: ensureMpkCityPrefix(mpkStop.name),
+        name: ensureMpkCityPrefix(mpkStop.name, mpkStop.lat, mpkStop.lon),
         provider: 'mpk_rzeszow',
         carrier: MPK_CARRIER,
       };
@@ -1530,19 +1791,98 @@ export default function StopsPanel({
       .filter((stop) => stop.id && stop.name)
       .map((stop) => {
         const { lineSet, carrierMap, baseNameKey, displayNamesByProvider, ...cleanStop } = stop;
-        const pksLines = pksLinesForStop(cleanStop, pksLinesByStopId);
-        const mergedLineSet = new Set<string>([...lineSet, ...pksLines]);
         return {
           ...cleanStop,
           carriers: [...carrierMap.values()].sort((left, right) => ['pks', 'mpk', 'marcel'].indexOf(left.id) - ['pks', 'mpk', 'marcel'].indexOf(right.id)),
-          lines: sortedLines(mergedLineSet),
-          isFavorite: favoriteSet.has(cleanStop.id),
+          lines: sortedLines(lineSet),
+          isFavorite: false,
         };
       });
 
     const mergedMpkStops = mergeMpkStopsForList(normalizedStops);
-    return mergeStopsByGpsAndName(mergedMpkStops).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
-  }, [favorites, marcelStops, mpkStops, pksLinesByStopId, stops]);
+    const mergedStops = mergeStopsByGpsAndName(mergedMpkStops).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
+
+    MERGED_STOPS_RUNTIME_CACHE.set(mergedStopsCacheKey, mergedStops);
+    if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {
+      const oldestKey = MERGED_STOPS_RUNTIME_CACHE.keys().next().value;
+      if (oldestKey) MERGED_STOPS_RUNTIME_CACHE.delete(oldestKey);
+    }
+    return mergedStops;
+  }, [marcelStops, mergedStopsCacheKey, mpkStops, stops]);
+
+  useEffect(() => {
+    const cached = MERGED_STOPS_RUNTIME_CACHE.get(mergedStopsCacheKey);
+    const safeApplyCached = (snapshot: Stop[]) => {
+      window.setTimeout(() => {
+        setMergedStopsBase((current) => (stopCollectionSignature(current) === stopCollectionSignature(snapshot) ? current : snapshot));
+        setIsPreparingStops(false);
+      }, 0);
+    };
+    if (cached) {
+      safeApplyCached(cached);
+      return;
+    }
+
+    let cancelled = false;
+    window.setTimeout(() => {
+      if (!cancelled) setIsPreparingStops(true);
+    }, 0);
+
+    const applyMerge = () => {
+      if (cancelled) return;
+      const merged = buildMergedStopsBase();
+      if (cancelled) return;
+      setMergedStopsBase((current) => (stopCollectionSignature(current) === stopCollectionSignature(merged) ? current : merged));
+      setIsPreparingStops(false);
+    };
+
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+    if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
+      idleId = (window as any).requestIdleCallback(applyMerge, { timeout: 350 });
+    } else {
+      timeoutId = window.setTimeout(applyMerge, 0);
+    }
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      if (idleId !== null && typeof (window as any).cancelIdleCallback === 'function') {
+        (window as any).cancelIdleCallback(idleId);
+      }
+    };
+  }, [buildMergedStopsBase, mergedStopsCacheKey]);
+
+  const baseUiStops = useMemo<Stop[]>(() => {
+    if (!Object.keys(pksLinesByStopId).length) return mergedStopsBase;
+    let changed = false;
+    const next = mergedStopsBase.map((stop) => {
+      if (!(stop.sourceProviderIds || []).includes('pks')) return stop;
+      const pksLines = pksLinesForStop(stop, pksLinesByStopId);
+      if (!pksLines.length) return stop;
+      const mergedLineSet = new Set<string>([...(stop.lines || []), ...pksLines]);
+      const lines = sortedLines(mergedLineSet);
+      if (lines.length === stop.lines.length && lines.every((line, index) => line === stop.lines[index])) {
+        return stop;
+      }
+      changed = true;
+      return { ...stop, lines };
+    });
+    return changed ? next : mergedStopsBase;
+  }, [mergedStopsBase, pksLinesByStopId]);
+
+  const uiStops = useMemo<Stop[]>(() => {
+    if (!favorites.length) {
+      return baseUiStops.every((stop) => !stop.isFavorite)
+        ? baseUiStops
+        : baseUiStops.map((stop) => (stop.isFavorite ? { ...stop, isFavorite: false } : stop));
+    }
+    const favoriteSet = new Set(favorites);
+    return baseUiStops.map((stop) => {
+      const isFavorite = favoriteSet.has(stop.id);
+      return stop.isFavorite === isFavorite ? stop : { ...stop, isFavorite };
+    });
+  }, [baseUiStops, favorites]);
 
   const toggleFavorite = useCallback((stopId: string) => {
     onToggleFavorite(stopId);
@@ -1563,12 +1903,16 @@ export default function StopsPanel({
             pksStopId,
             pksAreaIds[sourceIndex] || pksAreaIds[0] || stop.areaId,
             pksCodes[sourceIndex] || pksCodes[0] || stop.code || '',
+            dateIso,
           ).catch(() => ({ journeys: [] })),
         ),
       );
       pksResponses.forEach((response) => {
         const journeys = Array.isArray(response?.journeys) ? response.journeys : [];
-        departures.push(...journeys.map((journey: unknown, index: number) => mapJourneyToDeparture(journey as Record<string, unknown>, index)));
+        journeys.forEach((journey: unknown, index: number) => {
+          const mapped = mapJourneyToDeparture(journey as Record<string, unknown>, index);
+          if (mapped) departures.push(mapped);
+        });
       });
     }
 
@@ -1589,24 +1933,21 @@ export default function StopsPanel({
         .split(',')
         .map((id) => id.trim())
         .filter(Boolean);
-      const routes = routeIds.length > 0 ? routeIds : (await fetchMarcelRoutesClient()).map((route) => String(route.idTr));
-      const stopNameKeys = new Set(
-        mergeCsvValues(
-          stop.providerStopIds?.marcelMatchKeys,
-          stop.providerStopIds?.marcelMatchKey,
-          stopBaseNameKey(stop.name),
-        )
-          .split(',')
-          .map((key) => key.trim())
-          .filter(Boolean),
+      const routes = routeIds.length > 0
+        ? routeIds
+        : (await fetchMarcelRoutesClient().catch(() => [])).map((route) => String(route.idTr));
+      const providerMatchKeys = splitCsvValues(
+        mergeCsvValues(stop.providerStopIds?.marcelMatchKeys, stop.providerStopIds?.marcelMatchKey),
       );
+      const fallbackMatchKeys = providerMatchKeys.length ? [] : [stopPreciseNameKey(stop.name)].filter(Boolean);
+      const stopNameKeys = new Set([...providerMatchKeys, ...fallbackMatchKeys]);
       const marcelDepartures: Departure[] = [];
       await Promise.all(
         routes.map(async (routeId) => {
-          const courses = await fetchMarcelCoursesClient(routeId, dateIso);
+          const courses = await fetchMarcelCoursesClient(routeId, dateIso).catch(() => []);
           await Promise.all(
             courses.map(async (course) => {
-              const stopsForCourse = await fetchMarcelPublicCourseStopsClient(course.idKu);
+              const stopsForCourse = await fetchMarcelPublicCourseStopsClient(course.idKu).catch(() => []);
               const matchIndex = stopsForCourse.findIndex((courseStop) => stopNameKeys.has(marcelCourseStopMatchKey(courseStop)));
               if (matchIndex < 0) return;
               const departure = departureFromMarcelCourseStop(course, stopsForCourse[matchIndex], dateIso, matchIndex);
@@ -1621,14 +1962,17 @@ export default function StopsPanel({
     const liveCorrectedDepartures = await applyLiveDepartureCorrections(
       departures,
       stop,
-      [...vehicles, ...panelVehicles],
+      vehicles,
       dayIndex,
+    );
+    const visibleDepartures = liveCorrectedDepartures.filter(
+      (departure) => !isTechnicalDepartureData(departure.line, departure.direction, [departure.vehicleDesc]),
     );
 
     const unique = new Map<string, Departure>();
-    liveCorrectedDepartures.forEach((departure) => unique.set(departure.id, departure));
+    visibleDepartures.forEach((departure) => unique.set(departure.id, departure));
     return [...unique.values()].sort((left, right) => (left.realAtMs || left.plannedAtMs || 0) - (right.realAtMs || right.plannedAtMs || 0));
-  }, [panelVehicles, vehicles]);
+  }, [vehicles]);
 
   const handleSelectStop = useCallback((stop: Stop) => {
     setSelectedStop(stop);
@@ -1642,13 +1986,19 @@ export default function StopsPanel({
 
   if (hasError) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#07111d]/70 px-6 text-center text-slate-300 backdrop-blur-2xl">
+      <div className={`flex h-full w-full items-center justify-center px-6 text-center backdrop-blur-2xl ${
+        isDarkTheme ? 'bg-[#07111d]/70 text-slate-300' : 'bg-white/80 text-slate-700'
+      }`}>
         <div className="flex max-w-sm flex-col items-center gap-4">
-          <p className="text-sm text-slate-400">Nie udalo sie pobrac przystankow.</p>
+          <p className={`text-sm ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>Nie udalo sie pobrac przystankow.</p>
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-2xl border border-teal-400/30 bg-teal-400/10 px-5 py-3 text-xs font-black uppercase tracking-wider text-teal-300 transition-colors hover:bg-teal-400/20"
+            className={`rounded-2xl border px-5 py-3 text-xs font-black uppercase tracking-wider transition-colors ${
+              isDarkTheme
+                ? 'border-teal-400/30 bg-teal-400/10 text-teal-300 hover:bg-teal-400/20'
+                : 'border-teal-500/35 bg-teal-500/10 text-teal-700 hover:bg-teal-500/15'
+            }`}
           >
             Sprobuj ponownie
           </button>
@@ -1658,7 +2008,15 @@ export default function StopsPanel({
   }
 
   return (
-    <div className={transparentUI ? 'absolute inset-0 z-10 overflow-hidden bg-slate-950/16 backdrop-blur-2xl backdrop-saturate-150' : 'absolute inset-0 z-10 overflow-hidden bg-[#03060a]'}>
+    <div
+      className={
+        transparentUI
+          ? `absolute inset-0 z-10 overflow-hidden backdrop-blur-2xl backdrop-saturate-150 ${
+              isDarkTheme ? 'bg-slate-950/88' : 'bg-white/92'
+            }`
+          : `absolute inset-0 z-10 overflow-hidden ${isDarkTheme ? 'bg-[#03060a]' : 'bg-slate-50'}`
+      }
+    >
       <div className="h-full w-full">
         {currentSelectedStop ? (
           <BusStopDetail
@@ -1667,15 +2025,17 @@ export default function StopsPanel({
             toggleFavorite={toggleFavorite}
             loadDepartures={loadDepartures}
             onShowOnMap={onShowOnMap}
+            isDarkTheme={isDarkTheme}
           />
         ) : (
           <StopList
             stops={uiStops}
-            isLoading={isLoading}
+            isLoading={isLoading || isPreparingStops}
             onStopSelect={handleSelectStop}
             onClose={onClose}
             toggleFavorite={toggleFavorite}
             isFullScreen
+            isDarkTheme={isDarkTheme}
           />
         )}
       </div>

@@ -55,7 +55,7 @@ export function DeviceTable({
   const itemsPerPage = 5;
 
   const parseDateValue = (value?: string) => {
-    if (value === 'teraz') return Date.now();
+    if (value === 'teraz') return Number.MAX_SAFE_INTEGER;
     if (!value || value === 'Brak sygnału' || value === '—') return 0;
     const normalized = value.replace(',', '').trim();
     const match = normalized.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
@@ -131,8 +131,10 @@ export function DeviceTable({
     const q = search.toLowerCase();
     return devices.filter((device) => {
       const dn = String(device.displayName ?? '').trim().toLowerCase();
+      const deviceName = String(device.deviceName ?? '').trim().toLowerCase();
       const searchMatch =
         device.name.toLowerCase().includes(q) ||
+        deviceName.includes(q) ||
         dn.includes(q) ||
         device.deviceId.toLowerCase().includes(q) ||
         device.role.toLowerCase().includes(q);
@@ -172,6 +174,14 @@ export function DeviceTable({
   }, [filteredDevices, sortConfig]);
 
   const totalPages = useMemo(() => Math.ceil(sortedDevices.length / itemsPerPage), [sortedDevices.length]);
+
+  useEffect(() => {
+    if (totalPages <= 0) {
+      if (currentPage !== 1) setCurrentPage(1);
+      return;
+    }
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const currentDevices = useMemo(() => {
     return sortedDevices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -234,7 +244,7 @@ export function DeviceTable({
   const openRename = (device: Device) => {
     if (!canRenameModels) return;
     setRenameDevice(device);
-    setRenameValue(device.name.replace(/\s+-\s+[A-Za-z0-9_-]{4,}$/, '').trim());
+    setRenameValue(String(device.deviceName || device.name).replace(/\s+-\s+[A-Za-z0-9_-]{4,}$/, '').trim());
   };
 
   const saveRename = async () => {
@@ -259,7 +269,7 @@ export function DeviceTable({
           e.stopPropagation();
           openRename(device);
         }}
-        title="Zmień nazwę modelu"
+        title="Zmień nazwę urządzenia"
         className={cn(
           'flex shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white/80 text-slate-600 shadow-lg transition-all hover:border-emerald-400/30 hover:bg-emerald-500/10 hover:text-emerald-500 active:scale-95',
           compact ? 'h-9 w-9' : 'h-8 w-8',
@@ -279,7 +289,7 @@ export function DeviceTable({
             e.stopPropagation();
             openRename(device);
           }}
-          title="Zmień nazwę modelu"
+          title="Zmień nazwę urządzenia"
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition-all hover:border-emerald-400/30 hover:bg-emerald-500/10 hover:text-emerald-300 active:scale-95"
         >
           <Pencil size={14} />
@@ -296,8 +306,8 @@ export function DeviceTable({
               e.stopPropagation();
               openRename(device);
             }}
-            title="Zmień nazwę modelu"
-            aria-label="Zmień nazwę modelu"
+            title="Zmień nazwę urządzenia"
+            aria-label="Zmień nazwę urządzenia"
             className={cn(
               'flex shrink-0 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400 active:scale-95',
               compact ? 'h-7 w-7' : 'h-6 w-6',
@@ -383,9 +393,9 @@ export function DeviceTable({
             >
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-black tracking-tight text-white">Nazwa modelu</h2>
+                  <h2 className="text-lg font-black tracking-tight text-white">Nazwa urządzenia</h2>
                   <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Zapisze alias dla kodu <span className="font-mono font-bold text-emerald-300">{renameDevice.modelCode || 'nieznany'}</span>, więc inne takie same telefony też dostaną tę nazwę.
+                    Ta nazwa zapisze się tylko dla tego urządzenia w panelu admina.
                   </p>
                 </div>
                 <button
@@ -405,7 +415,7 @@ export function DeviceTable({
                 }}
                 maxLength={80}
                 autoFocus
-                placeholder="np. Xiaomi POCO F7"
+                placeholder="np. Telefon Tomka"
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none transition-colors placeholder:text-slate-600 focus:border-emerald-400/40"
               />
               <div className="mt-5 flex gap-3">
@@ -596,14 +606,13 @@ export function DeviceTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              <AnimatePresence mode="popLayout">
-                {currentDevices.length > 0 ? currentDevices.map((device, idx) => {
+                {currentDevices.length > 0 ? currentDevices.map((device) => {
                   const isSelf = Boolean(currentUserId && device.id === currentUserId);
                   const banDisabled = !canBanTarget(device, isSelf);
                   const rolesDisabled = !canManageTarget(device, isSelf);
                   const deleteDisabled = !canDeleteTarget(device, isSelf);
                   return (
-                    <motion.tr key={device.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ delay: idx * 0.03 }} className="group hover:bg-white/[0.02] transition-colors">
+                    <tr key={device.id} className="group hover:bg-white/[0.02] transition-colors">
                       <td className="px-6 py-4 min-w-[200px]">
                         <div className="flex items-center gap-4 min-w-0">
                           <div className="flex shrink-0 items-center gap-2">
@@ -635,7 +644,7 @@ export function DeviceTable({
                           </button>
                         </div>
                       </td>
-                    </motion.tr>
+                    </tr>
                   );
                 }) : (
                   <tr>
@@ -644,7 +653,6 @@ export function DeviceTable({
                     </td>
                   </tr>
                 )}
-              </AnimatePresence>
             </tbody>
           </table>
         </div>

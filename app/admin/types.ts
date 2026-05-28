@@ -10,6 +10,7 @@ export interface Device {
   /** Short UA / OS line for table subtitle */
   os: string;
   displayName?: string;
+  deviceName?: string;
   deviceId: string;
   firstLogin: string;
   role: Role;
@@ -46,6 +47,40 @@ export interface Operator {
   lastActive: string;
   lastActiveOnline?: boolean;
   permissions: AdminPermissions;
+}
+
+export type MaintenanceEndpointRole = 'production' | 'backup' | 'staging' | 'legacy' | 'test';
+export type MaintenanceTestStatus = 'success' | 'error' | 'unknown';
+
+export interface MaintenanceEndpoint {
+  id: string;
+  name: string;
+  url: string;
+  role: MaintenanceEndpointRole;
+  priority: number;
+  region: string;
+  source: string;
+  fallbackEnabled: boolean;
+  enabled: boolean;
+  active: boolean;
+  lastTest?: {
+    ok?: boolean;
+    status?: MaintenanceTestStatus;
+    statusCode?: number;
+    latencyMs?: number;
+    providerCount?: number;
+    testedAt?: string;
+    message?: string;
+  };
+}
+
+export interface MaintenanceChange {
+  id: string;
+  action: string;
+  endpointId: string;
+  actorId?: string;
+  summary: string;
+  createdAtMs: number;
 }
 
 export type LogCategory = 'SYSTEM' | 'OPERATOR';

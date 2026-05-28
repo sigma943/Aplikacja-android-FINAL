@@ -10,7 +10,18 @@ import TransportSelectorPanel, { type TransportOption } from '@/components/Trans
 import TrainDetailsPanel from '@/components/TrainDetailsPanel';
 import StopsPanel from '@/components/stops-panel/StopsPanel';
 import type { Stop as StopsPanelStop } from '@/Panel/src/types';
-import {fetchDeparturesClient, fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type PkpQueryViewport, type TransportProviderId} from '@/lib/pks-client';
+import {
+  fetchDeparturesClient,
+  fetchMarcelCoursesClient,
+  fetchMarcelPublicCourseStopsClient,
+  fetchMarcelRoutesClient,
+  fetchMpkRzeszowDeparturesClient,
+  fetchStopsClient,
+  fetchVehicleDetailsClient,
+  fetchVehiclesClient,
+  type PkpQueryViewport,
+  type TransportProviderId,
+} from '@/lib/pks-client';
 import { useFirebase } from '@/components/FirebaseProvider';
 import { canAccessAdminDashboard } from '@/lib/admin/rbac';
 
@@ -71,6 +82,81 @@ const parseJourneyMs = (raw: unknown): number => {
   const now = new Date();
   now.setHours(Number(timeOnly[1]), Number(timeOnly[2]), Number(timeOnly[3] || '0'), 0);
   return now.getTime();
+};
+
+const selectedWarsawDateIso = (dayOffset = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + dayOffset);
+  return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Warsaw' });
+};
+
+const parseTimeOnWarsawDate = (dateIso: string, timeValue: unknown) => {
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(timeValue || '').trim());
+  if (!match) return Number.NaN;
+  const date = new Date(`${dateIso}T00:00:00`);
+  date.setHours(Number(match[1]), Number(match[2]), Number(match[3] || '0'), 0);
+  return date.getTime();
+};
+
+const normalizeStopKey = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s*[-/]\s*/g, ' ')
+    .replace(/\b(?:rzeszow|przystanek|przyst|autobusowy|autobusowa)\b/g, ' ')
+    .replace(/\b\d{1,3}[a-z]?\b$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const normalizePreciseStopKey = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/^\(\d+[a-z]?\)\s*/i, '')
+    .replace(/\s*\((?:\+|-|\/|\s)+\)\s*$/g, '')
+    .replace(/\s*[-/]\s*/g, ' ')
+    .replace(/\b(?:rzeszow|przystanek|przyst|autobusowy|autobusowa)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const marcelCourseStopKeys = (stop: { nazMi?: unknown; nazPr?: unknown }) =>
+  [
+    normalizePreciseStopKey([stop.nazMi, stop.nazPr].filter(Boolean).join(' ')),
+    normalizePreciseStopKey(stop.nazPr),
+    normalizeStopKey([stop.nazMi, stop.nazPr].filter(Boolean).join(' ')),
+  ].filter(Boolean);
+
+const mapMpkDepartureToJourney = (entry: Record<string, unknown>, dateIso: string, index: number) => {
+  const plannedMs = parseTimeOnWarsawDate(dateIso, entry.departure_time);
+  return {
+    line_name: String(entry.line || '').trim(),
+    route_description: String(entry.trip_headsign || entry.end_stop_name || 'Nieznany kierunek').trim(),
+    timetable_time: Number.isFinite(plannedMs) ? new Date(plannedMs).toISOString() : `${dateIso}T${entry.departure_time || '00:00'}`,
+    provider_id: 'mpk_rzeszow',
+    trip_id: entry.trip_id || entry.block_id || `mpk-${index}`,
+  };
+};
+
+const mapMarcelDepartureToJourney = (
+  course: Record<string, unknown>,
+  stop: Record<string, unknown>,
+  dateIso: string,
+  index: number,
+) => {
+  const plannedMs = parseTimeOnWarsawDate(dateIso, stop.godz || course.godz);
+  const rawDirection = String(course.nazTr || stop.nazTr || 'Marcel').trim();
+  const parts = rawDirection.split(/\s*(?:-|>)\s*/).map((part) => part.trim()).filter(Boolean);
+  return {
+    line_name: 'M',
+    route_description: parts.length >= 2 ? parts[parts.length - 1] : rawDirection,
+    timetable_time: Number.isFinite(plannedMs) ? new Date(plannedMs).toISOString() : `${dateIso}T${stop.godz || course.godz || '00:00'}`,
+    provider_id: 'marcel',
+    trip_id: course.idKu || `marcel-${index}`,
+  };
 };
 
 const formatGpsSignalClock = (value?: string | null) => {
@@ -178,6 +264,8 @@ const sameTransportProviders = (left: TransportProviderId[], right: TransportPro
   return left.every((provider) => rightSet.has(provider));
 };
 
+const VEHICLE_PROVIDER_STALE_GRACE_MS = 90_000;
+
 const getVehicleDisplayNumber = (vehicle?: Pick<Vehicle, 'vehicleNumber' | 'id' | 'provider' | 'routeShortName'> | null) => {
   if (vehicle?.provider === 'pkp_intercity') {
     const rawNumber = String(vehicle.vehicleNumber || '').trim();
@@ -206,6 +294,7 @@ export default function Home() {
   const lastVehiclesEtagRef = useRef<string>('');
   const activeProvidersRef = useRef<TransportProviderId[]>([]);
   const vehiclesFetchAbortRef = useRef<AbortController | null>(null);
+  const lastProviderNonEmptyAtRef = useRef<Map<TransportProviderId, number>>(new Map());
   const vehicleDetailsCacheRef = useRef<Map<string, { vehicle: Vehicle; expiresAt: number }>>(new Map());
   const vehicleDetailsRequestSeqRef = useRef(0);
   const vehiclesRef = useRef<Vehicle[]>([]);
@@ -268,6 +357,9 @@ export default function Home() {
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(true);
   const [stopDepartures, setStopDepartures] = useState<any[]>([]);
   const [isFetchingDepartures, setIsFetchingDepartures] = useState(false);
+  const stopDeparturesCacheRef = useRef<Map<string, { savedAt: number; journeys: any[] }>>(new Map());
+  const stopDeparturesInFlightRef = useRef<Map<string, Promise<any[]>>>(new Map());
+  const stopDeparturesRequestSeqRef = useRef(0);
   const [refreshInterval, setRefreshInterval] = useState(7000);
   const [favsState, setFavsState] = useState<string[]>([]);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
@@ -412,12 +504,25 @@ export default function Home() {
     };
   }, []);
 
-  const toggleFavoriteStop = (stopId: string, e?: React.MouseEvent) => {
-     e?.stopPropagation();
-     const next = favsState.includes(stopId) ? favsState.filter(s => s !== stopId) : [...favsState, stopId];
-     setFavsState(next);
-     localStorage.setItem('mks_fav_stops', JSON.stringify(next));
-  };
+  const toggleFavoriteStop = useCallback((stopId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setFavsState((current) => {
+      const next = current.includes(stopId) ? current.filter((id) => id !== stopId) : [...current, stopId];
+      const persist = () => {
+        try {
+          localStorage.setItem('mks_fav_stops', JSON.stringify(next));
+        } catch {
+          // ignore storage quota failures
+        }
+      };
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as Window & { requestIdleCallback?: (cb: IdleRequestCallback) => number }).requestIdleCallback?.(() => persist());
+      } else {
+        setTimeout(persist, 0);
+      }
+      return next;
+    });
+  }, []);
 
   const [now, setNow] = useState(0);
   useEffect(() => {
@@ -432,6 +537,7 @@ export default function Home() {
 
   const processedDepartures = useMemo(() => {
     if (!stopDepartures || stopDepartures.length === 0) return [];
+    const technicalRegex = /(zjazd|zajezd|baza|technicz|serwis|warsztat|przejazd\s+techn|bez\s+pasa[zż]er|manewr|out\s+of\s+service|deadhead|poza\s+lini[aą])/i;
     
     const results = Object.values(stopDepartures.reduce((acc: any, journey: any) => {
         const journeyPlannedMs = parseJourneyMs(journey.timetable_time);
@@ -444,6 +550,8 @@ export default function Home() {
         
         const normLine = (s: any) => String(s || '').trim().toUpperCase().replace(/^MKS\s+/, '');
         const journeyLineNorm = normLine(journey.line_name);
+        const directionLabel = String(journey.route_description || journey.direction || journey.destination || '').trim();
+        if (technicalRegex.test(journeyLineNorm) || technicalRegex.test(directionLabel)) return acc;
         
         let liveMatch: any = null;
         let stopInfo: any = null;
@@ -530,6 +638,7 @@ export default function Home() {
                     id: isRealtime ? 'LIVE' : 'ROZKŁAD',
                    model: liveMatch ? liveMatch.model : null
                },
+               providerId: journey.provider_id || journey.provider || 'pks',
                 vehicleNum,
                actualTimeStr,
                diffMin,
@@ -564,36 +673,127 @@ export default function Home() {
 
   useEffect(() => {
     if (selectedStopId) {
-      setTimeout(() => {
-         setIsFetchingDepartures(true);
-         setStopDepartures([]);
-      }, 0);
+      const splitCsv = (value: unknown) =>
+        String(value || '')
+          .split(',')
+          .map((part) => part.trim())
+          .filter(Boolean);
       const stopInfo = stopsList.find(s => s.id === selectedStopId);
-      const externalPksId = selectedExternalStop?.providerStopIds?.pks;
-      if (selectedExternalStop && !externalPksId) {
+      const providerStopIds = selectedExternalStop?.providerStopIds || {};
+      const externalPksIds = splitCsv(providerStopIds.pks);
+      const mpkStopIds = splitCsv(providerStopIds.mpk_rzeszow);
+      const marcelRouteIds = splitCsv(providerStopIds.marcelRouteIds);
+      const stopIdsToFetch = selectedExternalStop ? externalPksIds : [selectedStopId];
+
+      const areaIds = splitCsv(providerStopIds.pksAreaIds || selectedExternalStop?.areaId || stopInfo?.areaId);
+      const codes = splitCsv(providerStopIds.pksCodes || selectedExternalStop?.code || stopInfo?.code || '');
+      const tuples = stopIdsToFetch.map((stopId, index) => ({
+        stopId,
+        areaId: areaIds[index] || areaIds[0],
+        code: codes[index] || codes[0] || '',
+      }));
+      const dateKeys = [selectedWarsawDateIso(0), selectedWarsawDateIso(1)];
+      const requestKey = JSON.stringify({
+        pks: tuples,
+        mpk: mpkStopIds,
+        marcel: marcelRouteIds,
+        selected: selectedExternalStop?.id || selectedStopId,
+        days: dateKeys,
+      });
+      const requestSeq = ++stopDeparturesRequestSeqRef.current;
+
+      const cached = stopDeparturesCacheRef.current.get(requestKey);
+      const isFreshCache = Boolean(cached && Date.now() - cached.savedAt <= 75_000);
+      if (cached?.journeys?.length) {
+        setStopDepartures(cached.journeys);
+        setIsFetchingDepartures(!isFreshCache);
+        if (isFreshCache) return;
+      } else {
+        setIsFetchingDepartures(true);
         setStopDepartures([]);
-        setIsFetchingDepartures(false);
-        return;
       }
-      const stopIdToFetch = externalPksId || selectedStopId;
-      const areaIdToFetch = stopInfo?.areaId || selectedExternalStop?.areaId;
-      const codeToFetch = stopInfo?.code || selectedExternalStop?.code || '';
-      fetchDeparturesClient(stopIdToFetch, areaIdToFetch, codeToFetch)
-        .then(data => {
-            if (data && data.journeys) {
-               setStopDepartures(data.journeys);
-            } else {
-               setStopDepartures([]);
-            }
-            setIsFetchingDepartures(false);
+
+      const existingRequest = stopDeparturesInFlightRef.current.get(requestKey);
+      const fetchRequest = existingRequest || (async () => {
+        const pksRequests = tuples.flatMap((tuple) =>
+          dateKeys.map((dateIso) =>
+            fetchDeparturesClient(tuple.stopId, tuple.areaId, tuple.code, dateIso)
+            .then((result) => (Array.isArray(result?.journeys) ? result.journeys : []))
+            .then((journeys: any[]) => journeys.map((journey: any) => ({ ...journey, provider_id: 'pks' })))
+            .catch(() => []),
+          ),
+        );
+
+        const mpkRequests = mpkStopIds.flatMap((mpkStopId) =>
+          dateKeys.map((dateIso) =>
+            fetchMpkRzeszowDeparturesClient(mpkStopId, dateIso)
+              .then((entries) => entries.map((entry, index) => mapMpkDepartureToJourney(entry as Record<string, unknown>, dateIso, index)))
+              .catch(() => []),
+          ),
+        );
+
+        const marcelKeys = new Set(
+          [
+            ...splitCsv(providerStopIds.marcelMatchKeys),
+            ...splitCsv(providerStopIds.marcelMatchKey),
+            normalizePreciseStopKey(selectedExternalStop?.name || ''),
+          ].filter(Boolean),
+        );
+        const marcelRoutes = marcelRouteIds.length > 0
+          ? marcelRouteIds
+          : selectedExternalStop?.sourceProviderIds?.includes('marcel')
+            ? await fetchMarcelRoutesClient().then((routes) => routes.map((route) => String(route.idTr))).catch(() => [])
+          : [];
+        const marcelRequests = marcelRoutes.flatMap((routeId) =>
+          dateKeys.map(async (dateIso) => {
+            const courses = await fetchMarcelCoursesClient(routeId, dateIso).catch(() => []);
+            const journeys: any[] = [];
+            await Promise.all(courses.map(async (course, courseIndex) => {
+              const stopsForCourse = await fetchMarcelPublicCourseStopsClient(course.idKu).catch(() => []);
+              const matchIndex = stopsForCourse.findIndex((courseStop) =>
+                marcelCourseStopKeys(courseStop).some((key) => marcelKeys.has(key)),
+              );
+              if (matchIndex < 0) return;
+              journeys.push(mapMarcelDepartureToJourney(course as Record<string, unknown>, stopsForCourse[matchIndex] as Record<string, unknown>, dateIso, courseIndex));
+            }));
+            return journeys;
+          }),
+        );
+
+        const responses = await Promise.all([...pksRequests, ...mpkRequests, ...marcelRequests]);
+        return responses.flat();
+      })()
+        .finally(() => {
+          stopDeparturesInFlightRef.current.delete(requestKey);
+        });
+      if (!existingRequest) {
+        stopDeparturesInFlightRef.current.set(requestKey, fetchRequest);
+      }
+
+      fetchRequest
+        .then((journeys) => {
+          stopDeparturesCacheRef.current.set(requestKey, {
+            savedAt: Date.now(),
+            journeys,
+          });
+          if (stopDeparturesCacheRef.current.size > 80) {
+            const oldestKey = stopDeparturesCacheRef.current.keys().next().value;
+            if (oldestKey) stopDeparturesCacheRef.current.delete(oldestKey);
+          }
+          if (stopDeparturesRequestSeqRef.current !== requestSeq) return;
+          setStopDepartures(journeys);
+          setIsFetchingDepartures(false);
         })
         .catch(err => {
-            console.error('Fetch departures error:', err);
-            setStopDepartures([]);
-            setIsFetchingDepartures(false);
+          console.error('Fetch departures error:', err);
+          if (stopDeparturesRequestSeqRef.current !== requestSeq) return;
+          setStopDepartures([]);
+          setIsFetchingDepartures(false);
         });
     } else {
+      stopDeparturesRequestSeqRef.current += 1;
       setTimeout(() => setStopDepartures([]), 0);
+      setIsFetchingDepartures(false);
     }
   }, [selectedExternalStop, selectedStopId, stopsList]);
 
@@ -882,11 +1082,29 @@ export default function Home() {
       const freshVehicles = loadedVehicles.filter((vehicle: Vehicle) =>
         requestProviderSet.has((vehicle.provider || 'pks') as TransportProviderId),
       );
+      const previousVehicles = vehiclesRef.current;
+      const nowAfterFetch = Date.now();
+      const stableFreshVehicles = [...freshVehicles];
+      providersToRequest.forEach((provider) => {
+        const freshForProvider = freshVehicles.filter((vehicle: Vehicle) => (vehicle.provider || 'pks') === provider);
+        if (freshForProvider.length > 0) {
+          lastProviderNonEmptyAtRef.current.set(provider, nowAfterFetch);
+          return;
+        }
+
+        const previousForProvider = previousVehicles.filter((vehicle) => (vehicle.provider || 'pks') === provider);
+        const lastNonEmptyAt = lastProviderNonEmptyAtRef.current.get(provider) || 0;
+        const canKeepStale =
+          previousForProvider.length > 0 &&
+          lastNonEmptyAt > 0 &&
+          nowAfterFetch - lastNonEmptyAt <= VEHICLE_PROVIDER_STALE_GRACE_MS;
+        if (canKeepStale) stableFreshVehicles.push(...previousForProvider);
+      });
       const carriedVehicles = vehiclesRef.current.filter((vehicle) => {
         const providerId = (vehicle.provider || 'pks') as TransportProviderId;
         return requestProviderSet.has(providerId) && !requestedProviderSet.has(providerId);
       });
-      const visibleVehicles = [...carriedVehicles, ...freshVehicles];
+      const visibleVehicles = [...carriedVehicles, ...stableFreshVehicles];
       const newDataStr = JSON.stringify(visibleVehicles);
       if (newDataStr !== lastVehiclesRef.current) {
         setVehicles(visibleVehicles);
@@ -948,9 +1166,10 @@ export default function Home() {
     if (!hasLoadedTransportProviders) return;
 
     let timer: NodeJS.Timeout;
+    const shouldPollVehicles = activeTab === 'map';
     
     const tick = async () => {
-      if (isAppForegroundRef.current && !isOffline) {
+      if (shouldPollVehicles && isAppForegroundRef.current && !isOffline) {
         await fetchVehicles();
       }
       timer = setTimeout(tick, refreshInterval);
@@ -959,7 +1178,7 @@ export default function Home() {
     timer = setTimeout(tick, refreshInterval);
 
     const handleVisibility = () => {
-      if (isAppForegroundRef.current && !isOffline) {
+      if (shouldPollVehicles && isAppForegroundRef.current && !isOffline) {
         fetchVehicles(showInactive, true);
       }
     };
@@ -975,7 +1194,7 @@ export default function Home() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshInterval, showInactive, isOffline, activeProviders, hasLoadedTransportProviders]);
+  }, [refreshInterval, showInactive, isOffline, activeProviders, hasLoadedTransportProviders, activeTab]);
 
   useEffect(() => {
     if (!hasLoadedTransportProviders) return;
@@ -1063,19 +1282,10 @@ export default function Home() {
            lat: val.lat,
            lon: val.lon
       })).sort((a,b) => a.name.localeCompare(b.name));
-    const signature = (items: typeof stopsList) =>
-      JSON.stringify(items.map((stop) => [stop.id, stop.name, stop.areaId, stop.code, stop.lat, stop.lon]));
-
     fetchStopsClient()
       .then(d => {
         const cachedStops = mapStops(d);
         setStopsList(cachedStops);
-        return fetchStopsClient({forceRefresh: true})
-          .then((fresh) => {
-            const freshStops = mapStops(fresh);
-            setStopsList((current) => (signature(current) === signature(freshStops) ? current : freshStops));
-          })
-          .catch(() => undefined);
       })
       .catch(e => {
         console.error('Fetch stops fail:', e);
@@ -1197,31 +1407,31 @@ export default function Home() {
   const mapDetailPanel = transparentUI
      ? (isDark
         ? isOled
-          ? 'bg-black/46 backdrop-blur-3xl backdrop-saturate-150 border-white/12 shadow-[0_-28px_90px_rgba(0,0,0,0.72)]'
+          ? 'bg-black/88 backdrop-blur-3xl backdrop-saturate-150 border-white/12 shadow-[0_-28px_90px_rgba(0,0,0,0.72)]'
           : isAurora
-            ? 'bg-[#151029]/52 backdrop-blur-3xl backdrop-saturate-150 border-fuchsia-300/18 shadow-[0_-28px_90px_rgba(10,6,26,0.66)]'
-            : 'bg-[#07131a]/50 backdrop-blur-3xl backdrop-saturate-150 border-white/12 shadow-[0_-28px_90px_rgba(0,0,0,0.56)]'
+            ? 'bg-[#151029]/90 backdrop-blur-3xl backdrop-saturate-150 border-fuchsia-300/18 shadow-[0_-28px_90px_rgba(10,6,26,0.66)]'
+            : 'bg-[#07131a]/90 backdrop-blur-3xl backdrop-saturate-150 border-white/12 shadow-[0_-28px_90px_rgba(0,0,0,0.56)]'
         : isWarm
-          ? 'bg-[#f7f0df]/58 backdrop-blur-3xl backdrop-saturate-150 border-[#8a7b5f]/18 shadow-[0_-24px_75px_rgba(93,79,50,0.24)]'
-          : 'bg-white/54 backdrop-blur-3xl backdrop-saturate-150 border-white/70 shadow-[0_-24px_75px_rgba(15,23,42,0.18)]')
+          ? 'bg-[#f7f0df]/94 backdrop-blur-3xl backdrop-saturate-150 border-[#8a7b5f]/18 shadow-[0_-24px_75px_rgba(93,79,50,0.24)]'
+          : 'bg-white/94 backdrop-blur-3xl backdrop-saturate-150 border-white/70 shadow-[0_-24px_75px_rgba(15,23,42,0.18)]')
      : (isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100');
   const mapDetailContent = transparentUI
      ? (isDark
         ? isAurora
-          ? 'bg-[#100d24]/38 backdrop-blur-3xl'
+          ? 'bg-[#100d24]/92 backdrop-blur-3xl'
           : isOled
-            ? 'bg-black/34 backdrop-blur-3xl'
-            : 'bg-[#061017]/36 backdrop-blur-3xl'
+            ? 'bg-black/90 backdrop-blur-3xl'
+            : 'bg-[#061017]/92 backdrop-blur-3xl'
         : isWarm
-          ? 'bg-[#fff7e8]/38 backdrop-blur-3xl'
-          : 'bg-white/36 backdrop-blur-3xl')
+          ? 'bg-[#fff7e8]/94 backdrop-blur-3xl'
+          : 'bg-white/94 backdrop-blur-3xl')
      : bgMain;
   const mapDetailCard = transparentUI
      ? (isDark
-        ? 'bg-white/[0.055] border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.16)]'
+        ? 'bg-[#0d1622]/96 border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.16)]'
         : isWarm
-          ? 'bg-[#fffaf0]/48 border-[#8a7b5f]/18 shadow-[0_8px_24px_rgba(93,79,50,0.12)]'
-          : 'bg-white/52 border-white/65 shadow-[0_8px_24px_rgba(15,23,42,0.10)]')
+          ? 'bg-[#fffaf0]/96 border-[#8a7b5f]/18 shadow-[0_8px_24px_rgba(93,79,50,0.12)]'
+          : 'bg-white/96 border-white/65 shadow-[0_8px_24px_rgba(15,23,42,0.10)]')
      : (isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100');
   const mapDetailDivider = transparentUI
      ? (isDark ? 'border-white/10' : isWarm ? 'border-[#8a7b5f]/16' : 'border-white/55')
@@ -1481,10 +1691,10 @@ export default function Home() {
                 <CloudOff size={38} strokeWidth={2.4} />
               </div>
               <h1 className="text-2xl font-black tracking-tight">Przekroczono czas połączenia</h1>
-              <p className={`mx-auto mt-4 max-w-xs text-sm leading-6 ${textSub}`}>
+              <p className="hidden">
                 Aplikacja ładuje dane zbyt długo. Sprawdź internet albo spróbuj ponownie.
               </p>
-              <p className="mt-5 font-mono text-base font-bold text-rose-500">Interval Time Error</p>
+              <p className="mt-5 font-mono text-base font-bold text-rose-500">ConnectionTimeoutError</p>
               <button
                 type="button"
                 onClick={() => window.location.reload()}
@@ -1996,7 +2206,7 @@ export default function Home() {
                                            <p className={`text-xs mt-1 ${textSub}`}>To może chwilę potrwać</p>
                                         </div>
                                      ) : processedDepartures.length === 0 ? (
-                                        <div className={`p-10 rounded-[32px] border-2 border-dashed text-center ${transparentUI ? (isDark ? 'border-white/10 bg-white/[0.035]' : 'border-slate-900/10 bg-white/30') : (isDark ? 'border-slate-800' : 'border-slate-200')}`}>
+                                        <div className={`p-10 rounded-[32px] border-2 border-dashed text-center ${transparentUI ? (isDark ? 'border-white/10 bg-[#05080c]/92' : 'border-slate-900/10 bg-white/94') : (isDark ? 'border-slate-800' : 'border-slate-200')}`}>
                                            <p className={`text-base font-bold ${textMain}`}>Brak odjazdów</p>
                                            <p className={`text-xs mt-1 ${textSub}`}>Sprawdź inne godziny lub dni</p>
                                          </div>
@@ -2018,11 +2228,16 @@ export default function Home() {
                                                    );
                                                 }
                                                 lastDayStr = dayStr;
+                                                const lineColor = inc.providerId === 'mpk_rzeszow'
+                                                   ? MPK_RZESZOW_COLOR
+                                                   : inc.providerId === 'marcel'
+                                                     ? MARCEL_COLOR
+                                                     : PKS_COLOR;
                                                 
                                                 elements.push(
                                                    <div key={idx} className={`flex items-center justify-between p-4 rounded-2xl border transition-all active:scale-[0.97] ${mapDetailCard} ${transparentUI ? 'hover:bg-white/10' : (isDark ? 'hover:bg-slate-800/60' : 'hover:bg-white hover:shadow-md')}`}>
                                                       <div className="flex items-center gap-4">
-                                                         <div className="min-w-[50px] px-3 py-1.5 rounded-xl text-white font-black text-sm text-center shadow-md grow-0" style={{ backgroundColor: themeColor }}>
+                                                         <div className="min-w-[50px] px-3 py-1.5 rounded-xl text-white font-black text-sm text-center shadow-md grow-0" style={{ backgroundColor: lineColor }}>
                                                             {String(inc.bus.routeShortName || '').trim().replace(/^MKS\s+/, '')}
                                                          </div>
                                                          <div className="flex flex-col">
@@ -2053,44 +2268,41 @@ export default function Home() {
 
             </div>
          {/* ============== NEW STOPS VIEW ============== */}
-         <AnimatePresence mode="wait">
-         {activeTab === 'stops' && (
-            <motion.div
-               key="new-stops-panel"
-               initial={{ opacity: 0, y: 30, scale: 0.98 }}
-               animate={{ opacity: 1, y: 0, scale: 1 }}
-               exit={{ opacity: 0, y: 20, scale: 0.96 }}
-               transition={{ type: "spring", stiffness: 700, damping: 35 }}
-               className={
-                  transparentUI
-                     ? 'absolute inset-0 z-10 overflow-hidden bg-slate-950/18 backdrop-blur-2xl backdrop-saturate-150 before:pointer-events-none before:absolute before:inset-0 before:bg-white/[0.025] before:content-[""]'
-                     : 'absolute inset-0 z-10 overflow-hidden bg-[#03060a]'
-               }
-            >
-               <StopsPanel
-                  stops={stopsList}
-                  isLoading={stopsList.length === 0 && !stopsLoadError}
-                  hasError={stopsLoadError}
-                  favorites={favsState}
-                  vehicles={vehicles}
-                  transparentUI={transparentUI}
-                  onRetry={loadStops}
-                  onClose={() => { if (!isMapTabDisabled) setActiveTab('map'); }}
-                  onToggleFavorite={toggleFavoriteStop}
-                  onShowOnMap={(stop) => {
-                     if (isMapTabDisabled) return;
-                     if (stop.lat !== undefined && stop.lon !== undefined) {
-                        setMapCenter([stop.lat, stop.lon]);
-                     }
-                     setSelectedBus(null);
-                     setSelectedExternalStop(stop);
-                     setSelectedStopId(stop.id);
-                     setActiveTab('map');
-                  }}
-               />
-            </motion.div>
-         )}
-         </AnimatePresence>
+         <motion.div
+            key="new-stops-panel"
+            initial={false}
+            animate={activeTab === 'stops' ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 14, scale: 0.985 }}
+            transition={{ type: 'spring', stiffness: 700, damping: 35 }}
+            className={`absolute inset-0 z-10 overflow-hidden ${activeTab === 'stops' ? 'pointer-events-auto' : 'pointer-events-none'} ${
+               transparentUI
+                 ? 'bg-slate-950/88 backdrop-blur-2xl backdrop-saturate-150 before:pointer-events-none before:absolute before:inset-0 before:bg-white/[0.025] before:content-[""]'
+                 : 'bg-[#03060a]'
+            }`}
+            aria-hidden={activeTab !== 'stops'}
+         >
+            <StopsPanel
+               stops={stopsList}
+               isLoading={stopsList.length === 0 && !stopsLoadError}
+               hasError={stopsLoadError}
+               favorites={favsState}
+               vehicles={vehicles}
+               transparentUI={transparentUI}
+               isDarkTheme={isDark}
+               onRetry={loadStops}
+               onClose={() => { if (!isMapTabDisabled) setActiveTab('map'); }}
+               onToggleFavorite={toggleFavoriteStop}
+               onShowOnMap={(stop) => {
+                  if (isMapTabDisabled) return;
+                  if (stop.lat !== undefined && stop.lon !== undefined) {
+                     setMapCenter([stop.lat, stop.lon]);
+                  }
+                  setSelectedBus(null);
+                  setSelectedExternalStop(stop);
+                  setSelectedStopId(stop.id);
+                  setActiveTab('map');
+               }}
+            />
+         </motion.div>
 
       </div>
 
