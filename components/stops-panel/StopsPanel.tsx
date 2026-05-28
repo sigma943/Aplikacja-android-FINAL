@@ -25,6 +25,7 @@ type RawStop = {
   code?: string;
   lat?: number;
   lon?: number;
+  lines?: string[];
 };
 
 interface StopsPanelProps {
@@ -83,6 +84,13 @@ type InternalStop = Stop & {
   carrierMap: Map<string, Carrier>;
   baseNameKey: string;
   displayNamesByProvider: Record<string, string>;
+};
+
+type StopsSearchState = {
+  inputValue: string;
+  fullInputValue: string;
+  carrierFilter: 'all' | 'pks' | 'mpk' | 'marcel';
+  visibleFullCount: number;
 };
 
 const TOKEN_CACHE = new Map<string, string[]>();
@@ -1386,6 +1394,12 @@ export default function StopsPanel({
   const [pksLinesByStopId, setPksLinesByStopId] = useState<Record<string, string[]>>({});
   const [mergedStopsBase, setMergedStopsBase] = useState<Stop[]>([]);
   const [isPreparingStops, setIsPreparingStops] = useState(false);
+  const [stopsSearchState, setStopsSearchState] = useState<StopsSearchState>({
+    inputValue: '',
+    fullInputValue: '',
+    carrierFilter: 'all',
+    visibleFullCount: 40,
+  });
   const mergedStopsCacheKey = useMemo(
     () =>
       [
@@ -1448,36 +1462,71 @@ export default function StopsPanel({
   }, []);
 
   useEffect(() => {
-    const next = new Map<string, Set<string>>();
-    vehicles.forEach((vehicle) => {
-      if (vehicle.type === 'train') return;
-      if (String(vehicle.provider || 'pks') !== 'pks') return;
-      if (vehicle.status === 'technical') return;
-      const line = cleanLine(vehicle.routeShortName);
-      if (!line || line === '?') return;
-      if (isTechnicalDepartureData(line, vehicle.routeId, [vehicle.statusText, vehicle.name])) return;
-      const routeStops = [...(vehicle.routeStops || []), ...(vehicle.schedule || [])];
-      routeStops.forEach((routeStop) => {
-        const stopId = String(routeStop?.id || '').trim();
-        if (!stopId) return;
-        const lineSet = next.get(stopId) || new Set<string>();
-        lineSet.add(line);
-        next.set(stopId, lineSet);
+    let active = true;
+    const pksVehicles = vehicles.filter((vehicle) => {
+      if (vehicle.type === 'train') return false;
+      if (String(vehicle.provider || 'pks') !== 'pks') return false;
+      if (vehicle.status === 'technical') return false;
+      return true;
+    });
+
+    const buildIndex = (sourceVehicles: Vehicle[]) => {
+      const next = new Map<string, Set<string>>();
+      sourceVehicles.forEach((vehicle) => {
+        if (vehicle.type === 'train') return;
+        if (String(vehicle.provider || 'pks') !== 'pks') return;
+        if (vehicle.status === 'technical') return;
+        const line = cleanLine(vehicle.routeShortName);
+        if (!line || line === '?') return;
+        if (isTechnicalDepartureData(line, vehicle.routeId, [vehicle.statusText, vehicle.name])) return;
+        const routeStops = [
+          ...(vehicle.routePath || []).map((id) => ({ id })),
+          ...(vehicle.routeStops || []),
+          ...(vehicle.schedule || []),
+        ];
+        routeStops.forEach((routeStop) => {
+          const stopId = String(routeStop?.id || '').trim();
+          if (!stopId) return;
+          const lineSet = next.get(stopId) || new Set<string>();
+          lineSet.add(line);
+          next.set(stopId, lineSet);
+        });
       });
-    });
 
-    const nextIndex: Record<string, string[]> = {};
-    next.forEach((lineSet, stopId) => {
-      nextIndex[stopId] = sortedLines(lineSet);
-    });
+      const nextIndex: Record<string, string[]> = {};
+      next.forEach((lineSet, stopId) => {
+        nextIndex[stopId] = sortedLines(lineSet);
+      });
+      return nextIndex;
+    };
 
-    const timeoutId = window.setTimeout(() => {
+    const applyIndex = (nextIndex: Record<string, string[]>) => {
+      if (!active) return;
       setPksLinesByStopId((current) =>
         stopLinesIndexSignature(current) === stopLinesIndexSignature(nextIndex) ? current : nextIndex,
       );
-    }, 0);
+    };
 
-    return () => window.clearTimeout(timeoutId);
+    const timeoutId = window.setTimeout(() => applyIndex(buildIndex(pksVehicles)), 0);
+
+    const loadDetailedIndex = async () => {
+      const detailedVehicles = await mapWithConcurrency(pksVehicles, 4, async (vehicle) => {
+        const line = cleanLine(vehicle.routeShortName);
+        if (!line || line === '?') return vehicle;
+        const hasFullRoute = (vehicle.routePath?.length || 0) > 1 || (vehicle.routeStops?.length || 0) > 1;
+        if (hasFullRoute) return vehicle;
+        const details = await fetchCachedVehicleDetails('pks', vehicle).catch(() => null);
+        return mergeVehicleSnapshot(vehicle, details);
+      });
+      applyIndex(buildIndex(detailedVehicles));
+    };
+
+    loadDetailedIndex().catch(() => undefined);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
   }, [vehicles]);
 
   const buildMergedStopsBase = useCallback<() => Stop[]>(() => {
@@ -1734,7 +1783,8 @@ export default function StopsPanel({
         provider: 'pks',
         carrier: PKS_CARRIER,
       };
-      ensureTechnicalStop(raw);
+      const pksStop = ensureTechnicalStop(raw);
+      (stop.lines || []).forEach((line) => pksStop.lineSet.add(line));
     });
 
     mpkStops.forEach((mpkStop) => {
@@ -1862,11 +1912,18 @@ export default function StopsPanel({
       if (!pksLines.length) return stop;
       const mergedLineSet = new Set<string>([...(stop.lines || []), ...pksLines]);
       const lines = sortedLines(mergedLineSet);
+      const providerStopIds = {
+        ...(stop.providerStopIds || {}),
+        pksLines: mergeCsvValues(stop.providerStopIds?.pksLines, pksLines.join(',')),
+      };
       if (lines.length === stop.lines.length && lines.every((line, index) => line === stop.lines[index])) {
-        return stop;
+        const samePksLines = stop.providerStopIds?.pksLines === providerStopIds.pksLines;
+        if (samePksLines) return stop;
+        changed = true;
+        return { ...stop, providerStopIds };
       }
       changed = true;
-      return { ...stop, lines };
+      return { ...stop, lines, providerStopIds };
     });
     return changed ? next : mergedStopsBase;
   }, [mergedStopsBase, pksLinesByStopId]);
@@ -2036,6 +2093,8 @@ export default function StopsPanel({
             toggleFavorite={toggleFavorite}
             isFullScreen
             isDarkTheme={isDarkTheme}
+            searchState={stopsSearchState}
+            onSearchStateChange={(patch) => setStopsSearchState((current) => ({ ...current, ...patch }))}
           />
         )}
       </div>

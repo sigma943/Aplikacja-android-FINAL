@@ -212,7 +212,6 @@ export function OperatorsView({
           initialSettings={globalSettings}
           onSave={onSaveGlobalSettings}
           readOnly={globalSettingsReadOnly}
-          canManageProviderVisibility={currentDeviceRole === 'owner'}
         />
       )}
     </div>
@@ -626,14 +625,12 @@ function GlobalPermissionsModal({
   initialSettings,
   onSave,
   readOnly = false,
-  canManageProviderVisibility = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
   initialSettings: { loginEnabled: boolean; maintenanceMode: boolean; autoBan: boolean; hiddenProviderIds?: string[] };
   onSave: (settings: { loginEnabled: boolean; maintenanceMode: boolean; autoBan: boolean; hiddenProviderIds?: string[] }) => Promise<void>;
   readOnly?: boolean;
-  canManageProviderVisibility?: boolean;
 }) {
   const [settings, setSettings] = useState(initialSettings);
   const [baseline, setBaseline] = useState(initialSettings);
@@ -759,38 +756,6 @@ function GlobalPermissionsModal({
             </button>
           </div>
 
-          {canManageProviderVisibility && (
-            <div className="flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
-              <div>
-                <div className="text-base font-bold text-white mb-0.5">Ukryj PKP Intercity</div>
-                <div className="text-xs text-slate-500">Usuwa PKP Intercity z panelu Przewoznicy i z mapy dla wszystkich</div>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={Boolean((settings.hiddenProviderIds || []).includes('pkp_intercity'))}
-                disabled={readOnly}
-                onClick={() => !readOnly && setSettings((s) => {
-                  const hidden = new Set(s.hiddenProviderIds || []);
-                  if (hidden.has('pkp_intercity')) hidden.delete('pkp_intercity');
-                  else hidden.add('pkp_intercity');
-                  return { ...s, hiddenProviderIds: [...hidden] };
-                })}
-                className={cn(
-                  'flex h-7 w-12 shrink-0 items-center rounded-full border px-1 transition-all',
-                  readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-                  (settings.hiddenProviderIds || []).includes('pkp_intercity') ? 'justify-end border-amber-500/50 bg-amber-500/20' : 'justify-start border-white/10 bg-white/5',
-                )}
-              >
-                <span
-                  className={cn(
-                    'h-5 w-5 rounded-full shadow-md transition-all',
-                    (settings.hiddenProviderIds || []).includes('pkp_intercity') ? 'bg-amber-400' : 'bg-slate-600',
-                  )}
-                />
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="p-6 border-t border-white/5 bg-[#111623]/50 flex justify-end">

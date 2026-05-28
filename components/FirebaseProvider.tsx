@@ -96,6 +96,7 @@ function readHiddenProviderIdsCache() {
     return raw
       .filter((value): value is string => typeof value === 'string')
       .map((value) => value.trim())
+      .filter((value) => value !== 'pkp_intercity')
       .filter(Boolean);
   } catch {
     return [];
@@ -108,6 +109,7 @@ function normalizeHiddenProviderIds(raw: unknown) {
     raw
       .filter((value): value is string => typeof value === 'string')
       .map((value) => value.trim())
+      .filter((value) => value !== 'pkp_intercity')
       .filter(Boolean),
   )];
 }

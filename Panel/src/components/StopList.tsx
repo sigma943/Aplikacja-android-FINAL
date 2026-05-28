@@ -11,6 +11,18 @@ interface StopListProps {
   isFullScreen?: boolean;
   isLoading?: boolean;
   isDarkTheme?: boolean;
+  searchState?: {
+    inputValue: string;
+    fullInputValue: string;
+    carrierFilter: CarrierFilterId;
+    visibleFullCount: number;
+  };
+  onSearchStateChange?: (state: {
+    inputValue?: string;
+    fullInputValue?: string;
+    carrierFilter?: CarrierFilterId;
+    visibleFullCount?: number;
+  }) => void;
 }
 
 const ENABLE_TRAINS = false;
@@ -58,12 +70,35 @@ export default function StopList({
   isFullScreen = false,
   isLoading = false,
   isDarkTheme = true,
+  searchState,
+  onSearchStateChange,
 }: StopListProps) {
-  const [inputValue, setInputValue] = useState('');
+  const [localInputValue, setLocalInputValue] = useState('');
   const [isFullListOpen, setIsFullListOpen] = useState(false);
-  const [fullInputValue, setFullInputValue] = useState('');
-  const [carrierFilter, setCarrierFilter] = useState<CarrierFilterId>('all');
-  const [visibleFullCount, setVisibleFullCount] = useState(40);
+  const [localFullInputValue, setLocalFullInputValue] = useState('');
+  const [localCarrierFilter, setLocalCarrierFilter] = useState<CarrierFilterId>('all');
+  const [localVisibleFullCount, setLocalVisibleFullCount] = useState(40);
+  const inputValue = searchState?.inputValue ?? localInputValue;
+  const fullInputValue = searchState?.fullInputValue ?? localFullInputValue;
+  const carrierFilter = searchState?.carrierFilter ?? localCarrierFilter;
+  const visibleFullCount = searchState?.visibleFullCount ?? localVisibleFullCount;
+  const setInputValue = (value: string) => {
+    setLocalInputValue(value);
+    onSearchStateChange?.({ inputValue: value });
+  };
+  const setFullInputValue = (value: string) => {
+    setLocalFullInputValue(value);
+    onSearchStateChange?.({ fullInputValue: value });
+  };
+  const setCarrierFilterValue = (value: CarrierFilterId) => {
+    setLocalCarrierFilter(value);
+    onSearchStateChange?.({ carrierFilter: value });
+  };
+  const setVisibleFullCountValue = (value: number | ((current: number) => number)) => {
+    const next = typeof value === 'function' ? value(visibleFullCount) : value;
+    setLocalVisibleFullCount(next);
+    onSearchStateChange?.({ visibleFullCount: next });
+  };
   const deferredInputValue = useDeferredValue(inputValue);
   const deferredFullInputValue = useDeferredValue(fullInputValue);
   const sortedStops = useMemo(() => {
@@ -118,7 +153,7 @@ export default function StopList({
 
   const handleCloseFullList = () => {
     setFullInputValue('');
-    setVisibleFullCount(40);
+    setVisibleFullCountValue(40);
     setIsFullListOpen(false);
   };
 
@@ -131,8 +166,8 @@ export default function StopList({
             type="button"
             key={filter.id}
             onClick={() => {
-              setCarrierFilter(filter.id);
-              setVisibleFullCount(40);
+              setCarrierFilterValue(filter.id);
+              setVisibleFullCountValue(40);
             }}
             className={`flex shrink-0 items-center gap-2 rounded-2xl border px-3.5 py-2 text-[11px] font-black transition-all ${
               isActive
@@ -150,7 +185,7 @@ export default function StopList({
     </div>
   );
 
-  const renderLineBadges = (lines: string[], expanded = false, providerId?: string) => {
+  const renderLineBadges = (lines: string[], expanded = false, providerId?: string, pksLineSet?: Set<string>) => {
     const visibleCount = expanded ? lines.length : Math.min(lines.length, 5);
     const visible = lines.slice(0, visibleCount);
     const remaining = lines.length - visible.length;
@@ -158,7 +193,7 @@ export default function StopList({
     return (
       <div className="mt-1 flex min-w-0 max-w-full flex-wrap items-center gap-1 overflow-hidden">
         {visible.map((line) => (
-          <span key={line} className={`max-w-[5.5rem] truncate rounded border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line, providerId)}`}>
+          <span key={line} className={`max-w-[5.5rem] truncate rounded border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line, pksLineSet?.has(line) ? 'pks' : providerId)}`}>
             {line}
           </span>
         ))}
@@ -174,6 +209,7 @@ export default function StopList({
   const renderStopCard = (stop: Stop, index: number, full = false) => {
     const isBus = stop.type === 'bus';
     const singleProviderId = stop.carriers.length === 1 ? stop.carriers[0].id : undefined;
+    const pksLineSet = new Set(String(stop.providerStopIds?.pksLines || '').split(',').map((line) => line.trim()).filter(Boolean));
     return (
       <div
         key={`${full ? 'full' : 'list'}-${stop.id}`}
@@ -205,7 +241,7 @@ export default function StopList({
                 {isBus ? 'Przystanek autobusowy' : 'Stacja kolejowa'}
               </span>
             </div>
-            {isBus && stop.lines.length > 0 && renderLineBadges(stop.lines, full, singleProviderId)}
+            {isBus && stop.lines.length > 0 && renderLineBadges(stop.lines, full, singleProviderId, pksLineSet)}
           </div>
         </div>
 
@@ -303,7 +339,7 @@ export default function StopList({
                   type="button"
                   onClick={() => {
                     setFullInputValue(inputValue);
-                    setVisibleFullCount(40);
+                    setVisibleFullCountValue(40);
                     setIsFullListOpen(true);
                   }}
                   className="cursor-pointer rounded-2xl border border-teal-500/20 bg-teal-500/10 px-6 py-3.5 text-xs font-extrabold uppercase tracking-wider text-teal-300 transition-colors hover:bg-teal-500/20 hover:text-white"
@@ -361,7 +397,7 @@ export default function StopList({
                 value={fullInputValue}
                 onChange={(event) => {
                   setFullInputValue(event.target.value);
-                  setVisibleFullCount(40);
+                  setVisibleFullCountValue(40);
                 }}
               />
               {fullInputValue && (
@@ -369,7 +405,7 @@ export default function StopList({
                   type="button"
                   onClick={() => {
                     setFullInputValue('');
-                    setVisibleFullCount(40);
+                    setVisibleFullCountValue(40);
                   }}
                   className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 transition-colors ${
                     isDarkTheme ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
@@ -390,7 +426,7 @@ export default function StopList({
               <div className="mb-6 mt-4 flex justify-center">
                 <button
                   type="button"
-                  onClick={() => setVisibleFullCount((count) => count + 40)}
+                  onClick={() => setVisibleFullCountValue((count) => count + 40)}
                   className="group flex w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-teal-500/20 bg-teal-500/10 px-6 py-3.5 text-center text-xs font-black uppercase tracking-wider text-teal-300 transition-colors hover:border-teal-500/40 hover:bg-teal-500/15 hover:shadow-[0_0_15px_rgba(20,184,166,0.15)]"
                 >
                   <span>Pokaż więcej (+{fullFilteredStops.length - visibleFullCount} pozostałych)</span>

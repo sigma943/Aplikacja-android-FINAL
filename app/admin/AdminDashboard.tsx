@@ -439,6 +439,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
         autoBan: Boolean(data.autoBan),
         hiddenProviderIds: Array.isArray(data.hiddenProviderIds)
           ? data.hiddenProviderIds.filter((value): value is string => typeof value === 'string').map((value) => value.trim()).filter(Boolean)
+              .filter((providerId) => providerId !== 'pkp_intercity')
           : [],
       });
     });
@@ -1498,25 +1499,26 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           globalSettings={globalSettings}
           onSaveGlobalSettings={async (settings) => {
             if (!globalSettingsCanSave) return;
+            const sanitizedSettings = {
+              ...settings,
+              hiddenProviderIds: (settings.hiddenProviderIds || []).filter((providerId) => providerId !== 'pkp_intercity'),
+            };
             if (
-              globalSettings.loginEnabled === settings.loginEnabled &&
-              globalSettings.maintenanceMode === settings.maintenanceMode &&
-              globalSettings.autoBan === settings.autoBan &&
-              JSON.stringify([...globalSettings.hiddenProviderIds].sort()) === JSON.stringify([...(settings.hiddenProviderIds || [])].sort())
+              globalSettings.loginEnabled === sanitizedSettings.loginEnabled &&
+              globalSettings.maintenanceMode === sanitizedSettings.maintenanceMode &&
+              globalSettings.autoBan === sanitizedSettings.autoBan &&
+              JSON.stringify([...globalSettings.hiddenProviderIds].filter((providerId) => providerId !== 'pkp_intercity').sort()) === JSON.stringify([...(sanitizedSettings.hiddenProviderIds || [])].sort())
             ) {
               return;
             }
-            await setDoc(doc(db, 'admin_settings', 'security'), settings, { merge: true });
-            if (settings.autoBan) {
+            await setDoc(doc(db, 'admin_settings', 'security'), sanitizedSettings, { merge: true });
+            if (sanitizedSettings.autoBan) {
               await enforceAutoBanForUnverifiedDevices();
             }
             const desc = [
-              settings.loginEnabled ? 'logowanie włączone' : 'logowanie wyłączone',
-              settings.maintenanceMode ? 'konserwacja włączona' : 'konserwacja wyłączona',
-              settings.autoBan ? 'auto-ban włączony' : 'auto-ban wyłączony',
-              (settings.hiddenProviderIds || []).includes('pkp_intercity')
-                ? 'PKP Intercity ukryty'
-                : 'PKP Intercity widoczny',
+              sanitizedSettings.loginEnabled ? 'logowanie włączone' : 'logowanie wyłączone',
+              sanitizedSettings.maintenanceMode ? 'konserwacja włączona' : 'konserwacja wyłączona',
+              sanitizedSettings.autoBan ? 'auto-ban włączony' : 'auto-ban wyłączony',
             ].join(' · ');
             await writeAuditLog({
               title: 'Zmieniono ustawienia globalne',

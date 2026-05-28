@@ -1,10 +1,10 @@
 'use client';
 
-import { memo, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { memo, startTransition, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomControl, useMapEvents, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
+import { fetchRouteGeometryClient, fetchRouteShapeClient, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
@@ -18,6 +18,21 @@ const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
 const ROUTE_GEOMETRY_DB_VERSION = 1;
 const ROUTE_GEOMETRY_DB_STORE = 'routes';
 let routeGeometryDbPromise: Promise<IDBDatabase | null> | null = null;
+
+function deferMapStorageWrite(value: { center: L.LatLng; zoom: number }) {
+  if (typeof window === 'undefined') return;
+  const write = () => {
+    try {
+      window.localStorage.setItem('mks_map_state', JSON.stringify(value));
+    } catch {}
+  };
+
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(write, { timeout: 1200 });
+    return;
+  }
+  globalThis.setTimeout(write, 0);
+}
 
 function getVehicleColor(vehicle?: Pick<Vehicle, 'provider'> | null, fallback = PKS_COLOR) {
   if (vehicle?.provider === 'mpk_rzeszow') return MPK_RZESZOW_COLOR;
@@ -266,13 +281,13 @@ function MapStateTracker({
     zoomstart: () => onInteraction(true),
     zoomend: () => {
       onInteraction(false);
-      localStorage.setItem('mks_map_state', JSON.stringify({ center: map.getCenter(), zoom: map.getZoom() }));
+      deferMapStorageWrite({ center: map.getCenter(), zoom: map.getZoom() });
       emitViewport();
     },
     movestart: () => onInteraction(true),
     moveend: () => {
       onInteraction(false);
-      localStorage.setItem('mks_map_state', JSON.stringify({ center: map.getCenter(), zoom: map.getZoom() }));
+      deferMapStorageWrite({ center: map.getCenter(), zoom: map.getZoom() });
       emitViewport();
     },
   });
@@ -1068,16 +1083,17 @@ export default function BusMap({
     const intervalId = window.setInterval(() => setRouteClockMs(Date.now()), 20_000);
     return () => window.clearInterval(intervalId);
   }, [selectedVehicle?.id, selectedVehicle?.provider]);
+  const selectedSchedule = useMemo(() => selectedVehicle?.schedule || [], [selectedVehicle?.schedule]);
+  const selectedLastStopId = selectedVehicle?.lastStopId;
   const visibleRouteStopIds = useMemo(() => {
-    const schedule = selectedVehicle?.schedule || [];
-    const scheduleIds = schedule
+    const scheduleIds = selectedSchedule
       .filter((stop: any) => isUpcomingScheduleStop(stop, routeClockMs))
-      .filter((stop: any) => !(selectedVehicle?.lastStopId && Number(stop?.id) === Number(selectedVehicle.lastStopId)))
+      .filter((stop: any) => !(selectedLastStopId && Number(stop?.id) === Number(selectedLastStopId)))
       .map((stop: any) => stop.id)
       .filter((id: unknown) => Number.isFinite(Number(id)));
     const upcomingIds = dedupeStableStopIds(scheduleIds);
-    return schedule.length > 0 ? upcomingIds : [];
-  }, [routeClockMs, selectedVehicle?.lastStopId, selectedVehicle?.schedule]);
+    return selectedSchedule.length > 0 ? upcomingIds : [];
+  }, [routeClockMs, selectedLastStopId, selectedSchedule]);
   const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
   const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
     const next: RouteGeometryStop[] = [];
@@ -1126,19 +1142,19 @@ export default function BusMap({
     routeAbortRef.current = null;
 
     if (!selectedVehicle) {
-      setSnappedRoute([]);
+      startTransition(() => setSnappedRoute([]));
       selectedVehicleIdentityRef.current = '';
       return;
     }
 
     const currentIdentity = `${selectedVehicle.provider || 'pks'}:${selectedVehicle.id}`;
     if (selectedVehicleIdentityRef.current && selectedVehicleIdentityRef.current !== currentIdentity) {
-      setSnappedRoute([]);
+      startTransition(() => setSnappedRoute([]));
     }
     selectedVehicleIdentityRef.current = currentIdentity;
 
     if (routeGeometryStops.length < 2) {
-      setSnappedRoute([]);
+      startTransition(() => setSnappedRoute([]));
       return;
     }
 
@@ -1164,8 +1180,32 @@ export default function BusMap({
         return;
       }
 
-      // Route is intentionally blank until real road/rail geometry is ready.
-      setSnappedRoute([]);
+      const officialRoute = routeMode === 'road'
+        ? await fetchRouteShapeClient(
+            String(
+              selectedVehicle.tripId ||
+              selectedVehicle.journeyId ||
+              selectedVehicle.serviceId ||
+              selectedVehicle.routeId ||
+              '',
+            ),
+            routeStopIds,
+            routeStopsData,
+            {
+              refineTimeoutMs: 900,
+              disableSyntheticFallback: true,
+              startPoint: [selectedVehicle.lat, selectedVehicle.lon],
+            },
+          ).catch(() => [])
+        : [];
+      if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
+      if (officialRoute.length > 1) {
+        const refinedOfficialRoute = simplifyRouteForPaint(officialRoute);
+        refinedRouteCacheRef.current.set(routeKey, refinedOfficialRoute);
+        refinedRouteByVehicleRef.current.set(currentIdentity, refinedOfficialRoute);
+        writePersistentRouteGeometry(routeKey, refinedOfficialRoute, routeGeometryVersion);
+        startTransition(() => setSnappedRoute(refinedOfficialRoute));
+      }
 
       const response = await fetchRouteGeometryClient({
         carrier: selectedVehicle.provider || 'pks',
@@ -1204,7 +1244,7 @@ export default function BusMap({
             const firstVehicleKey = refinedRouteByVehicleRef.current.keys().next().value;
             if (firstVehicleKey) refinedRouteByVehicleRef.current.delete(firstVehicleKey);
           }
-          setSnappedRoute(refinedRoute);
+          startTransition(() => setSnappedRoute(refinedRoute));
           return;
         }
     };

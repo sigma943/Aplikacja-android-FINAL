@@ -207,7 +207,7 @@ const withAlpha = (hex: string, alpha: number) => {
 };
 
 const DEFAULT_ACTIVE_PROVIDERS: TransportProviderId[] = ['pks'];
-const AVAILABLE_TRANSPORT_PROVIDERS = new Set<TransportProviderId>(['pks', 'mpk_rzeszow', 'marcel', 'pkp_intercity']);
+const AVAILABLE_TRANSPORT_PROVIDERS = new Set<TransportProviderId>(['pks', 'mpk_rzeszow', 'marcel']);
 const PKP_INTERCITY_REFRESH_MS = 60_000;
 const NETWORK_REACHABILITY_URL = 'https://www.gstatic.com/generate_204';
 
@@ -1551,14 +1551,6 @@ export default function Home() {
         enabled: true,
         type: 'bus',
         iconVariant: 'marcel',
-      },
-      {
-        id: 'pkp_intercity',
-        label: 'Pociagi PKP Intercity',
-        color: PKP_INTERCITY_COLOR,
-        enabled: true,
-        type: 'train',
-        iconVariant: 'IC',
       },
     ];
     return options.filter((option) => !hiddenProvidersSet.has(option.id));
