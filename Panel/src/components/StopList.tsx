@@ -1,9 +1,10 @@
-import React, { useDeferredValue, useMemo, useState } from 'react';
+import React, { useEffect, useDeferredValue, useMemo, useState } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
 
 interface StopListProps {
+  onVisibleStopsChange?: (stops: Stop[]) => void;
   onStopSelect: (stop: Stop) => void;
   onClose?: () => void;
   toggleFavorite: (stopId: string) => void;
@@ -44,7 +45,7 @@ type SearchableStop = {
 function normalizeSearchText(value: unknown) {
   return String(value || '')
     .trim()
-    .toLowerCase()
+    .toLowerCase().replace(/ł/g, 'l')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
@@ -64,6 +65,7 @@ function filterStops(stops: SearchableStop[], query: string, carrierFilter: Carr
 
 export default function StopList({
   onStopSelect,
+  onVisibleStopsChange,
   onClose,
   toggleFavorite,
   stops,
@@ -134,6 +136,11 @@ export default function StopList({
   );
   const displayStops = useMemo(() => filteredStops.slice(0, 30), [filteredStops]);
   const slicedFullStops = useMemo(() => fullFilteredStops.slice(0, visibleFullCount), [fullFilteredStops, visibleFullCount]);
+  const visibleStops = isFullListOpen ? slicedFullStops : displayStops;
+  const visibleKey = visibleStops.map(stop=>stop.id).join('|');
+  const visibleRef = React.useRef(visibleStops);
+  visibleRef.current = visibleStops;
+  useEffect(() => { onVisibleStopsChange?.(visibleRef.current); }, [visibleKey,onVisibleStopsChange]);
   const shellClass = isDarkTheme ? 'text-slate-200' : 'text-slate-800';
   const headerClass = isDarkTheme
     ? 'border-white/[0.08] bg-[#07111d]/30 shadow-[0_18px_60px_rgba(0,0,0,0.16)]'
@@ -185,7 +192,7 @@ export default function StopList({
     </div>
   );
 
-  const renderLineBadges = (lines: string[], expanded = false, providerId?: string, pksLineSet?: Set<string>) => {
+  const renderLineBadges = (lines: string[], expanded = false, providerId?: string, pksLineSet?: Set<string>, providers?: Record<string,string[]>) => {
     const visibleCount = expanded ? lines.length : Math.min(lines.length, 5);
     const visible = lines.slice(0, visibleCount);
     const remaining = lines.length - visible.length;
@@ -193,7 +200,7 @@ export default function StopList({
     return (
       <div className="mt-1 flex min-w-0 max-w-full flex-wrap items-center gap-1 overflow-hidden">
         {visible.map((line) => (
-          <span key={line} className={`max-w-[5.5rem] truncate rounded border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line, pksLineSet?.has(line) ? 'pks' : providerId)}`}>
+          <span key={line} className={`max-w-[5.5rem] truncate rounded border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line, providers?.[line]?.[0] || (pksLineSet?.has(line) ? 'pks' : providerId))}`}>
             {line}
           </span>
         ))}
@@ -241,7 +248,7 @@ export default function StopList({
                 {isBus ? 'Przystanek autobusowy' : 'Stacja kolejowa'}
               </span>
             </div>
-            {isBus && stop.lines.length > 0 && renderLineBadges(stop.lines, full, singleProviderId, pksLineSet)}
+            {isBus && stop.lines.length > 0 && renderLineBadges(stop.lines, full, singleProviderId, pksLineSet, stop.lineProviders)}
           </div>
         </div>
 

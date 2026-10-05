@@ -16,7 +16,7 @@ const StableDeviceId = registerPlugin<{ getId: () => Promise<{ identifier?: stri
 const registerDeviceIdentityFn = httpsCallable<
   { installationId: string; deviceInfo: string },
   { ok?: boolean; installationId?: string; status?: string; dedupedPreviousUid?: string }
->(functions, 'registerDeviceIdentity');
+>(functions, 'registerDeviceIdentity', { timeout: 5000 });
 
 export interface DeviceData {
   deviceInfo: string;
@@ -355,7 +355,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       // #endregion
       try {
         const deviceInfo = await getClientDeviceInfo();
-        try {
+        if (process.env.NEXT_PUBLIC_USE_IDENTITY_FUNCTION === 'true') try {
           await registerDeviceIdentityFn({ installationId: instId, deviceInfo });
           agentLog(
             'FirebaseProvider.tsx:registerIdentity:functionOk',

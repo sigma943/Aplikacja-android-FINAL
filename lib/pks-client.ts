@@ -1,5 +1,13 @@
+import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
+import {officialBusStops} from './official-bus-routes';
+import {decodePolyline,routeChunks,joinRouteChunks} from './bus-road-geometry';
+import { busOperatingState, transitTimestamp } from './bus-operating-state';
+import pksSchoolCalendar from '@/public/data/mpk-service-calendar.json';
 import {Capacitor, CapacitorHttp} from '@capacitor/core';
 import type {Vehicle} from '@/components/BusMap';
+import { warsawDateIso, warsawTimeMs } from './transit-time';
+import { withRequestDeadline } from './request-deadline';
+import { mpkBoardEntries, mpkServicesOnDate, type MpkCalendar } from './mpk-departures';
 
 type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: string; code?: string}>;
 type FullStopRecord = { id?: string; name?: string; areaId?: string; code?: string };
@@ -117,6 +125,7 @@ const TRANSPORT_API_BASE_URL = (
   process.env.NEXT_PUBLIC_TRANSPORT_API_BASE_URL ||
   'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi'
 ).replace(/\/$/, '');
+const MPK_RZESZOW_VEHICLES_JSON_URL = 'https://www.mpkrzeszow.pl/ztm/new/api.php?type=mpk';
 const MPK_RZESZOW_VEHICLES_XML_URL = 'https://www.mpkrzeszow.pl/mpk/vehicles_proxy.php';
 const MPK_RZESZOW_VEHICLES_DETAILS_URL = 'https://www.mpkrzeszow.pl/mpk/get_vehicles.php';
 const MPK_RZESZOW_TRIP_STOPS_URL = 'https://www.mpkrzeszow.pl/brygady/get_trip_stops_advanced.php';
@@ -150,7 +159,7 @@ const vehicleSpeedHistory = new Map<string, { lat: number; lon: number; atMs: nu
 const MARCEL_STALE_MS = 7 * 60 * 1000;
 const CLIENT_STOP_CACHE_VERSION = 4;
 const CLIENT_STOP_CACHE_TTL_MS = 15 * 60 * 1000;
-const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v4';
+const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v5';
 const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v4';
 
 type MarcelCourseStop = {
@@ -179,6 +188,10 @@ function einfoFallbackUrl(pathAndOptionalQuery: string) {
 }
 
 async function requestJson<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
+  return withRequestDeadline((signal) => requestJsonImpl<T>(url, { ...init, signal }), init?.signal || undefined);
+}
+
+async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
   if (isNative()) {
     let data: unknown;
     if (typeof init?.body === 'string' && init.body) {
@@ -231,7 +244,7 @@ async function requestJson<T>(url: string, init?: RequestInit & {headers?: Recor
 }
 
 async function requestEinfoJson<T>(pathAndOptionalQuery: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
-  return requestJson<T>(einfoFallbackUrl(pathAndOptionalQuery), init);
+  return requestJson<T>(isNative() ? einfoFallbackUrl(pathAndOptionalQuery) : '/api/pks/einfo/' + pathAndOptionalQuery, init);
 }
 
 function stableStringify(value: unknown): string {
@@ -316,6 +329,10 @@ function bestPksStopName(areaName: string, stopName: string) {
 }
 
 async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
+  return withRequestDeadline((signal) => requestTextImpl(url, { ...init, signal }), init?.signal || undefined);
+}
+
+async function requestTextImpl(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
   if (isNative()) {
     const response = await CapacitorHttp.request({
       url,
@@ -346,7 +363,7 @@ async function requestText(url: string, init?: RequestInit & {headers?: Record<s
 
 async function fetchPksVehiclesSnapshot(signal?: AbortSignal) {
   const panelFeedUrl = isNative() ? 'http://185.214.67.112/api/its/vehicles' : '/api/pks/vehicles';
-  const panelFeed = await requestJson<any>(panelFeedUrl, {
+  const panelRequest = requestJson<any>(panelFeedUrl, {
     signal,
     headers: isNative()
       ? {
@@ -354,14 +371,22 @@ async function fetchPksVehiclesSnapshot(signal?: AbortSignal) {
           Accept: 'application/json',
         }
       : { Accept: 'application/json' },
-  }).catch(() => null);
-  const panelItems = Array.isArray(panelFeed?.items) ? panelFeed.items : Array.isArray(panelFeed) ? panelFeed : [];
-  if (panelItems.length > 0) return panelItems;
+  }).then((feed) => Array.isArray(feed?.items) ? feed.items : Array.isArray(feed) ? feed : []);
+  const directRequest = requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal });
+  try {
+    return await Promise.any([panelRequest, directRequest].map(async (request) => {
+      const items = await request;
+      if (!Array.isArray(items) || items.length === 0) throw new Error('Empty PKS snapshot');
+      return items;
+    }));
+  } catch (error) {
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+  }
 
   const wsItems = await fetchPksVehiclesFromPanelWebSocket(signal).catch(() => []);
   if (wsItems.length > 0) return wsItems;
 
-  return requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal }).catch(() => []);
+  return [];
 }
 
 function fetchPksVehiclesFromPanelWebSocket(signal?: AbortSignal): Promise<any[]> {
@@ -421,7 +446,7 @@ async function fetchPksVehiclesClient(includeInactive: boolean, signal?: AbortSi
 async function fetchPksVehicleDetailsClient(vehicleId: string, includeInactive: boolean) {
   const [rawVehicles, stopsDict] = await Promise.all([
     fetchPksVehiclesSnapshot(),
-    loadStopsDictionary(),
+    loadStopPointIndex(),
   ]);
   const rawVehicle = (Array.isArray(rawVehicles) ? rawVehicles : []).find((vehicle) =>
     String(vehicle?.vehicle_id ?? vehicle?.id ?? `json-${getTripBase(vehicle?.trip_id) || ''}`) === String(vehicleId),
@@ -429,6 +454,16 @@ async function fetchPksVehicleDetailsClient(vehicleId: string, includeInactive: 
   if (!rawVehicle) return null;
 
   const mapped = mapVehicle(rawVehicle, Date.now(), includeInactive, stopsDict, true);
+  if(mapped) {
+    const officialStops=await officialBusStops('pks',rawVehicle.trip_id).catch(()=>[]);
+    const full=mapped.routeStops||[];
+    const aligned=officialStops.length===full.length && full.every((stop,index)=>!Number.isFinite(stop.lat)||!Number.isFinite(stop.lon)||distanceMeters([stop.lat!,stop.lon!],[officialStops[index].lat,officialStops[index].lon])<1200);
+    if(aligned) {
+      mapped.routeStops=full.map((stop,index)=>({...stop,lat:stop.lat??officialStops[index].lat,lon:stop.lon??officialStops[index].lon}));
+      const byId=new Map(mapped.routeStops.map(stop=>[String(stop.id),stop]));
+      mapped.schedule=mapped.schedule?.map(stop=>({...stop,lat:stop.lat??byId.get(String(stop.id))?.lat,lon:stop.lon??byId.get(String(stop.id))?.lon}));
+    }
+  }
   return mapped
     ? {
         ...mapped,
@@ -445,13 +480,20 @@ async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: 
   if (includeInactive) searchParams.set('includeInactive', 'true');
 
   try {
+    const direct = await fetchMpkRzeszowVehiclesDirect(includeInactive, signal);
+    if (direct.length > 0) return direct;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+  }
+  try {
     const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', searchParams), { signal });
     const vehicles = (response.vehicles || []).map(mapTransportVehicleToClient);
-    if (vehicles.length > 0) return vehicles;
-    return fetchMpkRzeszowVehiclesDirect(includeInactive);
+      if (vehicles.length > 0) return vehicles;
+    return fetchMpkRzeszowVehiclesDirect(includeInactive, signal);
   } catch (error) {
+    if (signal?.aborted) throw error;
     console.warn('MPK Rzeszów backend unavailable, using direct MPK feed:', error);
-    return fetchMpkRzeszowVehiclesDirect(includeInactive);
+    return fetchMpkRzeszowVehiclesDirect(includeInactive, signal);
   }
 }
 
@@ -697,7 +739,7 @@ async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop
             .filter((stop): stop is MarcelCourseStop => Boolean(stop))
             .sort((a, b) => a.order - b.order);
         })
-        .catch(() => []),
+        .catch(error => { marcelCourseStopsCache.delete(id); throw error; }),
     );
     if (marcelCourseStopsCache.size > 200) {
       const firstKey = marcelCourseStopsCache.keys().next().value;
@@ -761,18 +803,6 @@ function computeObservedSpeedKmh(vehicleKey: string, lat: number, lon: number, o
   return Math.round(speed);
 }
 
-function firstFutureStopMs(stops: Array<{ planned?: string | null; real?: string | null; id?: unknown }>, nowMs: number) {
-  for (const stop of stops) {
-    const raw = String(stop.real || stop.planned || '').trim();
-    if (!raw) continue;
-    const ms = new Date(raw.replace(' ', 'T')).getTime();
-    if (Number.isFinite(ms) && ms > nowMs + 2 * 60_000) {
-      return { ms, id: Number(stop.id) };
-    }
-  }
-  return null;
-}
-
 function estimateMarcelDelaySeconds(lat: number, lon: number, stops: MarcelCourseStop[], nowMs: number) {
   if (stops.length === 0) return 0;
   if (stops.length === 1) return Math.round((nowMs - stops[0].plannedMs) / 1000);
@@ -826,28 +856,6 @@ function buildMarcelRouteStops(stops: MarcelCourseStop[], delaySeconds: number, 
   });
 }
 
-function inferMarcelStatus(
-  hasLine: boolean,
-  lat: number,
-  lon: number,
-  stops: MarcelCourseStop[],
-  delaySeconds: number,
-  dataAgeSec: number,
-  nowMs: number,
-) {
-  if (!hasLine) {
-    return { status: 'inactive' as const, statusText: 'Pojazd bez przypisanej linii' };
-  }
-
-  const firstStop = stops[0];
-  const firstDepartureMs = firstStop ? firstStop.plannedMs + delaySeconds * 1000 : NaN;
-  if (Number.isFinite(firstDepartureMs) && firstDepartureMs - nowMs > 2 * 60 * 1000) {
-    return { status: 'break' as const, statusText: `Przerwa do ${formatClock(firstDepartureMs)}` };
-  }
-
-  return { status: 'active' as const, statusText: 'W trasie' };
-}
-
 async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean): Promise<Vehicle | null> {
   const lat = readMarcelNumber(raw, ['lat', 'latitude', 'szGps', 'szerokosc', 'szerokoscGeo', 'position.lat', 'position.latitude']);
   const lon = readMarcelNumber(raw, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
@@ -868,15 +876,16 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     ? timestampMs
     : getObservedMarcelSignalMs(String(rawVehicleId), lat, lon, now);
   const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
-  const courseStops = await fetchMarcelCourseStops(tripId);
+  const courseStops = await fetchMarcelCourseStops(tripId).catch(() => []);
   const delay = estimateMarcelDelaySeconds(lat, lon, courseStops, now);
   const schedule = buildMarcelSchedule(courseStops, delay, now);
   const routeStops = buildMarcelRouteStops(courseStops, delay, now);
   const fullRoutePath = routeStops.map((stop) => stop.id);
   const hasLine = line !== '?';
-  const vehicleStatus = inferMarcelStatus(hasLine, lat, lon, courseStops, delay, dataAgeSec, now);
+
   const rawSpeed = readMarcelNumber(raw, ['speed', 'predkosc', 'prędkość', 'v', 'velocity', 'position.speed']);
   const speed = computeObservedSpeedKmh(`marcel:${rawVehicleId}`, lat, lon, signalMs, rawSpeed);
+  const vehicleStatus = busOperatingState({lat,lon,speed:speed??0,nowMs:now,stops:routeStops});
   const nextStopId = schedule[0]?.id ?? routeStops.find((stop) => !stop.isPast)?.id ?? '';
   const progressState = getMarcelProgressState(String(rawVehicleId), lat, lon, tripId, nextStopId, now);
   const firstStop = routeStops[0];
@@ -919,7 +928,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     model: readMarcelString(raw, ['model', 'vehicle.model']),
     lastSignalTime: new Date(signalMs).toISOString(),
     previousTripEndedAtMs: vehicleStatus.status === 'break' ? now : undefined,
-    nextTripStartAtMs: vehicleStatus.status === 'break' && courseStops[0] ? courseStops[0].plannedMs + delay * 1000 : undefined,
+    nextTripStartAtMs: 'nextTripStartAtMs' in vehicleStatus ? vehicleStatus.nextTripStartAtMs : undefined,
     nextTripFirstStopId: vehicleStatus.status === 'break' ? courseStops[0]?.id : undefined,
     journeyId: tripId,
     serviceId: readMarcelString(raw, ['serviceId', 'service_id', 'brygada']) || undefined,
@@ -1015,23 +1024,10 @@ function getEffectiveMpkDelay(
   return rawDelay;
 }
 
-function inferMpkBreakFromSchedule(schedule: Vehicle['schedule'], nowMs: number) {
-  const nextTrip = firstFutureStopMs(schedule || [], nowMs);
-  return nextTrip ? {
-    nextTripStartAtMs: nextTrip.ms,
-    nextTripFirstStopId: Number.isFinite(nextTrip.id) ? nextTrip.id : undefined,
-  } : null;
-}
-
-function buildDateFromMpkTime(timeValue: unknown, anchorDate: Date, previousDate: Date | null) {
-  const raw = String(timeValue || '').trim();
-  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(raw);
-  if (!match) return null;
-
-  const date = new Date(anchorDate);
-  date.setHours(Number(match[1]), Number(match[2]), Number(match[3] || '0'), 0);
-  if (previousDate && date < previousDate) date.setDate(date.getDate() + 1);
-  return date;
+function buildDateFromMpkTime(timeValue: unknown, anchorDate: Date, previousDate: Date|null) {
+  let ms=warsawTimeMs(warsawDateIso(0,anchorDate),timeValue);
+  if(previousDate && ms<previousDate.getTime())ms=warsawTimeMs(warsawDateIso(1,anchorDate),timeValue);
+  return Number.isFinite(ms)?new Date(ms):null;
 }
 
 async function fetchMpkTripStops(tripId: string) {
@@ -1041,7 +1037,7 @@ async function fetchMpkTripStops(tripId: string) {
       tripId,
       requestJson<{ stops?: any[] }>(`${MPK_RZESZOW_TRIP_STOPS_URL}?${searchParams.toString()}`)
         .then((data) => (Array.isArray(data?.stops) ? data.stops : []))
-        .catch(() => []),
+        .catch(error => {mpkTripStopsByTripCache.delete(tripId);throw error;}),
     );
     if (mpkTripStopsByTripCache.size > 300) {
       const firstKey = mpkTripStopsByTripCache.keys().next().value;
@@ -1061,13 +1057,11 @@ async function fetchMpkTripSchedule(tripId: unknown, delaySeconds: number): Prom
 
   const [stops, stopPointIndex] = await Promise.all([
     fetchMpkTripStops(normalizedTripId),
-    loadStopPointIndex(),
+    fetchMpkRzeszowStopsClient().then(points=>Object.fromEntries(points.map(point=>[String(point.stop_id),{n:point.stop_name,lat:Number(point.stop_lat),lon:Number(point.stop_lon)}]))),
   ]);
   if (stops.length === 0) return { schedule: [], routeStops: [], routePath: [] };
 
-  const anchorDate = new Date();
-  if (anchorDate.getHours() < 3) anchorDate.setDate(anchorDate.getDate() - 1);
-  anchorDate.setHours(0, 0, 0, 0);
+  const anchorDate = new Date(warsawDateIso()+'T12:00:00Z');
 
   let previousDate: Date | null = null;
   const nowMs = Date.now();
@@ -1122,9 +1116,10 @@ function mapMpkDirectVehicle(
   const details = detailsByVehicle.get(vehicleNumber);
   const line = String(rawVehicle.nr || rawVehicle.nnr || details?.nr || '').trim() || '?';
   const hasLine = line !== '?';
-  const dataAgeSec = Math.max(0, Number(rawVehicle.is || 0));
+  const signalMs = mpkSignalTime(rawVehicle, now);
+  const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
   if (!includeInactive && !hasLine) return null;
-  if (dataAgeSec > 30 * 60) return null;
+  if (dataAgeSec > 30 * 60 || (!includeInactive && rawVehicle.online === 'no')) return null;
 
   const previousLat = Number(rawVehicle.py);
   const previousLon = Number(rawVehicle.px);
@@ -1139,9 +1134,9 @@ function mapMpkDirectVehicle(
   const nextStopId = Number(rawVehicle.nk || details?.end_stop_id);
   const nextStopName = String(rawVehicle.nop || details?.end_stop_name || '').trim();
   const direction = String(rawVehicle.op || details?.op || rawVehicle.nop || '').trim() || 'W trasie';
-  const scheduleBreak = inferMpkBreakFromSchedule(tripSchedule?.schedule, now);
-  const isBreak = Boolean(scheduleBreak) || isMpkBreakStatus(statusCode);
-  const breakUntilMs = scheduleBreak?.nextTripStartAtMs;
+  const operating = busOperatingState({lat,lon,speed,nowMs:now,stops:tripSchedule?.routeStops||[],reportedBreak:isMpkBreakStatus(statusCode)});
+  const isBreak = operating.status==='break';
+  const breakUntilMs = 'nextTripStartAtMs' in operating ? operating.nextTripStartAtMs : undefined;
 
   return {
     id: `mpk_rzeszow_${vehicleNumber}`,
@@ -1169,42 +1164,51 @@ function mapMpkDirectVehicle(
     routePath: tripSchedule?.routePath || [],
     model: details?.bus,
     lastStopDistance: Number.isFinite(Number(rawVehicle.dp)) ? Number(rawVehicle.dp) : undefined,
-    lastStopId: Number.isFinite(Number(rawVehicle.ik)) ? Number(rawVehicle.ik) : undefined,
+    lastStopId: undefined,
     lastSignalTime: new Date(now - dataAgeSec * 1000).toISOString(),
     previousTripEndedAtMs: isBreak ? now : undefined,
     nextTripStartAtMs: breakUntilMs,
-    nextTripFirstStopId: scheduleBreak?.nextTripFirstStopId,
+    nextTripFirstStopId: 'nextTripFirstStopId' in operating ? Number(operating.nextTripFirstStopId) : undefined,
     journeyId: details?.rawBrygada ?? rawVehicle.kwi?.trim() ?? undefined,
     serviceId: rawVehicle.kwi?.trim() || details?.brygada,
-    tripId: details?.trip_id ?? rawVehicle.ik ?? undefined,
+    tripId: details?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik ?? undefined,
     brigadeName: rawVehicle.kwi?.trim() || details?.brygada,
     status: isBreak ? 'break' : 'active',
-    statusText: isBreak && Number.isFinite(breakUntilMs) ? `Przerwa do ${formatClock(breakUntilMs as number)}` : isBreak ? 'Przerwa' : 'W trasie',
+    statusText: operating.statusText,
   };
 }
 
-async function fetchMpkRzeszowVehiclesDirect(includeInactive: boolean) {
-  const [xml, details] = await Promise.all([
-    requestText(MPK_RZESZOW_VEHICLES_XML_URL),
-    requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL).catch(() => []),
+async function fetchMpkVehicleFeed(signal?: AbortSignal) {
+  try {
+    return mpkFeedVehicles(await requestJson<unknown>(MPK_RZESZOW_VEHICLES_JSON_URL, {signal}));
+  } catch (error) {
+    if (isAbortLikeError(error)) throw error;
+    return parseMpkVehiclesXml(await requestText(MPK_RZESZOW_VEHICLES_XML_URL, {signal}));
+  }
+}
+
+async function fetchMpkRzeszowVehiclesDirect(includeInactive: boolean, signal?: AbortSignal) {
+  const [positions, details] = await Promise.all([
+    fetchMpkVehicleFeed(signal),
+    requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL, { signal }).catch(() => []),
   ]);
   const detailsByVehicle = new Map(
     (Array.isArray(details) ? details : []).map((detail: any) => [normalizeMpkVehicleId(detail?.nb), detail]),
   );
   const now = Date.now();
 
-  return parseMpkVehiclesXml(xml)
+  return positions
     .map((rawVehicle) => mapMpkDirectVehicle(rawVehicle, detailsByVehicle, now, includeInactive))
     .filter((vehicle): vehicle is Vehicle => Boolean(vehicle));
 }
 
 async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeInactive: boolean) {
   const lookupVehicleId = normalizeMpkVehicleId(String(vehicleId || '').replace(/^mpk_rzeszow_/, ''));
-  const [xml, details] = await Promise.all([
-    requestText(MPK_RZESZOW_VEHICLES_XML_URL),
+  const [positions, details] = await Promise.all([
+    fetchMpkVehicleFeed(),
     requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL).catch(() => []),
   ]);
-  const rawVehicle = parseMpkVehiclesXml(xml).find((vehicle) =>
+  const rawVehicle = positions.find((vehicle) =>
     normalizeMpkVehicleId(vehicle.nb || vehicle.id) === lookupVehicleId,
   );
   if (!rawVehicle) return null;
@@ -1215,7 +1219,7 @@ async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeIna
   const vehicleDetails = detailsByVehicle.get(lookupVehicleId);
   const statusCode = String(rawVehicle.s || vehicleDetails?.status || '');
   const delaySeconds = getEffectiveMpkDelay(Number(rawVehicle.o ?? vehicleDetails?.delay ?? 0), statusCode);
-  const tripSchedule = await fetchMpkTripSchedule(vehicleDetails?.trip_id ?? rawVehicle.ik, delaySeconds);
+  const tripSchedule = await fetchMpkTripSchedule(vehicleDetails?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik, delaySeconds);
 
   return mapMpkDirectVehicle(rawVehicle, detailsByVehicle, Date.now(), includeInactive, tripSchedule);
 }
@@ -1236,28 +1240,27 @@ async function loadFullStopsDictionary() {
   return fullStopsDictionaryPromise;
 }
 
-async function loadStopPointIndex() {
-  if (!stopPointIndexPromise) {
-    stopPointIndexPromise = requestEinfoJson<any>('stop-point', {
-      headers: {Accept: 'application/json'},
-    })
-      .then((data) => {
-        const index: StopPointIndex = {};
-        for (const item of data?.items || []) {
-          const stopId = String(item?.stop_point_id || '').trim();
-          if (!stopId) continue;
-          const lat = Number(item?.location?.lat ?? item?.location?.latitude);
-          const lon = Number(item?.location?.lon ?? item?.location?.lng ?? item?.location?.long ?? item?.location?.longitude);
-          index[stopId] = {
-            n: String(item?.name || '').trim(),
-            lat: Number.isFinite(lat) ? lat : undefined,
-            lon: Number.isFinite(lon) ? lon : undefined,
-          };
-        }
-        return index;
-      })
-      .catch(() => ({}));
-  }
+async function loadStopPointIndex(): Promise<StopPointIndex> {
+  if(!stopPointIndexPromise) stopPointIndexPromise = (async()=> {
+    const snapshot = await fetch('/data/pks-stop-points.json',{cache:'force-cache'}).then(response=>response.ok ? response.json() : {stops:{}}).catch(()=>({stops:{}}));
+    const index: StopPointIndex = {};
+    for(const [id,raw] of Object.entries(snapshot.stops||{})) {
+      const point=raw as {n:string;code?:string;lat?:number;lon?:number};
+      const base=toTitleCase(point.n||'');
+      index[id]={n:point.code && !new RegExp('(?:^|\\s)'+point.code+'$').test(base) ? base+' '+point.code : base,lat:point.lat,lon:point.lon};
+    }
+    try {
+      const data=await requestEinfoJson<any>('stop-point',{headers:{Accept:'application/json'}});
+      if(!Array.isArray(data.items))throw new Error('Invalid PKS stop index');
+      for(const point of data.items) {
+        const id=String(point.stop_point_id);
+        const base=toTitleCase(bestPksStopName(point.stop_area_name||'',point.name||''));
+        const name=base+(point.stop_point_code ? ' '+point.stop_point_code : '');
+        index[id]={n:name,lat:point.location?.lat??index[id]?.lat,lon:point.location?.lon??index[id]?.lon};
+      }
+    }catch(error){if(!Object.keys(index).length)throw error;}
+    return index;
+  })().catch(error=>{stopPointIndexPromise=null;throw error;});
   return stopPointIndexPromise;
 }
 
@@ -1448,163 +1451,38 @@ function collapseLocalLoops(points: ShapePoint[], options?: { strict?: boolean }
   return result;
 }
 
-async function fetchRoadRouteForStops(
-  coords: ShapePoint[],
-  cacheKey: string,
-  options?: { strictShortSegments?: boolean },
-) {
-  const cleanCoords = coords.filter(
-    ([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon),
-  );
-  if (cleanCoords.length < 2) return [];
-
-  if (roadRouteCache.has(cacheKey)) return roadRouteCache.get(cacheKey)!;
-
-  const routePromise = (async () => {
-    const merged: ShapePoint[] = [];
-    const appendPoints = (points: ShapePoint[]) => {
-      for (const point of points) {
-        const last = merged[merged.length - 1];
-        if (last && Math.abs(last[0] - point[0]) < 0.000001 && Math.abs(last[1] - point[1]) < 0.000001) {
-          continue;
+async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal}) {
+  const points=coords.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));
+  if(points.length<2)return [];
+  if(roadRouteCache.has(cacheKey))return roadRouteCache.get(cacheKey)!;
+  const promise=(async()=> {
+    const chunks=routeChunks(points);
+    const results: ShapePoint[][]=new Array(chunks.length);
+    let cursor=0;
+    await Promise.all(Array.from({length:Math.min(3,chunks.length)},async()=> {
+      while(cursor<chunks.length) {
+        const index=cursor++,chunk=chunks[index];
+        let route: ShapePoint[]=[];
+        try {
+          const query={locations:chunk.map(([lat,lon],i)=>({lat,lon,type:i===0||i===chunk.length-1?'break':'through'})),costing:'bus',directions_options:{units:'kilometers'}};
+          const data=await requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal:options?.signal});
+          route=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
+        }catch(error){if(options?.signal?.aborted)throw error;}
+        if(route.length<2) {
+          const coordinates=chunk.map(([lat,lon])=>lon+','+lat).join(';');
+          const data=await requestJson<{code?:string;routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
+            'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false',{signal:options?.signal});
+          route=(data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
         }
-        merged.push(point);
+        if(route.length<2)throw new Error('Incomplete road route');
+        results[index]=route;
       }
-    };
-
-    const fetchOsrmRoute = async (chunk: ShapePoint[]) => {
-      const coordString = chunk.map(([lat, lon]) => `${lon},${lat}`).join(';');
-      const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false`;
-      const data = await requestJson<{ routes?: Array<{ geometry?: { coordinates?: [number, number][] } }> }>(url);
-      return data.routes?.[0]?.geometry?.coordinates?.map(([lon, lat]) => [lat, lon] as ShapePoint) || [];
-    };
-
-    const decodeValhallaShape = (shape: string) => {
-      const points: ShapePoint[] = [];
-      let index = 0;
-      let lat = 0;
-      let lon = 0;
-      const precision = 1e6;
-
-      while (index < shape.length) {
-        let result = 1;
-        let shift = 0;
-        let b = 0;
-        do {
-          b = shape.charCodeAt(index++) - 63 - 1;
-          result += b << shift;
-          shift += 5;
-        } while (b >= 0x1f && index < shape.length);
-        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-        result = 1;
-        shift = 0;
-        do {
-          b = shape.charCodeAt(index++) - 63 - 1;
-          result += b << shift;
-          shift += 5;
-        } while (b >= 0x1f && index < shape.length);
-        lon += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-        points.push([lat / precision, lon / precision]);
-      }
-
-      return points;
-    };
-
-    const fetchValhallaRoute = async (chunk: ShapePoint[]) => {
-      const query = {
-        locations: chunk.map(([lat, lon]) => ({ lat, lon, type: 'break' })),
-        costing: 'bus',
-        directions_options: { units: 'kilometers' },
-      };
-      const url = `https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(JSON.stringify(query))}`;
-      const data = await requestJson<{ trip?: { legs?: Array<{ shape?: string }> } }>(url);
-      const legs = data.trip?.legs || [];
-      const points: ShapePoint[] = [];
-      for (const leg of legs) {
-        const decoded = leg.shape ? decodeValhallaShape(leg.shape) : [];
-        for (const point of decoded) points.push(point);
-      }
-      return points;
-    };
-
-    const isReasonableSegment = (segment: ShapePoint[], start: ShapePoint, end: ShapePoint) => {
-      if (segment.length <= 1) return false;
-      const direct = distanceMeters(start, end);
-      if (direct < 20) return false;
-      const routed = routeLengthMeters(segment);
-      const strict = Boolean(options?.strictShortSegments);
-      const maxRatio = direct < 100
-        ? (strict ? 2.25 : 4.2)
-        : direct < 240
-          ? (strict ? 2.8 : 3.8)
-          : direct < 600
-            ? 3.4
-            : 3.2;
-      const maxExtra = direct < 100
-        ? (strict ? 130 : 260)
-        : direct < 240
-          ? (strict ? 220 : 420)
-          : 900;
-      if (routed > Math.max(direct * maxRatio, direct + maxExtra)) return false;
-      if (strict && direct <= 460) {
-        const maxDeviation = maxDeviationFromChordMeters(segment, start, end);
-        const allowedDeviation = Math.max(40, direct * 0.33);
-        if (maxDeviation > allowedDeviation) return false;
-      }
-      return true;
-    };
-
-    for (let i = 0; i < cleanCoords.length - 1; i += 1) {
-      const start = cleanCoords[i];
-      const end = cleanCoords[i + 1];
-      const direct = distanceMeters(start, end);
-      if (direct < 20 || direct > 350_000) continue;
-
-      const segment = await fetchOsrmRoute([start, end]).catch(() => []);
-      if (isReasonableSegment(segment, start, end)) {
-        appendPoints(segment);
-        continue;
-      }
-
-      const valhallaSegment = await fetchValhallaRoute([start, end]).catch(() => []);
-      if (isReasonableSegment(valhallaSegment, start, end)) appendPoints(valhallaSegment);
-    }
-
-    if (merged.length <= 1) return [];
-    const strict = Boolean(options?.strictShortSegments);
-    const hairpinCollapsed = collapseHairpins(merged, { strict });
-    const loopCollapsed = collapseLocalLoops(hairpinCollapsed, { strict });
-    return loopCollapsed.length > 1 ? loopCollapsed : merged;
-  })()
-    .then((points) => {
-      // Do not cache empty routes: allow next attempt to retry live routing.
-      if (points.length <= 1) roadRouteCache.delete(cacheKey);
-      return points;
-    })
-    .catch((error) => {
-      roadRouteCache.delete(cacheKey);
-      throw error;
-    });
-
-  roadRouteCache.set(cacheKey, routePromise);
-  if (roadRouteCache.size > 80) {
-    const [firstKey] = roadRouteCache.keys();
-    roadRouteCache.delete(firstKey);
-  }
-  return routePromise;
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
-
-  return Promise.race<T>([
-    promise,
-    new Promise<T>((resolve) => {
-      setTimeout(() => resolve(fallback), timeoutMs);
-    }),
-  ]);
+    }));
+    return joinRouteChunks(results);
+  })().catch(error=>{roadRouteCache.delete(cacheKey);throw error;});
+  roadRouteCache.set(cacheKey,promise);
+  if(roadRouteCache.size>100)roadRouteCache.delete(roadRouteCache.keys().next().value!);
+  return promise;
 }
 
 function createQuickCurvedRoute(coords: ShapePoint[]) {
@@ -1722,7 +1600,7 @@ function formatStopName(rawName: string | undefined) {
   return rawName.trim();
 }
 
-function buildSchedule(nextStopPoints: any[] | undefined, stopsDict: Record<string, string>) {
+function buildSchedule(nextStopPoints: any[] | undefined, stopsDict: StopPointIndex) {
   return (nextStopPoints || []).map((sp: any) => {
     const stopId = Number(sp.stop_point_id ?? sp.stopPointId ?? sp.id);
     const plannedRaw = sp.planned_departure_time ?? sp.timetable_time ?? sp.planned;
@@ -1731,11 +1609,11 @@ function buildSchedule(nextStopPoints: any[] | undefined, stopsDict: Record<stri
     const lon = Number(sp.location?.lon ?? sp.location?.lng ?? sp.lon ?? sp.lng ?? sp.long ?? sp.longitude);
     return {
       id: stopId,
-      name: formatStopName(sp.name || stopsDict[String(stopId)]),
-      planned: plannedRaw ? String(plannedRaw).replace(' ', 'T') : null,
-      real: realRaw ? String(realRaw).replace(' ', 'T') : null,
-      lat: Number.isFinite(lat) ? lat : undefined,
-      lon: Number.isFinite(lon) ? lon : undefined,
+      name: formatStopName(sp.name || stopsDict[String(stopId)]?.n || `Przystanek ${stopId}`),
+      planned: Number.isFinite(transitTimestamp(plannedRaw)) ? new Date(transitTimestamp(plannedRaw)).toISOString() : null,
+      real: Number.isFinite(transitTimestamp(realRaw)) ? new Date(transitTimestamp(realRaw)).toISOString() : null,
+      lat: Number.isFinite(lat) ? lat : stopsDict[String(stopId)]?.lat,
+      lon: Number.isFinite(lon) ? lon : stopsDict[String(stopId)]?.lon,
     };
   });
 }
@@ -1762,64 +1640,25 @@ function buildRoutePath(route: any): number[] {
   return fromLinks;
 }
 
-function formatClock(ts: number) {
-  if (!Number.isFinite(ts)) return '--:--';
-  return new Date(ts).toLocaleTimeString('pl-PL', {hour: '2-digit', minute: '2-digit'});
-}
-
-function inferVehicleStatus(
-  v: any,
-  ageSec: number,
-  speed: number,
-  now: number,
-  hasLine: boolean,
-  schedule: ReturnType<typeof buildSchedule>,
-): {
-  status: 'active' | 'break' | 'inactive' | 'technical';
-  statusText: string;
-  nextTripStartAtMs?: number;
-  nextTripFirstStopId?: number;
-} {
-  const nextStops = Array.isArray(v.next_stop_points) ? v.next_stop_points : [];
-  const nextTrip = firstFutureStopMs(schedule, now);
-  const plannedMs = nextTrip?.ms ?? NaN;
-  const lastStopNumber = Number(v.position?.last_stop_point_number);
-  const lastStopDistance = Number(v.position?.last_stop_point_distance);
-  const isAtTripStart = lastStopNumber === 0 && (lastStopDistance === 0 || Number.isNaN(lastStopDistance));
-  const waitMs = plannedMs - now;
-
-  if (!hasLine) {
-    return {
-      status: 'inactive' as const,
-      statusText: ageSec > 90 ? 'Ukryty pojazd z ostatnia pozycja' : 'Ukryty pojazd bez linii',
-    };
-  }
-
-  if (v.journey?.route?.is_technical) {
-    return {status: 'technical' as const, statusText: 'Przejazd techniczny'};
-  }
-
-  if (Number.isFinite(waitMs) && waitMs > 120000 && (isAtTripStart || schedule.length > 0)) {
-    return {
-      status: 'break' as const,
-      statusText: `Przerwa do ${formatClock(plannedMs)}`,
-      nextTripStartAtMs: plannedMs,
-      nextTripFirstStopId: Number.isFinite(nextTrip?.id) ? nextTrip?.id : undefined,
-    };
-  }
-
-  if (speed <= 1 && nextStops.length === 0) {
-    return {status: 'inactive' as const, statusText: 'Pojazd bez przypisanej linii'};
-  }
-
-  return {status: 'active' as const, statusText: 'W trasie'};
+function inferVehicleStatus(v: any,ageSec: number,speed: number,now: number,hasLine: boolean,schedule: ReturnType<typeof buildSchedule>) {
+  if(!hasLine)return {status:'inactive' as const,statusText:'Pojazd bez przypisanej linii',nextTripStartAtMs:undefined,nextTripFirstStopId:undefined};
+  if(v.journey?.route?.is_technical)return {status:'technical' as const,statusText:'Przejazd techniczny',nextTripStartAtMs:undefined,nextTripFirstStopId:undefined};
+  const path=buildRoutePath(v.journey?.route);
+  const firstId=path[0];
+  const pointNumber=Number(v.position?.last_stop_point_number);
+  const distance=Number(v.position?.last_stop_point_distance);
+  const atFirst=pointNumber===0 && distance<=150;
+  const atLast=path.length>1 && pointNumber>=path.length-1 && distance<=150;
+  const firstDepartureMs=v.journey?.departure_time ? warsawTimeMs(v.journey.vehicle_journey_date||warsawDateIso(),v.journey.departure_time) : transitTimestamp(schedule.find(stop=>stop.id===firstId)?.planned);
+  const operating=busOperatingState({lat:Number(v.position?.lat),lon:Number(v.position?.long??v.position?.lon),speed,nowMs:now,stops:schedule,firstDepartureMs,firstStopId:firstId,atFirstStop:atFirst,atLastStop:atLast});
+  return {...operating,nextTripStartAtMs:'nextTripStartAtMs' in operating ? operating.nextTripStartAtMs : undefined,nextTripFirstStopId:'nextTripFirstStopId' in operating ? Number(operating.nextTripFirstStopId) : undefined};
 }
 
 function mapVehicle(
   v: any,
   now: number,
   includeInactive: boolean,
-  stopsDict: Record<string, string>,
+  stopsDict: StopPointIndex,
   includeDetails = true,
 ): Vehicle | null {
   const position = v.position || v.location || {};
@@ -1830,7 +1669,7 @@ function mapVehicle(
   const signalRaw = (position.position_date || position.timestamp || v.lastUpdate || v.updatedAt)
     ? String(position.position_date || position.timestamp || v.lastUpdate || v.updatedAt).replace(' ', 'T')
     : '';
-  const signalMs = signalRaw ? new Date(signalRaw).getTime() : now;
+  const signalMs = signalRaw ? transitTimestamp(signalRaw) : now;
   const lineName = String(v.journey?.line?.line_name || v.journey?.line?.name || '').trim() || '---';
   const fallbackLineName = String(v.line_name || v.line || '').trim();
   const effectiveLineName = lineName !== '---' ? lineName : (fallbackLineName || '---');
@@ -1844,7 +1683,10 @@ function mapVehicle(
   const speed = computeObservedSpeedKmh(`pks:${vehicleId}`, lat, lon, Number.isNaN(signalMs) ? now : signalMs, rawSpeed);
   const destination = v.journey?.route?.description || v.journey?.route?.name || v.route_description || v.direction || 'W trasie';
   const schedule = includeDetails ? buildSchedule(v.next_stop_points, stopsDict) : [];
-  const vehicleStatus = inferVehicleStatus(v, ageSec, speed ?? 0, now, hasLine, schedule);
+  const statusSchedule = includeDetails ? schedule : buildSchedule((v.next_stop_points || []).slice(0,1), {});
+  const vehicleStatus = inferVehicleStatus(v, ageSec, speed ?? 0, now, hasLine, statusSchedule);
+  const routePath = includeDetails ? buildRoutePath(v.journey?.route) : [];
+  const routeStops = routePath.map(id => {const timed=schedule.find(stop=>stop.id===id);const point=stopsDict[String(id)];return {...timed,id,name:point?.n||timed?.name||`Przystanek ${id}`,lat:point?.lat??timed?.lat,lon:point?.lon??timed?.lon,planned:timed?.planned||null,real:timed?.real||null};});
 
   return {
     id: vehicleId,
@@ -1859,11 +1701,12 @@ function mapVehicle(
     delay: typeof v.delay === 'number' ? v.delay : typeof v.deviation === 'number' ? v.deviation * 60 : 0,
     dataAgeSec: ageSec,
     schedule,
-    routePath: includeDetails ? buildRoutePath(v.journey?.route) : [],
+    routePath,
+    routeStops,
     model: v.model,
     lastStopDistance: typeof position.last_stop_point_distance === 'number' ? position.last_stop_point_distance : undefined,
-    lastStopId: typeof position.last_stop_point_number === 'number' ? position.last_stop_point_number : undefined,
-    lastSignalTime: signalRaw || undefined,
+    lastStopId: Number(position.last_stop_point_number)>0 ? buildRoutePath(v.journey?.route)[Number(position.last_stop_point_number)-1] : undefined,
+    lastSignalTime: Number.isFinite(signalMs) ? new Date(signalMs).toISOString() : undefined,
     previousTripEndedAtMs: Number.isFinite(vehicleStatus.nextTripStartAtMs) ? now : undefined,
     nextTripStartAtMs: vehicleStatus.nextTripStartAtMs,
     nextTripFirstStopId: vehicleStatus.nextTripFirstStopId,
@@ -2336,7 +2179,7 @@ async function fetchPkpIntercityVehicleDetailsDirect(vehicleId: string, signal?:
 export async function fetchVehiclesClient(
   includeInactive: boolean,
   providers: TransportProviderId[] = ['pks'],
-  options?: { signal?: AbortSignal; pkpViewport?: PkpQueryViewport },
+  options?: { signal?: AbortSignal; pkpViewport?: PkpQueryViewport; onProviderLoaded?: (provider: TransportProviderId, vehicles: Vehicle[]) => void },
 ) {
   const activeProviders = providers.filter(Boolean);
   if (activeProviders.length === 0) return [];
@@ -2418,7 +2261,11 @@ export async function fetchVehiclesClient(
     return [];
   });
 
-  const results = await Promise.all(requests);
+  const results = await Promise.all(requests.map(async (request, index) => {
+    const vehicles = await request;
+    if (!options?.signal?.aborted) options?.onProviderLoaded?.(activeProviders[index], vehicles);
+    return vehicles;
+  }));
   return results.flat();
 }
 
@@ -2491,9 +2338,20 @@ export async function fetchVehicleDetailsClient(provider: TransportProviderId, v
 }
 
 async function fetchStopsFromNetwork(): Promise<StopsMap> {
+  const snapshot = await fetch('/data/pks-stop-points.json', {cache: 'force-cache'})
+    .then(response => response.ok ? response.json() : {stops: {}})
+    .catch(() => ({stops: {}}));
   const data = await requestEinfoJson<any>('stop-point', {
     headers: {'Accept': 'application/json'},
   }).catch(async () => {
+    if (Object.keys(snapshot.stops || {}).length) {
+      return {items: Object.entries(snapshot.stops).map(([id, raw]) => {
+        const point = raw as {n: string; areaId: string; code: string; lat?: number; lon?: number};
+        return {stop_point_id: id, name: point.n, stop_area_name: point.n,
+          stop_area_id: point.areaId, stop_point_code: point.code,
+          location: {lat: point.lat, lon: point.lon}};
+      })};
+    }
     const fullDict = await loadFullStopsDictionary();
     if (Object.keys(fullDict).length > 0) {
       return {
@@ -2522,8 +2380,9 @@ async function fetchStopsFromNetwork(): Promise<StopsMap> {
 
   const compressedMap: StopsMap = {};
   for (const stop of data?.items || []) {
-    const lat = Number(stop.location?.lat ?? stop.location?.latitude);
-    const lon = Number(stop.location?.lon ?? stop.location?.lng ?? stop.location?.long ?? stop.location?.longitude);
+    const fallback = snapshot.stops?.[String(stop.stop_point_id)];
+    const lat = Number(stop.location?.lat ?? stop.location?.latitude ?? fallback?.lat);
+    const lon = Number(stop.location?.lon ?? stop.location?.lng ?? stop.location?.long ?? stop.location?.longitude ?? fallback?.lon);
     const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
     const areaName = stop.stop_area_name ? stop.stop_area_name.trim() : '';
     const name = stop.name ? stop.name.trim() : '';
@@ -2600,10 +2459,12 @@ function isJourneyRunning(legends: string[], dateIso: string) {
       .replace('6Ĺ›', '6ś'),
   );
   const dt = new Date(dateIso);
-  const day = dt.getDay();
-  const month = dt.getMonth() + 1;
-  const date = dt.getDate();
-  const isHoliday =
+  const day = dt.getUTCDay();
+  const month = dt.getUTCMonth() + 1;
+  const date = dt.getUTCDate();
+  const services = mpkServicesOnDate(pksSchoolCalendar, dateIso);
+  if(normalizedLegends.includes('l') && month===12 && date===31) return false;
+  const isHoliday = services.includes('4') ||
     (month === 1 && date === 1) || (month === 1 && date === 6) ||
     (month === 5 && date === 1) || (month === 5 && date === 3) ||
     (month === 8 && date === 15) || (month === 11 && date === 1) ||
@@ -2620,7 +2481,8 @@ function isJourneyRunning(legends: string[], dateIso: string) {
 
   let effectiveRuns = false;
   for (const legend of effectiveLegends) {
-    if ((legend === 'D' || legend === '(D)' || legend === 'S') && !isWeekendOrHoliday) effectiveRuns = true;
+    if ((legend === 'D' || legend === '(D)') && !isWeekendOrHoliday) effectiveRuns = true;
+    if (legend === 'S' && !isWeekendOrHoliday && (services.length ? services.includes('2') : true)) effectiveRuns = true;
     if (legend === 'E' && !isSundayOrHoliday) effectiveRuns = true;
     if (legend === 'C' && isWeekendOrHoliday) effectiveRuns = true;
     if (legend === saturdaySchool && day === 6 && !isHoliday) effectiveRuns = true;
@@ -2651,8 +2513,9 @@ function processTimetable(ttData: any, dayIso: string, codeToCompare: string) {
           journeyCodeNumber === normalizedCodeNumber);
 
       if (isMatch && isJourneyRunning(journey.legends || [], dayIso)) {
+        if (!Number.isFinite(warsawTimeMs(dayIso, journey.time))) return;
         mapped.push({
-          timetable_time: `${dayIso}T${journey.time}:00`,
+          timetable_time: new Date(warsawTimeMs(dayIso, journey.time)).toISOString(),
           past: false,
           deviation: null,
           legends: journey.legends,
@@ -2667,84 +2530,49 @@ function processTimetable(ttData: any, dayIso: string, codeToCompare: string) {
   return mapped;
 }
 
+const pksTimetables = new Map<string, { expires: number; promise: Promise<any> }>();
+export function fetchPksTimetableClient(areaId: string, day: string) {
+  const key = areaId + ':' + day;
+  const cached = pksTimetables.get(key);
+  if (cached && cached.expires > Date.now()) return cached.promise;
+  const promise = requestEinfoJson<any>('stop-point-timetable/' + encodeURIComponent(areaId) + '?day=' + day, {headers:{Accept:'application/json'}})
+    .then(data => { if (data.success === false || !Array.isArray(data.items)) throw new Error('Nieprawidłowy rozkład PKS'); return data; })
+    .catch(error => { pksTimetables.delete(key); throw error; });
+  if (pksTimetables.size > 200) pksTimetables.delete(pksTimetables.keys().next().value!);
+  pksTimetables.set(key, {expires:Date.now()+300_000,promise});
+  return promise;
+}
+
 export async function fetchDeparturesClient(stopId: string, areaId?: string, code?: string, dateIso?: string) {
-  const nearestData = await requestEinfoJson<any>(`its/infoboard/nearest-departures/${stopId}`, {
-    headers: {Accept: 'application/json'},
-  }).catch(() => ({journeys: []}));
-
-  if (!areaId || !code) {
-    const nowMs = Date.now();
-    return {
-      ...nearestData,
-      journeys: (nearestData.journeys || [])
-        .map((journey: any) => ({
-          ...journey,
-          timetable_time: String(journey.timetable_time || '').replace(' ', 'T'),
-        }))
-        .filter((journey: any) => {
-          const t = new Date(journey.timetable_time).getTime();
-          return Number.isFinite(t) && t >= nowMs - 15 * 60000 && t <= nowMs + 24 * 3600000;
-        }),
-    };
+  const today = warsawDateIso();
+  const days = dateIso ? [dateIso] : [today, warsawDateIso(1)];
+  const wantsBoard = days.includes(today);
+  const hasTimetable = Boolean(areaId && code);
+  const [board, ...tables] = await Promise.allSettled([
+    wantsBoard ? requestEinfoJson<any>('its/infoboard/nearest-departures/' + encodeURIComponent(stopId), {headers:{Accept:'application/json'}})
+      .then(data => { if (!Array.isArray(data.journeys)) throw new Error('Nieprawidłowa tablica PKS'); return data; }) : Promise.resolve({journeys:[]}),
+    ...(hasTimetable ? days.map(day => fetchPksTimetableClient(areaId!, day)) : []),
+  ]);
+  if (!hasTimetable && !wantsBoard) throw new Error('Brak identyfikatora rozkładu PKS dla tego dnia');
+  const failedTables = tables.some(result => result.status === 'rejected');
+  if ((board.status === 'rejected' || !wantsBoard) && (!hasTimetable || failedTables)) throw new Error('Nie udało się pobrać rozkładu PKS');
+  const live = board.status === 'fulfilled' ? board.value.journeys.map((journey: any) => {
+    const raw = String(journey.timetable_time || '');
+    const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})$/.exec(raw);
+    const ms = match ? warsawTimeMs(match[1], match[2]) : Date.parse(raw);
+    return {...journey, provider_id:'pks', timetable_time: Number.isFinite(ms) ? new Date(ms).toISOString() : ''};
+  }) : [];
+  const scheduled = tables.flatMap((result,index) => result.status === 'fulfilled' ? processTimetable(result.value, days[index], code!) : []);
+  const journeys = [...live];
+  for (const journey of scheduled) {
+    const duplicate = live.some((row: any) => row.line_name === journey.line_name && row.route_description === journey.route_description && row.timetable_time === journey.timetable_time);
+    if (!duplicate) journeys.push(journey);
   }
-
-  const now = new Date();
-  const warsawSvc = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Warsaw',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const todayIso = warsawSvc.format(now);
-  const tomorrowIso = warsawSvc.format(new Date(now.getTime() + 86400000));
-  const daysToFetch = dateIso ? [dateIso] : [todayIso, tomorrowIso];
-
-  const timetableResponses = await Promise.all(
-    daysToFetch.map((day) =>
-      requestEinfoJson<any>(`stop-point-timetable/${areaId}?day=${day}`, {headers: {Accept: 'application/json'}}).catch(() => ({items: []})),
-    ),
-  );
-
-  const originalLiveJourneys = dateIso && dateIso !== todayIso ? [] : [...(nearestData.journeys || [])].map((journey: any) => ({
-    ...journey,
-    timetable_time: String(journey.timetable_time || '').replace(' ', 'T'),
-    provider_id: 'pks',
-  }));
-  const combinedJourneys = [...originalLiveJourneys];
-  const mapped = timetableResponses.flatMap((data, index) =>
-    processTimetable(data, daysToFetch[index], String(code).trim()).map((journey: any) => ({
-      ...journey,
-      provider_id: 'pks',
-    })),
-  );
-
-  mapped.forEach((journey) => {
-    const journeyTimeMs = new Date(journey.timetable_time).getTime();
-    const isDuplicate = originalLiveJourneys.some((live: any) => {
-      if (live.line_name !== journey.line_name) return false;
-      const liveTimeMs = new Date(live.timetable_time).getTime();
-      return Math.abs(liveTimeMs - journeyTimeMs) <= 2 * 60000;
-    });
-
-    if (!isDuplicate) combinedJourneys.push(journey);
-  });
-
-  combinedJourneys.sort(
-    (a: any, b: any) => new Date(a.timetable_time).getTime() - new Date(b.timetable_time).getTime(),
-  );
-  const nowMs = Date.now();
-
-  return {
-    ...nearestData,
-    journeys: combinedJourneys.filter((journey: any) => {
-      const t = new Date(journey.timetable_time).getTime();
-      if (!Number.isFinite(t)) return false;
-      if (dateIso) {
-        return new Date(t).toLocaleDateString('en-CA', {timeZone: 'Europe/Warsaw'}) === dateIso;
-      }
-      return t >= nowMs - 15 * 60000 && t <= nowMs + 24 * 3600000;
-    }),
-  };
+  return {journeys: journeys.filter((journey: any) => {
+    const ms = Date.parse(journey.timetable_time);
+    return Number.isFinite(ms) && (dateIso ? warsawDateIso(0,new Date(ms)) === dateIso : ms >= Date.now()-900_000 && ms <= Date.now()+86400_000);
+  }).sort((a: any,b: any) => Date.parse(a.timetable_time)-Date.parse(b.timetable_time)),
+  warning: failedTables || (hasTimetable && board.status === 'rejected') ? 'PKS: część danych niedostępna; pokazano dostępny rozkład.' : undefined};
 }
 
 export type MpkRzeszowStop = {
@@ -2760,6 +2588,8 @@ export type MpkRzeszowScheduleEntry = {
   line: string;
   trip_headsign?: string;
   departure_time: string;
+  real_departure_time?: string;
+  realtime_source?: 'stop-board';
   block_id?: string | number;
   private_code?: string;
   vehicle?: string | number | null;
@@ -2800,9 +2630,31 @@ export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSigna
   }
 }
 
-function mpkServiceIdForDate(dateIso: string) {
-  const date = new Date(`${dateIso}T12:00:00`);
-  return date.getDay() === 6 ? '2' : '1';
+let mpkCalendarPromise: Promise<MpkCalendar> | undefined;
+const mpkServicesCache = new Map<string, Promise<string[]>>();
+
+async function mpkServiceIdsForDate(dateIso: string) {
+  if (mpkServicesCache.has(dateIso)) return mpkServicesCache.get(dateIso)!;
+  const promise = (async () => {
+    if (dateIso === warsawDateIso()) {
+      const live = await requestJson<{ service_ids?: Array<string | number>; date_used?: string }>('https://www.mpkrzeszow.pl/get_current_service.php').catch(() => null);
+      if (live?.date_used === dateIso.replace(/-/g, '') && live.service_ids?.length) return live.service_ids.map(String);
+    }
+    mpkCalendarPromise ??= withRequestDeadline(async (signal) => {
+      const response = await fetch('/data/mpk-service-calendar.json', { signal });
+      if (!response.ok) throw new Error('MPK calendar HTTP ' + response.status);
+      return response.json() as Promise<MpkCalendar>;
+    }).catch((error) => {
+      mpkCalendarPromise = undefined;
+      throw error;
+    });
+    const ids = mpkServicesOnDate(await mpkCalendarPromise, dateIso);
+    if (!ids.length) throw new Error(`Brak aktualnego kalendarza MPK dla ${dateIso}. Zaktualizuj kalendarz GTFS.`);
+    return ids;
+  })().catch((error) => { mpkServicesCache.delete(dateIso); throw error; });
+  mpkServicesCache.set(dateIso, promise);
+  if (mpkServicesCache.size > 14) mpkServicesCache.delete(mpkServicesCache.keys().next().value!);
+  return promise;
 }
 
 export async function fetchMpkRzeszowDeparturesClient(
@@ -2810,15 +2662,28 @@ export async function fetchMpkRzeszowDeparturesClient(
   dateIso: string,
   options?: { signal?: AbortSignal },
 ) {
-  const searchParams = new URLSearchParams({
-    stop_id: String(stopId),
-    service_id: mpkServiceIdForDate(dateIso),
-  });
-  const data = await requestJson<{ stop_name?: string; schedule?: Record<string, MpkRzeszowScheduleEntry[]> }>(
-    `${MPK_RZESZOW_STOP_SCHEDULE_URL}?${searchParams.toString()}`,
-    {signal: options?.signal, headers: {Accept: 'application/json'}},
-  );
-  return Object.values(data.schedule || {}).flat();
+  const boardPromise = dateIso === warsawDateIso()
+    ? requestJson<unknown>(`https://www.mpkrzeszow.pl/przystanki/departures.php?${new URLSearchParams({ stopId, hide_last_stop: '1' })}`, { signal: options?.signal }).then(mpkBoardEntries)
+    : Promise.resolve([]);
+  const schedulePromise = (async () => {
+    const serviceIds = await mpkServiceIdsForDate(dateIso);
+    const data = await requestJson<{ schedule?: Record<string, MpkRzeszowScheduleEntry[]> }>(
+      `${MPK_RZESZOW_STOP_SCHEDULE_URL}?${new URLSearchParams({ stop_id: String(stopId), service_id: serviceIds.join(',') })}`,
+      { signal: options?.signal, headers: { Accept: 'application/json' } },
+    );
+    if (!data.schedule || typeof data.schedule !== 'object') throw new Error('Invalid MPK schedule response');
+    return Object.values(data.schedule).flat().filter((entry) => !entry.is_last_stop);
+  })();
+  const [board, schedule] = await Promise.allSettled([boardPromise, schedulePromise]);
+  if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+  if (schedule.status === 'rejected' && (dateIso !== warsawDateIso() || board.status === 'rejected')) throw schedule.reason;
+  const entries = new Map<string, MpkRzeszowScheduleEntry>();
+  const key = (entry: MpkRzeszowScheduleEntry) => `${entry.trip_id ?? `${entry.line}:${entry.trip_headsign}`}:${warsawTimeMs(dateIso, entry.departure_time)}`;
+  if (schedule.status === 'fulfilled') schedule.value.forEach((entry) => entries.set(key(entry), entry));
+  if (board.status === 'fulfilled') board.value.forEach((entry) => entries.set(key(entry), entry));
+  const result = [...entries.values()] as MpkRzeszowScheduleEntry[] & { warning?: string };
+  if(schedule.status==='rejected' || board.status==='rejected') result.warning = 'MPK: nie wszystkie dane są dostępne; pokazano dostępny rozkład.';
+  return result;
 }
 
 export type MarcelRoute = {
@@ -2858,7 +2723,7 @@ export async function fetchMarcelRoutesClient() {
       headers: {Accept: 'application/json'},
     });
   }
-  return marcelRoutesPromise;
+  return marcelRoutesPromise.catch(error => { marcelRoutesPromise = null; throw error; });
 }
 
 export async function fetchMarcelCoursesClient(routeId: number | string, dateIso: string) {
@@ -2869,7 +2734,7 @@ export async function fetchMarcelCoursesClient(routeId: number | string, dateIso
       requestJson<MarcelCourse[]>(
         `${MARCEL_API_BASE_URL}/client/api/search/wariantTrasy/kusy?data=${encodeURIComponent(dateIso)}&idTr=${encodeURIComponent(String(routeId))}&appVersion=v1.67`,
         {headers: {Accept: 'application/json'}},
-      ).catch(() => []),
+      ).catch(error => { marcelCoursesByRouteDateCache.delete(key); throw error; }),
     );
     if (marcelCoursesByRouteDateCache.size > 80) {
       const firstKey = marcelCoursesByRouteDateCache.keys().next().value;
@@ -2887,7 +2752,7 @@ export async function fetchMarcelPublicCourseStopsClient(courseId: number | stri
       requestJson<MarcelCourseStopPublic[]>(
         `${MARCEL_API_BASE_URL}/client/api/trasy/kurs/${encodeURIComponent(key)}?appVersion=v1.67`,
         {headers: {Accept: 'application/json'}},
-      ).catch(() => []),
+      ).catch(error => { marcelPublicCourseStopsCache.delete(key); throw error; }),
     );
     if (marcelPublicCourseStopsCache.size > 700) {
       const firstKey = marcelPublicCourseStopsCache.keys().next().value;
@@ -2934,7 +2799,7 @@ export async function fetchRouteGeometryClient(
         request.direction,
         stopCoords.map(([lat, lon]) => `${lat.toFixed(6)},${lon.toFixed(6)}`).join('|'),
       ].join(':'),
-      { strictShortSegments: request.carrier === 'mpk_rzeszow' },
+      { strictShortSegments: request.carrier === 'mpk_rzeszow',signal:options?.signal },
     );
     if (fallbackPoints.length <= 1) {
       return {
@@ -2967,13 +2832,15 @@ export async function fetchRouteGeometryClient(
         type: 'LineString',
         coordinates: fallbackPoints.map(([lat, lon]) => [lon, lat]),
       },
-      source: 'osrm-client-fallback',
+      source: 'bus-road-routing',
       sourceQuality: 'fallback',
       isSynthetic: false,
       cached: false,
       skippedSegments: 0,
     };
   };
+
+  if(!isRail) return fetchClientFallback();
 
   let response: RouteGeometryClientResponse | null = null;
   try {
@@ -3065,11 +2932,7 @@ export async function fetchRouteShapeClient(
 
   if (stopCoords.length > 1) {
     try {
-      const roadRoute = await withTimeout(
-        fetchRoadRouteForStops(stopCoords, normalizedStops.join('-')),
-        options?.refineTimeoutMs || 0,
-        [] as ShapePoint[],
-      );
+      const roadRoute = await fetchRoadRouteForStops(stopCoords, normalizedStops.join('-'));
       if (roadRoute.length > 1) return roadRoute;
     } catch {}
 

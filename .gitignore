@@ -1,10 +1,12 @@
 node_modules/
 functions/node_modules/
+functions/lib/
 .next/
 out/
 www/
 *.log
 tsconfig.tsbuildinfo
+test/*.tmp*
 .env
 .env.*
 !.env.example

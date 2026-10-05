@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, MapPin, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
+import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { Stop, Departure } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
@@ -8,7 +10,7 @@ interface BusStopDetailProps {
   stop: Stop;
   onBack: () => void;
   toggleFavorite: (stopId: string) => void;
-  loadDepartures: (stop: Stop, dayIndex?: number) => Promise<Departure[]>;
+  loadDepartures: DepartureLoader;
   onShowOnMap?: (stop: Stop) => void;
   isDarkTheme?: boolean;
 }
@@ -18,28 +20,28 @@ function getDynamicDays() {
   const labelsPl = ['Nie', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
   
   const days = [];
-  const now = new Date();
+  const now = new Date(warsawDateIso()+'T12:00:00Z');
   
   for (let i = 0; i < 7; i++) {
     const futureDate = new Date(now);
-    futureDate.setDate(now.getDate() + i);
+    futureDate.setUTCDate(now.getUTCDate() + i);
     
-    const dayName = weekdaysPl[futureDate.getDay()];
-    let label = labelsPl[futureDate.getDay()];
+    const dayName = weekdaysPl[futureDate.getUTCDay()];
+    let label = labelsPl[futureDate.getUTCDay()];
     if (i === 0) label = 'Dziś';
     if (i === 1) label = 'Jutro';
     
     const weekdayKeys: Record<number, string> = {
       0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
     };
-    const key = i === 0 ? 'today' : i === 1 ? 'tomorrow' : weekdayKeys[futureDate.getDay()];
+    const key = i === 0 ? 'today' : i === 1 ? 'tomorrow' : weekdayKeys[futureDate.getUTCDay()];
     
     days.push({
       label,
-      dayNum: String(futureDate.getDate()),
+      dayNum: String(futureDate.getUTCDate()),
       weekday: dayName,
       key,
-      monthName: futureDate.toLocaleDateString('pl-PL', { month: 'long' }),
+      monthName: futureDate.toLocaleDateString('pl-PL', { day:'numeric', month: 'long',timeZone:'UTC' }).replace(/^\d+\s+/,''),
       monthYear: futureDate.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })
     });
   }
@@ -47,39 +49,18 @@ function getDynamicDays() {
 }
 
 export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, onShowOnMap, isDarkTheme = true }: BusStopDetailProps) {
-  const [days] = useState(getDynamicDays);
+  const todayKey = warsawDateIso();
+  const days = useMemo(getDynamicDays,[todayKey]);
   const [selectedLine, setSelectedLine] = useState<string>('all');
   const [showAllDepartures, setShowAllDepartures] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string>('today');
   const [showPastDepartures, setShowPastDepartures] = useState<boolean>(false);
-  const [departures, setDepartures] = useState<Departure[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
-  const [isLive, setIsLive] = useState<boolean>(false);
-  const [isFetchingLive, setIsFetchingLive] = useState<boolean>(false);
-  const [animateDepartures, setAnimateDepartures] = useState<boolean>(true);
-
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const loadDeparturesRef = useRef(loadDepartures);
-  const hasLoadedOnceRef = useRef(false);
-  const departuresRequestStop = useMemo(() => ({
-    id: stop.id,
-    name: stop.name,
-    type: stop.type,
-    carriers: stop.carriers,
-    lines: stop.lines,
-    isFavorite: false,
-    areaId: stop.areaId,
-    code: stop.code,
-    lat: stop.lat,
-    lon: stop.lon,
-    sourceProviderIds: stop.sourceProviderIds,
-    providerStopIds: stop.providerStopIds,
-  }), [stop.areaId, stop.carriers, stop.code, stop.id, stop.lat, stop.lines, stop.lon, stop.name, stop.providerStopIds, stop.sourceProviderIds, stop.type]);
-
-  useEffect(() => {
-    loadDeparturesRef.current = loadDepartures;
-  }, [loadDepartures]);
+  const selectedDayIndex = Math.max(0,days.findIndex(d=>d.key===selectedDay));
+  const selectedDateKey = warsawDateIso(selectedDayIndex);
+  const {departures,warnings,isLoading,isFetching:isFetchingLive,refresh:refreshLiveDepartures} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures);
+  const animateDepartures = false;
 
   useEffect(() => {
     const updateTime = () => {
@@ -103,80 +84,12 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     }
   }, [selectedDay]);
 
-  useEffect(() => {
-    let active = true;
-    const resetTimer = window.setTimeout(() => {
-      if (!active) return;
-      setIsLive(false);
-      if (!hasLoadedOnceRef.current) {
-        setIsFetchingLive(false);
-        setIsLoading(true);
-      } else {
-        setIsFetchingLive(true);
-        setIsLoading(false);
-      }
-    }, 0);
-    const selectedDayIndex = Math.max(0, days.findIndex(d => d.key === selectedDay));
-    const runRefresh = (initial = false) => {
-      if (!initial || hasLoadedOnceRef.current) setIsFetchingLive(true);
-      loadDeparturesRef.current(departuresRequestStop, selectedDayIndex)
-      .then(loadedDepartures => {
-        if (active) {
-          setDepartures(loadedDepartures);
-          setIsLive(loadedDepartures.length > 0);
-          setIsLoading(false);
-          setIsFetchingLive(false);
-          if (!hasLoadedOnceRef.current) {
-            hasLoadedOnceRef.current = true;
-          } else {
-            setAnimateDepartures(false);
-          }
-        }
-      })
-      .catch(err => {
-        console.error("Error keeping departures in sync:", err);
-        if (active) {
-          setDepartures([]);
-          setIsLive(false);
-          setIsLoading(false);
-          setIsFetchingLive(false);
-        }
-      });
-    };
-
-    runRefresh(true);
-    const interval = window.setInterval(() => runRefresh(false), 30_000);
-
-    return () => {
-      active = false;
-      window.clearTimeout(resetTimer);
-      window.clearInterval(interval);
-    };
-  }, [days, departuresRequestStop, selectedDay]);
-
-  const refreshLiveDepartures = () => {
-    setIsFetchingLive(true);
-    
-    const selectedDayIndex = Math.max(0, days.findIndex(d => d.key === selectedDay));
-    loadDeparturesRef.current(departuresRequestStop, selectedDayIndex)
-      .then(loadedDepartures => {
-        setDepartures(loadedDepartures);
-        setIsLive(loadedDepartures.length > 0);
-        setIsFetchingLive(false);
-      })
-      .catch(err => {
-        console.error("Manual refresh error:", err);
-        setIsLive(false);
-        setIsFetchingLive(false);
-      });
-  };
-
   const stopLines = stop.lines || [];
   const uniqueLinesFromDeps = Array.from(new Set(departures.map(d => d.line))).filter(Boolean);
   const combinedLines = Array.from(new Set([...stopLines, ...uniqueLinesFromDeps])).filter(Boolean);
   const lines = ['Wszystkie', ...combinedLines.filter(l => l !== 'Wszystkie')];
   const lineProviderIds = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, string>(Object.entries(stop.lineProviders || {}).map(([line,providers])=>[line,providers[0]]));
     if (stop.carriers.length === 1) {
       stopLines.forEach((line) => map.set(line, stop.carriers[0].id));
     }
@@ -184,44 +97,11 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       if (departure.carrier?.id) map.set(departure.line, departure.carrier.id);
     });
     return map;
-  }, [departures, stop.carriers, stopLines]);
+  }, [departures, stop.carriers, stop.lineProviders, stopLines]);
 
-  const isPastDeparture = (timeStr: string) => {
-    if (selectedDay !== 'today') return false;
-    const byTimestamp = processedTimeForDeparture(timeStr);
-    if (!currentTimeMs) return false;
-    if (Number.isFinite(byTimestamp)) return byTimestamp < currentTimeMs;
-    const now = new Date(currentTimeMs);
-    const currentH = now.getHours();
-    const currentM = now.getMinutes();
-    const [h, m] = timeStr.split(':').map(Number);
-    return (h * 60 + m) < (currentH * 60 + currentM);
-  };
-
-  const selectedDayIndex = Math.max(0, days.findIndex(d => d.key === selectedDay));
-  const selectedDateKey = (() => {
-    const day = new Date();
-    day.setDate(day.getDate() + selectedDayIndex);
-    return day.toLocaleDateString('en-CA', { timeZone: 'Europe/Warsaw' });
-  })();
-
-  const processedTimeForDeparture = (timeStr: string, plannedAtMs?: number) => {
-    if (Number.isFinite(plannedAtMs)) return plannedAtMs as number;
-    const [h, m] = timeStr.split(':').map(Number);
-    if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
-    const day = new Date();
-    day.setDate(day.getDate() + selectedDayIndex);
-    day.setHours(h, m, 0, 0);
-    return day.getTime();
-  };
-
-  const processedDepartures = departures.map(d => ({
-    ...d,
-    isPast: (d as any).isPast !== undefined ? (d as any).isPast : isPastDeparture(d.time)
-  })).filter(d => {
-    if (!Number.isFinite(d.plannedAtMs)) return selectedDayIndex === 0;
-    return new Date(d.plannedAtMs as number).toLocaleDateString('en-CA', { timeZone: 'Europe/Warsaw' }) === selectedDateKey;
-  });
+  const processedDepartures = departures.map(d => ({...d,
+    isPast: selectedDayIndex===0 && currentTimeMs>0 && (d.realAtMs ?? d.plannedAtMs ?? warsawTimeMs(selectedDateKey,d.time)) < currentTimeMs
+  }));
 
   const filteredDeparturesByLine = processedDepartures.filter(d => {
     if (!selectedLine || selectedLine === 'all') return true;
@@ -387,12 +267,12 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                    : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-white';
                  
                  if (value !== 'all') {
-                   if (value.startsWith('M') || value.toLowerCase().includes('marcel')) {
+                   if (lineProviderIds.get(value) === 'marcel') {
                      activeClass = 'bg-lime-400 text-lime-950 border-transparent shadow-[0_0_12px_rgba(163,230,53,0.3)]';
                      inactiveClass = `${getLineStyle(value, lineProviderIds.get(value))} hover:opacity-80`;
                    } else {
                      const numericVal = parseInt(value, 10);
-                     if (!isNaN(numericVal) && numericVal >= 100) {
+                     if (lineProviderIds.get(value) === 'pks') {
                         activeClass = 'bg-teal-400 text-teal-950 border-transparent shadow-[0_0_12px_rgba(45,212,191,0.3)]';
                         inactiveClass = `${getLineStyle(value, lineProviderIds.get(value))} hover:opacity-80`;
                      } else {
@@ -422,14 +302,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Departures List */}
           <div>
-             {/* Clean simple day header */}
-             <div className="flex justify-between items-center mb-3 px-1">
-               <div className={`text-xs font-extrabold tracking-wider uppercase ${mutedTextClass}`}>
-                 {days.find(d => d.key === selectedDay)?.weekday}, {days.find(d => d.key === selectedDay)?.dayNum} {days.find(d => d.key === selectedDay)?.monthName}
-               </div>
-             </div>
-
-             <div className="hidden flex-col gap-2.5 mb-3 px-1">
+             {warnings.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{warnings.join(' ')}</div>}
+             <div className="flex flex-col gap-2.5 mb-3 px-1">
                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                  <div className="text-xs font-extrabold text-slate-400 tracking-wider uppercase">
                    {days.find(d => d.key === selectedDay)?.weekday}, {days.find(d => d.key === selectedDay)?.dayNum} {days.find(d => d.key === selectedDay)?.monthName}
@@ -439,7 +313,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                    {/* Live/Offline Status Badge */}
                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.15)]">
                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                     <span>Dane Rzeczywiste ITS</span>
+                     <span>{departures.some(d=>d.realtimeSource==='stop-board') ? 'Rozkład i tablica odjazdów' : 'Rozkład jazdy'}</span>
                    </div>
 
                    {/* Refresh Button */}
@@ -562,7 +436,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
                 {activeDepartures.length === 0 && (
                   <div className={`p-8 text-center text-sm leading-relaxed ${subtleTextClass}`}>
-                    Brak najbliższych odjazdów dla tej linii.
+                    {warnings.length ? 'Nie można potwierdzić pełnej listy odjazdów. Spróbuj odświeżyć rozkład.' : filteredDeparturesByLine.length ? 'Pozostałe kursy już odjechały. Włącz „Pokaż minione odjazdy”.' : selectedLine === 'all' ? 'Brak zaplanowanych odjazdów w wybranym dniu.' : 'Brak odjazdów wybranej linii w tym dniu.'}
                   </div>
                 )}
                 

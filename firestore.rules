@@ -52,15 +52,12 @@ service cloud.firestore {
     }
 
     function hasAdminPermFromData(data, perm) {
-      let perms = data.permissions;
-      let modern = perms == null ? false : perms.get(perm, false) == true;
-      let legacy = perms == null ? false :
-                   perm == 'canBan' ? perms.get('ban', false) == true :
-                   perm == 'canViewList' ? (perms.get('monitor', false) == true || perms.get('canViewList', false) == true) :
-                   perm == 'canChangeRoles' ? perms.get('canChangeRoles', false) == true :
-                   false;
-
-      return data.role == 'admin' && perms != null && (modern || legacy);
+      let perms = data.get('permissions', {}) == null ? {} : data.get('permissions', {});
+      return data.role == 'admin' && perms is map && (
+        perm in ['monitor', 'canViewList'] ? true :
+        perm in ['ban', 'canBan'] ? perms.get('ban', perms.get('canBan', true)) == true :
+        perms.get(perm, false) == true
+      );
     }
 
     function hasAdminPerm(perm) {
@@ -103,12 +100,7 @@ service cloud.firestore {
     }
 
     function callerPermEnabled(key) {
-      let perms = callerDeviceData().permissions;
-      return perms is map && (
-        perms.get(key, false) == true ||
-        (key == 'canBan' && perms.get('ban', false) == true) ||
-        (key == 'canViewList' && perms.get('monitor', false) == true)
-      );
+      return hasAdminPermFromData(callerDeviceData(), key);
     }
 
     function incomingPermissionsKnown() {
@@ -135,20 +127,23 @@ service cloud.firestore {
     }
 
     function adminPermissionGrantAllowed() {
+      let granted = incoming().permissions;
+      let caller = callerDeviceData().get('permissions', {});
+      let callerBan = caller.get('ban', caller.get('canBan', true)) == true;
       return isCallerOwner() ||
              (
                incoming().role != 'owner' &&
-               !incomingPermEnabled('disableMap') &&
-               !incomingPermEnabled('disableStops') &&
-               incomingPermWithinCaller('shield') &&
-               incomingPermWithinCaller('users') &&
-               incomingPermWithinCaller('group') &&
-               incomingPermWithinCaller('logs') &&
-               incomingPermWithinCaller('ban') &&
-               incomingPermWithinCaller('canBan') &&
-               incomingPermWithinCaller('canChangeRoles') &&
-               incomingPermWithinCaller('globalSettings') &&
-               incomingPermWithinCaller('globalSettingsEdit')
+               !granted.get('disableMap', false) &&
+               !granted.get('disableStops', false) &&
+               (!granted.get('shield', false) || caller.get('shield', false)) &&
+               (!granted.get('users', false) || caller.get('users', false)) &&
+               (!granted.get('group', false) || caller.get('group', false)) &&
+               (!granted.get('logs', false) || caller.get('logs', false)) &&
+               (!granted.get('ban', false) || callerBan) &&
+               (!granted.get('canBan', false) || callerBan) &&
+               (!granted.get('canChangeRoles', false) || caller.get('canChangeRoles', false)) &&
+               (!granted.get('globalSettings', false) || caller.get('globalSettings', false)) &&
+               (!granted.get('globalSettingsEdit', false) || caller.get('globalSettingsEdit', false))
              );
     }
 
@@ -180,6 +175,17 @@ service cloud.firestore {
              data.permissions.get('globalSettingsEdit', false) != true &&
              data.permissions.get('canBan', false) != true &&
              data.permissions.get('canViewList', false) != true;
+    }
+
+    // Clients may mirror their server-authorized device, never grant themselves a role.
+    function ownInstallationMirrorAllowed(installationId) {
+      let device = callerDeviceExists() ? callerDeviceData() : {};
+      return callerDeviceExists() && device.get('installationId', '') == installationId &&
+             incoming().role == device.role &&
+             incoming().permissions == device.permissions &&
+             incoming().status == device.status &&
+             incoming().verified == device.get('verified', false) &&
+             incoming().get('banDetails', null) == device.get('banDetails', null);
     }
 
     function userInstallationCreateAllowed(data) {
@@ -245,7 +251,7 @@ service cloud.firestore {
                data.role in ['owner', 'admin']
              ) &&
              (!(data.status is string) || !(profile.status is string) || data.status == profile.status) &&
-             data.permissions is map &&
+             data.permissions is map && data.permissions == profile.permissions &&
              (
                profile.role == 'user' ||
                profile.role in ['owner', 'admin'] ||
@@ -384,7 +390,13 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidId(installationId) &&
                     incoming().installationId == installationId &&
                     incoming().updatedBy == request.auth.uid &&
-                    userInstallationCreateAllowed(incoming());
+                    incomingPermissionsKnown() && (
+                      isCallerOwner() ||
+                      (hasAdminPerm('canChangeRoles') && incoming().role != 'owner' && adminPermissionGrantAllowed()) ||
+                      (hasAdminPerm('canBan') && incoming().role == 'user' && userPermissionsAreSafe(incoming()) && incoming().status in ['active', 'banned']) ||
+                      ownInstallationMirrorAllowed(installationId) ||
+                      userInstallationCreateAllowed(incoming())
+                    );
       allow update: if isSignedIn() && isValidId(installationId) &&
                     incoming().installationId == installationId &&
                     incoming().updatedBy == request.auth.uid &&
@@ -402,6 +414,7 @@ service cloud.firestore {
                         incoming().permissions == existing().permissions &&
                         incoming().status in ['active', 'banned']
                       ) ||
+                      ownInstallationMirrorAllowed(installationId) ||
                       userInstallationUpdateAllowed(incoming())
                     );
       allow delete: if isSignedIn() &&

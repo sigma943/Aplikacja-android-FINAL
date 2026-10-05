@@ -154,10 +154,12 @@ const TOKEN_ALIASES: Record<string, string> = {
 function toAscii(value: unknown) {
   return String(value || '')
     .normalize('NFD')
+    .replace(/[łŁ]/g, 'l')
     .replace(/[\u0300-\u036f]/g, '');
 }
 
 function parseNumber(value: unknown) {
+  if (value == null || value === '') return undefined;
   const number = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
   return Number.isFinite(number) ? number : undefined;
 }
@@ -267,7 +269,7 @@ export function getSimilarity(left: unknown, right: unknown) {
 }
 
 function extractNumberSet(value: unknown) {
-  return new Set((sanitizeStopText(value).match(/\b\d{1,3}[a-z]?\b/g) || []).map((token) => token.toLowerCase()));
+  return new Set((sanitizeStopText(value).match(/\b\d{1,3}[a-z]?\b/g) || []).map((token) => token.toLowerCase().replace(/^0+(?=\d)/, '')));
 }
 
 function extractCitySet(value: unknown) {

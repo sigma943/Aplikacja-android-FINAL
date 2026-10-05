@@ -15,6 +15,7 @@ export interface Stop {
   type: StopType;
   carriers: Carrier[];
   lines: string[]; // For bus stops
+  lineProviders?: Record<string, string[]>;
   isFavorite: boolean;
   areaId?: string;
   code?: string;
@@ -22,6 +23,7 @@ export interface Stop {
   lon?: number;
   sourceProviderIds?: string[];
   providerStopIds?: Record<string, string>;
+  pksStopPoints?: Array<{ id: string; areaId?: string; code?: string }>;
 }
 
 export interface Departure {
@@ -38,4 +40,7 @@ export interface Departure {
   type?: 'departure' | 'arrival'; // For trains
   plannedAtMs?: number;
   realAtMs?: number;
+  realtimeSource?: 'stop-board' | 'vehicle-feed';
 }
+
+export interface DepartureResult { departures: Departure[]; warnings: string[]; updatedAt: number; }

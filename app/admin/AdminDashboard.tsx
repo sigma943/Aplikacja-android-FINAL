@@ -33,6 +33,7 @@ import {
   getDoc,
   getDocs,
   writeBatch,
+  type WriteBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -140,8 +141,9 @@ function dedupeDevicesByInstallation(devices: ({ id: string } & DeviceData)[]): 
     const currentRoleRank = roleRank(current.role);
     const nextRoleRank = roleRank(device.role);
     const shouldReplace =
-      nextRoleRank > currentRoleRank ||
-      (nextRoleRank === currentRoleRank && (isClearlyNewerDevice || nextLastSeen >= currentLastSeen));
+      isClearlyNewerDevice ||
+      (Math.abs(nextLastSeen - currentLastSeen) <= 60_000 &&
+        (nextRoleRank > currentRoleRank || (nextRoleRank === currentRoleRank && nextLastSeen >= currentLastSeen)));
 
     if (shouldReplace) byInstallation.set(installationId, device);
   }
@@ -724,6 +726,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     permissions: Record<string, boolean>,
     displayName?: string,
     extras: Partial<Pick<DeviceData, 'status' | 'verified' | 'banDetails'>> = {},
+    batch?: WriteBatch,
   ) => {
     const inst = String(installationId || '').trim();
     if (!inst) return;
@@ -735,7 +738,6 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       verified: role === 'owner' || role === 'admin' || extras.verified === true,
       updatedAt: serverTimestamp(),
       updatedBy: user?.uid || null,
-      lastUid: user?.uid || null,
     };
     if (extras.banDetails) {
       patch.banDetails = extras.banDetails;
@@ -747,7 +749,8 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     } else {
       patch.displayName = deleteField();
     }
-    await setDoc(doc(db, 'installations', inst), patch, { merge: true });
+    if (batch) batch.set(doc(db, 'installations', inst), patch, { merge: true });
+    else await setDoc(doc(db, 'installations', inst), patch, { merge: true });
   };
 
   const buildUnverifiedAutoBanDetails = (): NonNullable<DeviceData['banDetails']> => ({
@@ -932,7 +935,8 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
         patch.displayName = deleteField();
       }
 
-      await updateDoc(doc(db, 'devices', selectedDeviceForRole.id), patch);
+      const roleBatch = writeBatch(db);
+      roleBatch.update(doc(db, 'devices', selectedDeviceForRole.id), patch);
       await syncInstallationProfile(
         targetRow?.installationId,
         fbRole,
@@ -946,7 +950,9 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           verified,
           banDetails: targetRow?.banDetails,
         },
+        roleBatch,
       );
+      await roleBatch.commit();
       const whoLabel = formatDeviceLabel({
         displayName: trimmedDisplay || selectedDeviceForRole.displayName,
         deviceInfo: targetRow?.deviceInfo ?? '',
@@ -1129,7 +1135,8 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       const normalized = normalizeAdminPermissions(permissions, fbRole);
       if (fbRole === 'owner' || fbRole === 'admin') normalized.monitor = true;
       const verified = fbRole === 'owner' || fbRole === 'admin' || target?.verified === true;
-      await updateDoc(doc(db, 'devices', operatorId), {
+      const roleBatch = writeBatch(db);
+      roleBatch.update(doc(db, 'devices', operatorId), {
         role: fbRole,
         verified,
         permissions: {
@@ -1151,7 +1158,9 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           verified,
           banDetails: opRow?.banDetails,
         },
+        roleBatch,
       );
+      await roleBatch.commit();
       const opLabel = formatDeviceLabel({
         displayName: opRow?.displayName,
         deviceInfo: opRow?.deviceInfo ?? '',
@@ -1584,4 +1593,3 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     </div>
   );
 }
-

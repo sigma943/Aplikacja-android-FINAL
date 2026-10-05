@@ -74,8 +74,8 @@ export const roleToAdminPermissions = (role: DeviceRole): AdminPermissions => {
 
 export const toLegacyPermissions = (permissions: StoredPermissions): Required<LegacyPermissions> => ({
   /** Jawne `false` na legacy polu nie powinno gasić nowego `monitor` / `ban` / `shield`. */
-  canBan: Boolean(permissions?.ban || permissions?.canBan),
-  canViewList: Boolean(permissions?.monitor || permissions?.canViewList),
+  canBan: Boolean(permissions?.ban ?? permissions?.canBan),
+  canViewList: Boolean(permissions?.monitor ?? permissions?.canViewList),
   canChangeRoles: Boolean(permissions?.canChangeRoles),
 });
 

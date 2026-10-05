@@ -1,6 +1,8 @@
 'use client';
+import {loadStopDepartures} from '@/lib/stop-departures';
+import {busOperatingState} from '@/lib/bus-operating-state';
 
-import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
+import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
 import { Capacitor } from '@capacitor/core';
 import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, Eye, Palette, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
@@ -8,7 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
 import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
 import TrainDetailsPanel from '@/components/TrainDetailsPanel';
-import StopsPanel from '@/components/stops-panel/StopsPanel';
+import { warsawDateIso, warsawTimeMs } from '@/lib/transit-time';
 import type { Stop as StopsPanelStop } from '@/Panel/src/types';
 import {
   fetchDeparturesClient,
@@ -29,6 +31,7 @@ const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
+const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false });
 
 const BusMap = dynamic(() => import('@/components/BusMap'), {
   ssr: false,
@@ -85,17 +88,11 @@ const parseJourneyMs = (raw: unknown): number => {
 };
 
 const selectedWarsawDateIso = (dayOffset = 0) => {
-  const date = new Date();
-  date.setDate(date.getDate() + dayOffset);
-  return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Warsaw' });
+  return warsawDateIso(dayOffset);
 };
 
 const parseTimeOnWarsawDate = (dateIso: string, timeValue: unknown) => {
-  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(timeValue || '').trim());
-  if (!match) return Number.NaN;
-  const date = new Date(`${dateIso}T00:00:00`);
-  date.setHours(Number(match[1]), Number(match[2]), Number(match[3] || '0'), 0);
-  return date.getTime();
+  return warsawTimeMs(dateIso, timeValue);
 };
 
 const normalizeStopKey = (value: unknown) =>
@@ -103,6 +100,7 @@ const normalizeStopKey = (value: unknown) =>
     .trim()
     .toLowerCase()
     .normalize('NFD')
+    .replace(/ł/g, 'l')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s*[-/]\s*/g, ' ')
     .replace(/\b(?:rzeszow|przystanek|przyst|autobusowy|autobusowa)\b/g, ' ')
@@ -115,6 +113,7 @@ const normalizePreciseStopKey = (value: unknown) =>
     .trim()
     .toLowerCase()
     .normalize('NFD')
+    .replace(/ł/g, 'l')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/^\(\d+[a-z]?\)\s*/i, '')
     .replace(/\s*\((?:\+|-|\/|\s)+\)\s*$/g, '')
@@ -132,11 +131,16 @@ const marcelCourseStopKeys = (stop: { nazMi?: unknown; nazPr?: unknown }) =>
 
 const mapMpkDepartureToJourney = (entry: Record<string, unknown>, dateIso: string, index: number) => {
   const plannedMs = parseTimeOnWarsawDate(dateIso, entry.departure_time);
+  const realMs = parseTimeOnWarsawDate(dateIso, entry.real_departure_time);
   return {
     line_name: String(entry.line || '').trim(),
     route_description: String(entry.trip_headsign || entry.end_stop_name || 'Nieznany kierunek').trim(),
     timetable_time: Number.isFinite(plannedMs) ? new Date(plannedMs).toISOString() : `${dateIso}T${entry.departure_time || '00:00'}`,
     provider_id: 'mpk_rzeszow',
+    real_departure_time: Number.isFinite(realMs) ? new Date(realMs).toISOString() : undefined,
+    deviation: Number.isFinite(realMs) && Number.isFinite(plannedMs) ? (realMs - plannedMs) / 60_000 : 0,
+    vehicle_id: entry.realtime_source === 'stop-board' ? entry.vehicle : undefined,
+    realtime_source: entry.realtime_source,
     trip_id: entry.trip_id || entry.block_id || `mpk-${index}`,
   };
 };
@@ -340,6 +344,10 @@ export default function Home() {
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
+  const [hasOpenedStops, setHasOpenedStops] = useState(false);
+  useEffect(() => {
+    if (activeTab === 'stops') setHasOpenedStops(true);
+  }, [activeTab]);
   const canOpenAdminEmbed = Boolean(
     device && canAccessAdminDashboard(device.role, device.permissions),
   );
@@ -352,7 +360,10 @@ export default function Home() {
   }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled]);
   const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, lat?: number, lon?: number}[]>([]);
   const [stopsLoadError, setStopsLoadError] = useState(false);
+  const stopsLoadPendingRef = useRef(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [showAllBusStops,setShowAllBusStops] = useState(true);
+  const [stopDeparturesError,setStopDeparturesError] = useState<string|null>(null);
   const [selectedExternalStop, setSelectedExternalStop] = useState<StopsPanelStop | null>(null);
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(true);
   const [stopDepartures, setStopDepartures] = useState<any[]>([]);
@@ -541,7 +552,8 @@ export default function Home() {
     
     const results = Object.values(stopDepartures.reduce((acc: any, journey: any) => {
         const journeyPlannedMs = parseJourneyMs(journey.timetable_time);
-        let actualTimeStr = Number.isFinite(journeyPlannedMs) ? new Date(journeyPlannedMs).toTimeString().substring(0, 5) : '--:--';
+        const formatDepartureClock = (ms: number) => new Date(ms).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Warsaw' });
+        let actualTimeStr = Number.isFinite(journeyPlannedMs) ? formatDepartureClock(journeyPlannedMs) : '--:--';
         let diffMin = Number.isFinite(journeyPlannedMs) ? Math.floor((journeyPlannedMs - now) / 60000) : Number.POSITIVE_INFINITY;
         let isRealtime = false;
         let vehicleNum = '';
@@ -553,62 +565,15 @@ export default function Home() {
         const directionLabel = String(journey.route_description || journey.direction || journey.destination || '').trim();
         if (technicalRegex.test(journeyLineNorm) || technicalRegex.test(directionLabel)) return acc;
         
-        let liveMatch: any = null;
-        let stopInfo: any = null;
-        let minDiff = Infinity;
-        let sameLineCandidates = 0;
-        const normalizeDirection = (value: unknown) =>
-          String(value || '')
-            .trim()
-            .toLowerCase()
-            .replace(/^mks\s+/, '')
-            .replace(/\s+/g, ' ');
-        
-        vehicles.forEach(v => {
-            if (normLine(v.routeShortName) === journeyLineNorm) {
-                sameLineCandidates += 1;
-                const s = v.schedule?.find((x: any) => String(x.id) === String(selectedStopId));
-                if (s && s.planned) {
-                    const diff = Math.abs(new Date(s.planned).getTime() - journeyPlannedMs);
-                    if (diff < 600000 && diff < minDiff) {
-                        minDiff = diff;
-                        liveMatch = v;
-                        stopInfo = s;
-                    }
-                }
-            }
-        });
-
-        if (liveMatch) {
-            const liveDelaySec = Number(liveMatch.delay);
-            const canUseLiveDelay =
-              liveMatch.status !== 'break' &&
-              liveMatch.status !== 'inactive' &&
-              Number.isFinite(liveDelaySec) &&
-              liveDelaySec !== 0 &&
-              Math.abs(liveDelaySec) <= 18000;
-            const stopPlannedMs = stopInfo?.planned ? new Date(stopInfo.planned).getTime() : NaN;
-            const basePlannedMs = Number.isFinite(stopPlannedMs) ? stopPlannedMs : journeyPlannedMs;
-            const realT = stopInfo?.real
-              ? new Date((stopInfo.real || '').replace(' ', 'T'))
-              : (Number.isFinite(basePlannedMs) && canUseLiveDelay ? new Date(basePlannedMs + liveDelaySec * 1000) : null);
-            
-            if (realT && !isNaN(realT.getTime())) {
-                isRealtime = true;
-                isDelayed = Math.abs(realT.getTime() - journeyPlannedMs) > 60_000;
-                vehicleNum = getVehicleDisplayNumber(liveMatch);
-                actualDepTimeMs = realT.getTime();
-                diffMin = Math.floor((actualDepTimeMs - now) / 60000);
-                actualTimeStr = realT.toTimeString().substring(0, 5);
-            }
-        } else if (journey.deviation !== null && journey.deviation !== undefined) {
-            isRealtime = true;
+        const predictedMs = parseJourneyMs(journey.real_time);
+        if (Number.isFinite(predictedMs) || (journey.deviation !== null && journey.deviation !== undefined)) {
+            isRealtime = Boolean(journey.realtime_source);
             isDelayed = !!(Math.abs(journey.deviation) > 1);
             if (!isNaN(journeyPlannedMs)) {
-               const realD = new Date(journeyPlannedMs + journey.deviation * 60000);
+               const realD = new Date(Number.isFinite(predictedMs) ? predictedMs : journeyPlannedMs + journey.deviation * 60000);
                actualDepTimeMs = realD.getTime();
                diffMin = Math.floor((actualDepTimeMs - now) / 60000);
-               actualTimeStr = realD.toTimeString().substring(0, 5);
+               actualTimeStr = formatDepartureClock(realD.getTime());
             }
         }
 
@@ -619,6 +584,7 @@ export default function Home() {
         if (!Number.isFinite(journeyPlannedMs)) return acc;
         const plannedMinuteBucket = Math.round(journeyPlannedMs / 60000);
         const uniqKey = [
+          journey.provider_id || 'pks',
           journeyLineNorm,
           String(journey.route_description || '').trim().toUpperCase(),
           `min:${plannedMinuteBucket}`,
@@ -636,7 +602,7 @@ export default function Home() {
                    routeShortName: journey.line_name,
                    direction: journey.route_description,
                     id: isRealtime ? 'LIVE' : 'ROZKŁAD',
-                   model: liveMatch ? liveMatch.model : null
+                   model: null
                },
                providerId: journey.provider_id || journey.provider || 'pks',
                 vehicleNum,
@@ -649,17 +615,6 @@ export default function Home() {
                plannedTimeMs: journeyPlannedMs,
                depTimeMs: Number.isFinite(actualDepTimeMs) ? actualDepTimeMs : journeyPlannedMs
            };
-        } else if (liveMatch) {
-           acc[uniqKey].isRealtime = true;
-           acc[uniqKey].isDelayed = isDelayed;
-           acc[uniqKey].actualTimeStr = actualTimeStr;
-           acc[uniqKey].diffMin = diffMin;
-           acc[uniqKey].isTomorrow = isTomorrow;
-           acc[uniqKey].dateStr = dateStr;
-           acc[uniqKey].vehicleNum = vehicleNum;
-           acc[uniqKey].plannedTimeMs = journeyPlannedMs;
-           acc[uniqKey].bus.model = liveMatch.model;
-           acc[uniqKey].bus.id = 'LIVE';
         }
         return acc;
     }, {})).filter((a: any) => Number.isFinite(a.diffMin) && a.diffMin >= -15 && a.diffMin <= 2880).sort((a: any, b: any) => {
@@ -669,133 +624,25 @@ export default function Home() {
     });
 
     return results;
-  }, [stopDepartures, vehicles, selectedStopId, now]);
+  }, [stopDepartures, now]);
 
-  useEffect(() => {
-    if (selectedStopId) {
-      const splitCsv = (value: unknown) =>
-        String(value || '')
-          .split(',')
-          .map((part) => part.trim())
-          .filter(Boolean);
-      const stopInfo = stopsList.find(s => s.id === selectedStopId);
-      const providerStopIds = selectedExternalStop?.providerStopIds || {};
-      const externalPksIds = splitCsv(providerStopIds.pks);
-      const mpkStopIds = splitCsv(providerStopIds.mpk_rzeszow);
-      const marcelRouteIds = splitCsv(providerStopIds.marcelRouteIds);
-      const stopIdsToFetch = selectedExternalStop ? externalPksIds : [selectedStopId];
-
-      const areaIds = splitCsv(providerStopIds.pksAreaIds || selectedExternalStop?.areaId || stopInfo?.areaId);
-      const codes = splitCsv(providerStopIds.pksCodes || selectedExternalStop?.code || stopInfo?.code || '');
-      const tuples = stopIdsToFetch.map((stopId, index) => ({
-        stopId,
-        areaId: areaIds[index] || areaIds[0],
-        code: codes[index] || codes[0] || '',
-      }));
-      const dateKeys = [selectedWarsawDateIso(0), selectedWarsawDateIso(1)];
-      const requestKey = JSON.stringify({
-        pks: tuples,
-        mpk: mpkStopIds,
-        marcel: marcelRouteIds,
-        selected: selectedExternalStop?.id || selectedStopId,
-        days: dateKeys,
-      });
-      const requestSeq = ++stopDeparturesRequestSeqRef.current;
-
-      const cached = stopDeparturesCacheRef.current.get(requestKey);
-      const isFreshCache = Boolean(cached && Date.now() - cached.savedAt <= 75_000);
-      if (cached?.journeys?.length) {
-        setStopDepartures(cached.journeys);
-        setIsFetchingDepartures(!isFreshCache);
-        if (isFreshCache) return;
-      } else {
-        setIsFetchingDepartures(true);
-        setStopDepartures([]);
-      }
-
-      const existingRequest = stopDeparturesInFlightRef.current.get(requestKey);
-      const fetchRequest = existingRequest || (async () => {
-        const pksRequests = tuples.flatMap((tuple) =>
-          dateKeys.map((dateIso) =>
-            fetchDeparturesClient(tuple.stopId, tuple.areaId, tuple.code, dateIso)
-            .then((result) => (Array.isArray(result?.journeys) ? result.journeys : []))
-            .then((journeys: any[]) => journeys.map((journey: any) => ({ ...journey, provider_id: 'pks' })))
-            .catch(() => []),
-          ),
-        );
-
-        const mpkRequests = mpkStopIds.flatMap((mpkStopId) =>
-          dateKeys.map((dateIso) =>
-            fetchMpkRzeszowDeparturesClient(mpkStopId, dateIso)
-              .then((entries) => entries.map((entry, index) => mapMpkDepartureToJourney(entry as Record<string, unknown>, dateIso, index)))
-              .catch(() => []),
-          ),
-        );
-
-        const marcelKeys = new Set(
-          [
-            ...splitCsv(providerStopIds.marcelMatchKeys),
-            ...splitCsv(providerStopIds.marcelMatchKey),
-            normalizePreciseStopKey(selectedExternalStop?.name || ''),
-          ].filter(Boolean),
-        );
-        const marcelRoutes = marcelRouteIds.length > 0
-          ? marcelRouteIds
-          : selectedExternalStop?.sourceProviderIds?.includes('marcel')
-            ? await fetchMarcelRoutesClient().then((routes) => routes.map((route) => String(route.idTr))).catch(() => [])
-          : [];
-        const marcelRequests = marcelRoutes.flatMap((routeId) =>
-          dateKeys.map(async (dateIso) => {
-            const courses = await fetchMarcelCoursesClient(routeId, dateIso).catch(() => []);
-            const journeys: any[] = [];
-            await Promise.all(courses.map(async (course, courseIndex) => {
-              const stopsForCourse = await fetchMarcelPublicCourseStopsClient(course.idKu).catch(() => []);
-              const matchIndex = stopsForCourse.findIndex((courseStop) =>
-                marcelCourseStopKeys(courseStop).some((key) => marcelKeys.has(key)),
-              );
-              if (matchIndex < 0) return;
-              journeys.push(mapMarcelDepartureToJourney(course as Record<string, unknown>, stopsForCourse[matchIndex] as Record<string, unknown>, dateIso, courseIndex));
-            }));
-            return journeys;
-          }),
-        );
-
-        const responses = await Promise.all([...pksRequests, ...mpkRequests, ...marcelRequests]);
-        return responses.flat();
-      })()
-        .finally(() => {
-          stopDeparturesInFlightRef.current.delete(requestKey);
-        });
-      if (!existingRequest) {
-        stopDeparturesInFlightRef.current.set(requestKey, fetchRequest);
-      }
-
-      fetchRequest
-        .then((journeys) => {
-          stopDeparturesCacheRef.current.set(requestKey, {
-            savedAt: Date.now(),
-            journeys,
-          });
-          if (stopDeparturesCacheRef.current.size > 80) {
-            const oldestKey = stopDeparturesCacheRef.current.keys().next().value;
-            if (oldestKey) stopDeparturesCacheRef.current.delete(oldestKey);
-          }
-          if (stopDeparturesRequestSeqRef.current !== requestSeq) return;
-          setStopDepartures(journeys);
-          setIsFetchingDepartures(false);
-        })
-        .catch(err => {
-          console.error('Fetch departures error:', err);
-          if (stopDeparturesRequestSeqRef.current !== requestSeq) return;
-          setStopDepartures([]);
-          setIsFetchingDepartures(false);
-        });
-    } else {
-      stopDeparturesRequestSeqRef.current += 1;
-      setTimeout(() => setStopDepartures([]), 0);
-      setIsFetchingDepartures(false);
-    }
-  }, [selectedExternalStop, selectedStopId, stopsList]);
+  useEffect(()=> {
+    if(!selectedStopId)return;
+    let active=true;
+    const known=stopsList.find(stop=>stop.id===selectedStopId);
+    const stop:StopsPanelStop=selectedExternalStop||{id:selectedStopId,name:known?.name||selectedStopId,type:'bus',carriers:[],lines:[],isFavorite:false,areaId:known?.areaId,code:known?.code,sourceProviderIds:['pks'],providerStopIds:{pks:selectedStopId},pksStopPoints:[{id:selectedStopId,areaId:known?.areaId,code:known?.code}]};
+    setStopDepartures([]);setStopDeparturesError(null);setIsFetchingDepartures(true);
+    Promise.allSettled([0,1].map(day=>loadStopDepartures(stop,day))).then(results=> {
+      if(!active)return;
+      const success=results.filter(result=>result.status==='fulfilled');
+      if(!success.length)setStopDeparturesError('Nie udało się pobrać odjazdów.');
+      const warnings=success.flatMap(result=>result.value.warnings);
+      if(warnings.length)setStopDeparturesError(warnings.join(' '));
+      const rows=success.flatMap(result=>result.value.departures);
+      setStopDepartures(rows.map(row=>({line_name:row.line,route_description:row.direction,timetable_time:row.plannedAtMs?new Date(row.plannedAtMs).toISOString():'',real_time:Number.isFinite(row.realAtMs)?new Date(row.realAtMs!).toISOString():null,deviation:Number.isFinite(row.realAtMs) ? row.delayMins||0 : null,provider_id:row.carrier?.id==='mpk'?'mpk_rzeszow':row.carrier?.id||'pks',realtime_source:row.realtimeSource,departure_id:row.id})));setIsFetchingDepartures(false);
+    }).catch(()=>{if(active){setStopDeparturesError('Nie udało się pobrać odjazdów.');setIsFetchingDepartures(false);}});
+    return()=>{active=false;};
+  },[selectedExternalStop,selectedStopId,stopsList]);
 
   useEffect(() => {
     const storedProviders = sanitizeProvidersWithVisibility(readStoredTransportProviders(), hiddenProvidersSet);
@@ -877,6 +724,9 @@ export default function Home() {
 
   const mergeVehicleDetails = useCallback((base: Vehicle, details?: Vehicle | null) => {
     if (!details) return base;
+    const baseTrip=base.tripId||base.journeyId;
+    const detailTrip=details.tripId||details.journeyId;
+    if(baseTrip && detailTrip && String(baseTrip)!==String(detailTrip)) return base;
 
     const baseSchedule = base.schedule || [];
     const detailsSchedule = details.schedule || [];
@@ -918,13 +768,15 @@ export default function Home() {
     const provider = (base.provider || details.provider) as TransportProviderId;
     const isPkpIntercity = provider === 'pkp_intercity';
 
-    return {
+    const merged = {
       ...details,
       ...base,
       // Keep live telemetry authoritative to avoid stale detail cache snapping UI backward.
       lat: base.lat,
       lon: base.lon,
       delay: base.delay,
+      nextTripStartAtMs: base.nextTripStartAtMs ?? details.nextTripStartAtMs,
+      nextTripFirstStopId: base.nextTripFirstStopId ?? details.nextTripFirstStopId,
       status: base.status,
       statusText: base.statusText,
       dataAgeSec: base.dataAgeSec,
@@ -948,7 +800,12 @@ export default function Home() {
       trainName: isPkpIntercity ? (details.trainName || base.trainName) : (base.trainName || details.trainName),
       positionQuality: isPkpIntercity ? (details.positionQuality || base.positionQuality) : (base.positionQuality || details.positionQuality),
     };
-  }, [hiddenProvidersSet]);
+    if(!isPkpIntercity && merged.status!=='technical' && merged.status!=='inactive' && merged.status!=='cached') {
+      const operating=busOperatingState({lat:merged.lat,lon:merged.lon,speed:merged.speed,nowMs:Date.now(),stops:merged.routeStops||[],firstDepartureMs:merged.nextTripStartAtMs,firstStopId:merged.nextTripFirstStopId,reportedBreak:base.status==='break'});
+      return {...merged,...operating,nextTripStartAtMs:'nextTripStartAtMs' in operating ? operating.nextTripStartAtMs : undefined,nextTripFirstStopId:'nextTripFirstStopId' in operating ? Number(operating.nextTripFirstStopId) : undefined};
+    }
+    return merged;
+  }, []);
 
   useEffect(() => {
     if (!hasLoadedTransportProviders) return;
@@ -1072,8 +929,19 @@ export default function Home() {
       const data = await fetchVehiclesClient(inactive, providersToRequest, {
         signal: controller.signal,
         pkpViewport: mapViewportRef.current || undefined,
+        onProviderLoaded: (provider, loaded) => {
+          if (controller.signal.aborted || vehiclesFetchAbortRef.current !== controller) return;
+          if (!activeProvidersRef.current.includes(provider) || loaded.length === 0) return;
+          lastProviderNonEmptyAtRef.current.set(provider, Date.now());
+          const next = [...vehiclesRef.current.filter((vehicle) => (vehicle.provider || 'pks') !== provider), ...loaded];
+          vehiclesRef.current = next;
+          startTransition(() => setVehicles(next));
+          setIsLoading(false);
+          setError(null);
+        },
       }) as any;
       if (timeoutId) clearTimeout(timeoutId);
+      if (controller.signal.aborted || vehiclesFetchAbortRef.current !== controller) return;
       if (vehiclesFetchAbortRef.current === controller) vehiclesFetchAbortRef.current = null;
       if (!sameTransportProviders(requestProviders, activeProvidersRef.current)) return;
       const loadedVehicles = Array.isArray(data) ? data : (data.vehicles || []);
@@ -1272,6 +1140,8 @@ export default function Home() {
   }, [showInactive, activeProviders, hasLoadedTransportProviders]);
 
   const loadStops = () => {
+    if (stopsLoadPendingRef.current) return;
+    stopsLoadPendingRef.current = true;
     setStopsLoadError(false);
     const mapStops = (d: Awaited<ReturnType<typeof fetchStopsClient>>) =>
       Object.entries(d).map(([id, val]: any) => ({
@@ -1290,13 +1160,13 @@ export default function Home() {
       .catch(e => {
         console.error('Fetch stops fail:', e);
         setStopsLoadError(true);
-      });
+      }).finally(() => { stopsLoadPendingRef.current = false; });
   };
 
   useEffect(() => {
-    loadStops();
+    if ((activeTab === 'stops' || selectedBus || selectedStopId) && stopsList.length === 0 && !stopsLoadError) loadStops();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeTab, selectedBus?.id, selectedStopId]);
 
   useEffect(() => {
     if (selectedBus) {
@@ -1519,6 +1389,22 @@ export default function Home() {
       return true;
     });
   }, [now, selectedBus?.lastStopId, selectedBus?.schedule]);
+  const selectedBusDisplayedStops = showAllBusStops && selectedBus?.routeStops?.length ? selectedBus.routeStops : selectedBusUpcomingSchedule;
+  const openVehicleRouteStop = (stopId:string) => {
+    const point=(selectedBus?.routeStops||selectedBus?.schedule||[]).find(stop=>String(stop.id)===stopId);
+    const provider=selectedBus?.provider||'pks';
+    const known=provider==='pks'?stopsList.find(stop=>stop.id===stopId):undefined;
+    const name=known?.name||point?.name||('Przystanek '+stopId);
+    const external: StopsPanelStop = {id:stopId,name,type:'bus',carriers:[],lines:selectedBus?.routeShortName?[selectedBus.routeShortName]:[],isFavorite:false,lat:point?.lat??known?.lat,lon:point?.lon??known?.lon,areaId:known?.areaId,code:known?.code,sourceProviderIds:[provider],providerStopIds:{[provider]:stopId}};
+    if(provider==='pks')external.pksStopPoints=[{id:stopId,areaId:known?.areaId,code:known?.code}];
+    if(provider==='marcel') {
+      const [city,...place]=name.split(' - ');
+      const normalize=(text:string)=>text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u0142/g,'l').trim().replace(/\s+/g,' ');
+      const match=normalize(place.join(' - ')||city);
+      external.providerStopIds={marcelMatchKeys:match,marcelCityMatchKeys:normalize(city)+'|'+match};
+    }
+    setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(true);setIsTransportPanelOpen(false);
+  };
   const selectedBusHeaderStyle = {
     background: transparentUI
       ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.9)}, ${withAlpha(selectedVehicleColor, 0.68)})`
@@ -1743,12 +1629,7 @@ export default function Home() {
                forcedCenter={mapCenter}
                onCenterComplete={() => setMapCenter(null)}
                highlightedStopId={selectedStopId}
-               onStopClick={(stopId) => {
-                  setSelectedExternalStop(null);
-                  setSelectedStopId(stopId);
-                  setIsStopPanelExpanded(true);
-                  setIsTransportPanelOpen(false);
-               }}
+               onStopClick={openVehicleRouteStop}
                onMapClick={() => {
                    setSelectedBus(null);
                    setSelectedBusDetailsLoading(false);
@@ -2037,10 +1918,13 @@ export default function Home() {
                         )}
                       </div>
                       
-                      {(selectedBusScheduleLoading || selectedBusUpcomingSchedule.length > 0) && (
+                      {(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
-                            <MapPin className="w-4 h-4" /> Nadchodzące przystanki
+                            <MapPin className="w-4 h-4" /> {showAllBusStops ? 'Wszystkie przystanki trasy' : 'Nadchodzące przystanki'}
+                            <button type="button" onClick={()=>setShowAllBusStops(value=>!value)} className="ml-auto text-[10px] underline normal-case">
+                              {showAllBusStops ? 'Tylko nadchodzące' : 'Cała trasa'}
+                            </button>
                           </h3>
                           <div className="flex flex-col gap-0 relative">
                              <div className={`absolute left-[9px] top-4 bottom-4 w-0.5 ${mapDetailLine}`}></div>
@@ -2054,7 +1938,7 @@ export default function Home() {
                                      </div>
                                   </div>
                                 ))
-                             ) : selectedBusUpcomingSchedule.map((sch: any, idx: number) => {
+                             ) : selectedBusDisplayedStops.map((sch: any, idx: number) => {
                                 const parsedRealTime = sch.real ? new Date(sch.real) : null;
                                 const realTimeRaw = parsedRealTime && !Number.isNaN(parsedRealTime.getTime()) ? parsedRealTime : null;
                                 const parsedPlannedTime = sch.planned ? new Date(sch.planned) : null;
@@ -2094,8 +1978,7 @@ export default function Home() {
                                      key={`${sch.id || idx}-${idx}`} 
                                      onClick={() => {
                                        if (sch.id) {
-                                         setSelectedExternalStop(null);
-                                         setSelectedStopId(sch.id.toString());
+                                         openVehicleRouteStop(sch.id.toString());
                                        }
                                      }}
                                      className={`flex items-start gap-4 py-2 relative z-10 cursor-pointer transition-colors hover:bg-slate-500/10 rounded-xl px-2 -mx-2 ${isHighlighted ? (isDark ? 'bg-amber-500/20' : 'bg-amber-100') : ''} ${isPastStop ? 'opacity-50' : ''}`}
@@ -2191,6 +2074,7 @@ export default function Home() {
                                        <Clock className="h-4 w-4" />
                                        Najbliższe odjazdy
                                      </div>
+                                     {stopDeparturesError && <p role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{stopDeparturesError}</p>}
                                      {isFetchingDepartures ? (
                                         <div className="p-12 text-center flex flex-col items-center">
                                            <div className="w-10 h-10 mb-5 border-3 rounded-full animate-spin" style={{ borderColor: `${themeColor}20`, borderTopColor: themeColor }}></div>
@@ -2199,8 +2083,8 @@ export default function Home() {
                                         </div>
                                      ) : processedDepartures.length === 0 ? (
                                         <div className={`p-10 rounded-[32px] border-2 border-dashed text-center ${transparentUI ? (isDark ? 'border-white/10 bg-[#05080c]/92' : 'border-slate-900/10 bg-white/94') : (isDark ? 'border-slate-800' : 'border-slate-200')}`}>
-                                           <p className={`text-base font-bold ${textMain}`}>Brak odjazdów</p>
-                                           <p className={`text-xs mt-1 ${textSub}`}>Sprawdź inne godziny lub dni</p>
+                                           <p className={`text-base font-bold ${textMain}`}>{stopDeparturesError ? 'Rozkład niedostępny' : 'Brak odjazdów'}</p>
+                                           <p className={`text-xs mt-1 ${textSub}`}>{stopDeparturesError ? 'Spróbuj ponownie za chwilę' : 'Sprawdź inne godziny lub dni'}</p>
                                          </div>
                                        ) : (
                                           (() => {
@@ -2272,7 +2156,7 @@ export default function Home() {
             }`}
             aria-hidden={activeTab !== 'stops'}
          >
-            <StopsPanel
+            {hasOpenedStops && <StopsPanel
                stops={stopsList}
                isLoading={stopsList.length === 0 && !stopsLoadError}
                hasError={stopsLoadError}
@@ -2293,7 +2177,7 @@ export default function Home() {
                   setSelectedStopId(stop.id);
                   setActiveTab('map');
                }}
-            />
+            />}
          </motion.div>
 
       </div>

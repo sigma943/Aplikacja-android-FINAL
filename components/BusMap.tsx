@@ -4,14 +4,15 @@ import { memo, startTransition, useEffect, useState, useRef, useCallback, useMem
 import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomControl, useMapEvents, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { fetchRouteGeometryClient, fetchRouteShapeClient, type RouteGeometryStop } from '@/lib/pks-client';
+import { officialBusRoute } from '@/lib/official-bus-routes';
+import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v5';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v6-providers';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -43,7 +44,7 @@ function getVehicleColor(vehicle?: Pick<Vehicle, 'provider'> | null, fallback = 
 }
 
 function simplifyRouteForPaint(points: [number, number][], maxPoints = ROUTE_POINT_LIMIT) {
-  const cleaned = removeRoutePaintSpikes(points);
+  const cleaned = points.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));
   if (cleaned.length <= maxPoints) return cleaned;
   const step = Math.ceil(cleaned.length / maxPoints);
   const simplified: [number, number][] = [];
@@ -948,25 +949,7 @@ function RouteStopsLayer({
     zoomend: () => setZoom(map.getZoom()),
   });
 
-  const visibleStopIds = useMemo(() => {
-    if (!selectedVehicle) return [];
-
-    const maxStops =
-      zoom <= 11 ? 12 :
-      zoom <= 12 ? 18 :
-      zoom <= 13 ? 30 :
-      zoom <= 14 ? 44 :
-      Number.POSITIVE_INFINITY;
-    if (stopIds.length <= maxStops) return stopIds;
-
-    const step = Math.ceil(stopIds.length / maxStops);
-    return stopIds.filter((stopId, idx) =>
-      idx === 0 ||
-      idx === stopIds.length - 1 ||
-      String(stopId) === highlightedStopId ||
-      idx % step === 0,
-    );
-  }, [highlightedStopId, selectedVehicle, stopIds, zoom]);
+  const visibleStopIds = selectedVehicle ? stopIds : [];
 
   if (!selectedVehicle) return null;
 
@@ -1047,7 +1030,6 @@ export default function BusMap({
 
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
   const [snappedRoute, setSnappedRoute] = useState<[number, number][]>([]);
-  const [routeClockMs, setRouteClockMs] = useState(() => Date.now());
   const refinedRouteCacheRef = useRef(new Map<string, [number, number][]>());
   const refinedRouteByVehicleRef = useRef(new Map<string, [number, number][]>());
   const selectedVehicleIdentityRef = useRef<string>('');
@@ -1059,7 +1041,9 @@ export default function BusMap({
     return selectedVehicle?.schedule || [];
   }, [selectedVehicle?.routeStops, selectedVehicle?.schedule]);
   const routeStopsData = useMemo(() => {
-    const next: Record<string, StopData> = { ...(stopsData || {}) };
+    const next: Record<string, StopData> = selectedVehicle?.provider && selectedVehicle.provider !== 'pks'
+      ? {}
+      : { ...(stopsData || {}) };
     for (const stop of routeStopsSource) {
       if (Number.isFinite(stop.lat) && Number.isFinite(stop.lon)) {
         next[String(stop.id)] = {
@@ -1070,7 +1054,7 @@ export default function BusMap({
       }
     }
     return next;
-  }, [routeStopsSource, stopsData]);
+  }, [routeStopsSource, stopsData, selectedVehicle?.provider]);
   const routeStopIds = useMemo(() => {
     const fullRoute = selectedVehicle?.routePath?.filter((id) => Number.isFinite(Number(id))) || [];
     if (fullRoute.length > 0) return dedupeStableStopIds(fullRoute);
@@ -1078,22 +1062,7 @@ export default function BusMap({
     if (routeStops.length > 0) return dedupeStableStopIds(routeStops);
     return dedupeStableStopIds((selectedVehicle?.schedule || []).map((s: any) => s.id));
   }, [selectedVehicle]);
-  useEffect(() => {
-    if (!selectedVehicle) return;
-    const intervalId = window.setInterval(() => setRouteClockMs(Date.now()), 20_000);
-    return () => window.clearInterval(intervalId);
-  }, [selectedVehicle?.id, selectedVehicle?.provider]);
-  const selectedSchedule = useMemo(() => selectedVehicle?.schedule || [], [selectedVehicle?.schedule]);
-  const selectedLastStopId = selectedVehicle?.lastStopId;
-  const visibleRouteStopIds = useMemo(() => {
-    const scheduleIds = selectedSchedule
-      .filter((stop: any) => isUpcomingScheduleStop(stop, routeClockMs))
-      .filter((stop: any) => !(selectedLastStopId && Number(stop?.id) === Number(selectedLastStopId)))
-      .map((stop: any) => stop.id)
-      .filter((id: unknown) => Number.isFinite(Number(id)));
-    const upcomingIds = dedupeStableStopIds(scheduleIds);
-    return selectedSchedule.length > 0 ? upcomingIds : [];
-  }, [routeClockMs, selectedLastStopId, selectedSchedule]);
+  const visibleRouteStopIds = routeStopIds;
   const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
   const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
     const next: RouteGeometryStop[] = [];
@@ -1131,6 +1100,7 @@ export default function BusMap({
         normalizeRouteCachePart(selectedVehicle.provider || 'pks'),
         routeLine,
         routeDirection,
+        String(selectedVehicle.tripId || selectedVehicle.journeyId || selectedVehicle.routeId || ''),
         routeStopsHash,
       ].join(':')
     : '';
@@ -1147,7 +1117,7 @@ export default function BusMap({
       return;
     }
 
-    const currentIdentity = `${selectedVehicle.provider || 'pks'}:${selectedVehicle.id}`;
+    const currentIdentity = `${selectedVehicle.provider || 'pks'}:${selectedVehicle.id}:${routeKey}`;
     if (selectedVehicleIdentityRef.current && selectedVehicleIdentityRef.current !== currentIdentity) {
       startTransition(() => setSnappedRoute([]));
     }
@@ -1181,22 +1151,7 @@ export default function BusMap({
       }
 
       const officialRoute = routeMode === 'road'
-        ? await fetchRouteShapeClient(
-            String(
-              selectedVehicle.tripId ||
-              selectedVehicle.journeyId ||
-              selectedVehicle.serviceId ||
-              selectedVehicle.routeId ||
-              '',
-            ),
-            routeStopIds,
-            routeStopsData,
-            {
-              refineTimeoutMs: 900,
-              disableSyntheticFallback: true,
-              startPoint: [selectedVehicle.lat, selectedVehicle.lon],
-            },
-          ).catch(() => [])
+        ? await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds).catch(()=>[])
         : [];
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (officialRoute.length > 1) {
@@ -1205,6 +1160,7 @@ export default function BusMap({
         refinedRouteByVehicleRef.current.set(currentIdentity, refinedOfficialRoute);
         writePersistentRouteGeometry(routeKey, refinedOfficialRoute, routeGeometryVersion);
         startTransition(() => setSnappedRoute(refinedOfficialRoute));
+        return;
       }
 
       const response = await fetchRouteGeometryClient({
