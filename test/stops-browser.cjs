@@ -11,8 +11,10 @@ const puppeteer=require('puppeteer-core');
   await page.type('input[placeholder*="Babica"]','Baryczka');
   await page.waitForFunction(()=>document.body.innerText.includes('Baryczka 69'),{timeout:60000});
   await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent==='Baryczka 69').click());
-  await page.waitForFunction(()=>document.body.innerText.includes('Rzesz')&&document.body.innerText.includes('108'),{timeout:60000});
-  const text=await page.evaluate(()=>document.body.innerText);assert.match(text,/108/);assert.match(text,/Rzesz/);
+  // Works after the last departure too: carrier labels are rendered in uppercase.
+  await page.waitForFunction(()=>document.body.innerText.toLowerCase().includes('rzesz')&&document.body.innerText.includes('108'),{timeout:20000});
+  const text=await page.evaluate(()=>document.body.innerText);assert.match(text,/108/);assert.match(text,/Rzesz/i);
+  await page.waitForFunction(()=>![...document.querySelectorAll('div')].some(el=>el.classList.contains('space-y-1.5')&&el.classList.contains('animate-pulse')));
   await page.screenshot({path:'test/stops-baryczka.tmp.png',fullPage:true});
 
   // A late Tuesday response must never replace the selected Wednesday.
@@ -39,6 +41,6 @@ const puppeteer=require('puppeteer-core');
   await page.waitForSelector('[role="alert"]');
   const failed=await page.evaluate(()=>document.body.innerText);
   assert.ok(!failed.includes('WEDNESDAY_TEST'));assert.ok(!failed.includes('Brak zaplanowanych'));
-  assert.deepEqual(errors,[]);console.log('Browser: Baryczka live data, out-of-order responses and network failure passed');
+  assert.deepEqual(errors,[]);console.log('Browser: Baryczka line badges, out-of-order date responses and network failure passed');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

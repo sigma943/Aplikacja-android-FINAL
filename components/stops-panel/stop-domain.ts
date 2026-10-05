@@ -262,8 +262,7 @@ function readStopCache<T>(key: string): { savedAt: number; signature: string; da
 function writeStopCache<T>(key: string, data: T) {
   const signature = stopCacheSignature(data);
   if (typeof window === 'undefined') return signature;
-  const current = readStopCache<T>(key);
-  if (current?.signature === signature) return signature;
+
   try {
     window.localStorage.setItem(key, JSON.stringify({
       version: STOP_CACHE_VERSION,

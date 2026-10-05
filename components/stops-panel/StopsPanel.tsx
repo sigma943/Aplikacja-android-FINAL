@@ -1,6 +1,7 @@
 'use client';
 import { buildStopsCatalog } from '@/lib/stops-catalog';
 import { loadStopDepartures } from '@/lib/stop-departures';
+import { peekStopsCatalogCache, readStopsCatalogCache, writeStopsCatalogCache, type MpkCatalogStop } from '@/lib/stops-catalog-cache';
 
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -31,11 +32,15 @@ export default function StopsPanel({
   const [catalogAttempt,setCatalogAttempt] = useState(0);
   const [catalogErrors,setCatalogErrors] = useState<Record<string,boolean>>({});
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
-  const [mpkStops, setMpkStops] = useState<Array<{ id: string; name: string; lat?: number; lon?: number; lines: string[] }>>([]);
-  const [marcelStops, setMarcelStops] = useState<MarcelIndexedStop[]>([]);
-  const [pksLinesByStopId, setPksLinesByStopId] = useState<Record<string, string[]>>(pksLinesSnapshot.lines);
-  const [mergedStopsBase, setMergedStopsBase] = useState<Stop[]>([]);
+  const [cachedPksStops, setCachedPksStops] = useState(() => peekStopsCatalogCache()?.pks || []);
+  const [cacheReady, setCacheReady] = useState(false);
+  const [mpkStops, setMpkStops] = useState<MpkCatalogStop[]>(() => peekStopsCatalogCache()?.mpk || []);
+  const [marcelStops, setMarcelStops] = useState<MarcelIndexedStop[]>(() => peekStopsCatalogCache()?.marcel || []);
+  const [pksLinesByStopId, setPksLinesByStopId] = useState<Record<string, string[]>>(() => peekStopsCatalogCache()?.lines || pksLinesSnapshot.lines);
+  const [mergedStopsBase, setMergedStopsBase] = useState<Stop[]>(() => peekStopsCatalogCache()?.stops || []);
+  const [renderedCatalogKey, setRenderedCatalogKey] = useState('');
   const [isPreparingStops, setIsPreparingStops] = useState(false);
+  const catalogPksStops = stops.length ? stops : cachedPksStops;
   const [stopsSearchState, setStopsSearchState] = useState<StopsSearchState>({
     inputValue: '',
     fullInputValue: '',
@@ -45,14 +50,32 @@ export default function StopsPanel({
   const mergedStopsCacheKey = useMemo(
     () =>
       [
-        stopCollectionSignature(stops),
+        stopCollectionSignature(catalogPksStops),
         stopCollectionSignature(mpkStops),
         stopCollectionSignature(marcelStops),
       ].join('|'),
-    [marcelStops, mpkStops, stops],
+    [marcelStops, mpkStops, catalogPksStops],
   );
 
   useEffect(() => {
+    let active = true;
+    void readStopsCatalogCache().then(snapshot => {
+      if (!active) return;
+      if (snapshot) {
+        setCachedPksStops(snapshot.pks);
+        setMpkStops(snapshot.mpk);
+        setMarcelStops(snapshot.marcel);
+        setPksLinesByStopId(snapshot.lines);
+        setMergedStopsBase(snapshot.stops);
+        setRenderedCatalogKey([stopCollectionSignature(snapshot.pks), stopCollectionSignature(snapshot.mpk), stopCollectionSignature(snapshot.marcel)].join('|'));
+      }
+      setCacheReady(true);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!cacheReady) return;
     const controller = new AbortController();
     let active = true;
     const dateIso = selectedDateIso(0);
@@ -75,6 +98,7 @@ export default function StopsPanel({
     const loadMpkStopsSnapshot = async () => {
       try {
         const cachedStops = await fetchMpkRzeszowStopsClient({ signal: controller.signal }).then(mapMpkStops);
+        if (!cachedStops.length) throw new Error('Empty MPK stop catalog');
         if (!active) return;
         setMpkStops((current) => (mpkSignature(current) === mpkSignature(cachedStops) ? current : cachedStops));
       } catch (error) {
@@ -88,6 +112,7 @@ export default function StopsPanel({
     const loadMarcelStopsSnapshot = async () => {
       try {
         const cachedStops = await getMarcelStopsIndex(dateIso);
+        if (!cachedStops.length) throw new Error('Empty Marcel stop catalog');
         if (!active) return;
         setMarcelStops((current) => (stopCollectionSignature(current) === stopCollectionSignature(cachedStops) ? current : cachedStops));
       } catch (error) {
@@ -103,7 +128,7 @@ export default function StopsPanel({
       active = false;
       controller.abort();
     };
-  }, [catalogAttempt]);
+  }, [catalogAttempt, cacheReady]);
 
   const refreshVisibleLines = useCallback((visible: Stop[]) => {
     const points = visible.flatMap(stop => stop.pksStopPoints || []);
@@ -117,17 +142,21 @@ export default function StopsPanel({
             ...data.items.filter((item: any) => item.journeys?.some((journey: any)=>String(Number(journey.stop_point_code))===String(Number(point.code)))).map((item: any)=>String(item.line_name)),
           ]);
         }
-        setPksLinesByStopId(current => Object.entries(next).every(([id,lines])=>JSON.stringify(current[id])===JSON.stringify(lines)) ? current : {...current,...next});
+        setPksLinesByStopId(current => {
+          const combined = Object.fromEntries(Object.entries(next).map(([id, lines]) => [id, sortedLines([...(current[id] || []), ...lines])]));
+          return Object.entries(combined).every(([id,lines])=>JSON.stringify(current[id])===JSON.stringify(lines)) ? current : {...current,...combined};
+        });
       }).catch(() => undefined); // The complete bundled index stays visible on refresh failure.
     });
   }, []);
 
-  const buildMergedStopsBase = useCallback(()=>buildStopsCatalog(stops,mpkStops,marcelStops,mergedStopsCacheKey),[stops,mpkStops,marcelStops,mergedStopsCacheKey]);
+  const buildMergedStopsBase = useCallback(()=>buildStopsCatalog(catalogPksStops,mpkStops,marcelStops,mergedStopsCacheKey),[catalogPksStops,mpkStops,marcelStops,mergedStopsCacheKey]);
 
   useEffect(() => {
+    if (!cacheReady || renderedCatalogKey === mergedStopsCacheKey) return;
     const cached = MERGED_STOPS_RUNTIME_CACHE.get(mergedStopsCacheKey);
     if (cached) {
-      const timer = window.setTimeout(()=>{setMergedStopsBase(cached);setIsPreparingStops(false);},0);
+      const timer = window.setTimeout(()=>{setMergedStopsBase(cached);setRenderedCatalogKey(mergedStopsCacheKey);setIsPreparingStops(false);},0);
       return ()=>window.clearTimeout(timer);
     }
 
@@ -140,7 +169,9 @@ export default function StopsPanel({
       if (cancelled) return;
       const merged = buildMergedStopsBase();
       if (cancelled) return;
-      setMergedStopsBase((current) => (stopCollectionSignature(current) === stopCollectionSignature(merged) ? current : merged));
+      // The input key already avoids redundant merges; replace all provider references too.
+      setMergedStopsBase(merged);
+      setRenderedCatalogKey(mergedStopsCacheKey);
       setIsPreparingStops(false);
     };
 
@@ -159,7 +190,7 @@ export default function StopsPanel({
         (window as any).cancelIdleCallback(idleId);
       }
     };
-  }, [buildMergedStopsBase, mergedStopsCacheKey]);
+  }, [buildMergedStopsBase, mergedStopsCacheKey, cacheReady, renderedCatalogKey]);
 
   const baseUiStops = useMemo<Stop[]>(() => {
     const mpkById = new Map(mpkStops.map(stop=>[stop.id,stop.lines]));
@@ -173,6 +204,14 @@ export default function StopsPanel({
       return {...stop,lines:sortedLines(Object.keys(lineProviders)),lineProviders,providerStopIds:{...stop.providerStopIds,pksLines:pksLines.join(',')}};
     });
   }, [mergedStopsBase,pksLinesByStopId,mpkStops]);
+
+  useEffect(() => {
+    if (!cacheReady || !baseUiStops.length || renderedCatalogKey !== mergedStopsCacheKey) return;
+    const timer = window.setTimeout(() => {
+      void writeStopsCatalogCache({ version: 1, pks: catalogPksStops, mpk: mpkStops, marcel: marcelStops, lines: pksLinesByStopId, stops: baseUiStops });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [cacheReady, baseUiStops, catalogPksStops, mpkStops, marcelStops, pksLinesByStopId, renderedCatalogKey, mergedStopsCacheKey]);
 
   const uiStops = useMemo<Stop[]>(() => {
     if (!favorites.length) {
@@ -202,7 +241,7 @@ export default function StopsPanel({
     return latest || selectedStop;
   }, [selectedStop, uiStops]);
 
-  if (hasError) {
+  if (hasError && cacheReady && !uiStops.length) {
     return (
       <div className={`flex h-full w-full items-center justify-center px-6 text-center backdrop-blur-2xl ${
         isDarkTheme ? 'bg-[#07111d]/70 text-slate-300' : 'bg-white/80 text-slate-700'
@@ -253,7 +292,7 @@ export default function StopsPanel({
           <StopList
             stops={uiStops}
             onVisibleStopsChange={refreshVisibleLines}
-            isLoading={isLoading || isPreparingStops}
+            isLoading={!uiStops.length && (isLoading || isPreparingStops || !cacheReady)}
             onStopSelect={handleSelectStop}
             onClose={onClose}
             toggleFavorite={toggleFavorite}

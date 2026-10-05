@@ -291,8 +291,7 @@ function readPersistentClientCache<T>(key: string): PersistentCacheEnvelope<T> |
 function writePersistentClientCache<T>(key: string, data: T) {
   if (typeof window === 'undefined') return cacheSignature(data);
   const signature = cacheSignature(data);
-  const current = readPersistentClientCache<T>(key);
-  if (current?.signature === signature) return signature;
+
   try {
     window.localStorage.setItem(key, JSON.stringify({
       version: CLIENT_STOP_CACHE_VERSION,
@@ -1241,26 +1240,9 @@ async function loadFullStopsDictionary() {
 }
 
 async function loadStopPointIndex(): Promise<StopPointIndex> {
-  if(!stopPointIndexPromise) stopPointIndexPromise = (async()=> {
-    const snapshot = await fetch('/data/pks-stop-points.json',{cache:'force-cache'}).then(response=>response.ok ? response.json() : {stops:{}}).catch(()=>({stops:{}}));
-    const index: StopPointIndex = {};
-    for(const [id,raw] of Object.entries(snapshot.stops||{})) {
-      const point=raw as {n:string;code?:string;lat?:number;lon?:number};
-      const base=toTitleCase(point.n||'');
-      index[id]={n:point.code && !new RegExp('(?:^|\\s)'+point.code+'$').test(base) ? base+' '+point.code : base,lat:point.lat,lon:point.lon};
-    }
-    try {
-      const data=await requestEinfoJson<any>('stop-point',{headers:{Accept:'application/json'}});
-      if(!Array.isArray(data.items))throw new Error('Invalid PKS stop index');
-      for(const point of data.items) {
-        const id=String(point.stop_point_id);
-        const base=toTitleCase(bestPksStopName(point.stop_area_name||'',point.name||''));
-        const name=base+(point.stop_point_code ? ' '+point.stop_point_code : '');
-        index[id]={n:name,lat:point.location?.lat??index[id]?.lat,lon:point.location?.lon??index[id]?.lon};
-      }
-    }catch(error){if(!Object.keys(index).length)throw error;}
-    return index;
-  })().catch(error=>{stopPointIndexPromise=null;throw error;});
+  if (!stopPointIndexPromise) stopPointIndexPromise = fetchStopsClient().then(stops =>
+    Object.fromEntries(Object.entries(stops).map(([id, point]) => [id, {n: point.n, lat: point.lat, lon: point.lon}])),
+  ).catch(error => { stopPointIndexPromise = null; throw error; });
   return stopPointIndexPromise;
 }
 
@@ -2337,10 +2319,22 @@ export async function fetchVehicleDetailsClient(provider: TransportProviderId, v
   return mapTransportVehicleToClient(response.vehicle);
 }
 
-async function fetchStopsFromNetwork(): Promise<StopsMap> {
-  const snapshot = await fetch('/data/pks-stop-points.json', {cache: 'force-cache'})
+let bundledPksStops: Promise<any> | null = null;
+function readBundledPksStops() {
+  if (!bundledPksStops) bundledPksStops = fetch('/data/pks-stop-points.json', {cache: 'force-cache'})
     .then(response => response.ok ? response.json() : {stops: {}})
-    .catch(() => ({stops: {}}));
+    .catch(() => { bundledPksStops = null; return {stops: {}}; });
+  return bundledPksStops;
+}
+function snapshotStopItems(snapshot: any) {
+  return Object.entries(snapshot.stops || {}).map(([id, raw]) => {
+    const point = raw as {n: string; areaId: string; code: string; lat?: number; lon?: number};
+    return {stop_point_id: id, name: point.n, stop_area_name: point.n,
+      stop_area_id: point.areaId, stop_point_code: point.code, location: {lat: point.lat, lon: point.lon}};
+  });
+}
+async function fetchStopsFromNetwork(): Promise<StopsMap> {
+  const snapshot = await readBundledPksStops();
   const data = await requestEinfoJson<any>('stop-point', {
     headers: {'Accept': 'application/json'},
   }).catch(async () => {
@@ -2378,6 +2372,9 @@ async function fetchStopsFromNetwork(): Promise<StopsMap> {
     };
   });
 
+  return formatPksStops(data, snapshot);
+}
+function formatPksStops(data: any, snapshot: any): StopsMap {
   const compressedMap: StopsMap = {};
   for (const stop of data?.items || []) {
     const fallback = snapshot.stops?.[String(stop.stop_point_id)];
@@ -2429,26 +2426,35 @@ async function fetchStopsFromNetwork(): Promise<StopsMap> {
   return compressedMap;
 }
 
+let refreshingPksStops: Promise<StopsMap> | null = null;
+function refreshPksStops() {
+  if (!refreshingPksStops) refreshingPksStops = fetchStopsFromNetwork().then(fresh => {
+    if (!Object.keys(fresh).length) throw new Error('Empty PKS stop catalog');
+    writePersistentClientCache(PKS_STOPS_CACHE_KEY, fresh);
+    stopPointIndexPromise = null;
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('pks-live:stops-updated'));
+    return fresh;
+  }).finally(() => { refreshingPksStops = null; });
+  return refreshingPksStops;
+}
 export async function fetchStopsClient(options?: { forceRefresh?: boolean }): Promise<StopsMap> {
   const cached = readPersistentClientCache<StopsMap>(PKS_STOPS_CACHE_KEY);
   const isFresh = cached && Date.now() - cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
   if (cached && !options?.forceRefresh) {
-    if (!isFresh) {
-      fetchStopsFromNetwork()
-        .then((fresh) => writePersistentClientCache(PKS_STOPS_CACHE_KEY, fresh))
-        .catch(() => undefined);
-    }
+    if (!isFresh) void refreshPksStops().catch(() => undefined);
     return cached.data;
   }
-
-  try {
-    const fresh = await fetchStopsFromNetwork();
-    writePersistentClientCache(PKS_STOPS_CACHE_KEY, fresh);
-    return fresh;
-  } catch (error) {
-    if (cached) return cached.data;
-    throw error;
+  if (!options?.forceRefresh) {
+    const snapshot = await readBundledPksStops();
+    if (Object.keys(snapshot.stops || {}).length) {
+      const localStops = formatPksStops({items: snapshotStopItems(snapshot)}, snapshot);
+      // Ship the initial catalog locally; endpoint data replaces it in the background.
+      void refreshPksStops().catch(() => undefined);
+      return localStops;
+    }
   }
+  try { return await refreshPksStops(); }
+  catch (error) { if (cached) return cached.data; throw error; }
 }
 
 function isJourneyRunning(legends: string[], dateIso: string) {

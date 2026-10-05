@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ArrowLeft, MapPin, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ArrowLeft, MapPin, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { Stop, Departure } from '../types';
@@ -54,12 +54,11 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const [selectedLine, setSelectedLine] = useState<string>('all');
   const [showAllDepartures, setShowAllDepartures] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string>('today');
-  const [showPastDepartures, setShowPastDepartures] = useState<boolean>(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const selectedDayIndex = Math.max(0,days.findIndex(d=>d.key===selectedDay));
   const selectedDateKey = warsawDateIso(selectedDayIndex);
-  const {departures,warnings,isLoading,isFetching:isFetchingLive,refresh:refreshLiveDepartures} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures);
+  const {departures,warnings,isLoading} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures);
   const animateDepartures = false;
 
   useEffect(() => {
@@ -108,7 +107,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     return d.line === selectedLine;
   });
 
-  const activeDepartures = filteredDeparturesByLine.filter(d => showPastDepartures ? true : !d.isPast);
+  const activeDepartures = filteredDeparturesByLine.filter(d => !d.isPast);
   const displayedDepartures = showAllDepartures ? activeDepartures : activeDepartures.slice(0, 5);
   const panelShellClass = isDarkTheme ? 'bg-[#05080c]/94 text-slate-200' : 'bg-white/96 text-slate-900';
   const headerShellClass = isDarkTheme ? 'bg-slate-900/96 border-white/10' : 'bg-white/98 border-slate-200';
@@ -309,48 +308,6 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                    {days.find(d => d.key === selectedDay)?.weekday}, {days.find(d => d.key === selectedDay)?.dayNum} {days.find(d => d.key === selectedDay)?.monthName}
                  </div>
                  
-                 <div className="flex items-center gap-2">
-                   {/* Live/Offline Status Badge */}
-                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.15)]">
-                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                     <span>{departures.some(d=>d.realtimeSource==='stop-board') ? 'Rozkład i tablica odjazdów' : 'Rozkład jazdy'}</span>
-                   </div>
-
-                   {/* Refresh Button */}
-                   <button 
-                     onClick={refreshLiveDepartures}
-                     disabled={isFetchingLive}
-                     title="Odśwież rozkład czasu rzeczywistego"
-                     className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5 hover:border-white/10 active:scale-95 transition-all shadow-md cursor-pointer shrink-0 disabled:opacity-50"
-                   >
-                     <RefreshCw size={12} className={isFetchingLive ? "animate-spin text-teal-450" : ""} />
-                   </button>
-                 </div>
-               </div>
-
-               {/* Past Departures Toggle Switch Row */}
-               <div className="flex justify-between items-center py-2 px-3 rounded-xl bg-white/[0.01] border border-white/[0.03] text-xs">
-                 <div className="flex flex-col">
-                   <span className="font-extrabold text-slate-300">Pokaż minione odjazdy</span>
-                   <span className="text-[10px] text-slate-500">Wyświetla kursy z całego dnia, które już się odbyły</span>
-                 </div>
-                 <button
-                   onClick={() => {
-                     setShowPastDepartures(!showPastDepartures);
-                     if (!showPastDepartures) {
-                       setShowAllDepartures(true);
-                     }
-                   }}
-                   className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                     showPastDepartures ? 'bg-teal-500' : 'bg-slate-700'
-                   }`}
-                 >
-                   <span
-                     className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                       showPastDepartures ? 'translate-x-4' : 'translate-x-0'
-                     }`}
-                   />
-                 </button>
                </div>
              </div>
               
@@ -436,7 +393,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
                 {activeDepartures.length === 0 && (
                   <div className={`p-8 text-center text-sm leading-relaxed ${subtleTextClass}`}>
-                    {warnings.length ? 'Nie można potwierdzić pełnej listy odjazdów. Spróbuj odświeżyć rozkład.' : filteredDeparturesByLine.length ? 'Pozostałe kursy już odjechały. Włącz „Pokaż minione odjazdy”.' : selectedLine === 'all' ? 'Brak zaplanowanych odjazdów w wybranym dniu.' : 'Brak odjazdów wybranej linii w tym dniu.'}
+                    {warnings.length ? 'Nie można potwierdzić pełnej listy odjazdów.' : filteredDeparturesByLine.length ? 'Wszystkie kursy na dziś już odjechały.' : selectedLine === 'all' ? 'Brak zaplanowanych odjazdów w wybranym dniu.' : 'Brak odjazdów wybranej linii w tym dniu.'}
                   </div>
                 )}
                 

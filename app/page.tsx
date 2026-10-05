@@ -362,7 +362,6 @@ export default function Home() {
   const [stopsLoadError, setStopsLoadError] = useState(false);
   const stopsLoadPendingRef = useRef(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
-  const [showAllBusStops,setShowAllBusStops] = useState(true);
   const [stopDeparturesError,setStopDeparturesError] = useState<string|null>(null);
   const [selectedExternalStop, setSelectedExternalStop] = useState<StopsPanelStop | null>(null);
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(true);
@@ -1169,6 +1168,13 @@ export default function Home() {
   }, [activeTab, selectedBus?.id, selectedStopId]);
 
   useEffect(() => {
+    const update = () => loadStops();
+    window.addEventListener('pks-live:stops-updated', update);
+    return () => window.removeEventListener('pks-live:stops-updated', update);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (selectedBus) {
       const updated = vehicles.find(v => v.id === selectedBus.id && v.provider === selectedBus.provider);
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1389,7 +1395,7 @@ export default function Home() {
       return true;
     });
   }, [now, selectedBus?.lastStopId, selectedBus?.schedule]);
-  const selectedBusDisplayedStops = showAllBusStops && selectedBus?.routeStops?.length ? selectedBus.routeStops : selectedBusUpcomingSchedule;
+  const selectedBusDisplayedStops = selectedBus?.routeStops?.length ? selectedBus.routeStops : selectedBus?.schedule?.length ? selectedBus.schedule : selectedBusUpcomingSchedule;
   const openVehicleRouteStop = (stopId:string) => {
     const point=(selectedBus?.routeStops||selectedBus?.schedule||[]).find(stop=>String(stop.id)===stopId);
     const provider=selectedBus?.provider||'pks';
@@ -1921,10 +1927,7 @@ export default function Home() {
                       {(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
-                            <MapPin className="w-4 h-4" /> {showAllBusStops ? 'Wszystkie przystanki trasy' : 'Nadchodzące przystanki'}
-                            <button type="button" onClick={()=>setShowAllBusStops(value=>!value)} className="ml-auto text-[10px] underline normal-case">
-                              {showAllBusStops ? 'Tylko nadchodzące' : 'Cała trasa'}
-                            </button>
+                            <MapPin className="w-4 h-4" /> Wszystkie przystanki trasy
                           </h3>
                           <div className="flex flex-col gap-0 relative">
                              <div className={`absolute left-[9px] top-4 bottom-4 w-0.5 ${mapDetailLine}`}></div>

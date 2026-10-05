@@ -66,7 +66,7 @@ Nie wykonano pomiaru płynności na fizycznym telefonie ani testu z istniejącym
 - MPK korzysta z działającego strumienia pozycji `/ztm/new/api.php?type=mpk`; dawny `/mpk/vehicles_proxy.php` zwracał 404. Wiek pozycji wyznacza znacznik GPS `timestamp`, zamiast pola `is`, które może oznaczać czas oczekiwania. Pozostawiono obsługę dawnego formatu jako awaryjną.
 - Trasy PKS i MPK mają osobne indeksy GTFS: 842 geometrie dla 10 045 kursów. Dokładna geometria przypisanego kursu ma pierwszeństwo; odświeżenie nie zastępuje jej przybliżeniem z innego przewoźnika. Zmiana kursu unieważnia poprzednią trasę.
 - Wszystkie kropki przystanków trasy są rysowane także przy oddaleniu mapy. Nazwy i współrzędne MPK pochodzą z danych MPK. Pełny indeks PKS i kolejność punktów GTFS uzupełniają brakujące informacje w panelu PKS.
-- Panel po kliknięciu autobusu domyślnie pokazuje całą trasę; zachowano przełącznik na przystanki nadchodzące. Kliknięcie przystanku używa identyfikatora i źródła właściwego przewoźnika.
+- Panel po kliknięciu autobusu pokazuje całą trasę. Kliknięcie przystanku używa identyfikatora i źródła właściwego przewoźnika.
 - Marcel oraz kursy bez dostępnej geometrii GTFS korzystają z wyznaczania przebiegu po drogach przez wszystkie przystanki w ich kolejności, z zachowaniem pętli. Jest to trasa wyznaczona przez router; bez geometrii przewoźnika nie można potwierdzić każdego odcinka faktycznej trasy.
 - Postój przed rozpoczęciem kursu na pierwszym przystanku, dworcu lub zgłoszona przerwa pokazują „Przerwa” i odliczanie do planowego startu, jeżeli jego czas jest znany. Postój na przystanku pośrednim nie jest przerwą między kursami. Ruch pojazdu i trwająca trasa okrężna nie są oznaczane jako przerwa.
 - Poprawiono również źródła przystanków, strefę czasu i statusy w kodzie backendu MPK oraz statusy Marcela. Backend i reguły Firebase wymagają osobnego opublikowania; nie wdrożono ich na produkcji.
@@ -88,3 +88,15 @@ Nowy instalator: `../PKS-Live-przystanki-trasy-debug.apk` (18 674 922 bajty). Bu
 SHA-256 APK: `e01cb9581a63866fc62616f6e52c87672a0448ededeb86ebdd4e706e85138ec1`.
 
 Zrzuty sprawdzonej wersji: [trasa PKS](test/screenshots/pks-route.png), [trasa MPK](test/screenshots/mpk-route.png), [Baryczka](test/screenshots/baryczka.png).
+
+### Szybsza lista i uproszczenie panelu (5 października 2026)
+
+- Pierwsze otwarcie listy PKS korzysta z pełnego indeksu dołączonego do aplikacji. Aktualizacja z endpointa odbywa się w tle i trafia także do otwartej listy.
+- Panel autobusu korzysta z tego samego szybkiego indeksu nazw i współrzędnych PKS; pobranie pełnej listy trasy nie czeka już na odpowiedź endpointa wszystkich przystanków.
+- Gotowy katalog połączonych przystanków jest zapisywany w IndexedDB razem ze źródłami PKS, MPK i Marcela, identyfikatorami i plakietkami linii. Cache jest dostępny po zamknięciu aplikacji i nie znika podczas aktualizacji ani po błędzie pobierania. W tej samej sesji gotowa lista jest również przechowywana w pamięci.
+- Ponowne potwierdzenie niezmienionych danych odnawia czas ważności cache źródłowego, aby ograniczyć zbędne zapytania.
+- Usunięto „Tylko nadchodzące” z panelu autobusu; panel zawsze pokazuje wszystkie przystanki. Z ekranu odjazdów usunięto etykietę „Rozkład jazdy”, przycisk odświeżania i panel minionych kursów. Odjazdy nadal aktualizują się automatycznie, a przyszłe dni i filtr linii pozostają dostępne.
+- Przeszło 31 testów aplikacji, kontrola TypeScript oraz cztery sprawdzenia wersji produkcyjnej w Chrome: cache, Baryczka, trasa PKS i trasa MPK. Test z blokadą endpointa otworzył lokalną listę w 1042 ms; po restarcie, bez dostępu do danych przewoźników, katalog z cache pojawił się w 244 ms. Wyniki dotyczą testowego komputera; test telefonu pozostaje do wykonania.
+- Nowy APK: `../PKS-Live-cache-przystankow-debug.apk`, 18 674 824 bajty. Kompilacja produkcyjna, synchronizacja Capacitor i `assembleDebug` przeszły. Zawartość APK potwierdza obecność trwałego cache, lokalnego indeksu i panelu admina oraz usunięcie wskazanych elementów.
+
+SHA-256 nowego APK: `edd9e8886d14bcc21428abad9259be7335b3d5fb20b491d540556a1d7cf91df1`.
