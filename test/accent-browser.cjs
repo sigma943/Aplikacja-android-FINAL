@@ -1,11 +1,13 @@
 const assert=require('node:assert/strict');
 const http=require('node:http');const fs=require('node:fs');const path=require('node:path');
 const puppeteer=require('puppeteer');
-const root=path.resolve('out');
+const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root;const productionRoot=path.resolve('out');
 const server=http.createServer((req,res)=>{
   const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
-  const file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
-  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
+  let file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
+  if(!file.startsWith(root+path.sep)){res.writeHead(404);res.end();return;}
+  if(!fs.existsSync(file))file=path.resolve(productionRoot,'.'+pathname);
+  if(!file.startsWith(productionRoot+path.sep)&&!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
   const type={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.webp':'image/webp'}[path.extname(file)]||'application/octet-stream';
   res.setHeader('Content-Type',type);fs.createReadStream(file).pipe(res);
 });
@@ -78,5 +80,5 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
   }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error('Page errors:',errors);throw error;}
-  finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
-})().catch(error=>{console.error(error);server.close();process.exitCode=1;});
+  finally{await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
+})().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});
