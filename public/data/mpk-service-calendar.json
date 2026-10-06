@@ -1,0 +1,246 @@
+{
+  "source": "https://otwartedane.erzeszow.pl/media/resources/gtfs-01-10-2026-31-12-2026-25-09-2026-09-14-02.zip",
+  "fetchedAt": "2026-10-05T09:44:25.187Z",
+  "calendar": [
+    {
+      "service_id": "1",
+      "monday": "1",
+      "tuesday": "1",
+      "wednesday": "1",
+      "thursday": "1",
+      "friday": "0",
+      "saturday": "0",
+      "sunday": "0",
+      "start_date": "20261223",
+      "end_date": "20261231"
+    },
+    {
+      "service_id": "2",
+      "monday": "1",
+      "tuesday": "1",
+      "wednesday": "1",
+      "thursday": "1",
+      "friday": "1",
+      "saturday": "1",
+      "sunday": "1",
+      "start_date": "20261001",
+      "end_date": "20261222"
+    },
+    {
+      "service_id": "3",
+      "monday": "0",
+      "tuesday": "0",
+      "wednesday": "0",
+      "thursday": "0",
+      "friday": "0",
+      "saturday": "1",
+      "sunday": "0",
+      "start_date": "20261003",
+      "end_date": "20261219"
+    },
+    {
+      "service_id": "4",
+      "monday": "1",
+      "tuesday": "1",
+      "wednesday": "1",
+      "thursday": "1",
+      "friday": "1",
+      "saturday": "1",
+      "sunday": "1",
+      "start_date": "20261224",
+      "end_date": "20261227"
+    }
+  ],
+  "exceptions": [
+    {
+      "service_id": "2",
+      "date": "20261003",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261004",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261010",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261011",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261017",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261018",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261024",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261025",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261031",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261101",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261107",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261108",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261111",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261114",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261115",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261121",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261122",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261128",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261129",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261205",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261206",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261212",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261213",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261219",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "2",
+      "date": "20261220",
+      "exception_type": "2"
+    },
+    {
+      "service_id": "4",
+      "date": "20261004",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261011",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261018",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261025",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261101",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261108",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261111",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261115",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261122",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261129",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261206",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261213",
+      "exception_type": "1"
+    },
+    {
+      "service_id": "4",
+      "date": "20261220",
+      "exception_type": "1"
+    }
+  ]
+}
