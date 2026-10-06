@@ -1,0 +1,122 @@
+const assert=require('node:assert/strict');
+const http=require('node:http');const fs=require('node:fs');const path=require('node:path');
+const puppeteer=require('puppeteer');
+const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root;const productionRoot=path.resolve('out');
+const server=http.createServer((req,res)=>{
+  const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
+  let file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
+  if(!file.startsWith(root+path.sep)){res.writeHead(404);res.end();return;}
+  if(!fs.existsSync(file))file=path.resolve(productionRoot,'.'+pathname);
+  if(!file.startsWith(productionRoot+path.sep)&&!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
+  const type={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.webp':'image/webp'}[path.extname(file)]||'application/octet-stream';
+  res.setHeader('Content-Type',type);fs.createReadStream(file).pipe(res);
+});
+(async()=>{
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  const browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']});
+  const page=await browser.newPage();const errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  fs.mkdirSync('test/ui-previews',{recursive:true});
+  try{
+    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+    await page.evaluateOnNewDocument(()=>{
+      const Original=Date;const now=Original.parse('2026-10-06T12:18:30Z');
+      window.Date=class extends Original {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
+      if(!localStorage.getItem('mks_app_theme'))localStorage.setItem('mks_app_theme','dark');
+    });
+    await page.setRequestInterception(true);
+    page.on('request',async request=>{
+      const url=request.url();
+      const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
+      if(url.includes('stop-point-timetable'))return json({success:true,items:[{line_name:'108',description:'Rzeszów',journeys:[{journey_id:1,time:'14:21',stop_point_code:'69',legends:['D']}]}]});
+      if(url.endsWith('/api/pks/vehicles'))return json({items:[]});
+      if(url.includes('/api/pks/einfo/stop-point'))return json({items:[]});
+      if(url.includes('mpkrzeszow.pl')||url.includes('api-site.marcel-bus.pl'))return json([]);
+      if(url.startsWith(origin))return request.continue();
+      return request.abort();
+    });
+    const button=async label=>page.evaluate(text=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text)?.click(),label);
+    const visible=async selector=>{
+      await page.waitForFunction(css=>[...document.querySelectorAll(css)].some(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&r.bottom>0&&r.top<innerHeight;}),{},selector);
+      const handle=await page.evaluateHandle(css=>[...document.querySelectorAll(css)].find(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&r.bottom>0&&r.top<innerHeight;}),selector);
+      return handle.asElement();
+    };
+    const style=async(selector,property)=>(await visible(selector)).evaluate((el,key)=>getComputedStyle(el)[key],property);
+    const openStops=async()=>{
+      console.log('Opening stops');
+      await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
+      await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Przystanki'));
+      await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
+      await page.type('input[placeholder*="Babica"]','Baryczka');
+      await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent==='Baryczka 69'));
+      await new Promise(resolve=>setTimeout(resolve,450));
+    };
+    const accent=async name=>{
+      console.log('Selecting accent:',name);
+      await button('Opcje');await page.waitForSelector('[role="dialog"]');
+      await page.click(`[aria-label="Kolor akcentu: ${name}"]`);
+      await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
+    };
+    const overflow=async()=>assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.transit-view')].some(el=>el.scrollWidth>el.clientWidth+1)),false);
+    const screenshot=async name=>{await new Promise(resolve=>setTimeout(resolve,450));return page.screenshot({path:`test/ui-previews/${name}.png`});};
+    await page.goto(origin,{waitUntil:'domcontentloaded'});
+    console.log('App loaded');
+    await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Opcje'));
+    await accent('Fioletowy');await openStops();
+    await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#8b5cf6');
+    const brandBefore=await style('.transit-stop-card .text-teal-400','color');
+    const before=await style('.transit-stop-card .ui-accent-soft','backgroundColor');
+    await (await visible('.transit-stop-card [aria-label="Dodaj do ulubionych"]')).click();await visible('.transit-stop-card .ui-accent-fill');
+    await overflow();await screenshot('stops-dark-purple');
+    await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent==='Baryczka 69'&&el.getClientRects().length).click());
+    await page.waitForSelector('button[data-selected="true"]');
+    await page.waitForFunction(()=>document.querySelector('.transit-view').innerText.includes('Rzeszów'));
+    assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(139, 92, 246)');
+    await overflow();await screenshot('departures-dark-purple');
+    await accent('Niebieski');
+    assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(59, 130, 246)');
+    await (await visible('[aria-label="Wróć do listy przystanków"]')).click();
+    const after=await style('.transit-stop-card .ui-accent-soft','backgroundColor');
+    assert.notEqual(before,after);
+    assert.equal(await style('.transit-stop-card .text-teal-400','color'),brandBefore);
+    await page.evaluate(()=>localStorage.setItem('mks_app_theme','light'));
+    await page.reload({waitUntil:'domcontentloaded'});await openStops();
+    await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#3b82f6');
+    assert.equal(await page.$eval('.transit-view',el=>el.dataset.uiMode),'light');
+    await overflow();await screenshot('stops-light-blue');
+    const showStopOnMap=async()=>{
+      await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent==='Baryczka 69'&&el.getClientRects().length).click());
+      await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Pokaż na mapie'));
+      await button('Pokaż na mapie');
+      await page.waitForSelector('[data-map-stop-sheet]');
+      await new Promise(resolve=>setTimeout(resolve,600));
+    };
+    await showStopOnMap();
+    assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.glass),'on','fresh install enables glass');
+    assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'false','show on map opens compact card');
+    assert.ok(await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height)<120);
+    await page.click('[aria-label="Rozwiń panel przystanku"]');
+    await page.waitForFunction(()=>[...document.querySelectorAll('[data-map-stop-sheet] .map-detail-row')].some(el=>el.textContent.includes('Rzeszów')));
+    await new Promise(resolve=>setTimeout(resolve,400));
+    assert.ok(await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height)<=851*0.42+1);
+    const mapBefore=await page.$eval('.leaflet-map-pane',el=>el.style.transform);
+    await page.mouse.move(70,330);await page.mouse.down();await page.mouse.move(160,370,{steps:12});await page.mouse.up();
+    await page.waitForFunction(before=>document.querySelector('.leaflet-map-pane').style.transform!==before,{},mapBefore);
+    assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'true','panning map retains the expanded sheet');
+    await screenshot('map-stop-glass-expanded');
+    const handle=await page.$('[aria-label="Zwiń panel przystanku"]');const bounds=await handle.boundingBox();
+    await page.mouse.move(bounds.x+bounds.width/2,bounds.y+12);await page.mouse.down();await page.mouse.move(bounds.x+bounds.width/2,bounds.y+65,{steps:10});await page.mouse.up();
+    await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]').dataset.expanded==='false');
+    await page.evaluate(()=>{localStorage.setItem('mks_transparent','false');localStorage.setItem('mks_app_theme','dark-oled');});
+    await page.reload({waitUntil:'domcontentloaded'});await openStops();await showStopOnMap();
+    assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.glass),'off','saved glass preference survives reload');
+    await page.click('[aria-label="Rozwiń panel przystanku"]');await screenshot('map-stop-amoled-solid');
+    assert.equal(await style('[data-map-stop-sheet]','backgroundColor'),'rgb(23, 33, 43)','AMOLED surfaces are brighter than the black canvas');
+    assert.deepEqual(errors,[]);
+    console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
+    console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');
+  }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error(await page.evaluate(()=>[...document.querySelectorAll('.transit-view,.transit-stop-card,.transit-stop-card button')].map(el=>({tag:el.tagName,rect:el.getBoundingClientRect().toJSON(),display:getComputedStyle(el).display}))).catch(()=>[]));console.error('Page errors:',errors);throw error;}
+  finally{await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
+})().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});
