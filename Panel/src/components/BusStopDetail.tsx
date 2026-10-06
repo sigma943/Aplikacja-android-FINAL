@@ -155,7 +155,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       exit={{ opacity: 0, x: 15 }}
       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
       data-ui-mode={isDarkTheme ? "dark" : "light"}
-      className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+9.5rem)] md:pb-8 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
+      className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
     >
       <div className="w-full max-w-3xl min-w-0 mx-auto">
         {/* Header */}
@@ -395,7 +395,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
           </div>
 
           {/* Lines serving stop */}
-          <div className="pb-[calc(env(safe-area-inset-bottom)+9.5rem)] md:pb-6">
+          <div data-stop-lines>
              <h3 className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie obsługujące przystanek</h3>
              <div className="flex flex-wrap gap-2">
                {combinedLines.map(line => (

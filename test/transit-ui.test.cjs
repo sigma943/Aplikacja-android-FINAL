@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const loadTs = require('./load-ts.cjs');
+const encodePolyline = require('./encode-polyline.cjs');
 const { upcomingVehicleStops } = loadTs('lib/vehicle-upcoming-stops.ts');
 const { departureCountdown, departureIsPast } = loadTs('lib/departure-display.ts');
 const { mpkBoardEntries } = loadTs('lib/mpk-departures.ts');
@@ -100,7 +101,7 @@ test('an aborted road route does not poison a replacement request with the same 
       return new Promise((resolve, reject) => options.signal.addEventListener('abort',
         () => reject(new DOMException('aborted', 'AbortError')), { once: true }));
     }
-    return new Response(JSON.stringify({ trip: { legs: [{ shape: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' }] } }));
+    return new Response(JSON.stringify({ trip: { legs: [{ shape: encodePolyline([[50,22],[50.1,22.1]]) }] } }));
   };
   try {
     const { fetchRoadRouteForStops } = loadTs('lib/pks-client.ts', native, '\nexport { fetchRoadRouteForStops };');

@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomCo
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { officialBusRoute } from '@/lib/official-bus-routes';
+import { roadRouteMatchesStops, simplifyRoadRoute } from '@/lib/bus-road-geometry';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { runFrameBatch } from '@/lib/map-frame-batch';
 import { loadRouteWithRetry } from '@/lib/route-load-retry';
@@ -16,7 +17,7 @@ const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v8-marcel-stop-waypoints';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v9-validated-stop-waypoints';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -50,20 +51,7 @@ function getVehicleColor(vehicle?: Pick<Vehicle, 'provider'> | null, fallback = 
 function simplifyRouteForPaint(points: [number, number][], maxPoints = ROUTE_POINT_LIMIT) {
   const cleaned = points.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));
   if (cleaned.length <= maxPoints) return cleaned;
-  const step = Math.ceil(cleaned.length / maxPoints);
-  const simplified: [number, number][] = [];
-
-  for (let i = 0; i < cleaned.length; i += step) {
-    simplified.push(cleaned[i]);
-  }
-
-  const last = cleaned[cleaned.length - 1];
-  const currentLast = simplified[simplified.length - 1];
-  if (!currentLast || currentLast[0] !== last[0] || currentLast[1] !== last[1]) {
-    simplified.push(last);
-  }
-
-  return simplified;
+  return simplifyRoadRoute(cleaned);
 }
 
 function routePaintDistanceMeters(a: [number, number], b: [number, number]) {
@@ -1197,7 +1185,7 @@ export default function BusMap({
     const loadRoute = async () => {
       const localRoute = await readPersistentRouteGeometry(routeKey, routeGeometryVersion);
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
-      if (localRoute.length > 1) {
+      if (localRoute.length > 1 && (routeMode === 'rail' || roadRouteMatchesStops(localRoute, routeGeometryStops.map(stop => [stop.lat,stop.lon]), 180))) {
         const refinedLocalRoute = simplifyRouteForPaint(localRoute);
         refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
         refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
@@ -1206,7 +1194,7 @@ export default function BusMap({
       }
 
       const officialRoute = routeMode === 'road'
-        ? await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds).catch(()=>[])
+        ? await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon])).catch(()=>[])
         : [];
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (officialRoute.length > 1) {
@@ -1369,16 +1357,13 @@ export default function BusMap({
             icon={L.divIcon({
                className: 'stop-highlight-pin',
                html: `
-                 <div class="relative flex flex-col items-center">
-                       <div class="w-8 h-8 bg-white rounded-full shadow-xl flex items-center justify-center border-[3px]" style="border-color: ${themeColor}">
-                       <div class="w-3 h-3 rounded-full animate-ping absolute" style="background-color: ${themeColor}"></div>
-                       <div class="w-4 h-4 rounded-full z-10" style="background-color: ${themeColor}"></div>
-                    </div>
-                    <div class="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] -mt-1 shadow-xl" style="border-t-color: ${themeColor}"></div>
-                 </div>
+                 <svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" aria-hidden="true" style="color:${themeColor};filter:drop-shadow(0 3px 4px #0005)">
+                   <path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/>
+                   <circle cx="19" cy="18" r="6.5" fill="white"/>
+                 </svg>
                `,
-               iconSize: [32, 42],
-               iconAnchor: [16, 42],
+               iconSize: [38, 48],
+               iconAnchor: [19, 46],
             })}
           />
         )}

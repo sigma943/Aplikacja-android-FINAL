@@ -1,7 +1,7 @@
 import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
 import { getTransportRuntime, transportApiBase } from './transport-runtime';
 import {officialBusStops} from './official-bus-routes';
-import {decodePolyline,routeChunks,joinRouteChunks} from './bus-road-geometry';
+import {decodePolyline,routeChunks,joinRouteChunks,roadRouteMatchesStops} from './bus-road-geometry';
 import { busOperatingState, transitTimestamp } from './bus-operating-state';
 import pksSchoolCalendar from '@/public/data/mpk-service-calendar.json';
 import {Capacitor, CapacitorHttp} from '@capacitor/core';
@@ -1501,6 +1501,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
           const query={locations:chunk.map(([lat,lon],i)=>({lat,lon,type:i===0||i===chunk.length-1?'break':options?.stopWaypoints?'via':'through',...(options?.stopWaypoints?{radius:35,rank_candidates:false}:{})})),costing:'bus',directions_options:{units:'kilometers'}};
           const data=await requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal:options?.signal});
           route=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
+          if (!roadRouteMatchesStops(route,chunk)) route=[];
         }catch(error){if(options?.signal?.aborted)throw error;}
         if(route.length<2) {
           const coordinates=chunk.map(([lat,lon])=>lon+','+lat).join(';');
@@ -1508,7 +1509,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
             'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false',{signal:options?.signal});
           route=(data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
         }
-        if(route.length<2)throw new Error('Incomplete road route');
+        if(!roadRouteMatchesStops(route,chunk))throw new Error('Incomplete road route: missing or unordered stops');
         results[index]=route;
       }
     }));
@@ -2948,7 +2949,7 @@ export async function fetchRouteGeometryClient(
         request.direction,
         stopCoords.map(([lat, lon]) => `${lat.toFixed(6)},${lon.toFixed(6)}`).join('|'),
       ].join(':'),
-      { strictShortSegments: request.carrier === 'mpk_rzeszow',stopWaypoints:request.carrier === 'marcel',signal:options?.signal },
+      { strictShortSegments: request.carrier === 'mpk_rzeszow',stopWaypoints:true,signal:options?.signal },
     );
     if (fallbackPoints.length <= 1) {
       return {

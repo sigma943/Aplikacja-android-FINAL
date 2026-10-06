@@ -20,16 +20,23 @@ const server=http.createServer((req,res)=>{
   fs.mkdirSync('test/ui-previews',{recursive:true});
   try{
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+    await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
     await page.evaluateOnNewDocument(()=>{
       const Original=Date;const now=Original.parse('2026-10-06T12:18:30Z');
       window.Date=class extends Original {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
       if(!localStorage.getItem('mks_app_theme'))localStorage.setItem('mks_app_theme','dark');
     });
     await page.setRequestInterception(true);
+    let showFixtureBus=false;
+    const fixtureBus=structuredClone(require('./fixtures/pks-vehicle.json'));
+    fixtureBus.position.position_date='2026-10-06 14:18:30';
+    fixtureBus.journey.vehicle_journey_date='2026-10-06';fixtureBus.journey.departure_time='14:25:00';
+    fixtureBus.next_stop_points=fixtureBus.next_stop_points.map((stop,index)=>({...stop,planned_departure_time:`2026-10-06 14:${String(25+index*2).padStart(2,'0')}:00`,real_departure_time:`2026-10-06 14:${String(25+index*2).padStart(2,'0')}:00`}));
     page.on('request',async request=>{
       const url=request.url();
       const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
       if(url.includes('stop-point-timetable'))return json({success:true,items:[{line_name:'108',description:'Rzeszów',journeys:[{journey_id:1,time:'14:21',stop_point_code:'69',legends:['D']}]}]});
+      if(url.includes('/pks/get_vehicles.php'))return json(showFixtureBus?[fixtureBus]:[]);
       if(url.endsWith('/api/pks/vehicles'))return json({items:[]});
       if(url.includes('/api/pks/einfo/stop-point'))return json({items:[]});
       if(url.includes('mpkrzeszow.pl')||url.includes('api-site.marcel-bus.pl'))return json([]);
@@ -64,7 +71,15 @@ const server=http.createServer((req,res)=>{
     console.log('App loaded');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Opcje'));
-    await accent('Fioletowy');await openStops();
+    await accent('Fioletowy');
+    await button('Przystanki');
+    await page.waitForFunction(()=>document.querySelectorAll('[data-stop-card-id]').length>=3);
+    const favorite=await page.evaluate(()=>{const card=document.querySelectorAll('[data-stop-card-id]')[2];return {id:card.dataset.stopCardId,top:card.getBoundingClientRect().top};});
+    await page.evaluate(id=>document.querySelector(`[data-stop-card-id="${id}"] [aria-label="Dodaj do ulubionych"]`).click(),favorite.id);
+    await page.waitForFunction(id=>{const card=document.querySelector(`[data-stop-card-id="${id}"]`);return card.style.transform&&card.style.transform!=='none';},{},favorite.id);
+    await new Promise(resolve=>setTimeout(resolve,650));
+    assert.ok(await page.evaluate(id=>document.querySelector(`[data-stop-card-id="${id}"]`).getBoundingClientRect().top,favorite.id)<favorite.top-20,'favourite card moves smoothly to the top');
+    await openStops();
     await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#8b5cf6');
     const brandBefore=await style('.transit-stop-card .text-teal-400','color');
     const before=await style('.transit-stop-card .ui-accent-soft','backgroundColor');
@@ -75,6 +90,8 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.querySelector('.transit-view').innerText.includes('Rzeszów'));
     assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(139, 92, 246)');
     await overflow();await screenshot('departures-dark-purple');
+    assert.ok(await page.$eval('.transit-view',el=>parseFloat(getComputedStyle(el).paddingBottom))<=90,'departure detail has one compact bottom inset');
+    assert.equal(await page.$eval('[data-stop-lines]',el=>parseFloat(getComputedStyle(el).paddingBottom)),0,'line badges do not add a second spacer');
     await accent('Niebieski');
     assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(59, 130, 246)');
     await (await visible('[aria-label="Wróć do listy przystanków"]')).click();
@@ -94,9 +111,9 @@ const server=http.createServer((req,res)=>{
       await new Promise(resolve=>setTimeout(resolve,600));
     };
     await showStopOnMap();
-    assert.equal(await style('.stop-highlight-pin [style*="border-color"]','borderTopColor'),'rgb(59, 130, 246)','selected stop follows the saved accent');
+    assert.equal(await style('.stop-highlight-pin .map-stop-pin','color'),'rgb(59, 130, 246)','selected stop follows the saved accent');
     await accent('Fioletowy');
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.stop-highlight-pin [style*="border-color"]')).borderTopColor==='rgb(139, 92, 246)');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.stop-highlight-pin .map-stop-pin')).color==='rgb(139, 92, 246)');
     await accent('Niebieski');
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.glass),'on','fresh install enables glass');
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'false','show on map opens compact card');
@@ -127,6 +144,35 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));
     await page.reload({waitUntil:'domcontentloaded'});await openStops();await showStopOnMap();
     assert.notEqual(await style('[data-map-stop-sheet]','backgroundColor'),oledGlass,'dark and AMOLED have distinct glass palettes');
+    assert.equal(await page.$$eval('.map-stop-handle .rounded-2xl',els=>els.length),0,'stop handle retains only the title and arrow');
+    await button('Opcje');await page.waitForSelector('[data-options-sheet]');await new Promise(resolve=>setTimeout(resolve,450));
+    const compactHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
+    const optionsHandle=await page.$('[aria-label="Rozwiń opcje"]');const optionsBounds=await optionsHandle.boundingBox();
+    const handleX=optionsBounds.x+optionsBounds.width/2,handleY=optionsBounds.y+optionsBounds.height/2;
+    await page.mouse.move(handleX,handleY);await page.mouse.down();await page.mouse.move(handleX,handleY-70,{steps:8});
+    const draggingHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
+    assert.ok(draggingHeight>compactHeight+45,'settings follow the pointer before release');
+    await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-options-sheet]').dataset.expanded==='true');
+    await new Promise(resolve=>setTimeout(resolve,450));await screenshot('options-expanded');
+    const expandedHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
+    const collapseHandle=await page.$('[aria-label="Zwiń opcje"]');const collapseBounds=await collapseHandle.boundingBox();
+    const collapseY=collapseBounds.y+collapseBounds.height/2;
+    await page.mouse.move(handleX,collapseY);await page.mouse.down();await page.mouse.move(handleX,collapseY+70,{steps:8});
+    assert.ok(await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height)<expandedHeight-45,'settings follow a downward drag before release');
+    await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-options-sheet]').dataset.expanded==='false');
+    await new Promise(resolve=>setTimeout(resolve,450));await screenshot('options-compact');
+    await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
+    showFixtureBus=true;
+    await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.14922,lng:21.95757},zoom:12})));
+    await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
+    await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
+    await page.waitForSelector('[data-map-bus-sheet]');
+    assert.equal(await page.$eval('[data-map-bus-sheet]',el=>el.dataset.expanded),'false','a bus selection opens its compact panel');
+    await page.click('[aria-label="Rozwiń panel autobusu"]');
+    await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='true');
+    await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
+    await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='false');
+    await screenshot('bus-compact');
     await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
     await button('Dodaj');
@@ -154,6 +200,7 @@ const server=http.createServer((req,res)=>{
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
     console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');
     console.log('Browser: real maintenance controls add a draft, test its URL, retain the saved ID, activate, roll back, disable, re-enable and display history. Firebase calls use a fixture adapter; backend behaviour is tested separately.');
+    console.log('Browser: favourites animate their position, departure spacing is compact, the new pin follows accent, settings track upward and downward dragging before release, backdrop dismisses, and bus panels default to collapsed.');
   }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error(await page.evaluate(()=>[...document.querySelectorAll('.transit-view,.transit-stop-card,.transit-stop-card button')].map(el=>({tag:el.tagName,rect:el.getBoundingClientRect().toJSON(),display:getComputedStyle(el).display}))).catch(()=>[]));console.error('Page errors:',errors);throw error;}
   finally{await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
 })().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});

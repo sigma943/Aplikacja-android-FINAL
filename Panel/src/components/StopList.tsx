@@ -2,6 +2,7 @@ import React, { useEffect, useDeferredValue, useMemo, useState } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
+import { motion, useReducedMotion } from 'motion/react';
 
 interface StopListProps {
   onVisibleStopsChange?: (stops: Stop[]) => void;
@@ -76,6 +77,7 @@ export default function StopList({
   onSearchStateChange,
 }: StopListProps) {
   const [localInputValue, setLocalInputValue] = useState('');
+  const reduceMotion = useReducedMotion();
   const [isFullListOpen, setIsFullListOpen] = useState(false);
   const [localFullInputValue, setLocalFullInputValue] = useState('');
   const [localCarrierFilter, setLocalCarrierFilter] = useState<CarrierFilterId>('all');
@@ -213,8 +215,11 @@ export default function StopList({
     const singleProviderId = stop.carriers.length === 1 ? stop.carriers[0].id : undefined;
     const pksLineSet = new Set(String(stop.providerStopIds?.pksLines || '').split(',').map((line) => line.trim()).filter(Boolean));
     return (
-      <div
+      <motion.div
         key={`${full ? 'full' : 'list'}-${stop.id}`}
+        layout="position"
+        data-stop-card-id={stop.id}
+        transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 380, damping: 34}}}
         role="button"
         tabIndex={0}
         aria-label={`Rozkład: ${stop.name}`}
@@ -256,8 +261,9 @@ export default function StopList({
           </div>
         </div>
 
-        <button
+        <motion.button
           type="button"
+          whileTap={reduceMotion ? undefined : {scale: 0.85}}
           onClick={(event) => {
             event.stopPropagation();
             toggleFavorite(stop.id);
@@ -267,7 +273,7 @@ export default function StopList({
           }`}
           aria-label={stop.isFavorite ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}
         >
-          <span className="block">
+          <motion.span className="block" animate={reduceMotion ? undefined : {scale: stop.isFavorite ? [1, 1.3, 1] : 1, rotate: stop.isFavorite ? [0, -12, 8, 0] : 0}} transition={{duration: 0.35}}>
             <Star
               size={full ? 18 : 20}
               className={
@@ -276,9 +282,9 @@ export default function StopList({
                   : 'text-slate-500 group-hover:text-slate-400'
               }
             />
-          </span>
-        </button>
-      </div>
+          </motion.span>
+        </motion.button>
+      </motion.div>
     );
   };
 
@@ -323,7 +329,10 @@ export default function StopList({
         {renderCarrierFilters()}
       </div>
 
-      <div
+      <motion.div
+        layoutScroll
+        data-stop-list-scroll
+        style={{overflowAnchor: 'none'}}
         className={`min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] pt-3 custom-scrollbar lg:px-6 ${
           isFullScreen
             ? 'grid w-full max-w-[1540px] content-start gap-2.5 px-3 pt-3 md:grid-cols-2 lg:mx-auto lg:gap-3 lg:px-6 lg:pt-4 xl:grid-cols-3'
@@ -371,7 +380,7 @@ export default function StopList({
             )}
           </>
         )}
-      </div>
+      </motion.div>
 
       {isFullListOpen && (
         <div
@@ -431,7 +440,7 @@ export default function StopList({
             {renderCarrierFilters(true)}
           </div>
 
-          <div className="flex min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
+          <motion.div layoutScroll style={{overflowAnchor: 'none'}} className="flex min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
             {slicedFullStops.map((stop, index) => renderStopCard(stop, index, true))}
 
             {fullFilteredStops.length > visibleFullCount && (
@@ -455,7 +464,7 @@ export default function StopList({
                 Brak pasujących przystanków dla tej nazwy.
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

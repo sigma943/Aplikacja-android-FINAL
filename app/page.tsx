@@ -14,6 +14,7 @@ import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, S
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
 import MapStopSheet from '@/components/MapStopSheet';
+import OptionsSheet from '@/components/OptionsSheet';
 import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
 import TrainDetailsPanel from '@/components/TrainDetailsPanel';
 import { warsawDateIso, warsawTimeMs } from '@/lib/transit-time';
@@ -325,10 +326,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [selectedBus, setSelectedBus] = useState<Vehicle | null>(null);
   const [selectedBusDetailsLoading, setSelectedBusDetailsLoading] = useState(false);
-  const [isBusPanelExpanded, setIsBusPanelExpanded] = useState(true);
+  const [isBusPanelExpanded, setIsBusPanelExpanded] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOptionsExpanded, setIsOptionsExpanded] = useState(false);
-  const optionsHandleClickBlockedUntil = useRef(0);
   useEffect(() => {
     if (!isSettingsOpen) setIsOptionsExpanded(false);
   }, [isSettingsOpen]);
@@ -1446,7 +1446,7 @@ export default function Home() {
       setSelectedExternalStop(null);
     }
     setSelectedBus(v);
-    setIsBusPanelExpanded(true);
+    setIsBusPanelExpanded(false);
     setIsSettingsOpen(false);
     setIsTransportPanelOpen(false);
     loadVehicleDetails(v, { force: true });
@@ -1734,6 +1734,7 @@ export default function Home() {
                 <motion.div
                   key="bus-panel-map"
                   data-map-bus-sheet
+                  data-expanded={isBusPanelExpanded}
                   data-glass={transparentUI ? 'on' : 'off'}
                   data-ui-mode={isDark ? 'dark' : 'light'}
                   initial={{ y: "100%", opacity: 0.5 }}
@@ -1743,6 +1744,11 @@ export default function Home() {
                   className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
                   <motion.div 
+                     role="button"
+                     tabIndex={0}
+                     aria-label={isBusPanelExpanded ? 'Zwiń panel autobusu' : 'Rozwiń panel autobusu'}
+                     aria-expanded={isBusPanelExpanded}
+                     onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();setIsBusPanelExpanded(value => !value);}}}
                      className="p-3 pb-5 md:p-6 md:pb-8 text-white relative shrink-0 cursor-pointer touch-none overflow-hidden" 
                      style={selectedBusHeaderStyle}
                      onClick={() => setIsBusPanelExpanded(!isBusPanelExpanded)}
@@ -2064,42 +2070,13 @@ export default function Home() {
       {/* Settings Modal (Overlay) */}
       <AnimatePresence>
         {isSettingsOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
-            onClick={() => setIsSettingsOpen(false)}
+          <OptionsSheet
+            expanded={isOptionsExpanded}
+            onExpandedChange={setIsOptionsExpanded}
+            onClose={() => setIsSettingsOpen(false)}
+            overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
+            className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <motion.div 
-               initial={{ y: "100%", opacity: 0, scale: 0.98, maxHeight: "46dvh" }}
-               animate={{ y: 0, opacity: 1, scale: 1, maxHeight: isOptionsExpanded ? "80dvh" : "46dvh" }}
-               exit={{ y: "100%", opacity: 0, scale: 0.96 }}
-               transition={{ type: "spring", stiffness: 700, damping: 35, maxHeight: { type: "spring", stiffness: 320, damping: 32 } }}
-               role="dialog" aria-modal="true" aria-labelledby="options-title"
-               onClick={(event) => event.stopPropagation()}
-               className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
-            >
-               <motion.button
-                  type="button"
-                  aria-label={isOptionsExpanded ? 'Zwiń opcje' : 'Rozwiń opcje'}
-                  aria-expanded={isOptionsExpanded}
-                  aria-controls="additional-options"
-                  className="-mt-1 mb-1 flex h-6 w-full shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
-                  style={{ touchAction: 'none' }}
-                  onPanEnd={(_, info) => {
-                    if (Math.abs(info.offset.y) < 18) return;
-                    optionsHandleClickBlockedUntil.current = Date.now() + 400;
-                    setIsOptionsExpanded(info.offset.y < 0);
-                  }}
-                  onClick={() => {
-                    if (Date.now() < optionsHandleClickBlockedUntil.current) return;
-                    setIsOptionsExpanded(value => !value);
-                  }}
-               >
-                  <span className={`h-1 w-9 rounded-full ${isDark ? 'bg-white/30' : 'bg-slate-400'}`} />
-               </motion.button>
                <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
                      <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${themeColor}18`, color: themeColor }}><Settings className="h-[18px] w-[18px]" /></span>
@@ -2111,10 +2088,10 @@ export default function Home() {
 
                </div>
 
-               <div className="flex min-h-0 w-full flex-col gap-2 overflow-y-auto overscroll-contain relative z-0 pr-1">
+               <div data-options-scroll className={`flex min-h-0 w-full flex-1 flex-col gap-2 overscroll-contain relative z-0 pr-1 ${isOptionsExpanded ? "overflow-y-auto" : "overflow-hidden"}`}>
                   
                   {/* Appearance */}
-                  <div className={`rounded-2xl border p-2.5 md:p-4 ${optionsCard}`}>
+                  <div data-options-appearance className={`shrink-0 rounded-2xl border p-2.5 md:p-4 ${optionsCard}`}>
                      <h3 className={`mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${isDark ? 'text-violet-200' : isWarm ? 'text-[#746a58]' : 'text-slate-500'}`}>Motyw aplikacji</h3>
                      
                      <div className="mb-2 grid grid-cols-3 gap-1.5">
@@ -2165,16 +2142,7 @@ export default function Home() {
                      </div>
                   </div>
 
-                  <AnimatePresence initial={false}>
-                  {isOptionsExpanded && <motion.div
-                     key="additional-options"
-                     id="additional-options"
-                     initial={{ height: 0, opacity: 0 }}
-                     animate={{ height: 'auto', opacity: 1 }}
-                     exit={{ height: 0, opacity: 0 }}
-                     transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-                     className="shrink-0 overflow-hidden"
-                  >
+                  <div data-options-extra id="additional-options" aria-hidden={!isOptionsExpanded} inert={!isOptionsExpanded} className="shrink-0">
                   <div className="flex flex-col gap-2 pb-0.5">
                      <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
                         <div className="flex min-w-0 items-center gap-3 pr-3">
@@ -2204,12 +2172,10 @@ export default function Home() {
                         <input type="checkbox" className="sr-only" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
                      </label>
                   </div>
-                  </motion.div>}
-                  </AnimatePresence>
+                  </div>
 
                </div>
-            </motion.div>
-          </motion.div>
+          </OptionsSheet>
         )}
       </AnimatePresence>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, MapPin, ChevronUp } from 'lucide-react';
+import { Clock, ChevronUp } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export interface MapStopDeparture {
@@ -38,7 +38,7 @@ export default function MapStopSheet({ name, expanded, onExpandedChange, transpa
       exit={{ y: '100%', opacity: 0 }}
       transition={{ type: 'spring', stiffness: 360, damping: 34 }}
       className="map-stop-sheet map-detail-shell absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-2 right-2 z-40 flex min-h-0 flex-col overflow-hidden rounded-[24px] border md:bottom-4 md:left-4 md:right-auto md:w-[380px]"
-      style={{ height: expanded ? 'min(42dvh, 380px)' : '112px' }}
+      style={{ height: expanded ? 'min(42dvh, 380px)' : '84px' }}
     >
       <motion.button
         type="button"
@@ -55,9 +55,7 @@ export default function MapStopSheet({ name, expanded, onExpandedChange, transpa
         }}
         className="map-stop-handle relative w-full shrink-0 px-4 pb-3 pt-3 text-left touch-none"
       >
-        <span className="mx-auto mb-3 block h-1 w-10 rounded-full bg-slate-400/45" />
         <span className="flex items-center gap-3">
-          <span className="ui-accent-soft ui-accent-text flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"><MapPin size={21} /></span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-base font-bold tracking-tight">{name}</span>
             <span className="map-detail-muted mt-1 block truncate text-xs">
