@@ -4,8 +4,12 @@
   Kropki przystanków na mapie używają tej samej listy dla MPK, PKS i Marcela.
   Pełna linia trasy pozostaje dostępna; przystanek występujący ponownie na pętli
   nie znika z dalszej części kursu. Panel pociągu zachowuje całą relację.
-- Lista pozycji Marcela nie pobiera rozkładu dla każdego pojazdu. Pełne dane trasy
-  są pobierane dla wybranego kursu. Anulowane żądania geometrii nie są współdzielone
+- Lista pozycji Marcela pojawia się bez czekania na rozkłady. Do plakietek
+  punktualności pamięć kursów jest uzupełniana w tle tylko dla pojazdów w widoku,
+  najwyżej dwoma żądaniami naraz. Kolejne odświeżenia liczą opóźnienia z aktualnej
+  pozycji i zapamiętanych przystanków, bez ponownego pobierania rozkładów.
+  Szczegóły wybranego autobusu natychmiast zasilają również jego plakietkę.
+  Pełne dane trasy są pobierane dla wybranego kursu. Anulowane żądania geometrii nie są współdzielone
   z nową próbą. Pamięć podręczna przechowuje tylko zakończone trasy.
 - Mapa Marcela pokazuje wyłącznie geometrię po drogach, bez prostych odcinków
   między przystankami. Publiczny Valhalla ma limit 10 lokalizacji na zapytanie;
@@ -19,6 +23,11 @@
   „<1 min”. Flagi tablicy is_past i at_stop są zachowane. Zegar odliczania
   aktualizuje się co sekundę, a dane co 10 sekund. Tablica i rozkład tego samego
   kursu są scalane również przy różnicy dokładności HH:mm / HH:mm:ss.
+- Kolory godzin autobusów w panelu pojazdu, na przystanku mapy i w zakładce
+  przystanków wynikają z różnicy względem planu: biały zgodnie z planem,
+  zielony przed czasem, czerwony przy opóźnieniu. W jasnym motywie neutralny
+  tekst zachowuje ciemny kolor dla czytelności. Krótki czas oczekiwania sam
+  w sobie nie zmienia godziny na zieloną. Plakietki obejmują także dokładnie ±1 min.
 - PKS: opóźnienie z pola deviation jest odczytywane także bez numeru pojazdu,
   włącznie z różnicą jednej minuty. Podany czas rzeczywisty ma pierwszeństwo
   przed przesunięciem minutowym, więc opóźnienie nie jest naliczane dwukrotnie.

@@ -3,6 +3,7 @@ import { ArrowLeft, MapPin, Star, Navigation, ChevronDown, ChevronLeft, ChevronR
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { departureIsPast, departureCountdown } from '../../../lib/departure-display';
+import { punctualityTimeClass } from '../../../lib/punctuality-color';
 import { Stop, Departure } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
@@ -371,7 +372,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         
                         {/* Right Side: Departure Time & Delayed/On-time Badge */}
                         <div className="min-w-[4.4rem] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
-                           <div className={`font-black tracking-tight text-[15px] sm:text-[16px] ${isPast ? 'text-slate-500 line-through' : headingTextClass}`}>{departureTimeLabel}</div>
+                           <div className={`font-black tracking-tight text-[15px] sm:text-[16px] ${isPast ? 'text-slate-500 line-through' : punctualityTimeClass(dep.delayMins, headingTextClass)}`}>{departureTimeLabel}</div>
                            {!isPast && dep.status === 'delayed' && Number.isFinite(dep.delayMins) && Math.abs(Number(dep.delayMins)) > 0 && (
                              <span className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-black leading-none ${
                                Number(dep.delayMins) > 0

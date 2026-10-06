@@ -304,9 +304,9 @@ const formatDelay = (delaySec: number | undefined) => {
   const abs = Math.abs(delaySec);
   const min = Math.floor(abs / 60);
   
-  if (delaySec < -60) {
+  if (delaySec <= -60) {
     return { text: `Przed ${min}m`, textLong: `Przed czasem: ${min} min`, class: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' }; // Ahead of time
-  } else if (delaySec > 60) {
+  } else if (delaySec >= 60) {
     return { text: `Opóźn. ${min}m`, textLong: `Opóźniony: ${min} min`, class: 'text-rose-600', bg: 'bg-rose-50 border-rose-200' }; // Delayed
   }
   return { text: 'Punktualnie', textLong: 'Zgodnie z planem', class: 'text-slate-500', bg: 'bg-white border-slate-200' };
@@ -385,7 +385,7 @@ const createBusIcon = (
     : `z-[100] scale-100 ${opacityClass} ${isHighVolume ? '' : 'drop-shadow-md hover:scale-105'}`;
 
   let badgeHtml = '';
-  if (delayInfo && delaySec !== undefined && Math.abs(delaySec) > 60) {
+  if (delayInfo && delaySec !== undefined && Math.abs(delaySec) >= 60) {
     const delayPositionClass = delaySec > 0 ? '-top-[18px] left-[34px]' : '-top-4 -right-3';
     badgeHtml = `
       <div class="absolute ${delayPositionClass} px-1.5 py-0.5 rounded ${delayInfo.bg} ${delayInfo.class} text-[9px] font-black border border-white ${isHighVolume?'':'shadow-sm'} z-50 whitespace-nowrap">
@@ -1114,6 +1114,12 @@ export default function BusMap({
   }, [routeStopIds, routeStopsData]);
   // Paint only road geometry. Stop-to-stop chords can cut across buildings and fields.
   const paintedRoute = snappedRoute;
+  // Selected details contain punctuality before the background fleet cache warms.
+  const markerVehicles = useMemo(() => vehicles.map(vehicle =>
+    selectedVehicle?.provider === vehicle.provider && selectedVehicle?.id === vehicle.id &&
+    vehicle.delay === undefined && Number.isFinite(selectedVehicle.delay)
+      ? { ...vehicle, delay: selectedVehicle.delay } : vehicle),
+  [vehicles, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.delay]);
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
@@ -1388,7 +1394,7 @@ export default function BusMap({
         </Pane>
 
         <VehicleMarkerLayer
-          vehicles={vehicles}
+          vehicles={markerVehicles}
           selectedVehicleId={selectedVehicleId}
           themeColor={themeColor}
           refreshInterval={refreshInterval}

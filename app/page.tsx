@@ -1,5 +1,6 @@
 'use client';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
+import { punctualityTimeClass } from '@/lib/punctuality-color';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
@@ -612,6 +613,7 @@ export default function Home() {
                isTomorrow,
                dateStr,
                isDelayed,
+               delayMinutes: Number.isFinite(actualDepTimeMs) ? Math.round((actualDepTimeMs - journeyPlannedMs) / 60000) : 0,
                plannedTimeMs: journeyPlannedMs,
                depTimeMs: Number.isFinite(actualDepTimeMs) ? actualDepTimeMs : journeyPlannedMs
            };
@@ -1951,12 +1953,11 @@ export default function Home() {
                                    Number.isFinite(busDelaySec) &&
                                    Math.abs(busDelaySec) <= 18000;
                                 const computedDelayTime = plannedTime && canUseBusDelay && busDelaySec !== 0 ? new Date(plannedTime.getTime() + (busDelaySec * 1000)) : null;
-                                const rawLooksPlanned = Boolean(realTimeRaw && plannedTime && Math.abs(realTimeRaw.getTime() - plannedTime.getTime()) < 60_000);
-                                const realTime = rawLooksPlanned ? (computedDelayTime || realTimeRaw) : (realTimeRaw || computedDelayTime);
+                                const realTime = realTimeRaw || computedDelayTime;
                                 const displayTime = realTime || plannedTime;
                                 let delayMin = 0;
                                 if (realTime && plannedTime) delayMin = Math.round((realTime.getTime() - plannedTime.getTime()) / 60000);
-                                const busDelayMin = canUseBusDelay && busDelaySec !== 0
+                                const busDelayMin = realTime && plannedTime ? delayMin : canUseBusDelay && busDelaySec !== 0
                                   ? Math.round(busDelaySec / 60)
                                   : delayMin;
                                 const formatTime = (time: Date) => {
@@ -1971,7 +1972,7 @@ export default function Home() {
                                    return `${hh}:${mm}`;
                                 };
                                 const timeStr = displayTime ? formatTime(displayTime) : '';
-                                const timeClass = busDelayMin > 0 ? 'text-rose-500' : busDelayMin < 0 ? 'text-emerald-500' : textMain;
+                                const timeClass = punctualityTimeClass(busDelayMin, isDark ? 'text-white' : textMain);
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = Boolean(sch.isPast) || Boolean(selectedBus.lastStopId && sch.id === selectedBus.lastStopId);
                                 return (
@@ -2122,7 +2123,7 @@ export default function Home() {
                                                          </div>
                                                       </div>
                                                       <div className="flex flex-col items-end">
-                                                         <span className={`text-base font-black ${inc.diffMin <= 5 && inc.diffMin >= -1 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : textMain}`}>
+                                                         <span className={`text-base font-black ${punctualityTimeClass(inc.delayMinutes, isDark ? 'text-white' : textMain)}`}>
                                                             {inc.diffMin <= 0 && inc.diffMin >= -1 ? 'Teraz' : (inc.diffMin > 0 && inc.diffMin <= 30 ? `${inc.diffMin} min` : inc.actualTimeStr)}
                                                          </span>
                                                       </div>

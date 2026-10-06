@@ -147,6 +147,10 @@ const PKP_METADATA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PKP_METADATA_LOOKUP_LIMIT = 80;
 const mpkTripStopsByTripCache = new Map<string, Promise<any[]>>();
 const marcelCourseStopsCache = new Map<string, Promise<MarcelCourseStop[]>>();
+const marcelResolvedCourseStops = new Map<string, MarcelCourseStop[]>();
+let marcelBadgeQueue: string[] = [];
+let marcelBadgeRequests = 0;
+const marcelBadgeInflight = new Set<string>();
 const marcelPositionFreshness = new Map<string, { signature: string; signalMs: number; lastSeenMs: number }>();
 const marcelProgressState = new Map<string, {
   positionSignature: string;
@@ -496,8 +500,10 @@ async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: 
   }
 }
 
-async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
-  return fetchMarcelVehiclesDirect(includeInactive, signal);
+async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal, viewport?: PkpQueryViewport) {
+  const vehicles = await fetchMarcelVehiclesDirect(includeInactive, signal);
+  if (!signal?.aborted && viewport?.bbox) warmMarcelBadgeCourses(vehicles, viewport.bbox);
+  return vehicles;
 }
 
 function unwrapMarcelVehiclesPayload(payload: unknown): any[] {
@@ -738,14 +744,34 @@ async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop
             .filter((stop): stop is MarcelCourseStop => Boolean(stop))
             .sort((a, b) => a.order - b.order);
         })
+        .then(stops => { marcelResolvedCourseStops.set(id, stops); return stops; })
         .catch(error => { marcelCourseStopsCache.delete(id); throw error; }),
     );
     if (marcelCourseStopsCache.size > 200) {
       const firstKey = marcelCourseStopsCache.keys().next().value;
-      if (firstKey) marcelCourseStopsCache.delete(firstKey);
+      if (firstKey) { marcelCourseStopsCache.delete(firstKey); marcelResolvedCourseStops.delete(firstKey); }
     }
   }
   return marcelCourseStopsCache.get(id)!;
+}
+
+/** Warm only visible courses, two at a time, without holding up position polling. */
+function warmMarcelBadgeCourses(vehicles: Vehicle[], bbox: [number, number, number, number]) {
+  const [west, south, east, north] = bbox;
+  if (!bbox.every(Number.isFinite)) return;
+  marcelBadgeQueue = [...new Set(vehicles.filter(v => v.lon >= west && v.lon <= east && v.lat >= south && v.lat <= north)
+    .map(v => String(v.tripId || v.journeyId || '')).filter(id => id && !marcelCourseStopsCache.has(id) && !marcelBadgeInflight.has(id)))];
+  const pump = () => {
+    while (marcelBadgeRequests < 2 && marcelBadgeQueue.length) {
+      const id = marcelBadgeQueue.shift()!;
+      if (marcelCourseStopsCache.has(id) || marcelBadgeInflight.has(id)) continue;
+      marcelBadgeRequests++; marcelBadgeInflight.add(id);
+      void fetchMarcelCourseStops(id).catch(() => { /* Retry on the next fleet refresh. */ }).finally(() => {
+        marcelBadgeRequests--; marcelBadgeInflight.delete(id); pump();
+      });
+    }
+  };
+  pump();
 }
 
 function squaredMetersDistanceToSegment(point: ShapePoint, start: ShapePoint, end: ShapePoint) {
@@ -875,10 +901,10 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     ? timestampMs
     : getObservedMarcelSignalMs(String(rawVehicleId), lat, lon, now);
   const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
-  const courseStops = includeRoute ? await fetchMarcelCourseStops(tripId) : [];
-  const delay = estimateMarcelDelaySeconds(lat, lon, courseStops, now);
-  const schedule = buildMarcelSchedule(courseStops, delay, now);
-  const routeStops = buildMarcelRouteStops(courseStops, delay, now);
+  const courseStops = includeRoute ? await fetchMarcelCourseStops(tripId) : marcelResolvedCourseStops.get(String(tripId || '')) || [];
+  const delay = courseStops.length >= 2 ? estimateMarcelDelaySeconds(lat, lon, courseStops, now) : undefined;
+  const schedule = includeRoute ? buildMarcelSchedule(courseStops, delay ?? 0, now) : [];
+  const routeStops = includeRoute ? buildMarcelRouteStops(courseStops, delay ?? 0, now) : [];
   const fullRoutePath = routeStops.map((stop) => stop.id);
   const hasLine = line !== '?';
 
@@ -897,7 +923,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
   if (!includeInactive && !hasLine) return null;
   if (dataAgeSec > MARCEL_STALE_MS / 1000) return null;
   if (shouldHideDeadMarcelVehicle({
-    delaySeconds: delay,
+    delaySeconds: delay ?? 0,
     speed: speed ?? Number.NaN,
     positionUnchangedMinutes: progressState.positionUnchangedMinutes,
     tripProgressUnchangedMinutes: progressState.tripProgressUnchangedMinutes,
@@ -919,7 +945,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     speed: Number.isFinite(speed) ? speed : undefined,
     computedSpeed: speed,
     direction,
-    delay: includeRoute ? delay : undefined,
+    delay,
     dataAgeSec,
     schedule,
     routeStops,
@@ -2182,7 +2208,7 @@ export async function fetchVehiclesClient(
       });
     }
     if (provider === 'marcel') {
-      return fetchMarcelVehiclesClient(includeInactive, options?.signal).catch((error) => {
+      return fetchMarcelVehiclesClient(includeInactive, options?.signal, options?.pkpViewport).catch((error) => {
         if ((error as any)?.name === 'AbortError') throw error;
         console.warn('Marcel provider unavailable:', error);
         return [];
