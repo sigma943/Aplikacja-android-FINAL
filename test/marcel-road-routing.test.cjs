@@ -39,3 +39,25 @@ test('changing selection cancels a queued retry and exhausted attempts report fa
   await new Promise(resolve=>setImmediate(resolve));controller.abort();await rejected;assert.equal(calls,1);
   calls=0;await assert.rejects(loadRouteWithRetry(async()=>{calls++;throw Error('offline');},new AbortController().signal,[1]),/offline/); assert.equal(calls,2);
 });
+
+test('Marcel stop in a side road permits a return without an artificial circuit and preserves the real turnaround', async () => {
+  const original = global.fetch;
+  const start=[50,22], junction=[50,22.001], stop=[50.001,22.001], end=[50,22.002];
+  const intended=[start,junction,stop,junction,end];
+  global.fetch = async url => {
+    const q=JSON.parse(new URL(url).searchParams.get('json'));
+    // A through waypoint forbids a reversal at the stop. Model the resulting
+    // detour around the block; a stop waypoint can return to the junction.
+    const middle=q.locations[1];
+    const road=middle.type==='through'
+      ? [start,junction,stop,[50.005,22.001],[50.005,22.005],end]
+      : intended;
+    return new Response(JSON.stringify({trip:{legs:[{shape:encode(road)}]}}));
+  };
+  try {
+    const {fetchRouteGeometryClient}=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}});
+    const response=await fetchRouteGeometryClient({carrier:'marcel',line:'M',direction:'Sanok',mode:'road',stops:[start,stop,end].map(([lat,lon],i)=>({id:i+1,lat,lon}))});
+    assert.deepEqual(response.geometry.coordinates,intended.map(([lat,lon])=>[lon,lat]));
+    assert.equal(response.isSynthetic,false);
+  } finally {global.fetch=original;}
+});

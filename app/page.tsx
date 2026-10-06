@@ -323,6 +323,11 @@ export default function Home() {
   const [selectedBusDetailsLoading, setSelectedBusDetailsLoading] = useState(false);
   const [isBusPanelExpanded, setIsBusPanelExpanded] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isOptionsExpanded, setIsOptionsExpanded] = useState(false);
+  const optionsHandleClickBlockedUntil = useRef(0);
+  useEffect(() => {
+    if (!isSettingsOpen) setIsOptionsExpanded(false);
+  }, [isSettingsOpen]);
   const [isOffline, setIsOffline] = useState(false);
   const [isAppForeground, setIsAppForeground] = useState<boolean>(
     typeof document === 'undefined' ? true : document.visibilityState === 'visible',
@@ -2247,9 +2252,27 @@ export default function Home() {
                transition={{ type: "spring", stiffness: 700, damping: 35 }}
                role="dialog" aria-modal="true" aria-labelledby="options-title"
                onClick={(event) => event.stopPropagation()}
-               className={`flex w-full max-w-2xl max-h-[46dvh] flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-h-[80dvh] md:max-w-[500px] md:p-5 ${optionsSheet}`}
+               className={`flex w-full max-w-2xl ${isOptionsExpanded ? 'max-h-[80dvh]' : 'max-h-[46dvh]'} flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-h-[80dvh] md:max-w-[500px] md:p-5 ${optionsSheet}`}
             >
-               <div className={`mx-auto mb-2 h-1 w-9 shrink-0 rounded-full md:hidden ${isDark ? 'bg-white/20' : 'bg-slate-300'}`} />
+               <motion.button
+                  type="button"
+                  aria-label={isOptionsExpanded ? 'Zwiń opcje' : 'Rozwiń opcje'}
+                  aria-expanded={isOptionsExpanded}
+                  aria-controls="additional-options"
+                  className="-mt-1 mb-1 flex h-6 w-full shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
+                  style={{ touchAction: 'none' }}
+                  onPanEnd={(_, info) => {
+                    if (Math.abs(info.offset.y) < 18) return;
+                    optionsHandleClickBlockedUntil.current = Date.now() + 400;
+                    setIsOptionsExpanded(info.offset.y < 0);
+                  }}
+                  onClick={() => {
+                    if (Date.now() < optionsHandleClickBlockedUntil.current) return;
+                    setIsOptionsExpanded(value => !value);
+                  }}
+               >
+                  <span className={`h-1 w-9 rounded-full ${isDark ? 'bg-white/30' : 'bg-slate-400'}`} />
+               </motion.button>
                <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
                      <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${themeColor}18`, color: themeColor }}><Settings className="h-[18px] w-[18px]" /></span>
@@ -2258,9 +2281,7 @@ export default function Home() {
                         <p className={`text-[11px] ${textSub}`}>Twój wygląd, Twoje ustawienia</p>
                      </div>
                   </div>
-                  <button aria-label="Zamknij opcje" onClick={() => setIsSettingsOpen(false)} className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${optionsButton}`}>
-                     <X className="h-[18px] w-[18px]" />
-                  </button>
+
                </div>
 
                <div className="flex min-h-0 w-full flex-col gap-2 overflow-y-auto overscroll-contain relative z-0 pr-1">
@@ -2317,8 +2338,17 @@ export default function Home() {
                      </div>
                   </div>
 
-                  {/* Settings */}
-                  <div className="flex flex-col gap-2">
+                  <AnimatePresence initial={false}>
+                  {isOptionsExpanded && <motion.div
+                     key="additional-options"
+                     id="additional-options"
+                     initial={{ height: 0, opacity: 0 }}
+                     animate={{ height: 'auto', opacity: 1 }}
+                     exit={{ height: 0, opacity: 0 }}
+                     transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                     className="shrink-0 overflow-hidden"
+                  >
+                  <div className="flex flex-col gap-2 pb-0.5">
                      <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
                         <div className="flex min-w-0 items-center gap-3 pr-3">
                            <Sparkles className="h-5 w-5 shrink-0" style={{ color: themeColor }} />
@@ -2347,6 +2377,8 @@ export default function Home() {
                         <input type="checkbox" className="sr-only" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
                      </label>
                   </div>
+                  </motion.div>}
+                  </AnimatePresence>
 
                </div>
             </motion.div>

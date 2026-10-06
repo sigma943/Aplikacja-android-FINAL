@@ -1481,7 +1481,7 @@ function collapseLocalLoops(points: ShapePoint[], options?: { strict?: boolean }
   return result;
 }
 
-async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal}) {
+async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal;stopWaypoints?:boolean}) {
   const points=coords.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));
   if(points.length<2)return [];
   if(roadRouteCache.has(cacheKey))return roadRouteCache.get(cacheKey)!;
@@ -1494,7 +1494,9 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
         const index=cursor++,chunk=chunks[index];
         let route: ShapePoint[]=[];
         try {
-          const query={locations:chunk.map(([lat,lon],i)=>({lat,lon,type:i===0||i===chunk.length-1?'break':'through'})),costing:'bus',directions_options:{units:'kilometers'}};
+          // Stop coordinates can sit in a bay or side road. A through point
+          // forbids turning there and can force a loop around nearby streets.
+          const query={locations:chunk.map(([lat,lon],i)=>({lat,lon,type:i===0||i===chunk.length-1?'break':options?.stopWaypoints?'via':'through',...(options?.stopWaypoints?{radius:35,rank_candidates:false}:{})})),costing:'bus',directions_options:{units:'kilometers'}};
           const data=await requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal:options?.signal});
           route=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
         }catch(error){if(options?.signal?.aborted)throw error;}
@@ -2907,7 +2909,7 @@ export async function fetchRouteGeometryClient(
         request.direction,
         stopCoords.map(([lat, lon]) => `${lat.toFixed(6)},${lon.toFixed(6)}`).join('|'),
       ].join(':'),
-      { strictShortSegments: request.carrier === 'mpk_rzeszow',signal:options?.signal },
+      { strictShortSegments: request.carrier === 'mpk_rzeszow',stopWaypoints:request.carrier === 'marcel',signal:options?.signal },
     );
     if (fallbackPoints.length <= 1) {
       return {
