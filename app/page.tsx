@@ -2021,7 +2021,7 @@ export default function Home() {
                       direction: inc.bus.direction,
                       color: inc.providerId === 'mpk_rzeszow' ? MPK_RZESZOW_COLOR : inc.providerId === 'marcel' ? MARCEL_COLOR : PKS_COLOR,
                       time: inc.diffMin <= 0 && inc.diffMin >= -1 ? '<1 min' : inc.diffMin > 0 && inc.diffMin <= 30 ? `${inc.diffMin} min` : inc.actualTimeStr,
-                      day: warsawDateIso(inc.plannedTimeMs || inc.depTimeMs) === warsawDateIso(now) ? '' : new Date(inc.plannedTimeMs || inc.depTimeMs).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Warsaw' }),
+                      day: warsawDateIso(0, new Date(inc.plannedTimeMs || inc.depTimeMs)) === warsawDateIso(0, new Date(now)) ? '' : new Date(inc.plannedTimeMs || inc.depTimeMs).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Warsaw' }),
                       delayMinutes: inc.delayMinutes || 0,
                     }))}
                   />
