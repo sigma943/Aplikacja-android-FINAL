@@ -61,7 +61,7 @@ jobs:
           python - <<'PY'
           import base64, os, pathlib
           path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'pks-live-signing.keystore'
-          path.write_bytes(base64.b64decode(os.environ['APK_KEYSTORE_BASE64'], validate=True))
+          path.write_bytes(base64.b64decode(''.join(os.environ['APK_KEYSTORE_BASE64'].split()), validate=True))
           path.chmod(0o600)
           with open(os.environ['GITHUB_ENV'], 'a') as output:
               output.write(f'APK_SIGNING_STORE_FILE={path}\n')
