@@ -2230,6 +2230,10 @@ export async function fetchVehiclesClient(
       try {
         const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', params), { signal: options?.signal });
         if (!Array.isArray(response.vehicles)) throw new Error('API nie zwróciło listy pojazdów.');
+        const status = response.providers?.[provider];
+        if (status === 'error' || status === 'unsupported' || (response.providers && status == null && response.vehicles.length === 0)) {
+          throw new Error(`Wybrane API nie udostępnia danych przewoźnika: ${provider}.`);
+        }
         return response.vehicles.map(mapTransportVehicleToClient);
       } catch (error) {
         if (options?.signal?.aborted || !runtime.fallbackEnabled) throw error;

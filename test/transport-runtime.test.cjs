@@ -21,6 +21,20 @@ test('a selected maintenance endpoint supplies vehicle lists and details for eve
     assert.ok(urls.at(-1).startsWith('https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportGateway/vehicle/pks/pks-1'));
     global.fetch = async () => new Response('{}', { status: 503 });
     await assert.rejects(client.fetchVehiclesClient(false, ['pks']), /503/);
+    for (const providers of [{pks: 'error'}, {pks: 'unsupported'}, {}]) {
+      global.fetch = async () => new Response(JSON.stringify({vehicles: [], providers}));
+      await assert.rejects(client.fetchVehiclesClient(false, ['pks']), /nie udostępnia danych/);
+    }
+    global.fetch = async () => new Response(JSON.stringify({vehicles: [], providers: {pks: 'ok'}}));
+    assert.deepEqual(await client.fetchVehiclesClient(false, ['pks']), [], 'a successful empty provider response is retained');
+    const fallbackUrls=[];
+    runtime.setTransportRuntime({ endpointId: 'backup', endpointUrl: 'https://backup.example/api', fallbackEnabled: true });
+    global.fetch = async url => {
+      fallbackUrls.push(String(url));
+      return new Response(JSON.stringify(String(url).includes('/transportGateway/') ? {vehicles: [], providers: {pks: 'unsupported'}} : String(url).includes('/api/pks/vehicles') ? {items: []} : []));
+    };
+    assert.deepEqual(await client.fetchVehiclesClient(false, ['pks']), []);
+    assert.ok(fallbackUrls.some(url=>url.includes('/api/pks/vehicles')), 'an unsupported provider triggers the enabled carrier fallback');
     runtime.setTransportRuntime(null);
     assert.equal(runtime.transportApiBase('https://default.example'), 'https://default.example');
   } finally { global.fetch = previous; }
