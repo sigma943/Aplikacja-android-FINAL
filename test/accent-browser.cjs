@@ -4,7 +4,7 @@ const puppeteer=require('puppeteer');
 const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root;const productionRoot=path.resolve('out');
 const server=http.createServer((req,res)=>{
   const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
-  let file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
+  let file=path.resolve(root,'.'+(pathname.endsWith('/')?`${pathname}index.html`:pathname));
   if(!file.startsWith(root+path.sep)){res.writeHead(404);res.end();return;}
   if(!fs.existsSync(file))file=path.resolve(productionRoot,'.'+pathname);
   if(!file.startsWith(productionRoot+path.sep)&&!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
