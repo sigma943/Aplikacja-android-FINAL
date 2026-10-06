@@ -27,7 +27,7 @@ beforeEach(async () => {
   });
 });
 
-test('runtime routing is readable by signed-in devices but cannot be changed directly by clients', async () => {
+test('runtime routing is readable but rejects unauthorized or inconsistent direct edits', async () => {
   await env.withSecurityRulesDisabled(async context => {
     await setDoc(doc(context.firestore(), 'admin_settings', 'transport_runtime'), { endpointId: 'backup', endpointUrl: 'https://api.example', fallbackEnabled: true });
     await setDoc(doc(context.firestore(), 'maintenance_endpoints', 'backup'), { name: 'Backup', url: 'https://api.example' });
@@ -119,4 +119,66 @@ test('ban and unban still synchronize a missing legacy installation profile', as
   unban.update(doc(db,'devices','user'),{status:'active',verified:true});
   unban.update(doc(db,'installations','user-install'),{status:'active',verified:true});
   await assertSucceeds(unban.commit());
+});
+
+const firebaseSdk = require('firebase/firestore');
+const sparkClient = (uid, firestore) => loadTs('lib/maintenance-spark.ts', {
+  './firebase': { db: firestore, auth: { currentUser: { uid } } },
+  '@capacitor/core': { Capacitor: { isNativePlatform: () => true }, CapacitorHttp: { request: async () => ({ status: 200, data: { providers: { pks: { state: 'ok' } } } }) } },
+  'firebase/firestore': firebaseSdk,
+});
+const endpointDraft = { id: '', name: 'Spark backup', url: 'https://backup.example/api', role: 'backup', priority: 2, region: 'PL', source: 'Firestore', enabled: true, active: false, fallbackEnabled: true };
+
+test('Spark client persists, tests, activates, rolls back and disables with real Firestore rules', async () => {
+  try {
+    const db = env.authenticatedContext('owner').firestore();
+    const client = sparkClient('owner', db);
+    await client.callInitialize({});
+    const initial = (await getDoc(doc(db, 'admin_settings', 'transport_runtime'))).data();
+    assert.equal(initial.endpointId, 'default-transport-api');
+    assert.equal((await getDoc(doc(db, 'maintenance_endpoints', initial.endpointId))).data().lastTest, undefined);
+    const { data: { endpointId } } = await client.callSaveEndpoint({ endpoint: endpointDraft });
+    assert.ok(endpointId);
+    assert.equal((await client.callTestEndpoint({ endpointId })).data.result.ok, true);
+    await client.callSetActive({ endpointId });
+    assert.equal((await getDoc(doc(db, 'admin_settings', 'transport_runtime'))).data().endpointUrl, endpointDraft.url);
+    await assert.rejects(client.callDisable({ endpointId }), /Najpierw aktywuj/);
+    await client.callRollback({});
+    assert.equal((await getDoc(doc(db, 'admin_settings', 'transport_runtime'))).data().endpointId, initial.endpointId);
+    await client.callDisable({ endpointId });
+    await client.callSaveEndpoint({ endpoint: { ...endpointDraft, id: endpointId, enabled: true } });
+    assert.equal((await getDoc(doc(db, 'maintenance_endpoints', endpointId))).data().enabled, true);
+    const history = (await getDocs(collection(db, 'maintenance_changes'))).docs.map(s => s.data());
+    for (const action of ['save', 'test', 'activate', 'rollback', 'disable']) assert.ok(history.some(row => row.action === action));
+    assert.ok(history.every(row => row.actorId === 'owner' && row.createdAt.toMillis() > 0));
+    const first = (await getDocs(collection(db, 'maintenance_changes'))).docs[0];
+    await assertFails(updateDoc(first.ref, { summary: 'rewritten' }));
+    await assertFails(updateDoc(doc(db, 'maintenance_endpoints', initial.endpointId), { enabled: false, updatedAt: firebaseSdk.serverTimestamp(), updatedBy: 'owner' }));
+    const user = sparkClient('user', env.authenticatedContext('user').firestore());
+    await assert.rejects(user.callSaveEndpoint({ endpoint: endpointDraft }), error => error.code === 'permission-denied');
+    await assertFails(setDoc(doc(env.authenticatedContext('user').firestore(), 'maintenance_endpoints', 'forged'), endpointDraft));
+  } finally { /* Health requests are isolated from the emulator transport. */ }
+});
+
+test('Spark read-only admin can diagnose without writes; editor can persist; banned owner cannot mutate', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'devices', 'viewer'), device('admin', 'viewer-install', { globalSettings: true }));
+    await setDoc(doc(db, 'devices', 'editor'), device('admin', 'editor-install', { globalSettingsEdit: true }));
+    await setDoc(doc(db, 'devices', 'banned'), { ...device('owner', 'banned-install'), status: 'banned' });
+  });
+  try {
+    const editor = sparkClient('editor', env.authenticatedContext('editor').firestore());
+    await editor.callInitialize({});
+    const { data: { endpointId } } = await editor.callSaveEndpoint({ endpoint: endpointDraft });
+    const db = env.authenticatedContext('viewer').firestore();
+    const viewer = sparkClient('viewer', db);
+    await viewer.callInitialize({});
+    assert.equal((await viewer.callTestEndpoint({ endpointId })).data.result.ok, true);
+    await assert.rejects(viewer.callSetActive({ endpointId }), error => error.code === 'permission-denied');
+    await assertFails(updateDoc(doc(db, 'maintenance_endpoints', endpointId), { enabled: false, updatedBy: 'viewer', updatedAt: firebaseSdk.serverTimestamp() }));
+    const banned = sparkClient('banned', env.authenticatedContext('banned').firestore());
+    await assert.rejects(banned.callSaveEndpoint({ endpoint: endpointDraft }), error => error.code === 'permission-denied');
+    await assertFails(updateDoc(doc(env.authenticatedContext('banned').firestore(), 'maintenance_endpoints', endpointId), { enabled: false, updatedBy: 'banned', updatedAt: firebaseSdk.serverTimestamp() }));
+  } finally { /* Health requests are isolated from the emulator transport. */ }
 });

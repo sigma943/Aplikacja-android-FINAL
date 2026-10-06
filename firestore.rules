@@ -453,21 +453,81 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(logId) && isCallerOwner();
     }
 
+    // Spark maintenance uses client transactions, authorized independently of UI.
+    function maintenanceEditor() {
+      return isSignedIn() && canWriteGlobalAdminSettings() &&
+        callerDeviceData().get('status', 'active') != 'banned';
+    }
+    function maintenanceReader() {
+      return isSignedIn() && canReadGlobalAdminSettings() &&
+        callerDeviceData().get('status', 'active') != 'banned';
+    }
+    function maintenanceSettingsAfter() {
+      return getAfter(/databases/$(database)/documents/admin_settings/maintenance).data;
+    }
+    function runtimeAfter() {
+      return getAfter(/databases/$(database)/documents/admin_settings/transport_runtime).data;
+    }
+    function endpointAfter(id) {
+      return getAfter(/databases/$(database)/documents/maintenance_endpoints/$(id)).data;
+    }
+    function validEndpoint(data, id) {
+      return data.keys().hasOnly(['name', 'url', 'role', 'priority', 'region', 'source', 'fallbackEnabled', 'enabled', 'active', 'lastTest', 'createdAt', 'updatedAt', 'updatedBy']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 80 &&
+        data.url is string && data.url.size() <= 2048 && data.url.matches('^https://[^@?# ]+$') &&
+        data.role in ['production', 'backup', 'staging', 'legacy', 'test'] &&
+        data.priority is int && data.priority >= 1 && data.priority <= 99 &&
+        data.region is string && data.region.size() <= 24 && data.source == 'Firestore' &&
+        data.fallbackEnabled is bool && data.enabled is bool && data.active is bool &&
+        data.updatedBy == request.auth.uid && data.updatedAt == request.time &&
+        data.createdAt is timestamp &&
+        (data.get('lastTest', null) == null || data.lastTest is map) &&
+        data.active == (maintenanceSettingsAfter().activeEndpointId == id) &&
+        (!data.active || (data.enabled && runtimeAfter().endpointId == id &&
+          runtimeAfter().endpointUrl == data.url && runtimeAfter().fallbackEnabled == data.fallbackEnabled));
+    }
+    function validRuntime(data) {
+      let selected = endpointAfter(data.endpointId);
+      return data.keys().hasOnly(['endpointId', 'endpointUrl', 'fallbackEnabled', 'updatedBy', 'updatedAt']) &&
+        isValidId(data.endpointId) && data.endpointId == maintenanceSettingsAfter().activeEndpointId &&
+        selected.enabled == true && selected.active == true &&
+        data.endpointUrl == selected.url && data.fallbackEnabled == selected.fallbackEnabled &&
+        data.updatedBy == request.auth.uid && data.updatedAt == request.time;
+    }
+    function validMaintenanceSettings(data) {
+      let selected = endpointAfter(data.activeEndpointId);
+      return data.keys().hasOnly(['activeEndpointId', 'previousEndpointId', 'updatedAt', 'updatedBy']) &&
+        isValidId(data.activeEndpointId) && data.previousEndpointId is string &&
+        (data.previousEndpointId == '' || isValidId(data.previousEndpointId)) &&
+        selected.enabled == true && selected.active == true &&
+        runtimeAfter().endpointId == data.activeEndpointId &&
+        runtimeAfter().endpointUrl == selected.url && runtimeAfter().fallbackEnabled == selected.fallbackEnabled &&
+        data.updatedBy == request.auth.uid && data.updatedAt == request.time;
+    }
     match /admin_settings/{settingId} {
       allow read: if isSignedIn() && isValidId(settingId) &&
         (settingId == 'security' || settingId == 'transport_runtime' || canReadGlobalAdminSettings());
-      allow create, update: if isSignedIn() && isValidId(settingId) && settingId != 'transport_runtime' && canWriteGlobalAdminSettings();
+      allow create, update: if isSignedIn() && isValidId(settingId) && (
+        (settingId == 'transport_runtime' && maintenanceEditor() && validRuntime(incoming())) ||
+        (settingId == 'maintenance' && maintenanceEditor() && validMaintenanceSettings(incoming())) ||
+        (!(settingId in ['transport_runtime', 'maintenance']) && canWriteGlobalAdminSettings())
+      );
       allow delete: if false;
     }
-
     match /maintenance_endpoints/{endpointId} {
-      allow read: if isSignedIn() && isValidId(endpointId) && canReadGlobalAdminSettings();
-      allow create, update, delete: if false;
+      allow read: if isValidId(endpointId) && maintenanceReader();
+      allow create: if isValidId(endpointId) && maintenanceEditor() && validEndpoint(incoming(), endpointId) && incoming().createdAt == request.time;
+      allow update: if isValidId(endpointId) && maintenanceEditor() && validEndpoint(incoming(), endpointId) && incoming().createdAt == existing().createdAt;
+      allow delete: if false;
     }
-
     match /maintenance_changes/{changeId} {
-      allow read: if isSignedIn() && isValidId(changeId) && canReadGlobalAdminSettings();
-      allow create, update, delete: if false;
+      allow read: if isValidId(changeId) && maintenanceReader();
+      allow create: if isValidId(changeId) && maintenanceEditor() &&
+        incoming().keys().hasOnly(['action', 'endpointId', 'actorId', 'summary', 'before', 'after', 'createdAt']) &&
+        incoming().action in ['save', 'test', 'activate', 'disable', 'rollback'] &&
+        isValidId(incoming().endpointId) && incoming().actorId == request.auth.uid &&
+        incoming().summary is string && incoming().summary.size() <= 256 && incoming().createdAt == request.time;
+      allow update, delete: if false;
     }
   }
 }

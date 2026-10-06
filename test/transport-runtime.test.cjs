@@ -15,10 +15,10 @@ test('a selected maintenance endpoint supplies vehicle lists and details for eve
     runtime.setTransportRuntime({ endpointId: 'backup', endpointUrl: 'https://backup.example/api', fallbackEnabled: false });
     const vehicles = await client.fetchVehiclesClient(true, ['pks', 'mpk_rzeszow', 'marcel']);
     assert.equal(vehicles.length, 3);
-    assert.ok(urls.every(url => url.startsWith('https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportGateway/vehicles?')));
+    assert.ok(urls.every(url => url.startsWith('https://backup.example/api/vehicles?')));
     const detail = await client.fetchVehicleDetailsClient('pks', 'pks-1');
     assert.equal(detail.id, 'pks-1');
-    assert.ok(urls.at(-1).startsWith('https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportGateway/vehicle/pks/pks-1'));
+    assert.ok(urls.at(-1).startsWith('https://backup.example/api/vehicle/pks/pks-1'));
     global.fetch = async () => new Response('{}', { status: 503 });
     await assert.rejects(client.fetchVehiclesClient(false, ['pks']), /503/);
     for (const providers of [{pks: 'error'}, {pks: 'unsupported'}, {}]) {
@@ -31,7 +31,7 @@ test('a selected maintenance endpoint supplies vehicle lists and details for eve
     runtime.setTransportRuntime({ endpointId: 'backup', endpointUrl: 'https://backup.example/api', fallbackEnabled: true });
     global.fetch = async url => {
       fallbackUrls.push(String(url));
-      return new Response(JSON.stringify(String(url).includes('/transportGateway/') ? {vehicles: [], providers: {pks: 'unsupported'}} : String(url).includes('/api/pks/vehicles') ? {items: []} : []));
+      return new Response(JSON.stringify(String(url).includes('backup.example/api/') ? {vehicles: [], providers: {pks: 'unsupported'}} : String(url).includes('/api/pks/vehicles') ? {items: []} : []));
     };
     assert.deepEqual(await client.fetchVehiclesClient(false, ['pks']), []);
     assert.ok(fallbackUrls.some(url=>url.includes('/api/pks/vehicles')), 'an unsupported provider triggers the enabled carrier fallback');

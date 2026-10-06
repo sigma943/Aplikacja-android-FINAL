@@ -24,7 +24,6 @@ const server=http.createServer((req,res)=>{
     await page.evaluateOnNewDocument(()=>{
       const Original=Date;const now=Original.parse('2026-10-06T12:18:30Z');
       window.Date=class extends Original {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
-      if(!localStorage.getItem('mks_app_theme'))localStorage.setItem('mks_app_theme','dark');
     });
     await page.setRequestInterception(true);
     let showFixtureBus=false;
@@ -71,6 +70,19 @@ const server=http.createServer((req,res)=>{
     console.log('App loaded');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Opcje'));
+    await page.waitForSelector('[data-ui-theme="dark-oled"]');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('mks_app_theme')),null,'AMOLED is the default without overwriting a saved preference');
+    await page.click('[aria-label="Przewoźnicy"]');await page.waitForSelector('[data-carrier-grid]');
+    assert.equal(await page.$$eval('[data-carrier-grid] img',els=>els.length),0,'bus selection uses no raster artwork');
+    assert.equal(await page.$$eval('[data-carrier-bus-svg]',els=>els.length),3);
+    const pksSelected=await page.$eval('[data-carrier-grid] button[aria-label="PKS Rzeszów"]',el=>el.getAttribute('aria-pressed'));
+    await page.click('[data-carrier-grid] button[aria-label="PKS Rzeszów"]');
+    assert.notEqual(await page.$eval('[data-carrier-grid] button[aria-label="PKS Rzeszów"]',el=>el.getAttribute('aria-pressed')),pksSelected);
+    await page.click('[data-carrier-grid] button[aria-label="PKS Rzeszów"]');
+    assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
+    await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
+    await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-ui-theme="dark"]');
     await accent('Fioletowy');
     await button('Przystanki');
     await page.waitForFunction(()=>document.querySelectorAll('[data-stop-card-id]').length>=3);
@@ -199,6 +211,7 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
     console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');
+    console.log('Browser: fresh install defaults to AMOLED; saved themes survive; carrier selection uses three SVG buses with functional selection and no overflow.');
     console.log('Browser: real maintenance controls add a draft, test its URL, retain the saved ID, activate, roll back, disable, re-enable and display history. Firebase calls use a fixture adapter; backend behaviour is tested separately.');
     console.log('Browser: favourites animate their position, departure spacing is compact, the new pin follows accent, settings track upward and downward dragging before release, backdrop dismisses, and bus panels default to collapsed.');
   }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error(await page.evaluate(()=>[...document.querySelectorAll('.transit-view,.transit-stop-card,.transit-stop-card button')].map(el=>({tag:el.tagName,rect:el.getBoundingClientRect().toJSON(),display:getComputedStyle(el).display}))).catch(()=>[]));console.error('Page errors:',errors);throw error;}

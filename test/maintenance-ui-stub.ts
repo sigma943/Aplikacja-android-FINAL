@@ -44,3 +44,10 @@ export const httpsCallable = (_: unknown, name: string, __?: unknown) => async (
   changes.push({action: name, summary: name, endpointId: result.endpointId || data.endpointId || '', createdAt: {toDate: () => new Date()}});
   notify();return {data: result};
 };
+
+export const callInitialize = httpsCallable({}, 'initializeMaintenance');
+export const callSaveEndpoint = httpsCallable({}, 'saveMaintenanceEndpoint');
+export const callTestEndpoint = httpsCallable({}, 'testMaintenanceEndpoint');
+export const callSetActive = httpsCallable({}, 'setActiveMaintenanceEndpoint');
+export const callDisable = httpsCallable({}, 'disableMaintenanceEndpoint');
+export const callRollback = httpsCallable({}, 'rollbackMaintenanceEndpoint');

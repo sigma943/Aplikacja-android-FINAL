@@ -727,8 +727,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 }
 
 function getStoredThemeMode() {
-  if (typeof window === 'undefined') return 'dark';
-  const savedTheme = (localStorage.getItem('mks_app_theme') || 'system').trim().toLowerCase();
+  if (typeof window === 'undefined') return 'dark-oled';
+  const savedTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
   const normalizedTheme =
     savedTheme === 'amoled' || savedTheme === 'oled' || savedTheme === 'dark_oled' || savedTheme === 'darkoled'
       ? 'dark-oled'
@@ -1022,7 +1022,7 @@ function BanScreen({ device }: { device: DeviceData }) {
   const silentMessage = 'Wystąpił błąd. Spróbuj ponownie później.';
   const [silentIsDark] = useState(() => {
     if (typeof window === 'undefined') return true;
-    const theme = localStorage.getItem('mks_app_theme') || 'system';
+    const theme = localStorage.getItem('mks_app_theme') || 'dark-oled';
     if (theme.startsWith('dark')) return true;
     if (theme.startsWith('light')) return false;
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;

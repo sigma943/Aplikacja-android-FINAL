@@ -14,9 +14,7 @@ export function setTransportRuntime(value: unknown) {
 }
 export function getTransportRuntime() { return config; }
 export function transportApiBase(defaultUrl: string) {
-  // The server gateway applies the active configuration and avoids depending on
-  // custom endpoints granting CORS access to browsers and Android WebViews.
-  return config && config.endpointUrl !== defaultUrl
-    ? (process.env.NEXT_PUBLIC_TRANSPORT_GATEWAY_URL || 'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportGateway').replace(/\/+$/, '')
-    : defaultUrl;
+  // Spark has no deployed gateway. Android uses native HTTP; browser endpoints
+  // must permit CORS, which is checked from the same client before activation.
+  return config?.endpointUrl || defaultUrl;
 }

@@ -11,7 +11,7 @@ module.exports=function buildAccentFixture(){
   fs.copyFileSync(path.join(source,'app/page.tsx'),path.join(fixture,'app/page.tsx'));
   fs.mkdirSync(path.join(fixture,'app/maintenance'));
   const maintenance=fs.readFileSync(path.join(source,'app/admin/components/MaintenanceView.tsx'),'utf8')
-    .replaceAll("from 'firebase/functions'", "from './sdk'")
+    .replaceAll("from '@/lib/maintenance-spark'", "from './sdk'")
     .replaceAll("from 'firebase/firestore'", "from './sdk'")
     .replaceAll("from '@/lib/firebase'", "from './sdk'")
     .replaceAll("from '../types'", "from '@/app/admin/types'");
