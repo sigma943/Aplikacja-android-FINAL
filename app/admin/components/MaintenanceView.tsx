@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import {
@@ -39,7 +39,7 @@ const DEFAULT_ENDPOINT: MaintenanceEndpoint = {
   source: 'Firestore',
   fallbackEnabled: true,
   enabled: true,
-  active: true,
+  active: false,
 };
 
 const roleLabels: Record<MaintenanceEndpointRole, string> = {
@@ -54,8 +54,8 @@ const roleOptions: MaintenanceEndpointRole[] = ['production', 'backup', 'staging
 
 const endpointStatus = (endpoint: MaintenanceEndpoint) => {
   if (!endpoint.enabled) return 'Nieaktywny';
-  if (endpoint.active) return 'Aktywny';
   if (endpoint.lastTest?.ok === false) return 'Błąd';
+  if (endpoint.active) return 'Aktywny';
   return 'Standby';
 };
 
@@ -74,11 +74,12 @@ const safeDate = (value?: string) => {
 
 const changeDate = (ms: number) => (ms ? new Date(ms).toLocaleString('pl-PL') : '-');
 
-const callSaveEndpoint = httpsCallable(functions, 'saveMaintenanceEndpoint');
-const callTestEndpoint = httpsCallable(functions, 'testMaintenanceEndpoint');
-const callSetActive = httpsCallable(functions, 'setActiveMaintenanceEndpoint');
-const callDisable = httpsCallable(functions, 'disableMaintenanceEndpoint');
-const callRollback = httpsCallable(functions, 'rollbackMaintenanceEndpoint');
+const callInitialize = httpsCallable(functions, 'initializeMaintenance', { timeout: 15000 });
+const callSaveEndpoint = httpsCallable<{ endpoint: MaintenanceEndpoint }, { endpointId: string }>(functions, 'saveMaintenanceEndpoint', { timeout: 15000 });
+const callTestEndpoint = httpsCallable<{ endpointId?: string; url?: string }, { result: NonNullable<MaintenanceEndpoint['lastTest']> }>(functions, 'testMaintenanceEndpoint', { timeout: 15000 });
+const callSetActive = httpsCallable(functions, 'setActiveMaintenanceEndpoint', { timeout: 20000 });
+const callDisable = httpsCallable(functions, 'disableMaintenanceEndpoint', { timeout: 20000 });
+const callRollback = httpsCallable(functions, 'rollbackMaintenanceEndpoint', { timeout: 20000 });
 
 function normalizeEndpoint(id: string, data: Record<string, unknown>): MaintenanceEndpoint {
   const role = String(data.role || 'production') as MaintenanceEndpointRole;
@@ -129,11 +130,26 @@ export function MaintenanceView({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [draftTest, setDraftTest] = useState<MaintenanceEndpoint['lastTest']>();
+  const actionInFlight = useRef(false);
+  const failureMessage = (err: unknown) => {
+    const code = (err as { code?: string })?.code || '';
+    if (code === 'functions/not-found' || code === 'functions/unavailable') return 'Funkcje konserwacji Firebase są niedostępne. Wdróż funkcje z aktualnego repozytorium do projektu aplikacja-b20fa.';
+    if (code === 'functions/permission-denied') return 'Nie masz uprawnień do tej operacji.';
+    if (code === 'functions/internal' || code === 'functions/deadline-exceeded') return 'Nie udało się połączyć z funkcjami konserwacji. Sprawdź połączenie i wdrożenie Firebase.';
+    return err instanceof Error ? err.message : String(err);
+  };
+  useEffect(() => {
+    let mounted = true;
+    callInitialize({}).then(() => { if (mounted) setReady(true); }).catch(err => { if (mounted) setError(failureMessage(err)); });
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'maintenance_endpoints'), (snap) => {
       const rows = snap.docs.map((entry) => normalizeEndpoint(entry.id, entry.data() as Record<string, unknown>));
-      setEndpoints(rows.length ? rows : [DEFAULT_ENDPOINT]);
+      setEndpoints(rows);
     }, (err) => setError(err.message || String(err)));
     return () => unsub();
   }, []);
@@ -141,7 +157,7 @@ export function MaintenanceView({
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'admin_settings', 'maintenance'), (snap) => {
       setSettings(snap.exists() ? snap.data() as { activeEndpointId?: string; previousEndpointId?: string } : {});
-    }, () => undefined);
+    }, err => setError(failureMessage(err)));
     return () => unsub();
   }, []);
 
@@ -160,13 +176,14 @@ export function MaintenanceView({
           createdAtMs,
         };
       }));
-    }, () => undefined);
+    }, err => setError(failureMessage(err)));
     return () => unsub();
   }, []);
 
+  const configuredEndpoints = useMemo(() => endpoints.map(endpoint => ({ ...endpoint, active: endpoint.id === settings.activeEndpointId })), [endpoints, settings.activeEndpointId]);
   const visibleEndpoints = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const filtered = endpoints.filter((endpoint) => {
+    const filtered = configuredEndpoints.filter((endpoint) => {
       const matchesSearch = !q || [endpoint.name, endpoint.url, endpoint.region, endpoint.source, endpoint.role]
         .some((value) => String(value).toLowerCase().includes(q));
       const matchesFilter =
@@ -181,10 +198,10 @@ export function MaintenanceView({
       if (sort === 'latency') return (left.lastTest?.latencyMs ?? 999999) - (right.lastTest?.latencyMs ?? 999999);
       return left.priority - right.priority || left.name.localeCompare(right.name, 'pl');
     });
-  }, [endpoints, filter, search, sort]);
+  }, [configuredEndpoints, filter, search, sort]);
 
-  const selectedEndpoint = endpoints.find((endpoint) => endpoint.id === selectedId) || endpoints[0] || DEFAULT_ENDPOINT;
-  const activeEndpoint = endpoints.find((endpoint) => endpoint.active || endpoint.id === settings.activeEndpointId) || DEFAULT_ENDPOINT;
+  const selectedEndpoint = selectedId ? configuredEndpoints.find((endpoint) => endpoint.id === selectedId) : undefined;
+  const activeEndpoint = configuredEndpoints.find((endpoint) => endpoint.active);
   const successfulTests = endpoints.filter((endpoint) => endpoint.lastTest?.ok).length;
   const lastGlobalTest = endpoints
     .map((endpoint) => endpoint.lastTest?.testedAt || '')
@@ -198,27 +215,44 @@ export function MaintenanceView({
   }, [selectedEndpoint?.id]);
 
   const runAction = async (label: string, fn: () => Promise<unknown>) => {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
     setBusy(label);
     setError(null);
     try {
       await fn();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(failureMessage(err));
     } finally {
+      actionInFlight.current = false;
       setBusy(null);
     }
   };
 
   const selectEndpoint = (endpoint: MaintenanceEndpoint) => {
+    setDraftTest(undefined);
     setSelectedId(endpoint.id);
     setDraft(emptyDraft(endpoint));
   };
 
-  const saveDraft = () => runAction('save', () => callSaveEndpoint({ endpoint: draft }));
-  const testSelected = () => runAction('test', () => callTestEndpoint({ endpointId: selectedEndpoint.id || undefined, url: selectedEndpoint.id ? undefined : draft.url }));
-  const activateSelected = () => runAction('active', () => callSetActive({ endpointId: selectedEndpoint.id }));
-  const disableSelected = () => runAction('disable', () => callDisable({ endpointId: selectedEndpoint.id }));
+  const saveDraft = () => runAction('save', async () => {
+    const response = await callSaveEndpoint({ endpoint: draft });
+    setSelectedId(response.data.endpointId);
+    setDraft(current => ({ ...current, id: response.data.endpointId }));
+  });
+  const testSelected = () => runAction('test', async () => {
+    const savedUrl = selectedEndpoint?.url === draft.url;
+    const response = await callTestEndpoint(savedUrl ? { endpointId: selectedEndpoint?.id } : { url: draft.url });
+    setDraftTest(response.data.result);
+  });
+  const activateSelected = () => runAction('active', () => callSetActive({ endpointId: selectedEndpoint?.id }));
+  const disableSelected = () => runAction('disable', async () => {
+    await callDisable({ endpointId: selectedEndpoint?.id });
+    setDraft(current => ({ ...current, enabled: false, active: false }));
+  });
   const rollback = () => runAction('rollback', () => callRollback({}));
+  const displayedTest = draftTest || selectedEndpoint?.lastTest;
+
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-8">
@@ -230,7 +264,7 @@ export function MaintenanceView({
             </button>
             <div>
               <h1 className="text-xl font-black uppercase tracking-tight text-white sm:text-2xl">Konserwacja</h1>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Zarządzanie infrastrukturą API</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">API pojazdów i tras</p>
             </div>
           </div>
           <button
@@ -243,11 +277,17 @@ export function MaintenanceView({
           </button>
         </header>
 
+        {error && (
+          <div role="alert" className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100">
+            {error}
+            {!ready && <button type="button" disabled={Boolean(busy)} onClick={() => runAction('initialize', async () => { await callInitialize({}); setReady(true); })} className="mt-3 block rounded-xl border px-3 py-2 text-xs ui-accent-soft">Połącz ponownie</button>}
+          </div>
+        )}
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatusCard icon={<Globe2 size={22} />} title="Aktywny endpoint" value={activeEndpoint.url.replace(/^https?:\/\//, '')} hint={activeEndpoint.enabled ? 'Aktywny' : 'Fallback'} tone="cyan" />
-          <StatusCard icon={<Database size={22} />} title="Źródło konfiguracji" value="Firestore" hint={endpoints.length ? `${endpoints.length} endpointów` : 'fallback .env'} tone="blue" />
-          <StatusCard icon={<Activity size={22} />} title="Status infrastruktury" value={endpoints.some((e) => e.lastTest?.ok === false) ? 'Wymaga uwagi' : 'Stabilny'} hint={`${successfulTests}/${endpoints.length} testów OK`} tone="emerald" />
-          <StatusCard icon={<Clock3 size={22} />} title="Ostatni test globalny" value={lastGlobalTest ? safeDate(lastGlobalTest) : 'Brak danych'} hint={activeEndpoint.lastTest?.latencyMs ? `${activeEndpoint.lastTest.latencyMs} ms` : 'uruchom test'} tone="violet" />
+          <StatusCard icon={<Globe2 size={22} />} title="Aktywny endpoint" value={activeEndpoint?.url.replace(/^https?:\/\//, '') || 'Nie wybrano'} hint={activeEndpoint?.enabled ? 'Aktywny' : 'Brak aktywnego endpointu'} tone="cyan" />
+          <StatusCard icon={<Database size={22} />} title="Źródło konfiguracji" value={ready ? 'Firestore' : 'Łączenie…'} hint={`${endpoints.length} zapisanych endpointów`} tone="blue" />
+          <StatusCard icon={<Activity size={22} />} title="Status infrastruktury" value={!lastGlobalTest ? 'Nie testowano' : endpoints.some((e) => e.lastTest?.ok === false) ? 'Wymaga uwagi' : 'Testy OK'} hint={`${successfulTests}/${endpoints.length} testów OK`} tone="emerald" />
+          <StatusCard icon={<Clock3 size={22} />} title="Ostatni test globalny" value={lastGlobalTest ? safeDate(lastGlobalTest) : 'Brak danych'} hint={activeEndpoint?.lastTest?.latencyMs ? `${activeEndpoint.lastTest.latencyMs} ms` : 'uruchom test'} tone="violet" />
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-[#0b1019] shadow-2xl">
@@ -265,9 +305,10 @@ export function MaintenanceView({
             <SelectButton icon={<Filter size={15} />} value={filter} onChange={(value) => setFilter(value as typeof filter)} options={[['all', 'Wszystkie'], ['active', 'Aktywne'], ['enabled', 'Włączone'], ['disabled', 'Wyłączone']]} />
             <button
               type="button"
-              disabled={!canEdit}
+              disabled={!canEdit || !ready || Boolean(busy)}
               onClick={() => {
                 setSelectedId('');
+                setDraftTest(undefined);
                 setDraft(emptyDraft());
               }}
               className="flex h-11 items-center justify-center gap-2 rounded-xl border ui-accent-soft px-4 text-xs font-semibold uppercase tracking-widest transition-colors disabled:opacity-40"
@@ -297,13 +338,13 @@ export function MaintenanceView({
                 {visibleEndpoints.map((endpoint) => {
                   const status = endpointStatus(endpoint);
                   return (
-                    <tr key={endpoint.id} className={cn('transition-colors hover:bg-white/[0.03]', selectedEndpoint.id === endpoint.id && 'bg-cyan-500/[0.04]')}>
+                    <tr key={endpoint.id} className={cn('transition-colors hover:bg-white/[0.03]', selectedEndpoint?.id === endpoint.id && 'ui-accent-soft')}>
                       <td className="px-5 py-4">
                         <button type="button" onClick={() => selectEndpoint(endpoint)} className="flex min-w-0 items-center gap-3 text-left">
-                          <span className={cn('h-3 w-3 shrink-0 rounded-full', endpoint.active ? 'bg-cyan-400' : endpoint.enabled ? 'bg-slate-500' : 'bg-rose-400')} />
+                          <span className={cn('h-3 w-3 shrink-0 rounded-full', endpoint.active ? 'ui-accent-fill' : endpoint.enabled ? 'bg-slate-500' : 'bg-rose-400')} />
                           <span className="min-w-0">
                             <span className="block truncate font-black text-white">{endpoint.name}</span>
-                            {endpoint.active && <span className="text-[10px] font-black uppercase tracking-widest text-cyan-300">Aktywny</span>}
+                            {endpoint.active && <span className="text-[10px] font-black uppercase tracking-widest ui-accent-text">Aktywny</span>}
                           </span>
                         </button>
                       </td>
@@ -311,7 +352,7 @@ export function MaintenanceView({
                       <td className="px-4 py-4"><Badge>{roleLabels[endpoint.role]}</Badge></td>
                       <td className="px-4 py-4 font-mono text-slate-300">{endpoint.priority}</td>
                       <td className="px-4 py-4"><Badge className={statusClass(status)}>{status}</Badge></td>
-                      <td className="px-4 py-4 font-mono text-cyan-300">{endpoint.lastTest?.latencyMs ? `${endpoint.lastTest.latencyMs} ms` : '-'}</td>
+                      <td className="px-4 py-4 font-mono ui-accent-text">{endpoint.lastTest?.latencyMs ? `${endpoint.lastTest.latencyMs} ms` : '-'}</td>
                       <td className="px-4 py-4 text-slate-300">{endpoint.region}</td>
                       <td className="px-4 py-4">{endpoint.fallbackEnabled ? <Badge>Tak</Badge> : <Badge className="border-rose-400/30 bg-rose-500/10 text-rose-300">Nie</Badge>}</td>
                       <td className="px-4 py-4 text-[11px] text-slate-400">{safeDate(endpoint.lastTest?.testedAt)}</td>
@@ -336,7 +377,7 @@ export function MaintenanceView({
                   key={endpoint.id}
                   type="button"
                   onClick={() => selectEndpoint(endpoint)}
-                  className={cn('w-full rounded-2xl border border-white/10 bg-[#111623] p-4 text-left shadow-lg', selectedEndpoint.id === endpoint.id && 'border-cyan-400/30')}
+                  className={cn('w-full rounded-2xl border border-white/10 bg-[#111623] p-4 text-left shadow-lg', selectedEndpoint?.id === endpoint.id && 'ui-accent-border')}
                 >
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -357,28 +398,29 @@ export function MaintenanceView({
           </div>
         </section>
 
-        <section className="grid gap-4 rounded-3xl border border-cyan-400/20 bg-[#07111a] p-4 shadow-2xl xl:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.8fr)_minmax(260px,0.7fr)]">
+        <section className="grid gap-4 rounded-3xl border ui-accent-border bg-[#07111a] p-4 shadow-2xl xl:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.8fr)_minmax(260px,0.7fr)]">
           <div className="min-w-0">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">Edytuj endpoint</h2>
                 <p className="mt-1 text-xs text-slate-500">{draft.id || 'nowy endpoint'}</p>
               </div>
-              {draft.active && <Badge className="border-cyan-400/30 bg-cyan-500/10 text-cyan-200">Aktywny</Badge>}
+              {draft.active && <Badge className="ui-accent-soft">Aktywny</Badge>}
             </div>
-            <EndpointForm draft={draft} disabled={!canEdit || Boolean(busy)} onChange={setDraft} />
+            <EndpointForm draft={{ ...draft, active: selectedEndpoint?.active ?? false }} disabled={!canEdit || !ready || Boolean(busy)} onChange={next => { if (next.url !== draft.url) setDraftTest(undefined); setDraft(next); }} />
           </div>
 
           <div className="min-w-0 border-t border-white/10 pt-4 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
             <h3 className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-300">Test połączenia</h3>
             <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
-              <CheckLine label="Połączenie z endpointem" ok={selectedEndpoint.lastTest?.ok !== false} />
-              <CheckLine label="HTTPS / SSL" ok={selectedEndpoint.url.startsWith('https://')} />
-              <CheckLine label="Odpowiedź API" ok={selectedEndpoint.lastTest?.ok === true} value={selectedEndpoint.lastTest?.statusCode ? `OK (${selectedEndpoint.lastTest.statusCode})` : '-'} />
-              <CheckLine label="Czas odpowiedzi" ok={(selectedEndpoint.lastTest?.latencyMs || 9999) < 1000} value={selectedEndpoint.lastTest?.latencyMs ? `${selectedEndpoint.lastTest.latencyMs} ms` : '-'} />
+              <CheckLine label="Połączenie z endpointem" ok={displayedTest?.ok ?? null} />
+              <CheckLine label="Adres HTTPS" ok={draft.url.startsWith('https://')} />
+              <CheckLine label="Odpowiedź API" ok={displayedTest?.ok ?? null} value={displayedTest?.statusCode ? `HTTP ${displayedTest.statusCode}` : '-'} />
+              <CheckLine label="Czas odpowiedzi" ok={displayedTest?.latencyMs == null ? null : displayedTest.latencyMs < 1000} value={displayedTest?.latencyMs != null ? `${displayedTest.latencyMs} ms` : '-'} />
+              {displayedTest?.message && <p role="status" className="text-xs text-slate-400">{displayedTest.message}</p>}
               <button
                 type="button"
-                disabled={Boolean(busy)}
+                disabled={!ready || Boolean(busy) || !draft.url}
                 onClick={testSelected}
                 className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border ui-accent-soft text-xs font-semibold uppercase tracking-widest transition-colors disabled:opacity-50"
               >
@@ -391,9 +433,9 @@ export function MaintenanceView({
           <div className="min-w-0 border-t border-white/10 pt-4 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
             <h3 className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-300">Zastosuj zmiany</h3>
             <div className="grid gap-3">
-              <ActionButton disabled={!canEdit || Boolean(busy)} onClick={saveDraft} icon={<Save size={15} />} label="Zapisz zmiany" tone="cyan" />
-              <ActionButton disabled={!canEdit || Boolean(busy) || !selectedEndpoint.id || selectedEndpoint.active} onClick={activateSelected} icon={<CheckCircle2 size={15} />} label="Ustaw jako aktywny" />
-              <ActionButton disabled={!canEdit || Boolean(busy) || !selectedEndpoint.id || selectedEndpoint.active} onClick={disableSelected} icon={<Power size={15} />} label="Wyłącz endpoint" tone="rose" />
+              <ActionButton disabled={!canEdit || !ready || Boolean(busy)} onClick={saveDraft} icon={<Save size={15} />} label="Zapisz zmiany" tone="cyan" />
+              <ActionButton disabled={!canEdit || !ready || Boolean(busy) || !selectedEndpoint?.id || selectedEndpoint.active} onClick={activateSelected} icon={<CheckCircle2 size={15} />} label="Ustaw jako aktywny" />
+              <ActionButton disabled={!canEdit || !ready || Boolean(busy) || !selectedEndpoint?.id || selectedEndpoint.active} onClick={disableSelected} icon={<Power size={15} />} label="Wyłącz endpoint" tone="rose" />
             </div>
 
             <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -401,7 +443,7 @@ export function MaintenanceView({
               <p className="mt-3 break-all font-mono text-xs text-slate-300">{settings.previousEndpointId || 'Brak poprzedniego endpointu'}</p>
               <button
                 type="button"
-                disabled={!canEdit || Boolean(busy) || !settings.previousEndpointId}
+                disabled={!canEdit || !ready || Boolean(busy) || !settings.previousEndpointId}
                 onClick={rollback}
                 className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 text-xs font-black uppercase tracking-widest text-rose-200 transition-colors hover:bg-rose-500/20 disabled:opacity-40"
               >
@@ -412,11 +454,7 @@ export function MaintenanceView({
           </div>
         </section>
 
-        {error && (
-          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100">
-            {error}
-          </div>
-        )}
+
       </div>
 
       <AnimatePresence>
@@ -455,7 +493,7 @@ export function MaintenanceView({
 
 function StatusCard({ icon, title, value, hint, tone }: { icon: React.ReactNode; title: string; value: string; hint: string; tone: 'cyan' | 'blue' | 'emerald' | 'violet' }) {
   const colors = {
-    cyan: 'text-cyan-300 bg-cyan-500/10 border-cyan-400/20',
+    cyan: 'ui-accent-text bg-cyan-500/10 border-cyan-400/20',
     blue: 'text-blue-300 bg-blue-500/10 border-blue-400/20',
     emerald: 'text-emerald-300 bg-emerald-500/10 border-emerald-400/20',
     violet: 'text-violet-300 bg-violet-500/10 border-violet-400/20',
@@ -475,7 +513,7 @@ function StatusCard({ icon, title, value, hint, tone }: { icon: React.ReactNode;
 }
 
 function Badge({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <span className={cn('inline-flex rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-300', className)}>{children}</span>;
+  return <span className={cn('inline-flex rounded-lg border ui-accent-soft px-2 py-1 text-[10px] font-black uppercase tracking-widest ui-accent-text', className)}>{children}</span>;
 }
 
 function IconButton({ icon, title, onClick }: { icon: React.ReactNode; title: string; onClick: () => void }) {
@@ -498,10 +536,10 @@ function EndpointForm({ draft, disabled, onChange }: { draft: MaintenanceEndpoin
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Field label="Nazwa" className="sm:col-span-2">
-        <input disabled={disabled} value={draft.name} onChange={(event) => update('name', event.target.value)} className="field-input" />
+        <input disabled={disabled} value={draft.name} aria-label="Nazwa endpointu" onChange={(event) => update('name', event.target.value)} className="field-input" />
       </Field>
       <Field label="URL" className="sm:col-span-2">
-        <input disabled={disabled} value={draft.url} onChange={(event) => update('url', event.target.value)} className="field-input" />
+        <input disabled={disabled} value={draft.url} aria-label="Adres API" onChange={(event) => update('url', event.target.value)} className="field-input" />
       </Field>
       <Field label="Rola">
         <select disabled={disabled} value={draft.role} onChange={(event) => update('role', event.target.value as MaintenanceEndpointRole)} className="field-input">
@@ -515,12 +553,16 @@ function EndpointForm({ draft, disabled, onChange }: { draft: MaintenanceEndpoin
         <input disabled={disabled} value={draft.region} onChange={(event) => update('region', event.target.value)} className="field-input" />
       </Field>
       <Field label="Źródło konfiguracji">
-        <input disabled={disabled} value={draft.source} onChange={(event) => update('source', event.target.value)} className="field-input" />
+        <input readOnly value="Firestore" className="field-input" />
       </Field>
+      <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 sm:col-span-2">
+        <span className="text-xs font-semibold text-slate-300">Endpoint włączony</span>
+        <input disabled={disabled || draft.active} type="checkbox" checked={draft.enabled} onChange={event => update('enabled', event.target.checked)} className="h-5 w-5 accent-[var(--pks-accent)]" />
+      </label>
       <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 sm:col-span-2">
         <span>
           <span className="block text-xs font-black uppercase tracking-widest text-slate-300">Fallback</span>
-          <span className="text-xs text-slate-500">Użyj, jeśli Firestore niedostępne</span>
+          <span className="text-xs text-slate-500">Użyj danych przewoźnika, jeśli to API nie odpowiada</span>
         </span>
         <input disabled={disabled} type="checkbox" checked={draft.fallbackEnabled} onChange={(event) => update('fallbackEnabled', event.target.checked)} className="h-5 w-5 accent-[var(--pks-accent)]" />
       </label>
@@ -537,7 +579,7 @@ function EndpointForm({ draft, disabled, onChange }: { draft: MaintenanceEndpoin
           font-size: 13px;
           font-weight: 700;
         }
-        .field-input:focus { border-color: rgba(34, 211, 238, 0.45); }
+        .field-input:focus { border-color: var(--pks-accent-border); }
         .field-input:disabled { opacity: 0.55; }
       `}</style>
     </div>
@@ -553,14 +595,14 @@ function Field({ label, children, className }: { label: string; children: React.
   );
 }
 
-function CheckLine({ label, ok, value }: { label: string; ok: boolean; value?: string }) {
+function CheckLine({ label, ok, value }: { label: string; ok: boolean | null; value?: string }) {
   return (
     <div className="flex items-center justify-between gap-3 text-xs">
       <span className="flex min-w-0 items-center gap-2 font-semibold text-slate-300">
-        {ok ? <CheckCircle2 size={14} className="shrink-0 text-emerald-400" /> : <X size={14} className="shrink-0 text-rose-400" />}
+        {ok === null ? <Clock3 size={14} className="shrink-0 text-slate-400" /> : ok ? <CheckCircle2 size={14} className="shrink-0 text-emerald-400" /> : <X size={14} className="shrink-0 text-rose-400" />}
         <span className="truncate">{label}</span>
       </span>
-      <span className={cn('shrink-0 font-mono text-[11px] font-black', ok ? 'text-emerald-400' : 'text-rose-300')}>{value || (ok ? 'OK' : 'BŁĄD')}</span>
+      <span className={cn('shrink-0 font-mono text-[11px] font-black', ok === null ? 'text-slate-400' : ok ? 'text-emerald-400' : 'text-rose-300')}>{value || (ok === null ? 'Nie testowano' : ok ? 'OK' : 'BŁĄD')}</span>
     </div>
   );
 }

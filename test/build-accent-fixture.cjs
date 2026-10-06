@@ -9,6 +9,15 @@ module.exports=function buildAccentFixture(){
   for(const folder of ['node_modules','components','lib','Panel','public'])fs.symlinkSync(path.join(source,folder),path.join(fixture,folder),'dir');
   fs.symlinkSync(path.join(source,'app/admin'),path.join(fixture,'app/admin'),'dir');
   fs.copyFileSync(path.join(source,'app/page.tsx'),path.join(fixture,'app/page.tsx'));
+  fs.mkdirSync(path.join(fixture,'app/maintenance'));
+  const maintenance=fs.readFileSync(path.join(source,'app/admin/components/MaintenanceView.tsx'),'utf8')
+    .replaceAll("from 'firebase/functions'", "from './sdk'")
+    .replaceAll("from 'firebase/firestore'", "from './sdk'")
+    .replaceAll("from '@/lib/firebase'", "from './sdk'")
+    .replaceAll("from '../types'", "from '@/app/admin/types'");
+  fs.writeFileSync(path.join(fixture,'app/maintenance/Component.tsx'),maintenance);
+  fs.copyFileSync(path.join(source,'test/maintenance-ui-stub.ts'),path.join(fixture,'app/maintenance/sdk.ts'));
+  fs.writeFileSync(path.join(fixture,'app/maintenance/page.tsx'),`'use client';import {MaintenanceView} from './Component';export default function Page(){return <MaintenanceView onMenuClick={()=>{}} canEdit={true}/>}`);
   fs.copyFileSync(path.join(source,'tsconfig.json'),path.join(fixture,'tsconfig.json'));
   fs.copyFileSync(path.join(source,'package.json'),path.join(fixture,'package.json'));
   fs.writeFileSync(path.join(fixture,'app/layout.tsx'),`export default function Layout({children}:{children:React.ReactNode}){return <html lang="pl"><head><link rel="stylesheet" href="/production.css" /></head><body>{children}</body></html>}`);

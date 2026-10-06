@@ -1,4 +1,5 @@
 import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
+import { getTransportRuntime, transportApiBase } from './transport-runtime';
 import {officialBusStops} from './official-bus-routes';
 import {decodePolyline,routeChunks,joinRouteChunks} from './bus-road-geometry';
 import { busOperatingState, transitTimestamp } from './bus-operating-state';
@@ -1574,7 +1575,7 @@ function getTripBase(tripId: unknown) {
 function transportApiUrl(path: string, searchParams?: URLSearchParams) {
   const basePath = path.startsWith('/') ? path : `/${path}`;
   const query = searchParams && Array.from(searchParams.keys()).length > 0 ? `?${searchParams.toString()}` : '';
-  return `${TRANSPORT_API_BASE_URL}${basePath}${query}`;
+  return `${transportApiBase(TRANSPORT_API_BASE_URL)}${basePath}${query}`;
 }
 
 function mapTransportVehicleToClient(vehicle: TransportApiVehicle): Vehicle {
@@ -2222,6 +2223,18 @@ export async function fetchVehiclesClient(
   if (activeProviders.length === 0) return [];
 
   const requests = activeProviders.map(async (provider) => {
+    const runtime = getTransportRuntime();
+    if (runtime && runtime.endpointUrl !== TRANSPORT_API_BASE_URL) {
+      const params = new URLSearchParams({ providers: provider, includeInactive: String(includeInactive) });
+      if (options?.pkpViewport?.bbox) params.set('bbox', options.pkpViewport.bbox.join(','));
+      try {
+        const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', params), { signal: options?.signal });
+        if (!Array.isArray(response.vehicles)) throw new Error('API nie zwróciło listy pojazdów.');
+        return response.vehicles.map(mapTransportVehicleToClient);
+      } catch (error) {
+        if (options?.signal?.aborted || !runtime.fallbackEnabled) throw error;
+      }
+    }
     if (provider === 'pks') return fetchPksVehiclesClient(includeInactive, options?.signal);
     if (provider === 'mpk_rzeszow') {
       return fetchMpkRzeszowVehiclesClient(includeInactive, options?.signal).catch((error) => {
@@ -2307,6 +2320,13 @@ export async function fetchVehiclesClient(
 }
 
 export async function fetchVehicleDetailsClient(provider: TransportProviderId, vehicleId: string, includeInactive = true) {
+  const runtime = getTransportRuntime();
+  if (runtime && runtime.endpointUrl !== TRANSPORT_API_BASE_URL) {
+    try {
+      const response = await requestJson<{ vehicle?: TransportApiVehicle }>(transportApiUrl(`/vehicle/${encodeURIComponent(provider)}/${encodeURIComponent(vehicleId)}`, new URLSearchParams({ includeInactive: String(includeInactive) })));
+      return response.vehicle ? mapTransportVehicleToClient(response.vehicle) : null;
+    } catch (error) { if (!runtime.fallbackEnabled) throw error; }
+  }
   if (provider === 'marcel') {
     return fetchMarcelVehicleDetailsDirect(vehicleId, includeInactive).catch((error) => {
       console.warn('Marcel direct details unavailable:', error);

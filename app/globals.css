@@ -1,36 +1,91 @@
 @import "tailwindcss";
 
+.pks-theme-root {
+  --ui-canvas: #f4f7f8;
+  --ui-surface: #f7fafc;
+  --ui-raised: #fff;
+  --ui-glass: rgb(247 250 252 / 64%);
+  --ui-glass-row: rgb(255 255 255 / 42%);
+  --ui-muted: #586b80;
+  --ui-text: #172536;
+  --ui-edge: rgb(15 23 42 / 10%);
+  background: var(--ui-canvas);
+}
+.pks-theme-root[data-ui-theme='dark'] {
+  --ui-canvas: #101a26;
+  --ui-surface: #1b2937;
+  --ui-raised: #263747;
+  --ui-glass: rgb(27 41 55 / 54%);
+  --ui-glass-row: rgb(63 83 104 / 30%);
+  --ui-muted: #b2c1d1;
+  --ui-text: #f3f7fb;
+  --ui-edge: rgb(255 255 255 / 12%);
+}
+.pks-theme-root[data-ui-theme='dark-oled'] {
+  --ui-canvas: #080c10;
+  --ui-surface: #141d26;
+  --ui-raised: #1c2833;
+  --ui-glass: rgb(20 29 38 / 64%);
+  --ui-glass-row: rgb(34 46 58 / 36%);
+  --ui-muted: #a8b7c7;
+  --ui-text: #f1f5f9;
+  --ui-edge: rgb(255 255 255 / 11%);
+}
+.pks-theme-root[data-ui-theme='dark-aurora'] {
+  --ui-canvas: #120f24;
+  --ui-surface: #211b36;
+  --ui-raised: #302642;
+  --ui-glass: rgb(33 27 54 / 54%);
+  --ui-glass-row: rgb(57 43 77 / 36%);
+  --ui-muted: #c5b9dc;
+  --ui-text: #f6f0ff;
+  --ui-edge: rgb(216 180 254 / 16%);
+}
+.pks-theme-root[data-ui-theme='light-warm'] {
+  --ui-canvas: #f2ede1;
+  --ui-surface: #faf7ef;
+  --ui-raised: #fffaf0;
+  --ui-glass: rgb(250 247 239 / 64%);
+  --ui-glass-row: rgb(255 250 240 / 42%);
+  --ui-muted: #746a58;
+  --ui-text: #272116;
+  --ui-edge: rgb(138 123 95 / 18%);
+}
+.pks-map-surface, .pks-navigation, .pks-options-sheet {
+  background: var(--ui-surface);
+  border-color: var(--ui-edge);
+  color: var(--ui-text);
+}
+.pks-navigation { color: var(--ui-muted); }
+.pks-glass {
+  background: var(--ui-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
+}
+.pks-option-card { background: var(--ui-glass-row); border-color: var(--ui-edge); }
+.pks-option-control { background: var(--ui-glass-row); }
+.pks-option-control:hover { filter: brightness(1.08); }
+.ui-accent-border { border-color: var(--pks-accent-border); }
+
 /* One glass layer lets the map show through both vehicle and stop sheets. */
 .map-detail-shell {
-  --map-sheet-bg: #1b2937;
-  --map-sheet-row: #263747;
-  --map-sheet-border: rgb(255 255 255 / 12%);
-  --map-sheet-muted: #b2c1d1;
+  --map-sheet-bg: var(--ui-surface, #1b2937);
+  --map-sheet-row: var(--ui-raised, #263747);
+  --map-sheet-border: var(--ui-edge, rgb(255 255 255 / 12%));
+  --map-sheet-muted: var(--ui-muted, #b2c1d1);
   background: var(--map-sheet-bg);
-  color: #f3f7fb;
+  color: var(--ui-text, #f3f7fb);
   border-color: var(--map-sheet-border);
   box-shadow: 0 -8px 32px rgb(0 0 0 / 16%);
 }
-.theme-oled .map-detail-shell { --map-sheet-bg: #17212b; --map-sheet-row: #202d39; }
-.theme-aurora .map-detail-shell { --map-sheet-bg: #211b36; --map-sheet-row: #302642; }
 .map-detail-shell[data-ui-mode='light'] {
-  --map-sheet-bg: #f7fafc;
-  --map-sheet-row: #fff;
-  --map-sheet-border: rgb(15 23 42 / 10%);
-  --map-sheet-muted: #586b80;
-  color: #172536;
+  color: var(--ui-text, #172536);
 }
 .map-detail-shell[data-glass='on'] {
-  background: rgb(27 41 55 / 54%);
+  background: var(--ui-glass, rgb(27 41 55 / 54%));
   -webkit-backdrop-filter: blur(18px) saturate(135%);
   backdrop-filter: blur(18px) saturate(135%);
-  --map-sheet-row: rgb(63 83 104 / 30%);
-}
-.theme-oled .map-detail-shell[data-glass='on'] { background: rgb(23 33 43 / 52%); }
-.theme-aurora .map-detail-shell[data-glass='on'] { background: rgb(33 27 54 / 54%); }
-.map-detail-shell[data-glass='on'][data-ui-mode='light'] {
-  background: rgb(247 250 252 / 64%);
-  --map-sheet-row: rgb(255 255 255 / 42%);
+  --map-sheet-row: var(--ui-glass-row, rgb(63 83 104 / 30%));
 }
 .map-detail-body { background: transparent; }
 .map-detail-row { background: var(--map-sheet-row); border-color: var(--map-sheet-border); }
@@ -47,9 +102,9 @@
 /* Only opted-in panels use glass. Keep the map and carrier/status colours intact. */
 .pks-glass-frame,
 .pks-panel-scope {
-  --panel-glass: rgb(23 36 49 / 38%);
-  --panel-surface: rgb(31 45 60 / 58%);
-  --panel-solid: #1b2937;
+  --panel-glass: var(--ui-glass, rgb(23 36 49 / 38%));
+  --panel-surface: var(--ui-glass-row, rgb(31 45 60 / 58%));
+  --panel-solid: var(--ui-surface, #1b2937);
   --panel-edge: rgb(255 255 255 / 14%);
 }
 
@@ -73,6 +128,11 @@
   background: var(--panel-glass);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   backdrop-filter: blur(12px) saturate(140%);
+}
+
+.pks-panel-scope[data-panel-theme='dark'][data-glass='off'],
+.pks-panel-scope[data-panel-theme='dark'][data-glass='off'] [class~='bg-[#040609]'] {
+  background: var(--ui-canvas, #101a26);
 }
 
 .pks-panel-scope[data-panel-theme][data-glass="on"],
@@ -285,9 +345,9 @@ body {
 .ui-accent-input:focus { border-color: var(--pks-accent); box-shadow: 0 0 0 3px var(--pks-accent-soft); }
 .ui-accent-search:focus-within > svg { color: var(--pks-accent-text); }
 .transit-view {
-  --transit-canvas: #131e29;
-  --transit-surface: #253442e8;
-  --transit-card: #20303dd9;
+  --transit-canvas: var(--ui-canvas, #131e29);
+  --transit-surface: var(--ui-surface, #253442e8);
+  --transit-card: var(--ui-raised, #20303dd9);
   --transit-border: #ffffff12;
   background: var(--transit-canvas);
   color-scheme: dark;
@@ -299,7 +359,6 @@ body {
   --transit-border: #0f172a15;
   color-scheme: light;
 }
-.theme-oled .transit-view { --transit-canvas: #000; --transit-surface: #1a2530f2; --transit-card: #17232ee8; }
 .theme-aurora .transit-view { --transit-canvas: #0d1020; --transit-surface: #171b2be8; --transit-card: #121627de; }
 .theme-warm .transit-view { --transit-canvas: #f2ede1; --transit-surface: #faf7eff2; --transit-card: #faf7efeb; --transit-border: #75674920; }
 .transit-surface { background: var(--transit-surface); border-color: var(--transit-border); box-shadow: 0 8px 28px #0000000a; }

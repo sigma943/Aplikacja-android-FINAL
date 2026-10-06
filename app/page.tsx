@@ -1273,17 +1273,7 @@ export default function Home() {
   const bgCard = transparentUI 
      ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : 'bg-white/90 backdrop-blur-md border-slate-100/50')
      : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : 'bg-white border-slate-200');
-  const mapGlassPanel = transparentUI
-     ? (isDark
-        ? isOled
-          ? 'bg-[#18232f]/30 backdrop-blur-2xl border-white/12 shadow-[0_18px_60px_rgba(0,0,0,0.28)]'
-          : isAurora
-            ? 'bg-[#120f24]/28 backdrop-blur-2xl border-fuchsia-300/18 shadow-[0_18px_60px_rgba(12,8,28,0.22)]'
-            : 'bg-[#07131a]/26 backdrop-blur-2xl border-white/12 shadow-[0_18px_60px_rgba(0,0,0,0.22)]'
-        : isWarm
-          ? 'bg-[#faf7ef]/34 backdrop-blur-2xl border-[#8a7b5f]/20 shadow-[0_18px_55px_rgba(93,79,50,0.12)]'
-          : 'bg-white/34 backdrop-blur-2xl border-slate-900/12 shadow-[0_18px_55px_rgba(15,23,42,0.10)]')
-     : bgCard;
+  const mapGlassPanel = `pks-map-surface ${transparentUI ? 'pks-glass' : ''}`;
   const mapGlassInput = transparentUI
      ? (isDark
         ? 'bg-white/[0.045] text-white placeholder-slate-300/75 border border-white/12 backdrop-blur-xl'
@@ -1300,37 +1290,13 @@ export default function Home() {
   const mapDetailLine = transparentUI
      ? (isDark ? 'bg-white/14' : isWarm ? 'bg-[#8a7b5f]/22' : 'bg-slate-900/12')
      : (isDark ? 'bg-slate-700' : 'bg-slate-200');
-  const bottomGlassShell = transparentUI
-     ? (isDark
-        ? isOled
-          ? 'border-white/10 bg-[#18232f]/32 text-slate-300 shadow-[0_-18px_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl'
-          : isAurora
-            ? 'border-fuchsia-300/16 bg-[#120f24]/32 text-violet-100/75 shadow-[0_-18px_70px_rgba(12,8,28,0.30)] backdrop-blur-2xl'
-            : 'border-white/10 bg-[#07131a]/30 text-slate-300 shadow-[0_-18px_70px_rgba(0,0,0,0.30)] backdrop-blur-2xl'
-        : isWarm
-          ? 'border-[#8a7b5f]/18 bg-[#f2ede1]/42 text-[#746a58] shadow-[0_-18px_60px_rgba(93,79,50,0.14)] backdrop-blur-2xl'
-          : 'border-slate-900/10 bg-white/44 text-slate-500 shadow-[0_-18px_60px_rgba(15,23,42,0.12)] backdrop-blur-2xl')
-     : (isDark ? 'border-slate-800 bg-slate-900 text-slate-400 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]' : 'border-slate-200 bg-white text-slate-500 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]');
+  const bottomGlassShell = `pks-navigation ${transparentUI ? 'pks-glass' : ''}`;
   const optionsOverlay = transparentUI
      ? (isDark ? 'bg-black/16 backdrop-blur-sm' : 'bg-slate-950/8 backdrop-blur-sm')
      : (isDark ? 'bg-black/48' : 'bg-slate-950/20');
-  const optionsSheet = transparentUI
-     ? (isDark
-        ? isAurora
-          ? 'border-fuchsia-300/16 bg-[#111026]/55 text-white shadow-[0_-34px_100px_rgba(5,3,20,0.68)] backdrop-blur-2xl backdrop-saturate-150'
-          : isOled
-            ? 'border-white/10 bg-[#18232f]/58 text-white shadow-[0_-34px_100px_rgba(0,0,0,0.76)] backdrop-blur-2xl backdrop-saturate-150'
-            : 'border-white/10 bg-[#0d1425]/55 text-white shadow-[0_-34px_100px_rgba(4,8,18,0.68)] backdrop-blur-2xl backdrop-saturate-150'
-        : isWarm
-          ? 'border-[#8a7b5f]/18 bg-[#f7f0df]/62 text-[#272116] shadow-[0_-30px_90px_rgba(93,79,50,0.24)] backdrop-blur-2xl backdrop-saturate-150'
-          : 'border-white/70 bg-white/62 text-slate-950 shadow-[0_-30px_90px_rgba(15,23,42,0.18)] backdrop-blur-2xl backdrop-saturate-150')
-     : (isDark ? 'border-slate-700/60 bg-slate-900 text-white shadow-2xl' : 'border-slate-200 bg-white text-slate-950 shadow-2xl');
-  const optionsCard = transparentUI
-     ? (isDark ? 'border-white/10 bg-white/[0.06]' : isWarm ? 'border-[#8a7b5f]/14 bg-white/38' : 'border-slate-900/10 bg-white/54')
-     : (isDark ? 'border-slate-700/70 bg-slate-800/55' : 'border-slate-200 bg-slate-50');
-  const optionsButton = transparentUI
-     ? (isDark ? 'bg-white/[0.075] hover:bg-white/[0.11]' : isWarm ? 'bg-white/48 hover:bg-white/64' : 'bg-white/68 hover:bg-white/88')
-     : (isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-slate-100 shadow-sm border border-slate-200/60');
+  const optionsSheet = `pks-options-sheet ${transparentUI ? 'pks-glass' : ''}`;
+  const optionsCard = 'pks-option-card';
+  const optionsButton = 'pks-option-control';
   useEffect(() => {
     for (const [key, value] of Object.entries(uiAccentVariables(themeColor, isDark))) {
       document.documentElement.style.setProperty(key, value);
@@ -1489,7 +1455,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div style={uiAccentVariables(themeColor, isDark) as React.CSSProperties} className={`fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
+    <div data-ui-theme={actualTheme} style={uiAccentVariables(themeColor, isDark) as React.CSSProperties} className={`pks-theme-root fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -1498,20 +1464,6 @@ export default function Home() {
           filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
         }
         
-        /* OLED Theme Overrides */
-        .theme-oled .bg-slate-900:not(.mks-bus-marker *) { background-color: #000000 !important; }
-        .theme-oled .bg-slate-800:not(.mks-bus-marker *) { background-color: #1a2430 !important; }
-        .theme-oled .bg-slate-700:not(.mks-bus-marker *) { background-color: #24313e !important; }
-        .theme-oled .border-slate-800:not(.mks-bus-marker *) { border-color: transparent !important; }
-        .theme-oled .border-slate-700:not(.mks-bus-marker *) { border-color: transparent !important; }
-        .theme-oled .border-slate-700\\/50 { border-color: transparent !important; }
-        .theme-oled .border-b { border-bottom-color: transparent !important; }
-        .theme-oled .border-t { border-top-color: transparent !important; }
-        .theme-oled .bg-slate-900\\/60:not(.mks-bus-marker *) { background-color: rgba(0,0,0,0.6) !important; }
-        .theme-oled .bg-slate-900\\/80:not(.mks-bus-marker *) { background-color: rgba(0,0,0,0.8) !important; }
-        .theme-oled .bg-slate-900\\/85:not(.mks-bus-marker *) { background-color: rgba(0,0,0,0.85) !important; }
-        .theme-oled .bg-slate-800\\/40:not(.mks-bus-marker *) { background-color: rgba(26,36,48,0.4) !important; }
-
         /* Aurora Theme Overrides */
         .theme-aurora .bg-slate-900:not(.mks-bus-marker *) { background-color: #120f24 !important; }
         .theme-aurora .bg-slate-800:not(.mks-bus-marker *) { background-color: #1b1630 !important; }
@@ -1926,7 +1878,7 @@ export default function Home() {
                              {selectedBusScheduleLoading ? (
                                 [0, 1, 2].map((idx) => (
                                   <div key={`mpk-stops-loading-${idx}`} className="flex items-start gap-4 py-2 relative z-10 px-2 -mx-2">
-                                     <div className="w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm animate-pulse" style={{ backgroundColor: selectedVehicleColor, borderColor: isDark ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.85)' }}></div>
+                                     <div className="w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm animate-pulse" style={{ backgroundColor: themeColor, borderColor: isDark ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.85)' }}></div>
                                      <div className={`flex flex-col flex-1 pb-2 border-b ${mapDetailDivider}`}>
                                         <div className={`h-3.5 w-36 rounded-full animate-pulse ${isDark ? 'bg-white/12' : 'bg-slate-200'}`}></div>
                                         <div className={`mt-2 h-2.5 w-16 rounded-full animate-pulse ${isDark ? 'bg-white/8' : 'bg-slate-100'}`}></div>
