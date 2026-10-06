@@ -45,6 +45,7 @@ const server=http.createServer((req,res)=>{
     const style=async(selector,property)=>(await visible(selector)).evaluate((el,key)=>getComputedStyle(el)[key],property);
     const openStops=async()=>{
       console.log('Opening stops');
+      await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
       await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Przystanki'));
       await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
       await page.type('input[placeholder*="Babica"]','Baryczka');
@@ -61,6 +62,7 @@ const server=http.createServer((req,res)=>{
     const screenshot=async name=>{await new Promise(resolve=>setTimeout(resolve,450));return page.screenshot({path:`test/ui-previews/${name}.png`});};
     await page.goto(origin,{waitUntil:'domcontentloaded'});
     console.log('App loaded');
+    await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Opcje'));
     await accent('Fioletowy');await openStops();
     await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#8b5cf6');
