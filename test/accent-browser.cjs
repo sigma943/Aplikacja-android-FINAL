@@ -36,12 +36,14 @@ const server=http.createServer((req,res)=>{
     });
     const button=async label=>page.evaluate(text=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text)?.click(),label);
     const openStops=async()=>{
+      console.log('Opening stops');
       await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Przystanki'));
       await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
       await page.type('input[placeholder*="Babica"]','Baryczka');
       await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent==='Baryczka 69'));
     };
     const accent=async name=>{
+      console.log('Selecting accent:',name);
       await button('Opcje');await page.waitForSelector('[role="dialog"]');
       await page.click(`[aria-label="Kolor akcentu: ${name}"]`);
       await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
@@ -49,6 +51,7 @@ const server=http.createServer((req,res)=>{
     const overflow=async()=>assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.transit-view')].some(el=>el.scrollWidth>el.clientWidth+1)),false);
     const screenshot=async name=>{await new Promise(resolve=>setTimeout(resolve,450));return page.screenshot({path:`test/ui-previews/${name}.png`});};
     await page.goto(origin,{waitUntil:'domcontentloaded'});
+    console.log('App loaded');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Opcje'));
     await accent('Fioletowy');await openStops();
     await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#8b5cf6');
@@ -74,6 +77,6 @@ const server=http.createServer((req,res)=>{
     await overflow();await screenshot('stops-light-blue');
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
-  }catch(error){await screenshot('failure').catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));throw error;}
+  }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error('Page errors:',errors);throw error;}
   finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});
