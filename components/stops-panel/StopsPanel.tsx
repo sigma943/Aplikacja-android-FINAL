@@ -22,6 +22,7 @@ export default function StopsPanel({
   isLoading,
   hasError,
   favorites,
+  vehicles,
   transparentUI,
   isDarkTheme,
   onRetry,
@@ -285,6 +286,7 @@ export default function StopsPanel({
             onBack={() => setSelectedStop(null)}
             toggleFavorite={toggleFavorite}
             loadDepartures={loadStopDepartures}
+            vehicles={vehicles}
             onShowOnMap={onShowOnMap}
             isDarkTheme={isDarkTheme}
           />

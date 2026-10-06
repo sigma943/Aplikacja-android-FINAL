@@ -2,6 +2,7 @@
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {busOperatingState} from '@/lib/bus-operating-state';
 import { busPunctuality } from '@/lib/bus-punctuality';
+import { marcelDepartureFromVehicle } from '@/lib/marcel-stop-punctuality';
 
 import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
@@ -551,6 +552,11 @@ export default function Home() {
     const technicalRegex = /(zjazd|zajezd|baza|technicz|serwis|warsztat|przejazd\s+techn|bez\s+pasa[zż]er|manewr|out\s+of\s+service|deadhead|poza\s+lini[aą])/i;
     
     const results = Object.values(stopDepartures.reduce((acc: any, journey: any) => {
+        if (journey.departure) {
+          const departure = marcelDepartureFromVehicle(journey.departure, vehicles);
+          journey = { ...journey, real_time: Number.isFinite(departure.realAtMs) ? new Date(departure.realAtMs!).toISOString() : null,
+            deviation: departure.delayMins || 0, realtime_source: departure.realtimeSource };
+        }
         const journeyPlannedMs = parseJourneyMs(journey.timetable_time);
         const formatDepartureClock = (ms: number) => new Date(ms).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Warsaw' });
         let actualTimeStr = Number.isFinite(journeyPlannedMs) ? formatDepartureClock(journeyPlannedMs) : '--:--';
@@ -568,7 +574,7 @@ export default function Home() {
         const predictedMs = parseJourneyMs(journey.real_time);
         if (Number.isFinite(predictedMs) || (journey.deviation !== null && journey.deviation !== undefined)) {
             isRealtime = Boolean(journey.realtime_source);
-            isDelayed = !!(Math.abs(journey.deviation) > 1);
+            isDelayed = busPunctuality(Number(journey.deviation) * 60).status !== 'on_time';
             if (!isNaN(journeyPlannedMs)) {
                const realD = new Date(Number.isFinite(predictedMs) ? predictedMs : journeyPlannedMs + journey.deviation * 60000);
                actualDepTimeMs = realD.getTime();
@@ -624,7 +630,7 @@ export default function Home() {
     });
 
     return results;
-  }, [stopDepartures, now]);
+  }, [stopDepartures, now, vehicles]);
 
   useEffect(()=> {
     if(!selectedStopId)return;
@@ -639,7 +645,7 @@ export default function Home() {
       const warnings=success.flatMap(result=>result.value.warnings);
       if(warnings.length)setStopDeparturesError(warnings.join(' '));
       const rows=success.flatMap(result=>result.value.departures);
-      setStopDepartures(rows.map(row=>({line_name:row.line,route_description:row.direction,timetable_time:row.plannedAtMs?new Date(row.plannedAtMs).toISOString():'',real_time:Number.isFinite(row.realAtMs)?new Date(row.realAtMs!).toISOString():null,deviation:Number.isFinite(row.realAtMs) ? row.delayMins||0 : null,provider_id:row.carrier?.id==='mpk'?'mpk_rzeszow':row.carrier?.id||'pks',realtime_source:row.realtimeSource,departure_id:row.id})));setIsFetchingDepartures(false);
+      setStopDepartures(rows.map(row=>({departure:row,line_name:row.line,route_description:row.direction,timetable_time:row.plannedAtMs?new Date(row.plannedAtMs).toISOString():'',real_time:Number.isFinite(row.realAtMs)?new Date(row.realAtMs!).toISOString():null,deviation:Number.isFinite(row.realAtMs) ? row.delayMins||0 : null,provider_id:row.carrier?.id==='mpk'?'mpk_rzeszow':row.carrier?.id||'pks',realtime_source:row.realtimeSource,departure_id:row.id})));setIsFetchingDepartures(false);
     }).catch(()=>{if(active){setStopDeparturesError('Nie udało się pobrać odjazdów.');setIsFetchingDepartures(false);}});
     return()=>{active=false;};
   },[selectedExternalStop,selectedStopId,stopsList]);

@@ -28,6 +28,7 @@ export interface Stop {
 
 export interface Departure {
   id: string;
+  courseId?: string;
   line: string; // e.g. "233" or "IC 83170"
   direction: string;
   time: string; // e.g. "19:24"
@@ -40,7 +41,7 @@ export interface Departure {
   type?: 'departure' | 'arrival'; // For trains
   plannedAtMs?: number;
   realAtMs?: number;
-  realtimeSource?: 'stop-board' | 'vehicle-feed';
+  realtimeSource?: 'stop-board' | 'vehicle-feed' | 'position-estimate';
 }
 
 export interface DepartureResult { departures: Departure[]; warnings: string[]; updatedAt: number; }
