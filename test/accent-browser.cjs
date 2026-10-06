@@ -37,12 +37,19 @@ const server=http.createServer((req,res)=>{
       return request.abort();
     });
     const button=async label=>page.evaluate(text=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text)?.click(),label);
+    const visible=async selector=>{
+      await page.waitForFunction(css=>[...document.querySelectorAll(css)].some(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&r.bottom>0&&r.top<innerHeight;}),{},selector);
+      const handle=await page.evaluateHandle(css=>[...document.querySelectorAll(css)].find(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&r.bottom>0&&r.top<innerHeight;}),selector);
+      return handle.asElement();
+    };
+    const style=async(selector,property)=>(await visible(selector)).evaluate((el,key)=>getComputedStyle(el)[key],property);
     const openStops=async()=>{
       console.log('Opening stops');
       await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Przystanki'));
       await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
       await page.type('input[placeholder*="Babica"]','Baryczka');
       await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent==='Baryczka 69'));
+      await new Promise(resolve=>setTimeout(resolve,450));
     };
     const accent=async name=>{
       console.log('Selecting accent:',name);
@@ -57,21 +64,21 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Opcje'));
     await accent('Fioletowy');await openStops();
     await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#8b5cf6');
-    const brandBefore=await page.$eval('.transit-stop-card .text-teal-400',el=>getComputedStyle(el).color);
-    const before=await page.$eval('.transit-stop-card .ui-accent-soft',el=>getComputedStyle(el).backgroundColor);
-    await page.click('.transit-stop-card [aria-label="Dodaj do ulubionych"]');await page.waitForSelector('.transit-stop-card .ui-accent-fill');
+    const brandBefore=await style('.transit-stop-card .text-teal-400','color');
+    const before=await style('.transit-stop-card .ui-accent-soft','backgroundColor');
+    await (await visible('.transit-stop-card [aria-label="Dodaj do ulubionych"]')).click();await visible('.transit-stop-card .ui-accent-fill');
     await overflow();await screenshot('stops-dark-purple');
-    await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent==='Baryczka 69').click());
+    await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent==='Baryczka 69'&&el.getClientRects().length).click());
     await page.waitForSelector('button[data-selected="true"]');
     await page.waitForFunction(()=>document.querySelector('.transit-view').innerText.includes('Rzeszów'));
-    assert.equal(await page.$eval('.transit-view button.ui-accent-solid',el=>getComputedStyle(el).backgroundColor),'rgb(139, 92, 246)');
+    assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(139, 92, 246)');
     await overflow();await screenshot('departures-dark-purple');
     await accent('Niebieski');
-    assert.equal(await page.$eval('.transit-view button.ui-accent-solid',el=>getComputedStyle(el).backgroundColor),'rgb(59, 130, 246)');
-    await page.click('[aria-label="Wróć do listy przystanków"]');
-    const after=await page.$eval('.transit-stop-card .ui-accent-soft',el=>getComputedStyle(el).backgroundColor);
+    assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(59, 130, 246)');
+    await (await visible('[aria-label="Wróć do listy przystanków"]')).click();
+    const after=await style('.transit-stop-card .ui-accent-soft','backgroundColor');
     assert.notEqual(before,after);
-    assert.equal(await page.$eval('.transit-stop-card .text-teal-400',el=>getComputedStyle(el).color),brandBefore);
+    assert.equal(await style('.transit-stop-card .text-teal-400','color'),brandBefore);
     await page.evaluate(()=>localStorage.setItem('mks_app_theme','light'));
     await page.reload({waitUntil:'domcontentloaded'});await openStops();
     await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#3b82f6');
@@ -79,6 +86,6 @@ const server=http.createServer((req,res)=>{
     await overflow();await screenshot('stops-light-blue');
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
-  }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error('Page errors:',errors);throw error;}
+  }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error(await page.evaluate(()=>[...document.querySelectorAll('.transit-view,.transit-stop-card,.transit-stop-card button')].map(el=>({tag:el.tagName,rect:el.getBoundingClientRect().toJSON(),display:getComputedStyle(el).display}))).catch(()=>[]));console.error('Page errors:',errors);throw error;}
   finally{await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
 })().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});
