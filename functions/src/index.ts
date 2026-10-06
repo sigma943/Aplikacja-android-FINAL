@@ -3,6 +3,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { fetchVehicleDetails, fetchVehiclesForProviders, getProvidersHealth } from './transport/service';
 import { resolveRouteGeometry } from './transport/route-geometry';
+import { maintenanceService, MaintenanceError, DEFAULT_API_URL as DEFAULT_TRANSPORT_API_URL, DEFAULT_ENDPOINT_ID as DEFAULT_TRANSPORT_ENDPOINT_ID } from './maintenance-service';
 
 initializeApp();
 const db = getFirestore();
@@ -85,12 +86,14 @@ const canReadDevicesList = (caller: any): boolean => {
 };
 
 const canReadMaintenance = (caller: any): boolean => {
+  if (caller?.status !== 'active') return false;
   if (caller?.role === 'owner') return true;
   if (caller?.role !== 'admin') return false;
   return hasAnyTrue(caller?.permissions, ['globalSettings', 'globalSettingsEdit']);
 };
 
 const canWriteMaintenance = (caller: any): boolean => {
+  if (caller?.status !== 'active') return false;
   if (caller?.role === 'owner') return true;
   if (caller?.role !== 'admin') return false;
   return caller?.permissions?.globalSettingsEdit === true;
@@ -533,163 +536,8 @@ const parseBboxParam = (value: unknown): [number, number, number, number] | null
   return [parts[0], parts[1], parts[2], parts[3]];
 };
 
-const DEFAULT_TRANSPORT_ENDPOINT_ID = 'default-transport-api';
-const DEFAULT_TRANSPORT_API_URL = 'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi';
-const MAINTENANCE_ENDPOINT_ROLES = new Set(['production', 'backup', 'staging', 'legacy', 'test']);
-
-type MaintenanceEndpointInput = {
-  id?: string;
-  name?: string;
-  url?: string;
-  role?: string;
-  priority?: number;
-  region?: string;
-  source?: string;
-  fallbackEnabled?: boolean;
-  enabled?: boolean;
-};
-
-const cleanIdPart = (value: unknown) =>
-  String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-
-const normalizeEndpointUrl = (value: unknown) => {
-  const raw = String(value || '').trim().replace(/\/+$/, '');
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new HttpsError('invalid-argument', 'Endpoint URL is invalid.');
-  }
-  if (parsed.protocol !== 'https:') {
-    throw new HttpsError('invalid-argument', 'Endpoint URL must use HTTPS.');
-  }
-  return parsed.toString().replace(/\/+$/, '');
-};
-
-const endpointHealthUrl = (baseUrl: string) => `${baseUrl.replace(/\/+$/, '')}/health/providers`;
-
-const sanitizeMaintenanceEndpoint = (input: MaintenanceEndpointInput, existing?: Record<string, unknown>) => {
-  const url = normalizeEndpointUrl(input.url ?? existing?.url ?? DEFAULT_TRANSPORT_API_URL);
-  const role = String(input.role ?? existing?.role ?? 'production').trim().toLowerCase();
-  if (!MAINTENANCE_ENDPOINT_ROLES.has(role)) {
-    throw new HttpsError('invalid-argument', 'Invalid endpoint role.');
-  }
-  const priority = Number(input.priority ?? existing?.priority ?? 1);
-  if (!Number.isFinite(priority) || priority < 1 || priority > 99) {
-    throw new HttpsError('invalid-argument', 'Priority must be between 1 and 99.');
-  }
-
-  return {
-    name: String(input.name ?? existing?.name ?? 'Główny (PROD)').trim().slice(0, 80) || 'Endpoint',
-    url,
-    role,
-    priority: Math.round(priority),
-    region: String(input.region ?? existing?.region ?? 'PL').trim().slice(0, 24) || 'PL',
-    source: String(input.source ?? existing?.source ?? 'Firestore').trim().slice(0, 60) || 'Firestore',
-    fallbackEnabled: Boolean(input.fallbackEnabled ?? existing?.fallbackEnabled ?? true),
-    enabled: input.enabled == null ? Boolean(existing?.enabled ?? true) : Boolean(input.enabled),
-  };
-};
-
-const testMaintenanceUrl = async (url: string) => {
-  const startedAt = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
-  try {
-    const res = await fetch(endpointHealthUrl(url), {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    });
-    const latencyMs = Date.now() - startedAt;
-    let providerCount = 0;
-    try {
-      const payload = await res.clone().json() as any;
-      if (payload && typeof payload === 'object') {
-        providerCount = Object.keys(payload.providers || payload || {}).length;
-      }
-    } catch {
-      providerCount = 0;
-    }
-    return {
-      ok: res.ok,
-      status: res.ok ? 'success' : 'error',
-      statusCode: res.status,
-      latencyMs,
-      providerCount,
-      testedAt: new Date().toISOString(),
-      message: res.ok ? 'OK' : `HTTP ${res.status}`,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      status: 'error',
-      statusCode: 0,
-      latencyMs: Date.now() - startedAt,
-      providerCount: 0,
-      testedAt: new Date().toISOString(),
-      message: error instanceof Error ? error.message : String(error),
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-};
-
-const ensureDefaultMaintenanceEndpoint = async () => {
-  const endpointRef = db.collection('maintenance_endpoints').doc(DEFAULT_TRANSPORT_ENDPOINT_ID);
-  const settingsRef = db.collection('admin_settings').doc('maintenance');
-  const [endpointSnap, settingsSnap] = await Promise.all([endpointRef.get(), settingsRef.get()]);
-
-  if (!endpointSnap.exists) {
-    await endpointRef.set({
-      name: 'Główny (PROD)',
-      url: DEFAULT_TRANSPORT_API_URL,
-      role: 'production',
-      priority: 1,
-      region: 'PL',
-      source: 'Firestore',
-      fallbackEnabled: true,
-      enabled: true,
-      active: !settingsSnap.exists,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: 'system',
-    }, { merge: true });
-  }
-
-  if (!settingsSnap.exists || !String(settingsSnap.data()?.activeEndpointId || '').trim()) {
-    await settingsRef.set({
-      activeEndpointId: DEFAULT_TRANSPORT_ENDPOINT_ID,
-      previousEndpointId: '',
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: 'system',
-    }, { merge: true });
-  }
-};
-
-const writeMaintenanceChange = async (
-  action: string,
-  endpointId: string,
-  actorId: string,
-  summary: string,
-  before?: unknown,
-  after?: unknown,
-) => {
-  await db.collection('maintenance_changes').add({
-    action,
-    endpointId,
-    actorId,
-    summary,
-    before: before ?? null,
-    after: after ?? null,
-    createdAt: FieldValue.serverTimestamp(),
-  });
-};
+const maintenance = maintenanceService(db);
+const ensureDefaultMaintenanceEndpoint = maintenance.initialize;
 
 const activeMaintenanceEndpoint = async () => {
   await ensureDefaultMaintenanceEndpoint();
@@ -733,6 +581,7 @@ export const transportGateway = onRequest({ cors: true, timeoutSeconds: 60 }, as
       method: request.method,
       headers,
       body: request.method === 'POST' ? JSON.stringify(request.body || {}) : undefined,
+      signal: AbortSignal.timeout(10_000),
     });
     const text = await upstream.text();
     response.status(upstream.status);
@@ -840,160 +689,19 @@ export const transportApi = onRequest({ cors: true, timeoutSeconds: 60 }, async 
   }
 });
 
-export const saveMaintenanceEndpoint = onCall(async (request) => {
+const maintenanceCall = (write: boolean, action: (data: any, uid: string) => Promise<unknown>) => onCall({ timeoutSeconds: 30 }, async request => {
   const uid = requireAuth(request.auth?.uid);
   const caller = await getCaller(uid);
-  if (!canWriteMaintenance(caller)) {
-    throw new HttpsError('permission-denied', 'Insufficient permissions.');
-  }
-
-  await ensureDefaultMaintenanceEndpoint();
-  const payload = (request.data?.endpoint || request.data || {}) as MaintenanceEndpointInput;
-  const explicitId = cleanIdPart(payload.id);
-  const endpointId = explicitId || cleanIdPart(payload.name) || `endpoint-${Date.now()}`;
-  const ref = db.collection('maintenance_endpoints').doc(endpointId);
-  const beforeSnap = await ref.get();
-  const before = beforeSnap.exists ? beforeSnap.data() : null;
-  const endpoint = sanitizeMaintenanceEndpoint(payload, before || undefined);
-
-  await ref.set({
-    ...endpoint,
-    active: Boolean(before?.active),
-    createdAt: before?.createdAt || FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: uid,
-  }, { merge: true });
-
-  await writeMaintenanceChange('save', endpointId, uid, `Zapisano endpoint ${endpoint.name}`, before, endpoint);
-  await writeAudit('Konserwacja: zapisano endpoint', `${endpoint.name} (${endpoint.url})`, 'edit_role', uid);
-  return { ok: true, endpointId };
+  if (!(write ? canWriteMaintenance(caller) : canReadMaintenance(caller))) throw new HttpsError('permission-denied', 'Brak uprawnień do konserwacji.');
+  try { return await action(request.data || {}, uid); }
+  catch (error) { if (error instanceof MaintenanceError) throw new HttpsError(error.code, error.message); throw error; }
 });
-
-export const testMaintenanceEndpoint = onCall(async (request) => {
-  const uid = requireAuth(request.auth?.uid);
-  const caller = await getCaller(uid);
-  if (!canReadMaintenance(caller)) {
-    throw new HttpsError('permission-denied', 'Insufficient permissions.');
-  }
-
-  await ensureDefaultMaintenanceEndpoint();
-  const endpointId = cleanIdPart(request.data?.endpointId);
-  let url = request.data?.url ? normalizeEndpointUrl(request.data.url) : '';
-  if (!url && endpointId) {
-    const snap = await db.collection('maintenance_endpoints').doc(endpointId).get();
-    if (!snap.exists) throw new HttpsError('not-found', 'Endpoint not found.');
-    url = normalizeEndpointUrl(snap.data()?.url);
-  }
-  if (!url) throw new HttpsError('invalid-argument', 'Endpoint URL or endpointId is required.');
-
-  const result = await testMaintenanceUrl(url);
-  if (endpointId) {
-    await db.collection('maintenance_endpoints').doc(endpointId).set({
-      lastTest: result,
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: uid,
-    }, { merge: true });
-    await writeMaintenanceChange('test', endpointId, uid, `Test endpointu: ${result.status} ${result.latencyMs} ms`, null, result);
-  }
-  return { ok: true, result };
-});
-
-export const setActiveMaintenanceEndpoint = onCall(async (request) => {
-  const uid = requireAuth(request.auth?.uid);
-  const caller = await getCaller(uid);
-  if (!canWriteMaintenance(caller)) {
-    throw new HttpsError('permission-denied', 'Insufficient permissions.');
-  }
-
-  await ensureDefaultMaintenanceEndpoint();
-  const endpointId = cleanIdPart(request.data?.endpointId);
-  if (!endpointId) throw new HttpsError('invalid-argument', 'endpointId is required.');
-  const endpointRef = db.collection('maintenance_endpoints').doc(endpointId);
-  const endpointSnap = await endpointRef.get();
-  if (!endpointSnap.exists) throw new HttpsError('not-found', 'Endpoint not found.');
-  const endpoint = endpointSnap.data() || {};
-  if (endpoint.enabled === false) throw new HttpsError('failed-precondition', 'Disabled endpoint cannot be active.');
-
-  const settingsRef = db.collection('admin_settings').doc('maintenance');
-  const settingsSnap = await settingsRef.get();
-  const previousEndpointId = String(settingsSnap.data()?.activeEndpointId || '');
-  const batch = db.batch();
-  if (previousEndpointId) {
-    batch.set(db.collection('maintenance_endpoints').doc(previousEndpointId), { active: false }, { merge: true });
-  }
-  batch.set(endpointRef, { active: true, updatedAt: FieldValue.serverTimestamp(), updatedBy: uid }, { merge: true });
-  batch.set(settingsRef, {
-    activeEndpointId: endpointId,
-    previousEndpointId: previousEndpointId && previousEndpointId !== endpointId ? previousEndpointId : String(settingsSnap.data()?.previousEndpointId || ''),
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: uid,
-  }, { merge: true });
-  await batch.commit();
-
-  await writeMaintenanceChange('activate', endpointId, uid, `Ustawiono aktywny endpoint: ${endpoint.name || endpointId}`, { previousEndpointId }, endpoint);
-  await writeAudit('Konserwacja: zmieniono aktywny endpoint', `${previousEndpointId || '-'} -> ${endpointId}`, 'edit_role', uid);
-  return { ok: true };
-});
-
-export const disableMaintenanceEndpoint = onCall(async (request) => {
-  const uid = requireAuth(request.auth?.uid);
-  const caller = await getCaller(uid);
-  if (!canWriteMaintenance(caller)) {
-    throw new HttpsError('permission-denied', 'Insufficient permissions.');
-  }
-
-  await ensureDefaultMaintenanceEndpoint();
-  const endpointId = cleanIdPart(request.data?.endpointId);
-  if (!endpointId) throw new HttpsError('invalid-argument', 'endpointId is required.');
-  const ref = db.collection('maintenance_endpoints').doc(endpointId);
-  const snap = await ref.get();
-  if (!snap.exists) throw new HttpsError('not-found', 'Endpoint not found.');
-  const endpoint = snap.data() || {};
-  if (endpoint.active === true) {
-    throw new HttpsError('failed-precondition', 'Active endpoint cannot be disabled. Activate another endpoint first.');
-  }
-
-  await ref.set({ enabled: false, updatedAt: FieldValue.serverTimestamp(), updatedBy: uid }, { merge: true });
-  await writeMaintenanceChange('disable', endpointId, uid, `Wyłączono endpoint: ${endpoint.name || endpointId}`, endpoint, { enabled: false });
-  await writeAudit('Konserwacja: wyłączono endpoint', `${endpoint.name || endpointId}`, 'edit_role', uid);
-  return { ok: true };
-});
-
-export const rollbackMaintenanceEndpoint = onCall(async (request) => {
-  const uid = requireAuth(request.auth?.uid);
-  const caller = await getCaller(uid);
-  if (!canWriteMaintenance(caller)) {
-    throw new HttpsError('permission-denied', 'Insufficient permissions.');
-  }
-
-  await ensureDefaultMaintenanceEndpoint();
-  const settingsRef = db.collection('admin_settings').doc('maintenance');
-  const settingsSnap = await settingsRef.get();
-  const activeEndpointId = String(settingsSnap.data()?.activeEndpointId || DEFAULT_TRANSPORT_ENDPOINT_ID);
-  const previousEndpointId = String(settingsSnap.data()?.previousEndpointId || '').trim();
-  if (!previousEndpointId) {
-    throw new HttpsError('failed-precondition', 'No previous endpoint to rollback.');
-  }
-  const previousSnap = await db.collection('maintenance_endpoints').doc(previousEndpointId).get();
-  if (!previousSnap.exists || previousSnap.data()?.enabled === false) {
-    throw new HttpsError('failed-precondition', 'Previous endpoint is unavailable.');
-  }
-
-  const batch = db.batch();
-  batch.set(db.collection('maintenance_endpoints').doc(activeEndpointId), { active: false }, { merge: true });
-  batch.set(db.collection('maintenance_endpoints').doc(previousEndpointId), { active: true, updatedAt: FieldValue.serverTimestamp(), updatedBy: uid }, { merge: true });
-  batch.set(settingsRef, {
-    activeEndpointId: previousEndpointId,
-    previousEndpointId: activeEndpointId,
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: uid,
-  }, { merge: true });
-  await batch.commit();
-
-  await writeMaintenanceChange('rollback', previousEndpointId, uid, `Rollback: ${activeEndpointId} -> ${previousEndpointId}`);
-  await writeAudit('Konserwacja: rollback endpointu', `${activeEndpointId} -> ${previousEndpointId}`, 'edit_role', uid);
-  return { ok: true };
-});
+export const initializeMaintenance = maintenanceCall(false, async () => { await maintenance.initialize(); return { ok: true }; });
+export const saveMaintenanceEndpoint = maintenanceCall(true, (data, uid) => maintenance.save(data.endpoint || data, uid));
+export const testMaintenanceEndpoint = maintenanceCall(false, (data, uid) => maintenance.test(data, uid));
+export const setActiveMaintenanceEndpoint = maintenanceCall(true, (data, uid) => maintenance.activate(data.endpointId, uid));
+export const disableMaintenanceEndpoint = maintenanceCall(true, (data, uid) => maintenance.disable(data.endpointId, uid));
+export const rollbackMaintenanceEndpoint = maintenanceCall(true, (_, uid) => maintenance.rollback(uid));
 
 export const setOperatorRole = onCall(async (request) => {
   const uid = requireAuth(request.auth?.uid);

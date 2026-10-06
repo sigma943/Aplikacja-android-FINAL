@@ -27,6 +27,11 @@ jobs:
       - name: Test Application
         run: npm test
 
+      - name: Verify Maintenance Backend
+        run: |
+          npm --prefix functions ci
+          npm --prefix functions test
+
       - name: Build Android Web Assets
         run: npm run build:android:web
 

@@ -1,0 +1,55 @@
+name: Deploy Firebase maintenance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+      - name: Verify application, backend and rules
+        run: |
+          npm test
+          npm --prefix functions test
+          npm run test:rules
+      - name: Configure Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          raw = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON', '')
+          if not raw:
+              raise SystemExit('Add the FIREBASE_SERVICE_ACCOUNT_JSON repository secret before running this deployment.')
+          data = json.loads(raw)
+          if data.get('project_id') != 'aplikacja-b20fa':
+              raise SystemExit('Service account must belong to aplikacja-b20fa.')
+          key_path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'firebase-maintenance-key.json'
+          key_path.write_text(raw)
+          key_path.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'GOOGLE_APPLICATION_CREDENTIALS={key_path}\n')
+          PY
+      - name: Deploy maintenance functions and access rules
+        run: >-
+          npx firebase deploy --project aplikacja-b20fa --non-interactive
+          --only functions:initializeMaintenance,functions:saveMaintenanceEndpoint,functions:testMaintenanceEndpoint,functions:setActiveMaintenanceEndpoint,functions:disableMaintenanceEndpoint,functions:rollbackMaintenanceEndpoint,functions:transportGateway,firestore:rules
+      - name: Remove temporary credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-maintenance-key.json"

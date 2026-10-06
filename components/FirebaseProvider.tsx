@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { auth, db, functions } from '@/lib/firebase';
 import { ensureFirebaseUser, registerDeviceOnce } from '@/lib/firebase-session';
+import { setTransportRuntime } from '@/lib/transport-runtime';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
@@ -618,6 +619,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       window.clearTimeout(timeout);
       unsub();
     };
+  }, [user]);
+
+  useEffect(() => {
+    setTransportRuntime(null);
+    if (!user) return;
+    const unsubscribe = onSnapshot(doc(db, 'admin_settings', 'transport_runtime'),
+      snapshot => setTransportRuntime(snapshot.exists() ? snapshot.data() : null),
+      () => setTransportRuntime(null));
+    return () => { unsubscribe(); setTransportRuntime(null); };
   }, [user]);
 
   useEffect(() => {

@@ -1370,11 +1370,11 @@ export default function BusMap({
                className: 'stop-highlight-pin',
                html: `
                  <div class="relative flex flex-col items-center">
-                       <div class="w-8 h-8 bg-white rounded-full shadow-xl flex items-center justify-center border-[3px]" style="border-color: ${selectedRouteColor}">
-                       <div class="w-3 h-3 rounded-full animate-ping absolute" style="background-color: ${selectedRouteColor}"></div>
-                       <div class="w-4 h-4 rounded-full z-10" style="background-color: ${selectedRouteColor}"></div>
+                       <div class="w-8 h-8 bg-white rounded-full shadow-xl flex items-center justify-center border-[3px]" style="border-color: ${themeColor}">
+                       <div class="w-3 h-3 rounded-full animate-ping absolute" style="background-color: ${themeColor}"></div>
+                       <div class="w-4 h-4 rounded-full z-10" style="background-color: ${themeColor}"></div>
                     </div>
-                    <div class="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] -mt-1 shadow-xl" style="border-t-color: ${selectedRouteColor}"></div>
+                    <div class="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] -mt-1 shadow-xl" style="border-t-color: ${themeColor}"></div>
                  </div>
                `,
                iconSize: [32, 42],
@@ -1402,7 +1402,7 @@ export default function BusMap({
               stopsData={routeStopsData}
               stopIds={visibleRouteStopIds}
               highlightedStopId={highlightedStopId}
-              selectedRouteColor={selectedRouteColor}
+              selectedRouteColor={themeColor}
               onStopClick={onStopClick}
             />
           )}

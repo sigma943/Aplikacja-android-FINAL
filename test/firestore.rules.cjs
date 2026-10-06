@@ -27,6 +27,21 @@ beforeEach(async () => {
   });
 });
 
+test('runtime routing is readable by signed-in devices but cannot be changed directly by clients', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'admin_settings', 'transport_runtime'), { endpointId: 'backup', endpointUrl: 'https://api.example', fallbackEnabled: true });
+    await setDoc(doc(context.firestore(), 'maintenance_endpoints', 'backup'), { name: 'Backup', url: 'https://api.example' });
+  });
+  const user = env.authenticatedContext('user').firestore();
+  const owner = env.authenticatedContext('owner').firestore();
+  await assertSucceeds(getDoc(doc(user, 'admin_settings', 'transport_runtime')));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'admin_settings', 'transport_runtime')));
+  await assertFails(updateDoc(doc(user, 'admin_settings', 'transport_runtime'), { endpointUrl: 'https://changed.example' }));
+  await assertFails(updateDoc(doc(owner, 'admin_settings', 'transport_runtime'), { endpointUrl: 'https://changed.example' }));
+  await assertFails(getDoc(doc(user, 'maintenance_endpoints', 'backup')));
+  await assertSucceeds(getDoc(doc(owner, 'maintenance_endpoints', 'backup')));
+});
+
 test('owner atomically grants a role and creates a previously missing installation profile', async () => {
   const db = env.authenticatedContext('owner').firestore();
   const batch = writeBatch(db);

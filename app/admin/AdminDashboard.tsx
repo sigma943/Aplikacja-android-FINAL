@@ -1226,8 +1226,8 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     <div
       className={
         embedded
-          ? cn('flex h-full min-h-0 flex-1 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light', transparentUI && 'pks-panel-scope')
-          : cn('flex h-screen min-h-0 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
+          ? cn('pks-panel-scope flex h-full min-h-0 flex-1 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
+          : cn('pks-panel-scope flex h-screen min-h-0 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
       }
       style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
       data-glass={embedded && transparentUI ? 'on' : 'off'}

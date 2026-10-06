@@ -4,7 +4,7 @@ const puppeteer=require('puppeteer');
 const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root;const productionRoot=path.resolve('out');
 const server=http.createServer((req,res)=>{
   const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
-  let file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
+  let file=path.resolve(root,'.'+(pathname.endsWith('/')?`${pathname}index.html`:pathname));
   if(!file.startsWith(root+path.sep)){res.writeHead(404);res.end();return;}
   if(!fs.existsSync(file))file=path.resolve(productionRoot,'.'+pathname);
   if(!file.startsWith(productionRoot+path.sep)&&!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
@@ -94,6 +94,10 @@ const server=http.createServer((req,res)=>{
       await new Promise(resolve=>setTimeout(resolve,600));
     };
     await showStopOnMap();
+    assert.equal(await style('.stop-highlight-pin [style*="border-color"]','borderTopColor'),'rgb(59, 130, 246)','selected stop follows the saved accent');
+    await accent('Fioletowy');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.stop-highlight-pin [style*="border-color"]')).borderTopColor==='rgb(139, 92, 246)');
+    await accent('Niebieski');
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.glass),'on','fresh install enables glass');
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'false','show on map opens compact card');
     assert.ok(await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height)<120);
@@ -113,10 +117,43 @@ const server=http.createServer((req,res)=>{
     await page.reload({waitUntil:'domcontentloaded'});await openStops();await showStopOnMap();
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.glass),'off','saved glass preference survives reload');
     await page.click('[aria-label="Rozwiń panel przystanku"]');await screenshot('map-stop-amoled-solid');
-    assert.equal(await style('[data-map-stop-sheet]','backgroundColor'),'rgb(23, 33, 43)','AMOLED surfaces are brighter than the black canvas');
+    assert.equal(await style('[data-map-stop-sheet]','backgroundColor'),'rgb(20, 29, 38)','AMOLED surfaces use the balanced palette');
+    assert.equal(await style('.pks-navigation','backgroundColor'),'rgb(20, 29, 38)','AMOLED navigation shares the surface palette');
+    await page.evaluate(()=>localStorage.setItem('mks_transparent','true'));
+    await page.reload({waitUntil:'domcontentloaded'});await openStops();await showStopOnMap();
+    const oledGlass=await style('[data-map-stop-sheet]','backgroundColor');
+    assert.equal(await style('.pks-navigation','backgroundColor'),oledGlass,'AMOLED glass is consistent between navigation and stop panel');
+    await screenshot('map-stop-amoled-glass');
+    await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));
+    await page.reload({waitUntil:'domcontentloaded'});await openStops();await showStopOnMap();
+    assert.notEqual(await style('[data-map-stop-sheet]','backgroundColor'),oledGlass,'dark and AMOLED have distinct glass palettes');
+    await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
+    await button('Dodaj');
+    await page.waitForFunction(()=>document.querySelector('[aria-label="Adres API"]').value==='');
+    await page.click('[aria-label="Nazwa endpointu"]',{clickCount:3});await page.type('[aria-label="Nazwa endpointu"]','Backup UI');
+    await page.type('[aria-label="Adres API"]','https://backup.example');
+    await button('Testuj ponownie');
+    await page.waitForFunction(()=>window.__maintenanceCalls.some(call=>call.name==='testMaintenanceEndpoint'&&call.data.url==='https://backup.example'));
+    await page.waitForFunction(()=>[...document.querySelectorAll('[role="status"]')].some(el=>el.textContent.includes('Połączenie z API działa')));
+    await button('Zapisz zmiany');
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Ustaw jako aktywny'&&!el.disabled));
+    await button('Ustaw jako aktywny');
+    await page.waitForFunction(()=>window.__maintenanceCalls.some(call=>call.name==='setActiveMaintenanceEndpoint'&&call.data.endpointId==='created-endpoint'));
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Przywróć poprzedni endpoint'&&!el.disabled));
+    await button('Przywróć poprzedni endpoint');
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Wyłącz endpoint'&&!el.disabled));
+    await button('Wyłącz endpoint');
+    await page.waitForFunction(()=>[...document.querySelectorAll('label')].some(el=>el.textContent.includes('Endpoint włączony')&&!el.querySelector('input').checked));
+    await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Endpoint włączony')).querySelector('input').click());
+    await button('Zapisz zmiany');
+    await page.waitForFunction(()=>window.__maintenanceCalls.some(call=>call.name==='saveMaintenanceEndpoint'&&call.data.endpoint.id==='created-endpoint'&&call.data.endpoint.enabled));
+    await screenshot('maintenance-mobile');
+    await button('Historia zmian');await page.waitForFunction(()=>document.body.innerText.includes('rollbackMaintenanceEndpoint'));
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
     console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');
+    console.log('Browser: real maintenance controls add a draft, test its URL, retain the saved ID, activate, roll back, disable, re-enable and display history. Firebase calls use a fixture adapter; backend behaviour is tested separately.');
   }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error(await page.evaluate(()=>[...document.querySelectorAll('.transit-view,.transit-stop-card,.transit-stop-card button')].map(el=>({tag:el.tagName,rect:el.getBoundingClientRect().toJSON(),display:getComputedStyle(el).display}))).catch(()=>[]));console.error('Page errors:',errors);throw error;}
   finally{await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
 })().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});

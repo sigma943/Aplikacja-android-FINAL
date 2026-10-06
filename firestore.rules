@@ -455,8 +455,8 @@ service cloud.firestore {
 
     match /admin_settings/{settingId} {
       allow read: if isSignedIn() && isValidId(settingId) &&
-        (settingId == 'security' || canReadGlobalAdminSettings());
-      allow create, update: if isSignedIn() && isValidId(settingId) && canWriteGlobalAdminSettings();
+        (settingId == 'security' || settingId == 'transport_runtime' || canReadGlobalAdminSettings());
+      allow create, update: if isSignedIn() && isValidId(settingId) && settingId != 'transport_runtime' && canWriteGlobalAdminSettings();
       allow delete: if false;
     }
 
