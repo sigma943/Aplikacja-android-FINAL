@@ -342,7 +342,7 @@ export default function Home() {
     if (typeof window === 'undefined') return false;
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
   });
-  const [transparentUI, setTransparentUI] = useState(true);
+  const [transparentUI, setTransparentUI] = useState(false);
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
@@ -1333,17 +1333,19 @@ export default function Home() {
           ? 'border-[#8a7b5f]/18 bg-[#f2ede1]/42 text-[#746a58] shadow-[0_-18px_60px_rgba(93,79,50,0.14)] backdrop-blur-2xl'
           : 'border-slate-900/10 bg-white/44 text-slate-500 shadow-[0_-18px_60px_rgba(15,23,42,0.12)] backdrop-blur-2xl')
      : (isDark ? 'border-slate-800 bg-slate-900 text-slate-400 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]' : 'border-slate-200 bg-white text-slate-500 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]');
-  const optionsOverlay = isDark ? 'bg-black/48 backdrop-blur-md' : 'bg-slate-950/20 backdrop-blur-md';
+  const optionsOverlay = transparentUI
+     ? (isDark ? 'bg-black/16 backdrop-blur-sm' : 'bg-slate-950/8 backdrop-blur-sm')
+     : (isDark ? 'bg-black/48' : 'bg-slate-950/20');
   const optionsSheet = transparentUI
      ? (isDark
         ? isAurora
-          ? 'border-fuchsia-300/16 bg-[#111026]/88 text-white shadow-[0_-34px_100px_rgba(5,3,20,0.68)] backdrop-saturate-150'
+          ? 'border-fuchsia-300/16 bg-[#111026]/55 text-white shadow-[0_-34px_100px_rgba(5,3,20,0.68)] backdrop-blur-2xl backdrop-saturate-150'
           : isOled
-            ? 'border-white/10 bg-black/88 text-white shadow-[0_-34px_100px_rgba(0,0,0,0.76)] backdrop-saturate-150'
-            : 'border-white/10 bg-[#0d1425]/88 text-white shadow-[0_-34px_100px_rgba(4,8,18,0.68)] backdrop-saturate-150'
+            ? 'border-white/10 bg-black/55 text-white shadow-[0_-34px_100px_rgba(0,0,0,0.76)] backdrop-blur-2xl backdrop-saturate-150'
+            : 'border-white/10 bg-[#0d1425]/55 text-white shadow-[0_-34px_100px_rgba(4,8,18,0.68)] backdrop-blur-2xl backdrop-saturate-150'
         : isWarm
-          ? 'border-[#8a7b5f]/18 bg-[#f7f0df]/86 text-[#272116] shadow-[0_-30px_90px_rgba(93,79,50,0.24)] backdrop-saturate-150'
-          : 'border-white/70 bg-white/86 text-slate-950 shadow-[0_-30px_90px_rgba(15,23,42,0.18)] backdrop-saturate-150')
+          ? 'border-[#8a7b5f]/18 bg-[#f7f0df]/62 text-[#272116] shadow-[0_-30px_90px_rgba(93,79,50,0.24)] backdrop-blur-2xl backdrop-saturate-150'
+          : 'border-white/70 bg-white/62 text-slate-950 shadow-[0_-30px_90px_rgba(15,23,42,0.18)] backdrop-blur-2xl backdrop-saturate-150')
      : (isDark ? 'border-slate-700/60 bg-slate-900 text-white shadow-2xl' : 'border-slate-200 bg-white text-slate-950 shadow-2xl');
   const optionsCard = transparentUI
      ? (isDark ? 'border-white/10 bg-white/[0.06]' : isWarm ? 'border-[#8a7b5f]/14 bg-white/38' : 'border-slate-900/10 bg-white/54')
@@ -1622,15 +1624,16 @@ export default function Home() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className={`absolute inset-0 z-[25] flex min-h-0 flex-col ${isDark ? 'bg-[#040609]' : isWarm ? 'bg-[#f2ede1]' : 'bg-slate-50'}`}
+                  className={`absolute inset-0 z-[25] flex min-h-0 flex-col ${transparentUI ? 'pks-glass-frame' : isDark ? 'bg-[#040609]' : isWarm ? 'bg-[#f2ede1]' : 'bg-slate-50'}`}
+                  data-panel-theme={isDark ? 'dark' : 'light'}
                >
-                  <AdminDashboard embedded themeColor={themeColor} isDarkTheme={isDark} onExit={() => setActiveTab(isMapTabDisabled ? 'stops' : 'map')} />
+                  <AdminDashboard embedded transparentUI={transparentUI} themeColor={themeColor} isDarkTheme={isDark} onExit={() => setActiveTab(isMapTabDisabled ? 'stops' : 'map')} />
                </motion.div>
             )}
          </AnimatePresence>
 
          {/* ============== MAP VIEW ============== */}
-         <div className="absolute inset-0 z-0">
+         <div className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
             <BusMap 
                vehicles={filteredVehicles} 
                onVehicleClick={handleVehicleClick}
@@ -1654,7 +1657,7 @@ export default function Home() {
              />
 
             {/* Overlays for Map */}
-            <div className="absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className={`absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none ${activeTab === 'map' ? 'flex' : 'hidden'} flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
               
               {/* Top Box Mobile / Desktop */}
               <div className={`${mapGlassPanel} rounded-[1.4rem] border p-3 md:p-4 flex flex-col gap-3 pointer-events-auto w-full md:w-96 transition-all`}>
@@ -2157,9 +2160,10 @@ export default function Home() {
             transition={{ type: 'spring', stiffness: 700, damping: 35 }}
             className={`absolute inset-0 z-10 overflow-hidden ${activeTab === 'stops' ? 'pointer-events-auto' : 'pointer-events-none'} ${
                transparentUI
-                 ? 'bg-slate-950/88 backdrop-blur-2xl backdrop-saturate-150 before:pointer-events-none before:absolute before:inset-0 before:bg-white/[0.025] before:content-[""]'
-                 : 'bg-[#03060a]'
+                 ? 'pks-glass-frame'
+                 : isDark ? 'bg-[#03060a]' : 'bg-slate-50'
             }`}
+            data-panel-theme={isDark ? 'dark' : 'light'}
             aria-hidden={activeTab !== 'stops'}
          >
             {hasOpenedStops && <StopsPanel
@@ -2189,7 +2193,7 @@ export default function Home() {
       </div>
 
          {/* Bottom Navigation for Mobile */}
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] md:hidden">
+      <div className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
          <div className={`pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${bottomGlassShell}`}>
             <button 
                disabled={isMapTabDisabled}
@@ -2241,7 +2245,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm md:items-center md:p-6 ${optionsOverlay}`}
+            className={`absolute inset-0 z-[6000] flex items-end justify-center md:items-center md:p-6 ${optionsOverlay}`}
             onClick={(e) => e.stopPropagation()}
           >
             <motion.div 
@@ -2249,7 +2253,7 @@ export default function Home() {
                animate={{ y: 0, opacity: 1, scale: 1 }}
                exit={{ y: "100%", opacity: 0, scale: 0.96 }}
                transition={{ type: "spring", stiffness: 700, damping: 35 }}
-               className={`w-full max-w-2xl max-h-[92vh] pointer-events-auto overflow-hidden rounded-t-[2rem] border-t px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 backdrop-blur-3xl md:max-w-[560px] md:rounded-[1.75rem] md:border md:p-6 ${optionsSheet}`}
+               className={`${transparentUI ? 'w-[calc(100%-1rem)] mx-2' : 'w-full'} max-w-2xl max-h-[92vh] pointer-events-auto overflow-hidden rounded-t-[2rem] border-t px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 md:mx-0 md:w-full md:max-w-[560px] md:rounded-[1.75rem] md:border md:p-6 ${optionsSheet}`}
             >
                <div className="mb-5 flex items-center justify-between md:mb-6">
                   <h2 className="text-2xl font-light tracking-tight md:text-2xl">Opcje aplikacji</h2>
@@ -2311,7 +2315,7 @@ export default function Home() {
                            <Sparkles className="h-7 w-7 shrink-0" style={{ color: themeColor }} />
                            <div className="flex flex-col">
                               <span className="text-base font-semibold md:text-base">Efekt przezroczystości UI</span>
-                              <span className={`mt-1.5 text-xs leading-relaxed ${textSub}`}>Rozmycie tła interfejsu (starsze urządzenia mogą zwolnić)</span>
+                              <span className={`mt-1.5 text-xs leading-relaxed ${textSub}`}>Mapa za szkłem w panelach, przystankach i menu admina. Starsze urządzenia mogą zwolnić.</span>
                            </div>
                         </div>
                         <div className={`relative h-9 w-16 flex-shrink-0 rounded-full transition-colors ${transparentUI ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: transparentUI ? themeColor : '' }}>
