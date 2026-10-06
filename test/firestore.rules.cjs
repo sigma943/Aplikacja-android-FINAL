@@ -139,6 +139,7 @@ test('Spark client persists, tests, activates, rolls back and disables with real
     assert.equal((await getDoc(doc(db, 'maintenance_endpoints', initial.endpointId))).data().lastTest, undefined);
     const { data: { endpointId } } = await client.callSaveEndpoint({ endpoint: endpointDraft });
     assert.ok(endpointId);
+    assert.equal((await getDocs(collection(db, 'maintenance_endpoints'))).size, 2);
     assert.equal((await client.callTestEndpoint({ endpointId })).data.result.ok, true);
     await client.callSetActive({ endpointId });
     assert.equal((await getDoc(doc(db, 'admin_settings', 'transport_runtime'))).data().endpointUrl, endpointDraft.url);
@@ -157,6 +158,7 @@ test('Spark client persists, tests, activates, rolls back and disables with real
     const user = sparkClient('user', env.authenticatedContext('user').firestore());
     await assert.rejects(user.callSaveEndpoint({ endpoint: endpointDraft }), error => error.code === 'permission-denied');
     await assertFails(setDoc(doc(env.authenticatedContext('user').firestore(), 'maintenance_endpoints', 'forged'), endpointDraft));
+    await assertFails(getDocs(collection(env.authenticatedContext('user').firestore(), 'maintenance_changes')));
   } finally { /* Health requests are isolated from the emulator transport. */ }
 });
 

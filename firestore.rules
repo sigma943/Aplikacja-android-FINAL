@@ -515,13 +515,13 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /maintenance_endpoints/{endpointId} {
-      allow read: if isValidId(endpointId) && maintenanceReader();
+      allow read: if maintenanceReader();
       allow create: if isValidId(endpointId) && maintenanceEditor() && validEndpoint(incoming(), endpointId) && incoming().createdAt == request.time;
       allow update: if isValidId(endpointId) && maintenanceEditor() && validEndpoint(incoming(), endpointId) && incoming().createdAt == existing().createdAt;
       allow delete: if false;
     }
     match /maintenance_changes/{changeId} {
-      allow read: if isValidId(changeId) && maintenanceReader();
+      allow read: if maintenanceReader();
       allow create: if isValidId(changeId) && maintenanceEditor() &&
         incoming().keys().hasOnly(['action', 'endpointId', 'actorId', 'summary', 'before', 'after', 'createdAt']) &&
         incoming().action in ['save', 'test', 'activate', 'disable', 'rollback'] &&
