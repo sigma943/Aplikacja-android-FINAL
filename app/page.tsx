@@ -1,6 +1,7 @@
 'use client';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {busOperatingState} from '@/lib/bus-operating-state';
+import { busPunctuality } from '@/lib/bus-punctuality';
 
 import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
@@ -1893,16 +1894,15 @@ export default function Home() {
                                  <Clock className="w-3 h-3 md:w-3.5 md:h-3.5" /> Punktualność
                               </div>
                               {(() => {
-                                 let d = selectedBus.delay || 0;
-                                 if (Math.abs(d) > 18000) d = 0; // Ignore absurd delays (e.g. > 5 hours) to prevent UI breakage
-                                 const m = Math.floor(Math.abs(d) / 60);
-                                 if (m === 0) return (
-                                   <div className={`flex flex-col items-start ${textMain}`}>
+                                 const punctuality = busPunctuality(selectedBus.delay || 0, textMain);
+                                 const m = punctuality.minutes;
+                                 if (punctuality.status === 'on_time') return (
+                                   <div className={`flex flex-col items-start ${punctuality.colorClass}`}>
                                      <span className="text-sm md:text-base font-bold leading-tight">Zgodnie z planem</span>
                                    </div>
                                  );
-                                 if (d < 0) return (
-                                   <div className="flex flex-col text-emerald-500 items-start">
+                                 if (punctuality.status === 'early') return (
+                                   <div className={`flex flex-col items-start ${punctuality.colorClass}`}>
                                      <div className="flex items-baseline gap-1">
                                        <span className="text-xl font-bold leading-none">{m}</span>
                                        <span className="text-sm font-medium">min</span>
@@ -1911,7 +1911,7 @@ export default function Home() {
                                    </div>
                                  );
                                  return (
-                                   <div className="flex flex-col text-rose-500 items-start">
+                                   <div className={`flex flex-col items-start ${punctuality.colorClass}`}>
                                      <div className="flex items-baseline gap-1">
                                        <span className="text-xl font-bold leading-none">{m}</span>
                                        <span className="text-sm font-medium">min</span>
@@ -1956,11 +1956,8 @@ export default function Home() {
                                 const rawLooksPlanned = Boolean(realTimeRaw && plannedTime && Math.abs(realTimeRaw.getTime() - plannedTime.getTime()) < 60_000);
                                 const realTime = rawLooksPlanned ? (computedDelayTime || realTimeRaw) : (realTimeRaw || computedDelayTime);
                                 const displayTime = realTime || plannedTime;
-                                let delayMin = 0;
-                                if (realTime && plannedTime) delayMin = Math.round((realTime.getTime() - plannedTime.getTime()) / 60000);
-                                const busDelayMin = canUseBusDelay && busDelaySec !== 0
-                                  ? Math.round(busDelaySec / 60)
-                                  : delayMin;
+                                const stopDelaySec = realTime && plannedTime ? (realTime.getTime() - plannedTime.getTime()) / 1000 : 0;
+                                const punctuality = busPunctuality(canUseBusDelay ? busDelaySec : stopDelaySec, textMain);
                                 const formatTime = (time: Date) => {
                                    const isTomorrow = time.getDate() !== new Date().getDate();
                                    const mm = time.getMinutes().toString().padStart(2, '0');
@@ -1973,7 +1970,7 @@ export default function Home() {
                                    return `${hh}:${mm}`;
                                 };
                                 const timeStr = displayTime ? formatTime(displayTime) : '';
-                                const timeClass = busDelayMin > 0 ? 'text-rose-500' : busDelayMin < 0 ? 'text-emerald-500' : textMain;
+                                const timeClass = punctuality.colorClass;
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = Boolean(sch.isPast) || Boolean(selectedBus.lastStopId && sch.id === selectedBus.lastStopId);
                                 return (
