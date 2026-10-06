@@ -13,6 +13,7 @@ import { Capacitor } from '@capacitor/core';
 import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, Eye, Palette, Monitor, Sun, Moon, Sparkles, CloudOff, Shield, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
+import MapStopSheet from '@/components/MapStopSheet';
 import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
 import TrainDetailsPanel from '@/components/TrainDetailsPanel';
 import { warsawDateIso, warsawTimeMs } from '@/lib/transit-time';
@@ -350,7 +351,7 @@ export default function Home() {
     if (typeof window === 'undefined') return false;
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
   });
-  const [transparentUI, setTransparentUI] = useState(false);
+  const [transparentUI, setTransparentUI] = useState(true);
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
@@ -374,7 +375,7 @@ export default function Home() {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [stopDeparturesError,setStopDeparturesError] = useState<string|null>(null);
   const [selectedExternalStop, setSelectedExternalStop] = useState<StopsPanelStop | null>(null);
-  const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(true);
+  const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(false);
   const [stopDepartures, setStopDepartures] = useState<any[]>([]);
   const [isFetchingDepartures, setIsFetchingDepartures] = useState(false);
   const stopDeparturesCacheRef = useRef<Map<string, { savedAt: number; journeys: any[] }>>(new Map());
@@ -1276,12 +1277,12 @@ export default function Home() {
 
   const bgMain = isDark ? (isOled ? 'bg-black' : isAurora ? 'bg-[#120f24]' : 'bg-slate-900') : (isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
   const bgCard = transparentUI 
-     ? (isDark ? (isOled ? 'bg-black/80 backdrop-blur-xl border-slate-800/50' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : 'bg-white/90 backdrop-blur-md border-slate-100/50')
-     : (isDark ? (isOled ? 'bg-[#0a0a0a] border-slate-800' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : 'bg-white border-slate-200');
+     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : 'bg-white/90 backdrop-blur-md border-slate-100/50')
+     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : 'bg-white border-slate-200');
   const mapGlassPanel = transparentUI
      ? (isDark
         ? isOled
-          ? 'bg-black/24 backdrop-blur-2xl border-white/12 shadow-[0_18px_60px_rgba(0,0,0,0.28)]'
+          ? 'bg-[#18232f]/30 backdrop-blur-2xl border-white/12 shadow-[0_18px_60px_rgba(0,0,0,0.28)]'
           : isAurora
             ? 'bg-[#120f24]/28 backdrop-blur-2xl border-fuchsia-300/18 shadow-[0_18px_60px_rgba(12,8,28,0.22)]'
             : 'bg-[#07131a]/26 backdrop-blur-2xl border-white/12 shadow-[0_18px_60px_rgba(0,0,0,0.22)]'
@@ -1296,35 +1297,9 @@ export default function Home() {
           ? 'bg-[#fffaf0]/36 text-[#272116] placeholder-[#746a58]/75 border border-[#8a7b5f]/16 backdrop-blur-xl'
           : 'bg-white/36 text-slate-950 placeholder-slate-500 border border-slate-900/12 backdrop-blur-xl')
      : (isDark ? 'bg-slate-800 text-white placeholder-slate-400' : 'bg-slate-100/50 text-slate-900 placeholder-slate-500');
-  const mapDetailPanel = transparentUI
-     ? (isDark
-        ? isOled
-          ? 'bg-black/88 backdrop-blur-3xl backdrop-saturate-150 border-white/12 shadow-[0_-28px_90px_rgba(0,0,0,0.72)]'
-          : isAurora
-            ? 'bg-[#151029]/90 backdrop-blur-3xl backdrop-saturate-150 border-fuchsia-300/18 shadow-[0_-28px_90px_rgba(10,6,26,0.66)]'
-            : 'bg-[#07131a]/90 backdrop-blur-3xl backdrop-saturate-150 border-white/12 shadow-[0_-28px_90px_rgba(0,0,0,0.56)]'
-        : isWarm
-          ? 'bg-[#f7f0df]/94 backdrop-blur-3xl backdrop-saturate-150 border-[#8a7b5f]/18 shadow-[0_-24px_75px_rgba(93,79,50,0.24)]'
-          : 'bg-white/94 backdrop-blur-3xl backdrop-saturate-150 border-white/70 shadow-[0_-24px_75px_rgba(15,23,42,0.18)]')
-     : (isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100');
-  const mapDetailContent = transparentUI
-     ? (isDark
-        ? isAurora
-          ? 'bg-[#100d24]/92 backdrop-blur-3xl'
-          : isOled
-            ? 'bg-black/90 backdrop-blur-3xl'
-            : 'bg-[#061017]/92 backdrop-blur-3xl'
-        : isWarm
-          ? 'bg-[#fff7e8]/94 backdrop-blur-3xl'
-          : 'bg-white/94 backdrop-blur-3xl')
-     : bgMain;
-  const mapDetailCard = transparentUI
-     ? (isDark
-        ? 'bg-[#0d1622]/96 border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.16)]'
-        : isWarm
-          ? 'bg-[#fffaf0]/96 border-[#8a7b5f]/18 shadow-[0_8px_24px_rgba(93,79,50,0.12)]'
-          : 'bg-white/96 border-white/65 shadow-[0_8px_24px_rgba(15,23,42,0.10)]')
-     : (isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100');
+  const mapDetailPanel = 'map-detail-shell';
+  const mapDetailContent = 'map-detail-body';
+  const mapDetailCard = 'map-detail-row';
   const mapDetailDivider = transparentUI
      ? (isDark ? 'border-white/10' : isWarm ? 'border-[#8a7b5f]/16' : 'border-white/55')
      : (isDark ? 'border-slate-700' : 'border-slate-100');
@@ -1334,7 +1309,7 @@ export default function Home() {
   const bottomGlassShell = transparentUI
      ? (isDark
         ? isOled
-          ? 'border-white/10 bg-black/28 text-slate-300 shadow-[0_-18px_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl'
+          ? 'border-white/10 bg-[#18232f]/32 text-slate-300 shadow-[0_-18px_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl'
           : isAurora
             ? 'border-fuchsia-300/16 bg-[#120f24]/32 text-violet-100/75 shadow-[0_-18px_70px_rgba(12,8,28,0.30)] backdrop-blur-2xl'
             : 'border-white/10 bg-[#07131a]/30 text-slate-300 shadow-[0_-18px_70px_rgba(0,0,0,0.30)] backdrop-blur-2xl'
@@ -1350,7 +1325,7 @@ export default function Home() {
         ? isAurora
           ? 'border-fuchsia-300/16 bg-[#111026]/55 text-white shadow-[0_-34px_100px_rgba(5,3,20,0.68)] backdrop-blur-2xl backdrop-saturate-150'
           : isOled
-            ? 'border-white/10 bg-black/55 text-white shadow-[0_-34px_100px_rgba(0,0,0,0.76)] backdrop-blur-2xl backdrop-saturate-150'
+            ? 'border-white/10 bg-[#18232f]/58 text-white shadow-[0_-34px_100px_rgba(0,0,0,0.76)] backdrop-blur-2xl backdrop-saturate-150'
             : 'border-white/10 bg-[#0d1425]/55 text-white shadow-[0_-34px_100px_rgba(4,8,18,0.68)] backdrop-blur-2xl backdrop-saturate-150'
         : isWarm
           ? 'border-[#8a7b5f]/18 bg-[#f7f0df]/62 text-[#272116] shadow-[0_-30px_90px_rgba(93,79,50,0.24)] backdrop-blur-2xl backdrop-saturate-150'
@@ -1429,11 +1404,11 @@ export default function Home() {
       const match=normalize(place.join(' - ')||city);
       external.providerStopIds={marcelMatchKeys:match,marcelCityMatchKeys:normalize(city)+'|'+match};
     }
-    setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(true);setIsTransportPanelOpen(false);
+    setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);
   };
   const selectedBusHeaderStyle = {
     background: transparentUI
-      ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.9)}, ${withAlpha(selectedVehicleColor, 0.68)})`
+      ? `linear-gradient(135deg, ${withAlpha(selectedVehicleColor, 0.48)}, ${withAlpha(selectedVehicleColor, 0.28)})`
       : selectedVehicleColor,
   } as React.CSSProperties;
   const showAlertDot = Boolean(error || isOffline);
@@ -1531,8 +1506,8 @@ export default function Home() {
         
         /* OLED Theme Overrides */
         .theme-oled .bg-slate-900:not(.mks-bus-marker *) { background-color: #000000 !important; }
-        .theme-oled .bg-slate-800:not(.mks-bus-marker *) { background-color: #050505 !important; }
-        .theme-oled .bg-slate-700:not(.mks-bus-marker *) { background-color: #0a0a0a !important; }
+        .theme-oled .bg-slate-800:not(.mks-bus-marker *) { background-color: #1a2430 !important; }
+        .theme-oled .bg-slate-700:not(.mks-bus-marker *) { background-color: #24313e !important; }
         .theme-oled .border-slate-800:not(.mks-bus-marker *) { border-color: transparent !important; }
         .theme-oled .border-slate-700:not(.mks-bus-marker *) { border-color: transparent !important; }
         .theme-oled .border-slate-700\\/50 { border-color: transparent !important; }
@@ -1541,7 +1516,7 @@ export default function Home() {
         .theme-oled .bg-slate-900\\/60:not(.mks-bus-marker *) { background-color: rgba(0,0,0,0.6) !important; }
         .theme-oled .bg-slate-900\\/80:not(.mks-bus-marker *) { background-color: rgba(0,0,0,0.8) !important; }
         .theme-oled .bg-slate-900\\/85:not(.mks-bus-marker *) { background-color: rgba(0,0,0,0.85) !important; }
-        .theme-oled .bg-slate-800\\/40:not(.mks-bus-marker *) { background-color: rgba(5,5,5,0.4) !important; }
+        .theme-oled .bg-slate-800\\/40:not(.mks-bus-marker *) { background-color: rgba(26,36,48,0.4) !important; }
 
         /* Aurora Theme Overrides */
         .theme-aurora .bg-slate-900:not(.mks-bus-marker *) { background-color: #120f24 !important; }
@@ -1812,6 +1787,9 @@ export default function Home() {
               ) : selectedBus && (
                 <motion.div
                   key="bus-panel-map"
+                  data-map-bus-sheet
+                  data-glass={transparentUI ? 'on' : 'off'}
+                  data-ui-mode={isDark ? 'dark' : 'light'}
                   initial={{ y: "100%", opacity: 0.5 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: "100%", opacity: 0.5 }}
@@ -2028,136 +2006,25 @@ export default function Home() {
               {/* New Stop Overlay on Map */}
               <AnimatePresence>
                 {activeTab === 'map' && selectedStopId && !selectedBus && (
-                  <motion.div
+                  <MapStopSheet
                     key="stop-panel-map"
-                    initial={{ y: "100%", opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: "100%", opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                    drag="y"
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={0.2}
-                    onDragEnd={(e, info) => {
-                       const swipeThreshold = 50;
-                       if (info.offset.y > swipeThreshold) {
-                          if (isStopPanelExpanded) setIsStopPanelExpanded(false);
-                          else {
-                            setSelectedStopId(null);
-                            setSelectedExternalStop(null);
-                          }
-                       } else if (info.offset.y < -swipeThreshold) {
-                          if (!isStopPanelExpanded) setIsStopPanelExpanded(true);
-                       }
-                    }}
-                    className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[380px] rounded-t-[32px] md:rounded-[32px] border-t border-l border-r md:border z-40 overflow-hidden flex flex-col max-h-[calc(55vh-32px)] md:max-h-[85vh] ${mapDetailPanel}`}
-                  >
-                     {/* Header */}
-                     <motion.div 
-                        className="p-4 pb-6 text-white relative shrink-0 cursor-pointer" 
-                        style={{
-                          background: transparentUI
-                            ? `linear-gradient(135deg, ${withAlpha(themeColor, 0.9)}, ${withAlpha(themeColor, 0.68)})`
-                            : themeColor,
-                        }}
-                        onClick={() => setIsStopPanelExpanded(!isStopPanelExpanded)}
-                     >
-                        <div 
-                           className="w-12 h-1.5 rounded-full bg-white/30 hover:bg-white/50 mx-auto mb-4 transition-colors relative z-[51]"
-                        />
-                        <div className="flex justify-between items-start mt-2 px-1">
-                           <h2 className="text-2xl md:text-3xl font-black leading-tight drop-shadow-md pr-4">
-                              {selectedExternalStop?.name || stopsList.find(s => s.id === selectedStopId)?.name || 'Przystanek'}
-                           </h2>
-
-                           <div className="flex items-center gap-2 relative z-[51]"></div>
-                        </div>
-                     </motion.div>
-
-                     {/* Content */}
-                     <AnimatePresence initial={false}>
-                       {isStopPanelExpanded && (
-                         <motion.div
-                           initial={{ height: 0, opacity: 0 }}
-                           animate={{ height: 'auto', opacity: 1 }}
-                           exit={{ height: 0, opacity: 0 }}
-                           transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                           className="flex flex-col min-h-0 overflow-hidden"
-                         >
-                            <div className={`flex flex-col overflow-hidden mt-3 rounded-[28px] relative z-10 shadow-2xl ${mapDetailContent}`}>
-                               <div 
-                                  className="overflow-y-auto custom-scrollbar px-4 md:px-5"
-                                  onPointerDown={(e) => e.stopPropagation()}
-                               >
-                                  <div className="flex flex-col gap-2 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-5 md:pb-12">
-                                     <div className={`mb-1 flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.14em] ${textSub}`}>
-                                       <Clock className="h-4 w-4" />
-                                       Najbliższe odjazdy
-                                     </div>
-                                     {stopDeparturesError && <p role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{stopDeparturesError}</p>}
-                                     {isFetchingDepartures ? (
-                                        <div className="p-12 text-center flex flex-col items-center">
-                                           <div className="w-10 h-10 mb-5 border-3 rounded-full animate-spin" style={{ borderColor: `${themeColor}20`, borderTopColor: themeColor }}></div>
-                                           <p className={`text-sm font-bold tracking-tight ${textMain}`}>Pobieranie rozkładu...</p>
-                                           <p className={`text-xs mt-1 ${textSub}`}>To może chwilę potrwać</p>
-                                        </div>
-                                     ) : processedDepartures.length === 0 ? (
-                                        <div className={`p-10 rounded-[32px] border-2 border-dashed text-center ${transparentUI ? (isDark ? 'border-white/10 bg-[#05080c]/92' : 'border-slate-900/10 bg-white/94') : (isDark ? 'border-slate-800' : 'border-slate-200')}`}>
-                                           <p className={`text-base font-bold ${textMain}`}>{stopDeparturesError ? 'Rozkład niedostępny' : 'Brak odjazdów'}</p>
-                                           <p className={`text-xs mt-1 ${textSub}`}>{stopDeparturesError ? 'Spróbuj ponownie za chwilę' : 'Sprawdź inne godziny lub dni'}</p>
-                                         </div>
-                                       ) : (
-                                          (() => {
-                                             const elements: any[] = [];
-                                             let lastDayStr = '';
-                                             const todayStr = new Date(now).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
-                                             
-                                             processedDepartures.slice(0, 40).forEach((inc: any, idx: number) => {
-                                                const d = new Date(Number.isFinite(inc.plannedTimeMs) ? inc.plannedTimeMs : inc.depTimeMs);
-                                                const dayStr = d.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
-                                                
-                                                if (dayStr !== lastDayStr && dayStr !== todayStr.toUpperCase()) {
-                                                   elements.push(
-                                                      <div key={`day-marker-${idx}`} className={`mt-8 mb-5 text-[11px] font-black uppercase tracking-[0.15em] opacity-40 ml-1 ${textSub}`}>
-                                                         {dayStr}
-                                                      </div>
-                                                   );
-                                                }
-                                                lastDayStr = dayStr;
-                                                const lineColor = inc.providerId === 'mpk_rzeszow'
-                                                   ? MPK_RZESZOW_COLOR
-                                                   : inc.providerId === 'marcel'
-                                                     ? MARCEL_COLOR
-                                                     : PKS_COLOR;
-                                                
-                                                elements.push(
-                                                   <div key={idx} className={`flex items-center justify-between p-4 rounded-2xl border transition-all active:scale-[0.97] ${mapDetailCard} ${transparentUI ? 'hover:bg-white/10' : (isDark ? 'hover:bg-slate-800/60' : 'hover:bg-white hover:shadow-md')}`}>
-                                                      <div className="flex items-center gap-4">
-                                                         <div className="min-w-[50px] px-3 py-1.5 rounded-xl text-white font-black text-sm text-center shadow-md grow-0" style={{ backgroundColor: lineColor }}>
-                                                            {String(inc.bus.routeShortName || '').trim().replace(/^MKS\s+/, '')}
-                                                         </div>
-                                                         <div className="flex flex-col">
-                                                            <span className={`text-[15px] font-bold leading-tight ${textMain} max-w-[190px] md:max-w-none truncate`}>{inc.bus.direction}</span>
-                                                         </div>
-                                                      </div>
-                                                      <div className="flex flex-col items-end">
-                                                         <span className={`text-base font-black ${punctualityTimeClass(inc.delayMinutes, isDark ? 'text-white' : textMain)}`}>
-                                                            {inc.diffMin <= 0 && inc.diffMin >= -1 ? 'Teraz' : (inc.diffMin > 0 && inc.diffMin <= 30 ? `${inc.diffMin} min` : inc.actualTimeStr)}
-                                                         </span>
-                                                      </div>
-                                                   </div>
-                                                );
-                                             });
-                                             return elements;
-                                          })()
-                                       )}
-                                   </div>
-                               </div>
-                            </div>
-                         </motion.div>
-                       )}
-                     </AnimatePresence>
-
-                  </motion.div>
+                    name={selectedExternalStop?.name || stopsList.find(s => s.id === selectedStopId)?.name || 'Przystanek'}
+                    expanded={isStopPanelExpanded}
+                    onExpandedChange={setIsStopPanelExpanded}
+                    transparent={transparentUI}
+                    dark={isDark}
+                    loading={isFetchingDepartures}
+                    error={stopDeparturesError}
+                    departures={processedDepartures.slice(0, 40).map((inc: any, index: number) => ({
+                      id: `${inc.providerId}-${inc.depTimeMs}-${inc.bus.routeShortName}-${index}`,
+                      line: String(inc.bus.routeShortName || '').trim().replace(/^MKS\s+/, ''),
+                      direction: inc.bus.direction,
+                      color: inc.providerId === 'mpk_rzeszow' ? MPK_RZESZOW_COLOR : inc.providerId === 'marcel' ? MARCEL_COLOR : PKS_COLOR,
+                      time: inc.diffMin <= 0 && inc.diffMin >= -1 ? '<1 min' : inc.diffMin > 0 && inc.diffMin <= 30 ? `${inc.diffMin} min` : inc.actualTimeStr,
+                      day: warsawDateIso(inc.plannedTimeMs || inc.depTimeMs) === warsawDateIso(now) ? '' : new Date(inc.plannedTimeMs || inc.depTimeMs).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Warsaw' }),
+                      delayMinutes: inc.delayMinutes || 0,
+                    }))}
+                  />
                 )}
               </AnimatePresence>
 
@@ -2195,6 +2062,7 @@ export default function Home() {
                   setSelectedBus(null);
                   setSelectedExternalStop(stop);
                   setSelectedStopId(stop.id);
+                  setIsStopPanelExpanded(false);
                   setActiveTab('map');
                }}
             />}

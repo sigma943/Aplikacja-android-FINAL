@@ -86,8 +86,36 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#3b82f6');
     assert.equal(await page.$eval('.transit-view',el=>el.dataset.uiMode),'light');
     await overflow();await screenshot('stops-light-blue');
+    const showStopOnMap=async()=>{
+      await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent==='Baryczka 69'&&el.getClientRects().length).click());
+      await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Pokaż na mapie'));
+      await button('Pokaż na mapie');
+      await page.waitForSelector('[data-map-stop-sheet]');
+      await new Promise(resolve=>setTimeout(resolve,600));
+    };
+    await showStopOnMap();
+    assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.glass),'on','fresh install enables glass');
+    assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'false','show on map opens compact card');
+    assert.ok(await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height)<120);
+    await page.click('[aria-label="Rozwiń panel przystanku"]');
+    await new Promise(resolve=>setTimeout(resolve,400));
+    assert.ok(await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height)<=851*0.42+1);
+    const mapBefore=await page.$eval('.leaflet-map-pane',el=>el.style.transform);
+    await page.mouse.move(70,330);await page.mouse.down();await page.mouse.move(160,370,{steps:12});await page.mouse.up();
+    await page.waitForFunction(before=>document.querySelector('.leaflet-map-pane').style.transform!==before,{},mapBefore);
+    assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'true','panning map retains the expanded sheet');
+    await screenshot('map-stop-glass-expanded');
+    const handle=await page.$('[aria-label="Zwiń panel przystanku"]');const bounds=await handle.boundingBox();
+    await page.mouse.move(bounds.x+bounds.width/2,bounds.y+12);await page.mouse.down();await page.mouse.move(bounds.x+bounds.width/2,bounds.y+65,{steps:10});await page.mouse.up();
+    await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]').dataset.expanded==='false');
+    await page.evaluate(()=>{localStorage.setItem('mks_transparent','false');localStorage.setItem('mks_app_theme','dark-oled');});
+    await page.reload({waitUntil:'domcontentloaded'});await openStops();await showStopOnMap();
+    assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.glass),'off','saved glass preference survives reload');
+    await page.click('[aria-label="Rozwiń panel przystanku"]');await screenshot('map-stop-amoled-solid');
+    assert.equal(await style('[data-map-stop-sheet]','backgroundColor'),'rgb(23, 33, 43)','AMOLED surfaces are brighter than the black canvas');
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
+    console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');
   }catch(error){await page.screenshot({path:'test/ui-previews/failure.png'}).catch(()=>{});console.error(await page.evaluate(()=>document.body.innerText).catch(()=>''));console.error(await page.evaluate(()=>[...document.querySelectorAll('.transit-view,.transit-stop-card,.transit-stop-card button')].map(el=>({tag:el.tagName,rect:el.getBoundingClientRect().toJSON(),display:getComputedStyle(el).display}))).catch(()=>[]));console.error('Page errors:',errors);throw error;}
   finally{await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
 })().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});
