@@ -22,17 +22,37 @@ test('Marcel badges warm visible courses with two requests, return positions imm
  const options={pkpViewport:{bbox:[21.9,49.9,22.2,50.2]}};
  try{
   const api=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}});
+  const notifications=[];
+  const unsubscribe=api.subscribeMarcelCourseDelays(id=>notifications.push(id));
   const first=await api.fetchVehiclesClient(true,['marcel'],options);
   assert.equal(first.length,4);assert.ok(first.every(v=>v.delay===undefined));assert.equal(courseCalls.length,2);
   while(gates.length){gates.splice(0).forEach(release=>release());await new Promise(resolve=>setImmediate(resolve));}
   assert.equal(maxActive,2);assert.equal(courseCalls.length,3);assert.ok(!courseCalls.some(url=>url.includes('/kurs/4?')));
+  // No click or second fleet poll: the original marker data gets its badge
+  // immediately after the background request publishes the course.
+  assert.deepEqual(new Set(notifications),new Set(['1','2','3']));
+  const automatic=first.map(v=>api.withCachedMarcelDelay(v));
+  assert.ok(automatic.slice(0,3).every(v=>v.delay>120));
+  assert.equal(automatic[3].delay,undefined);
+  assert.equal(first[0].delay,undefined); // Never mutate an old position snapshot.
+  const movedMarker=api.withCachedMarcelDelay({...first[0],lat:50.07,lon:22.07});
+  assert.ok(movedMarker.delay<0);
+  assert.equal(api.withCachedMarcelDelay({...first[0],provider:'pks'}).delay,undefined);
+  // Panning onto a new course warms it independently of the fleet poll.
+  api.warmMarcelBadgeCourses(first,[22.9,50.9,23.1,51.1]);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(courseCalls.length,4);
+  unsubscribe();
+  gates.splice(0).forEach(release=>release());
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(notifications.length,3);
   const warmed=await api.fetchVehiclesClient(true,['marcel'],options);
-  assert.ok(warmed.slice(0,3).every(v=>v.delay>120));assert.equal(warmed[3].delay,undefined);
+  assert.ok(warmed.slice(0,3).every(v=>v.delay>120));assert.ok(Number.isFinite(warmed[3].delay));
   assert.ok(warmed.every(v=>v.routeStops.length===0));
-  const details=await api.fetchVehicleDetailsClient('marcel','marcel_1');assert.equal(details.routeStops.length,2);assert.equal(courseCalls.length,3);
+  const details=await api.fetchVehicleDetailsClient('marcel','marcel_1');assert.equal(details.routeStops.length,2);assert.equal(courseCalls.length,4);
   lat=50.07;
   const moved=await api.fetchVehiclesClient(true,['marcel'],options);
-  assert.ok(moved.slice(0,3).every(v=>v.delay<0));assert.equal(courseCalls.length,3);
+  assert.ok(moved.slice(0,3).every(v=>v.delay<0));assert.equal(courseCalls.length,4);
  }finally{gates.splice(0).forEach(release=>release());global.fetch=original;}
 });
 test('Marcel marker HTML retains signed green/red badges including exactly one minute',()=>{

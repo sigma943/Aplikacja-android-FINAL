@@ -7,7 +7,7 @@ import {busOperatingState} from '@/lib/bus-operating-state';
 import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
 import { Capacitor } from '@capacitor/core';
-import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, Eye, Palette, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
+import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, Eye, Palette, Monitor, Sun, Moon, Sparkles, CloudOff, Shield, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
 import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
@@ -1329,7 +1329,7 @@ export default function Home() {
           ? 'border-[#8a7b5f]/18 bg-[#f2ede1]/42 text-[#746a58] shadow-[0_-18px_60px_rgba(93,79,50,0.14)] backdrop-blur-2xl'
           : 'border-slate-900/10 bg-white/44 text-slate-500 shadow-[0_-18px_60px_rgba(15,23,42,0.12)] backdrop-blur-2xl')
      : (isDark ? 'border-slate-800 bg-slate-900 text-slate-400 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]' : 'border-slate-200 bg-white text-slate-500 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]');
-  const optionsOverlay = isDark ? 'bg-black/48 backdrop-blur-md' : 'bg-slate-950/20 backdrop-blur-md';
+  const optionsOverlay = isDark ? 'bg-black/40 backdrop-blur-sm' : 'bg-slate-950/20 backdrop-blur-sm';
   const optionsSheet = transparentUI
      ? (isDark
         ? isAurora
@@ -2249,20 +2249,27 @@ export default function Home() {
                onClick={(event) => event.stopPropagation()}
                className={`flex w-full max-w-2xl max-h-[46dvh] flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-h-[80dvh] md:max-w-[500px] md:p-5 ${optionsSheet}`}
             >
-               <div className="mb-3 flex shrink-0 items-center justify-between gap-3 md:mb-4">
-                  <h2 id="options-title" className="text-lg font-semibold tracking-tight md:text-xl">Opcje aplikacji</h2>
-                  <button onClick={() => setIsSettingsOpen(false)} className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors md:h-11 md:w-11 ${isDark ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-900/8 hover:bg-slate-900/12'}`}>
-                     <X className="h-6 w-6" />
+               <div className={`mx-auto mb-2 h-1 w-9 shrink-0 rounded-full md:hidden ${isDark ? 'bg-white/20' : 'bg-slate-300'}`} />
+               <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                     <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${themeColor}18`, color: themeColor }}><Settings className="h-[18px] w-[18px]" /></span>
+                     <div>
+                        <h2 id="options-title" className="text-base font-semibold tracking-tight md:text-lg">Opcje aplikacji</h2>
+                        <p className={`text-[11px] ${textSub}`}>Twój wygląd, Twoje ustawienia</p>
+                     </div>
+                  </div>
+                  <button aria-label="Zamknij opcje" onClick={() => setIsSettingsOpen(false)} className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${optionsButton}`}>
+                     <X className="h-[18px] w-[18px]" />
                   </button>
                </div>
-               
-               <div className="flex min-h-0 w-full flex-col gap-3 overflow-y-auto overscroll-contain relative z-0 pr-1">
+
+               <div className="flex min-h-0 w-full flex-col gap-2 overflow-y-auto overscroll-contain relative z-0 pr-1">
                   
-                  {/* Appearance Bento Box */}
-                  <div className={`rounded-2xl border p-3 md:p-4 ${optionsCard}`}>
-                     <h3 className={`mb-3 px-1 text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-violet-200' : isWarm ? 'text-[#746a58]' : 'text-slate-500'}`}>Wygląd i kolory</h3>
+                  {/* Appearance */}
+                  <div className={`rounded-2xl border p-2.5 md:p-4 ${optionsCard}`}>
+                     <h3 className={`mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${isDark ? 'text-violet-200' : isWarm ? 'text-[#746a58]' : 'text-slate-500'}`}>Motyw aplikacji</h3>
                      
-                     <div className="mb-3 grid grid-cols-3 gap-2">
+                     <div className="mb-2 grid grid-cols-3 gap-1.5">
                         {[
                            { id: 'system', name: 'Systemowy', icon: <Monitor className="w-4 h-4 mr-1.5" /> },
                            { id: 'light', name: 'Jasny', icon: <Sun className="w-4 h-4 mr-1.5" /> },
@@ -2274,62 +2281,70 @@ export default function Home() {
                            <button
                               key={mode.id}
                               onClick={() => saveAppTheme(mode.id)}
-                              className={`flex h-11 items-center justify-center rounded-xl text-xs font-semibold transition-all border md:h-12 md:text-sm ${appTheme === mode.id ? 'shadow-[0_0_24px_rgba(0,163,162,0.16)]' : 'border-transparent'} ${optionsButton}`}
-                              style={appTheme === mode.id ? { borderColor: themeColor, color: themeColor } as React.CSSProperties : {}}
+                              aria-pressed={appTheme === mode.id}
+                              className={`relative flex h-11 items-center justify-center rounded-xl text-[11px] font-medium transition-colors border md:text-sm ${appTheme === mode.id ? '' : 'border-transparent'} ${optionsButton}`}
+                              style={appTheme === mode.id ? { borderColor: `${themeColor}80`, color: themeColor, backgroundColor: `${themeColor}18` } as React.CSSProperties : {}}
                            >
                               {mode.icon}
                               {mode.name}
+                              {appTheme === mode.id && <span className="absolute right-1 top-1 h-1 w-1 rounded-full" style={{ backgroundColor: themeColor }} />}
                            </button>
                         ))}
                      </div>
 
-                     <div className={`flex items-center justify-between rounded-3xl p-3 ${isDark ? 'bg-white/[0.04]' : 'bg-slate-900/[0.045]'}`}>
+                     <div className={`flex items-center justify-between gap-1 border-t px-1 pt-2 ${isDark ? 'border-white/8' : 'border-slate-900/8'}`}>
+                        <span className={`text-[11px] ${textSub}`}>Akcent</span>
                         {[
-                           { name: 'Teal', hex: '#00A3A2' },
-                           { name: 'Blue', hex: '#3b82f6' },
-                           { name: 'Purple', hex: '#8b5cf6' },
-                           { name: 'Rose', hex: '#f43f5e' },
-                           { name: 'Amber', hex: '#f59e0b' }
+                           { name: 'Turkusowy', hex: '#00A3A2' },
+                           { name: 'Niebieski', hex: '#3b82f6' },
+                           { name: 'Fioletowy', hex: '#8b5cf6' },
+                           { name: 'Różowy', hex: '#f43f5e' },
+                           { name: 'Bursztynowy', hex: '#f59e0b' }
                         ].map(color => (
                            <button
                               key={color.name}
                               onClick={() => saveThemeColor(color.hex)}
-                              className={`h-9 w-9 rounded-xl transition-all md:h-10 md:w-10 ${themeColor === color.hex ? 'ring-4 ring-white scale-105 shadow-lg' : 'hover:scale-105'}`}
-                              style={{ backgroundColor: color.hex, '--tw-ring-color': isDark ? '#ffffff' : color.hex, '--tw-ring-offset-color': isDark ? '#1e293b' : '#ffffff' } as React.CSSProperties}
+                              aria-label={`Kolor akcentu: ${color.name}`}
+                              aria-pressed={themeColor === color.hex}
+                              className="flex h-11 w-9 min-[380px]:w-11 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-105"
                               title={color.name}
-                           />
+                           >
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: color.hex, boxShadow: themeColor === color.hex ? `0 0 0 2px ${isDark ? '#0d1425' : '#ffffff'}, 0 0 0 3px ${color.hex}` : undefined }}>
+                                 {themeColor === color.hex && <Check className="h-4 w-4 text-white" strokeWidth={3} />}
+                              </span>
+                           </button>
                         ))}
                      </div>
                   </div>
 
-                  {/* Settings Bento Box */}
-                  <div className="flex flex-col gap-3">
+                  {/* Settings */}
+                  <div className="flex flex-col gap-2">
                      <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
                         <div className="flex min-w-0 items-center gap-3 pr-3">
                            <Sparkles className="h-5 w-5 shrink-0" style={{ color: themeColor }} />
                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold">Efekt przezroczystości UI</span>
-                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Rozmycie tła interfejsu (starsze urządzenia mogą zwolnić)</span>
+                              <span className="text-sm font-semibold">Przezroczystość</span>
+                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Rozmycie tła paneli</span>
                            </div>
                         </div>
-                        <div className={`relative h-9 w-16 flex-shrink-0 rounded-full transition-colors ${transparentUI ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: transparentUI ? themeColor : '' }}>
-                           <div className={`absolute left-1 top-1 h-7 w-7 rounded-full bg-white shadow-md transition-transform ${transparentUI ? 'translate-x-7' : ''}`}></div>
+                        <div className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors ${transparentUI ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: transparentUI ? themeColor : '' }}>
+                           <div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${transparentUI ? 'translate-x-5' : ''}`}></div>
                         </div>
-                        <input type="checkbox" className="hidden" checked={transparentUI} onChange={(e) => saveTransparentUI(e.target.checked)} />
+                        <input type="checkbox" className="sr-only" checked={transparentUI} onChange={(e) => saveTransparentUI(e.target.checked)} />
                      </label>
                      
                      <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
                         <div className="flex min-w-0 items-center gap-3 pr-3">
                            <Bus className={`h-5 w-5 shrink-0 ${isDark ? 'text-white/90' : 'text-slate-700'}`} />
                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold">Pokaż autobusy bez przypisanej linii</span>
-                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Pojazdy bez aktywnego kursu oraz ich ostatnia zapisana pozycja</span>
+                              <span className="text-sm font-semibold">Autobusy bez linii</span>
+                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Pokaż ostatnią pozycję pojazdów bez kursu</span>
                            </div>
                         </div>
-                        <div className={`relative h-9 w-16 flex-shrink-0 rounded-full transition-colors ${showInactive ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: showInactive ? themeColor : '' }}>
-                           <div className={`absolute left-1 top-1 h-7 w-7 rounded-full bg-white shadow-md transition-transform ${showInactive ? 'translate-x-7' : ''}`}></div>
+                        <div className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors ${showInactive ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: showInactive ? themeColor : '' }}>
+                           <div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${showInactive ? 'translate-x-5' : ''}`}></div>
                         </div>
-                        <input type="checkbox" className="hidden" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
+                        <input type="checkbox" className="sr-only" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
                      </label>
                   </div>
 

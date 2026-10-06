@@ -8,7 +8,7 @@ import { officialBusRoute } from '@/lib/official-bus-routes';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { runFrameBatch } from '@/lib/map-frame-batch';
 import { loadRouteWithRetry } from '@/lib/route-load-retry';
-import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
+import { fetchRouteGeometryClient, subscribeMarcelCourseDelays, warmMarcelBadgeCourses, withCachedMarcelDelay, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
@@ -771,6 +771,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
 }) {
   const map = useMap();
   const [viewTick, setViewTick] = useState(0);
+  const [badgeRevision, setBadgeRevision] = useState(0);
   const [renderVehicles, setRenderVehicles] = useState(vehicles);
   const latestVehiclesRef = useRef(vehicles);
   const latestVehicleByKeyRef = useRef(new Map<string, Vehicle>());
@@ -841,11 +842,24 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
 
   const zoom = map.getZoom();
   const isHighVolumeLayer = renderVehicles.length > 35;
-  const viewportVehicles = useMemo(() => {
+  const visibleVehicles = useMemo(() => {
     if (renderVehicles.length <= 35) return renderVehicles;
     const paddedBounds = map.getBounds().pad(0.2);
     return renderVehicles.filter((vehicle) => paddedBounds.contains([vehicle.lat, vehicle.lon]));
   }, [map, renderVehicles, viewTick, zoom]);
+  useEffect(() => {
+    const courseIds = new Set(visibleVehicles.filter(v => v.provider === 'marcel')
+      .map(v => String(v.tripId || v.journeyId || '')));
+    const unsubscribe = subscribeMarcelCourseDelays(courseId => {
+      if (courseIds.has(courseId)) setBadgeRevision(value => value + 1);
+    });
+    const bounds = map.getBounds().pad(0.2);
+    warmMarcelBadgeCourses(visibleVehicles, [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
+    return unsubscribe;
+  }, [map, visibleVehicles]);
+
+  const viewportVehicles = useMemo(() => visibleVehicles.map(vehicle => withCachedMarcelDelay(vehicle)),
+    [visibleVehicles, badgeRevision]);
   const shouldCluster = viewportVehicles.length > 8 && (zoom <= 14 || (isHighVolumeLayer && zoom <= 15));
   const groups = useMemo(() => {
     if (!shouldCluster) {

@@ -148,6 +148,7 @@ const PKP_METADATA_LOOKUP_LIMIT = 80;
 const mpkTripStopsByTripCache = new Map<string, Promise<any[]>>();
 const marcelCourseStopsCache = new Map<string, Promise<MarcelCourseStop[]>>();
 const marcelResolvedCourseStops = new Map<string, MarcelCourseStop[]>();
+const marcelCourseListeners = new Set<(courseId: string) => void>();
 let marcelBadgeQueue: string[] = [];
 let marcelBadgeRequests = 0;
 const marcelBadgeInflight = new Set<string>();
@@ -744,7 +745,11 @@ async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop
             .filter((stop): stop is MarcelCourseStop => Boolean(stop))
             .sort((a, b) => a.order - b.order);
         })
-        .then(stops => { marcelResolvedCourseStops.set(id, stops); return stops; })
+        .then(stops => {
+          marcelResolvedCourseStops.set(id, stops);
+          for (const listener of marcelCourseListeners) listener(id);
+          return stops;
+        })
         .catch(error => { marcelCourseStopsCache.delete(id); throw error; }),
     );
     if (marcelCourseStopsCache.size > 200) {
@@ -755,11 +760,26 @@ async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop
   return marcelCourseStopsCache.get(id)!;
 }
 
+/** Notify map markers as soon as background course data becomes available. */
+export function subscribeMarcelCourseDelays(listener: (courseId: string) => void) {
+  marcelCourseListeners.add(listener);
+  return () => { marcelCourseListeners.delete(listener); };
+}
+
+/** Use the latest vehicle position; never replay an old fleet snapshot. */
+export function withCachedMarcelDelay(vehicle: Vehicle, now = Date.now()): Vehicle {
+  if (vehicle.provider !== 'marcel') return vehicle;
+  const stops = marcelResolvedCourseStops.get(String(vehicle.tripId || vehicle.journeyId || ''));
+  if (!stops || stops.length < 2) return vehicle;
+  const delay = estimateMarcelDelaySeconds(vehicle.lat, vehicle.lon, stops, now);
+  return delay === undefined || delay === vehicle.delay ? vehicle : { ...vehicle, delay };
+}
+
 /** Warm only visible courses, two at a time, without holding up position polling. */
-function warmMarcelBadgeCourses(vehicles: Vehicle[], bbox: [number, number, number, number]) {
+export function warmMarcelBadgeCourses(vehicles: Vehicle[], bbox: [number, number, number, number]) {
   const [west, south, east, north] = bbox;
   if (!bbox.every(Number.isFinite)) return;
-  marcelBadgeQueue = [...new Set(vehicles.filter(v => v.lon >= west && v.lon <= east && v.lat >= south && v.lat <= north)
+  marcelBadgeQueue = [...new Set(vehicles.filter(v => v.provider === 'marcel' && v.lon >= west && v.lon <= east && v.lat >= south && v.lat <= north)
     .map(v => String(v.tripId || v.journeyId || '')).filter(id => id && !marcelCourseStopsCache.has(id) && !marcelBadgeInflight.has(id)))];
   const pump = () => {
     while (marcelBadgeRequests < 2 && marcelBadgeQueue.length) {
