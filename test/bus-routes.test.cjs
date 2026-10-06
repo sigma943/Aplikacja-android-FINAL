@@ -37,7 +37,8 @@ test('PKS wall clock timestamps are interpreted in Warsaw regardless of device t
 });
 test('bus routing retains all stops, overlapping chunks and loops',()=>{
   const points=Array.from({length:70},(_,i)=>[50+i/1000,22]);points[69]=points[0];
-  const chunks=routeChunks(points);assert.equal(chunks.length,3);assert.deepEqual(joinRouteChunks(chunks),points);
+  const chunks=routeChunks(points);assert.ok(chunks.every(chunk=>chunk.length<=10));assert.deepEqual(joinRouteChunks(chunks),points);
+  assert.throws(()=>routeChunks(points,25));
   assert.throws(()=>joinRouteChunks([chunks[0],[]]));
   assert.deepEqual(decodePolyline('_p~iF~ps|U_ulLnnqC_mqNvxq`@',5),[[38.5,-120.2],[40.7,-120.95],[43.252,-126.453]]);
 });

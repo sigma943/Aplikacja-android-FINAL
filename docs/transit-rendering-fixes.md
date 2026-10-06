@@ -7,9 +7,11 @@
 - Lista pozycji Marcela nie pobiera rozkładu dla każdego pojazdu. Pełne dane trasy
   są pobierane dla wybranego kursu. Anulowane żądania geometrii nie są współdzielone
   z nową próbą. Pamięć podręczna przechowuje tylko zakończone trasy.
-- Przy niedostępnym routingu mapa Marcela pokazuje przerywaną linię przez znane
-  przystanki z podpisem „Trasa przybliżona przez przystanki”. Po udanym routingu
-  zastępuje ją przebieg po drogach. Przybliżenie nie jest zapisywane jako trasa drogowa.
+- Mapa Marcela pokazuje wyłącznie geometrię po drogach, bez prostych odcinków
+  między przystankami. Publiczny Valhalla ma limit 10 lokalizacji na zapytanie;
+  kursy są dzielone na nakładające się części do 10 przystanków. Wszystkie
+  przystanki i ich kolejność pozostają zachowane. Przejściowe błędy i przekroczenia
+  czasu ponawiają pobranie dla nadal wybranego kursu. Zmiana wyboru anuluje próbę.
 - Warstwa pojazdów nie przebudowuje się przy każdym odświeżeniu zegara panelu.
   Już przy ponad 35 pojazdach pomija znaczniki poza widocznym obszarem mapy.
   Pozycja nieruchomego znacznika nie jest ponownie ustawiana w Leaflet.
@@ -28,8 +30,9 @@
 
 ## Sprawdzenie po instalacji nowego APK
 
-1. Wybierz Marcela: przystanki i linia trasy mają pojawić się; podpis przybliżenia
-   ma zniknąć po udanym pobraniu geometrii drogowej.
+1. Wybierz Marcela, szczególnie Lublin–Rymanów Zdrój: po pobraniu geometrii
+   ciągła linia ma prowadzić po drogach. W czasie pobierania nie może być
+   przerywanych prostych odcinków między przystankami.
 2. Przełącz szybko kilka autobusów i wróć do pierwszego. Trasa ma nadal się ładować.
 3. Wybierz autobus MPK, PKS i Marcel w połowie kursu: panel i kropki na mapie
    mają zawierać tylko dalsze przystanki, zachowując przyszły powrót na pętli.

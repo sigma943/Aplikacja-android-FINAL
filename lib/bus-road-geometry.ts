@@ -10,7 +10,9 @@ export function decodePolyline(shape:string,precision=6):Point[] {
   return points;
 }
 /** Overlapping chunks preserve every stop and the order of circular routes. */
-export function routeChunks(points:Point[],size=25):Point[][] {
+// Public Valhalla accepts at most 10 locations per request, including endpoints.
+export function routeChunks(points:Point[],size=10):Point[][] {
+  if (!Number.isInteger(size) || size < 2 || size > 10) throw new Error('Road routing supports 2–10 locations per chunk');
   const chunks:Point[][]=[];
   for(let start=0;start<points.length-1;start+=size-1)chunks.push(points.slice(start,start+size));
   return chunks;

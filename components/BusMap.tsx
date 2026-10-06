@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import { officialBusRoute } from '@/lib/official-bus-routes';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { runFrameBatch } from '@/lib/map-frame-batch';
+import { loadRouteWithRetry } from '@/lib/route-load-retry';
 import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
@@ -14,7 +15,7 @@ const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v6-providers';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v7-valhalla10';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -1111,17 +1112,13 @@ export default function BusMap({
     }
     return next;
   }, [routeStopIds, routeStopsData]);
-  // Show Marcel's known stop sequence while road routing loads or is unavailable.
-  // Dashed geometry is deliberately not persisted as an exact road route.
-  const routeIsApproximate = selectedVehicle?.provider === 'marcel' && snappedRoute.length < 2;
-  const paintedRoute = useMemo(() => routeIsApproximate
-    ? routeGeometryStops.map(stop => [stop.lat, stop.lon] as [number, number])
-    : snappedRoute, [routeIsApproximate, routeGeometryStops, snappedRoute]);
+  // Paint only road geometry. Stop-to-stop chords can cut across buildings and fields.
+  const paintedRoute = snappedRoute;
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
   const routeGlowOpts = { pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
-  const routePolylineOpts = { pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, dashArray: routeIsApproximate ? '8 8' : undefined, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
+  const routePolylineOpts = { pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
   const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
   const routeDirection = normalizeRouteCachePart(
     selectedVehicle?.direction ||
@@ -1200,7 +1197,7 @@ export default function BusMap({
         return;
       }
 
-      const response = await fetchRouteGeometryClient({
+      const response = await loadRouteWithRetry(() => fetchRouteGeometryClient({
         carrier: selectedVehicle.provider || 'pks',
         line: selectedVehicle.routeShortName || selectedVehicle.routeId || selectedVehicle.name || 'unknown',
         direction: selectedVehicle.direction || routeGeometryStops[routeGeometryStops.length - 1]?.name || 'unknown',
@@ -1215,7 +1212,7 @@ export default function BusMap({
         dataVersion: routeGeometryVersion,
         mode: routeMode,
         stops: routeGeometryStops,
-      }, { signal: controller.signal });
+      }, { signal: controller.signal }), controller.signal);
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
         const points = (response.geometry?.coordinates || [])
           .map(([lon, lat]) => [lat, lon] as [number, number])
@@ -1258,11 +1255,6 @@ export default function BusMap({
 
   return (
     <div ref={mapContainerRef} className={`h-full w-full relative z-0 style-map ${vehicles.length > 35 ? 'is-high-volume' : ''}`}>
-      {routeIsApproximate && paintedRoute.length > 1 && (
-        <div className="absolute bottom-28 right-3 z-[1000] rounded-lg bg-slate-900/90 px-3 py-2 text-xs text-white pointer-events-none">
-          Trasa przybliżona przez przystanki
-        </div>
-      )}
       <style>{`
         /* Hide zoom controls on mobile */
         @media (max-width: 768px) {

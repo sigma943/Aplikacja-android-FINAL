@@ -1,0 +1,41 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const loadTs = require('./load-ts.cjs');
+const { loadRouteWithRetry } = loadTs('lib/route-load-retry.ts');
+function encode(points) {
+  let lat = 0, lon = 0, result = '';
+  const delta = value => { let n = value < 0 ? ~(value << 1) : value << 1, out = ''; while(n >= 32) {out += String.fromCharCode((32 | (n & 31)) + 63); n >>>= 5;} return out + String.fromCharCode(n + 63); };
+  for(const p of points) {const a=Math.round(p[0]*1e6), b=Math.round(p[1]*1e6); result += delta(a-lat)+delta(b-lon); lat=a;lon=b;}
+  return result;
+}
+test('a 20-stop Marcel course respects the real Valhalla 10-location limit without losing stops', async () => {
+  const original = global.fetch, requests = [];
+  const points = Array.from({length:20}, (_, i) => [50 + i/1000, 22 + i/1000]);
+  global.fetch = async url => {
+    assert.ok(url.includes('valhalla'));
+    const q = JSON.parse(new URL(url).searchParams.get('json')); requests.push(q);
+    if(q.locations.length>10) return new Response(JSON.stringify({error_code:150,error:'Exceeded max locations: 10'}),{status:400});
+    return new Response(JSON.stringify({trip:{legs:[{shape:encode(q.locations.map(p=>[p.lat,p.lon]))}]}}));
+  };
+  try {
+    const { fetchRouteGeometryClient } = loadTs('lib/pks-client.ts', {'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}});
+    const response = await fetchRouteGeometryClient({carrier:'marcel',line:'M',direction:'Rymanów Zdrój',mode:'road',stops:points.map(([lat,lon],i)=>({id:i+1,lat,lon}))});
+    assert.equal(requests.length,3);
+    assert.deepEqual(requests.map(q=>q.locations.length),[10,10,2]);
+    assert.ok(requests.every(q=>q.costing==='bus'));
+    assert.deepEqual(response.geometry.coordinates, points.map(([lat,lon])=>[lon,lat]));
+    assert.equal(response.isSynthetic,false);
+  } finally { global.fetch = original; }
+});
+test('temporary errors including a deadline retry the same selection', async () => {
+  let calls = 0;
+  const result = await loadRouteWithRetry(async()=>{if(++calls===1) throw new DOMException('timeout','AbortError'); if(calls===2) throw Error('503'); return 'road';},new AbortController().signal,[1,1]);
+  assert.equal(result,'road'); assert.equal(calls,3);
+});
+test('changing selection cancels a queued retry and exhausted attempts report failure', async () => {
+  const controller = new AbortController(); let calls = 0;
+  const pending = loadRouteWithRetry(async()=>{calls++;throw Error('offline');},controller.signal,[10000]);
+  const rejected = assert.rejects(pending,{name:'AbortError'});
+  await new Promise(resolve=>setImmediate(resolve));controller.abort();await rejected;assert.equal(calls,1);
+  calls=0;await assert.rejects(loadRouteWithRetry(async()=>{calls++;throw Error('offline');},new AbortController().signal,[1]),/offline/); assert.equal(calls,2);
+});
