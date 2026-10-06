@@ -10,7 +10,8 @@ test('punctuality colours are white on time, green early and red late for every 
  }
 });
 test('Marcel badges warm visible courses with two requests, return positions immediately and reuse schedules',async()=>{
- const original=global.fetch, gates=[], courseCalls=[];let active=0,maxActive=0,lat=50.05;
+ const original=global.fetch,originalNow=Date.now,gates=[],courseCalls=[];let active=0,maxActive=0,lat=50.05,currentNow=Date.now();
+ Date.now=()=>currentNow;
  const clock=ms=>new Date(ms).toLocaleTimeString('sv-SE',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'});
  const now=Date.now();const stops=[{kol:1,szGps:50,dlGps:22,godz:clock(now-33*60000),nazPr:'Początek'}, {kol:2,szGps:50.1,dlGps:22.1,godz:clock(now+27*60000),nazPr:'Koniec'}];
  const vehicles=()=>[1,2,3,4].map(id=>({idKu:id,szGps:id===4?51:lat,dlGps:id===4?23:22+lat-50,nazTr:'Lutcza-Rzeszów'}));
@@ -50,10 +51,10 @@ test('Marcel badges warm visible courses with two requests, return positions imm
   assert.ok(warmed.slice(0,3).every(v=>v.delay>120));assert.ok(Number.isFinite(warmed[3].delay));
   assert.ok(warmed.every(v=>v.routeStops.length===0));
   const details=await api.fetchVehicleDetailsClient('marcel','marcel_1');assert.equal(details.routeStops.length,2);assert.equal(courseCalls.length,4);
-  lat=50.07;
+  lat=50.07;currentNow+=11_000;
   const moved=await api.fetchVehiclesClient(true,['marcel'],options);
   assert.ok(moved.slice(0,3).every(v=>v.delay<0));assert.equal(courseCalls.length,4);
- }finally{gates.splice(0).forEach(release=>release());global.fetch=original;}
+ }finally{gates.splice(0).forEach(release=>release());global.fetch=original;Date.now=originalNow;}
 });
 test('Marcel marker HTML retains signed green/red badges including exactly one minute',()=>{
  const {getCachedBusIcon}=loadTs('components/BusMap.tsx',{'react-leaflet':{},leaflet:{divIcon:options=>options},'leaflet/dist/leaflet.css':{},'@/lib/pks-client':{}});

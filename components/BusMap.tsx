@@ -8,6 +8,7 @@ import { officialBusRoute } from '@/lib/official-bus-routes';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { runFrameBatch } from '@/lib/map-frame-batch';
 import { loadRouteWithRetry } from '@/lib/route-load-retry';
+import { vehicleDelayMinutes } from '@/lib/delay-display';
 import { fetchRouteGeometryClient, subscribeMarcelCourseDelays, warmMarcelBadgeCourses, withCachedMarcelDelay, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
@@ -298,15 +299,15 @@ function MapStateTracker({
   return null;
 }
 
-const formatDelay = (delaySec: number | undefined) => {
+const formatDelay = (delaySec: number | undefined, provider?: string) => {
   if (delaySec === undefined) return null;
   if (Math.abs(delaySec) > 18000) return null; // Ignore absurd delays > 5 hours
-  const abs = Math.abs(delaySec);
-  const min = Math.floor(abs / 60);
+  const signedMinutes = vehicleDelayMinutes(delaySec, provider);
+  const min = Math.abs(signedMinutes);
   
-  if (delaySec <= -60) {
+  if (signedMinutes < 0) {
     return { text: `Przed ${min}m`, textLong: `Przed czasem: ${min} min`, class: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' }; // Ahead of time
-  } else if (delaySec >= 60) {
+  } else if (signedMinutes > 0) {
     return { text: `Opóźn. ${min}m`, textLong: `Opóźniony: ${min} min`, class: 'text-rose-600', bg: 'bg-rose-50 border-rose-200' }; // Delayed
   }
   return { text: 'Punktualnie', textLong: 'Zgodnie z planem', class: 'text-slate-500', bg: 'bg-white border-slate-200' };
@@ -336,7 +337,7 @@ export const getCachedBusIcon = (
   zoom: number = 14,
 ) => {
   const ageBucket = getMarkerAgeBucket(dataAgeSec);
-  const delayBucket = delaySec === undefined ? 'na' : Math.trunc(delaySec / 60);
+  const delayBucket = delaySec === undefined ? 'na' : vehicleDelayMinutes(delaySec, iconVariant);
   const zoomBucket = zoom <= 12 ? 12 : zoom <= 13 ? 13 : 14;
   const hash = `${routeShortName}_${vehicleId}_${vehicleLabel}_${delayBucket}_${isSelected}_${themeColor}_${ageBucket}_${isHighVolume}_${iconVariant}_${zoomBucket}`;
   
@@ -375,7 +376,7 @@ const createBusIcon = (
 
   const display = routeShortName || '?';
   const numberLabel = String(vehicleLabel || '').trim();
-  const delayInfo = formatDelay(delaySec);
+  const delayInfo = formatDelay(delaySec, iconVariant);
   
   let opacityClass = 'opacity-90';
   let filterStyle = '';
@@ -385,11 +386,11 @@ const createBusIcon = (
     : `z-[100] scale-100 ${opacityClass} ${isHighVolume ? '' : 'drop-shadow-md hover:scale-105'}`;
 
   let badgeHtml = '';
-  if (delayInfo && delaySec !== undefined && Math.abs(delaySec) >= 60) {
+  if (delayInfo && delaySec !== undefined && vehicleDelayMinutes(delaySec, iconVariant) !== 0) {
     const delayPositionClass = delaySec > 0 ? '-top-[18px] left-[34px]' : '-top-4 -right-3';
     badgeHtml = `
       <div class="absolute ${delayPositionClass} px-1.5 py-0.5 rounded ${delayInfo.bg} ${delayInfo.class} text-[9px] font-black border border-white ${isHighVolume?'':'shadow-sm'} z-50 whitespace-nowrap">
-        ${delaySec > 0 ? '+' : '-'}${Math.floor(Math.abs(delaySec)/60)}
+        ${delaySec > 0 ? '+' : '-'}${Math.abs(vehicleDelayMinutes(delaySec, iconVariant))}
       </div>
     `;
   }
@@ -554,6 +555,7 @@ export interface Vehicle {
   speed?: number;
   direction?: string;
   delay?: number;
+  positionObservedAtMs?: number;
   dataAgeSec?: number;
   schedule?: StopSchedule[];
   routeStops?: StopSchedule[];
@@ -661,7 +663,7 @@ const BusMarker = memo(function BusMarker({
   registerMarker,
 }: BusMarkerProps) {
   const initialPosition = useMemo<[number, number]>(() => [vehicle.lat, vehicle.lon], []); // eslint-disable-line react-hooks/exhaustive-deps
-  const delayBucket = vehicle.delay === undefined ? 'na' : Math.trunc(vehicle.delay / 60);
+  const delayBucket = vehicle.delay === undefined ? 'na' : vehicleDelayMinutes(vehicle.delay, vehicle.iconVariant);
   const ageBucket = getMarkerAgeBucket(vehicle.dataAgeSec);
   const icon = useMemo(
     () =>
@@ -731,8 +733,8 @@ const BusMarker = memo(function BusMarker({
     prevVehicle.provider === nextVehicle.provider &&
     prevVehicle.iconVariant === nextVehicle.iconVariant &&
     prevVehicle.vehicleNumber === nextVehicle.vehicleNumber &&
-    (prevVehicle.delay === undefined ? 'na' : Math.trunc(prevVehicle.delay / 60)) ===
-      (nextVehicle.delay === undefined ? 'na' : Math.trunc(nextVehicle.delay / 60)) &&
+    (prevVehicle.delay === undefined ? 'na' : vehicleDelayMinutes(prevVehicle.delay, prevVehicle.iconVariant)) ===
+      (nextVehicle.delay === undefined ? 'na' : vehicleDelayMinutes(nextVehicle.delay, nextVehicle.iconVariant)) &&
     getMarkerAgeBucket(prevVehicle.dataAgeSec) === getMarkerAgeBucket(nextVehicle.dataAgeSec) &&
     prev.isSelected === next.isSelected &&
     prev.isHighVolume === next.isHighVolume &&

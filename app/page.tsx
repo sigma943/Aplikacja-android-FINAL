@@ -3,6 +3,7 @@ import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { punctualityTimeClass } from '@/lib/punctuality-color';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import { uiAccentVariables } from '@/lib/ui-accent';
+import { vehicleDelayMinutes } from '@/lib/delay-display';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
@@ -1906,7 +1907,7 @@ export default function Home() {
                               {(() => {
                                  let d = selectedBus.delay || 0;
                                  if (Math.abs(d) > 18000) d = 0; // Ignore absurd delays (e.g. > 5 hours) to prevent UI breakage
-                                 const m = Math.floor(Math.abs(d) / 60);
+                                 const m = Math.abs(vehicleDelayMinutes(d, selectedBus.provider));
                                  if (m === 0) return (
                                    <div className={`flex flex-col items-start ${textMain}`}>
                                      <span className="text-sm md:text-base font-bold leading-tight">Zgodnie z planem</span>

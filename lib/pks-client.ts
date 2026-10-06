@@ -771,7 +771,8 @@ export function withCachedMarcelDelay(vehicle: Vehicle, now = Date.now()): Vehic
   if (vehicle.provider !== 'marcel') return vehicle;
   const stops = marcelResolvedCourseStops.get(String(vehicle.tripId || vehicle.journeyId || ''));
   if (!stops || stops.length < 2) return vehicle;
-  const delay = estimateMarcelDelaySeconds(vehicle.lat, vehicle.lon, stops, now);
+  const signalMs = vehicle.positionObservedAtMs ?? transitTimestamp(vehicle.lastSignalTime);
+  const delay = estimateMarcelDelaySeconds(vehicle.lat, vehicle.lon, stops, Number.isFinite(signalMs) ? signalMs : now);
   return delay === undefined || delay === vehicle.delay ? vehicle : { ...vehicle, delay };
 }
 
@@ -901,7 +902,7 @@ function buildMarcelRouteStops(stops: MarcelCourseStop[], delaySeconds: number, 
   });
 }
 
-async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean, includeRoute = false): Promise<Vehicle | null> {
+async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean, includeRoute = false, fetchedAtMs = now): Promise<Vehicle | null> {
   const lat = readMarcelNumber(raw, ['lat', 'latitude', 'szGps', 'szerokosc', 'szerokoscGeo', 'position.lat', 'position.latitude']);
   const lon = readMarcelNumber(raw, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
@@ -922,7 +923,8 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     : getObservedMarcelSignalMs(String(rawVehicleId), lat, lon, now);
   const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
   const courseStops = includeRoute ? await fetchMarcelCourseStops(tripId) : marcelResolvedCourseStops.get(String(tripId || '')) || [];
-  const delay = courseStops.length >= 2 ? estimateMarcelDelaySeconds(lat, lon, courseStops, now) : undefined;
+  const positionObservedAtMs = Number.isFinite(timestampMs) ? timestampMs : fetchedAtMs;
+  const delay = courseStops.length >= 2 ? estimateMarcelDelaySeconds(lat, lon, courseStops, positionObservedAtMs) : undefined;
   const schedule = includeRoute ? buildMarcelSchedule(courseStops, delay ?? 0, now) : [];
   const routeStops = includeRoute ? buildMarcelRouteStops(courseStops, delay ?? 0, now) : [];
   const fullRoutePath = routeStops.map((stop) => stop.id);
@@ -966,6 +968,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     computedSpeed: speed,
     direction,
     delay,
+    positionObservedAtMs,
     dataAgeSec,
     schedule,
     routeStops,
@@ -985,17 +988,14 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
 }
 
 async function fetchMarcelVehiclesDirect(includeInactive: boolean, signal?: AbortSignal) {
-  const payload = await requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, {
-    signal,
-    headers: {'Accept': 'application/json'},
-  });
+  const snapshot = await fetchMarcelPositionSnapshot(signal);
   const now = Date.now();
-  const rawVehicles = unwrapMarcelVehiclesPayload(payload);
+  const rawVehicles = snapshot.rows;
   const vehicles: Vehicle[] = [];
   const concurrency = 6;
   for (let start = 0; start < rawVehicles.length; start += concurrency) {
     const chunk = rawVehicles.slice(start, start + concurrency);
-    const mapped = await Promise.all(chunk.map((rawVehicle) => mapMarcelDirectVehicle(rawVehicle, now, includeInactive)));
+    const mapped = await Promise.all(chunk.map((rawVehicle) => mapMarcelDirectVehicle(rawVehicle, now, includeInactive, false, snapshot.observedAtMs)));
     vehicles.push(...mapped.filter((vehicle): vehicle is Vehicle => Boolean(vehicle)));
   }
   return vehicles;
@@ -1003,14 +1003,14 @@ async function fetchMarcelVehiclesDirect(includeInactive: boolean, signal?: Abor
 
 async function fetchMarcelVehicleDetailsDirect(vehicleId: string, includeInactive: boolean) {
   const lookupVehicleId = String(vehicleId || '').replace(/^marcel_/, '');
-  const payload = await requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, { headers: { Accept: 'application/json' } });
-  const raw = unwrapMarcelVehiclesPayload(payload).find((row) => {
+  const snapshot = await fetchMarcelPositionSnapshot();
+  const raw = snapshot.rows.find((row) => {
     const id = readMarcelString(row, ['vehicle_id', 'vehicle.id', 'idPojazdu', 'pojazdId', 'idPo'])
       || readMarcelString(row, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']);
     const number = readMarcelString(row, ['vehicleNumber', 'vehicle_number', 'vehicle.label', 'nrBoczny', 'numerBoczny', 'nrRej', 'rejestracja']);
     return id === lookupVehicleId || number === lookupVehicleId;
   });
-  return raw ? mapMarcelDirectVehicle(raw, Date.now(), includeInactive, true) : null;
+  return raw ? mapMarcelDirectVehicle(raw, Date.now(), includeInactive, true, snapshot.observedAtMs) : null;
 }
 
 function decodeXmlEntity(value: string) {
@@ -2779,25 +2779,39 @@ export type MarcelCourseStopPublic = {
 };
 
 export type MarcelLivePosition = { tripId: string; lat: number; lon: number; observedAtMs: number };
-let marcelLivePositionsCache: { expiresAt: number; promise: Promise<MarcelLivePosition[]> } | undefined;
+type MarcelPositionSnapshot = { rows: any[]; observedAtMs: number; positions: MarcelLivePosition[] };
+let marcelPositionSnapshotCache: { expiresAt: number; promise: Promise<MarcelPositionSnapshot> } | undefined;
+
+/** Map, selected bus and stop departures share one position and observation time. */
+function fetchMarcelPositionSnapshot(signal?: AbortSignal): Promise<MarcelPositionSnapshot> {
+  if (!marcelPositionSnapshotCache || marcelPositionSnapshotCache.expiresAt <= Date.now()) {
+    const promise = requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, { headers: { Accept: 'application/json' } }).then(payload => {
+      const observedAtMs = Date.now();
+      const rows = unwrapMarcelVehiclesPayload(payload);
+      const positions = rows.flatMap(row => {
+        const tripId = readMarcelString(row, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']);
+        const lat = readMarcelNumber(row, ['lat', 'latitude', 'szGps', 'szerokosc', 'szerokoscGeo', 'position.lat', 'position.latitude']);
+        const lon = readMarcelNumber(row, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
+        const timestamp = readMarcelTimestamp(row);
+        const at = Number.isFinite(timestamp) ? timestamp : observedAtMs;
+        return tripId && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(observedAtMs - at) < 60_000
+          ? [{ tripId, lat, lon, observedAtMs: at }] : [];
+      });
+      if (marcelPositionSnapshotCache?.promise === promise) marcelPositionSnapshotCache.expiresAt = observedAtMs + 10_000;
+      return { rows, observedAtMs, positions };
+    }).catch(error => {
+      if (marcelPositionSnapshotCache?.promise === promise) marcelPositionSnapshotCache = undefined;
+      throw error;
+    });
+    marcelPositionSnapshotCache = { expiresAt: Infinity, promise };
+  }
+  const snapshot = marcelPositionSnapshotCache.promise;
+  return signal ? withRequestDeadline(() => snapshot, signal) : snapshot;
+}
 
 /** One live position download per refresh, shared by all courses of a stop. */
 export function fetchMarcelLivePositionsClient(): Promise<MarcelLivePosition[]> {
-  if (marcelLivePositionsCache && marcelLivePositionsCache.expiresAt > Date.now()) return marcelLivePositionsCache.promise;
-  const promise = requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, { headers: { Accept: 'application/json' } }).then(payload => {
-    const observedAtMs = Date.now();
-    return unwrapMarcelVehiclesPayload(payload).flatMap(row => {
-      const tripId = readMarcelString(row, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']);
-      const lat = readMarcelNumber(row, ['szGps', 'lat', 'latitude']);
-      const lon = readMarcelNumber(row, ['dlGps', 'lon', 'lng', 'longitude']);
-      const timestamp = readMarcelTimestamp(row);
-      const at = Number.isFinite(timestamp) ? timestamp : observedAtMs;
-      return tripId && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(observedAtMs - at) < 60_000
-        ? [{ tripId, lat, lon, observedAtMs: at }] : [];
-    });
-  }).catch(error => { marcelLivePositionsCache = undefined; throw error; });
-  marcelLivePositionsCache = { expiresAt: Date.now() + 10_000, promise };
-  return promise;
+  return fetchMarcelPositionSnapshot().then(snapshot => snapshot.positions);
 }
 
 /** This is a GPS estimate, not an operator-confirmed delay. */

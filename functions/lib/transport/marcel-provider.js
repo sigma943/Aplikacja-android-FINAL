@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.marcelProvider = void 0;
+const bus_operating_state_1 = require("./bus-operating-state");
 const cache_1 = require("./cache");
 const API_BASE_URL = (process.env.MARCEL_API_BASE_URL || 'https://api-site.marcel-bus.pl').replace(/\/$/, '');
 const VEHICLES_URL = process.env.MARCEL_VEHICLES_URL || `${API_BASE_URL}/client/api/trasy/lokalizacjaBusow?appVersion=v1.67`;
@@ -245,11 +246,6 @@ function getDestination(routeName, fallback = 'W trasie') {
     const parts = normalized.split(/\s*[-–—]\s*/).map((part) => part.trim()).filter(Boolean);
     return parts.length > 1 ? parts[parts.length - 1] : normalized;
 }
-function formatClock(ts) {
-    if (!Number.isFinite(ts))
-        return '--:--';
-    return new Date(ts).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
-}
 async function loadRawVehicles() {
     return (0, cache_1.getCachedValue)('marcel:raw_vehicles', {
         ttlMs: 10000,
@@ -395,16 +391,6 @@ function buildRouteStops(stops, delaySeconds, nowMs) {
         };
     });
 }
-function inferStatus(hasLine, lat, lng, stops, delaySeconds, dataAgeSec, nowMs) {
-    if (!hasLine)
-        return { status: 'inactive', statusText: 'Pojazd bez przypisanej linii' };
-    const firstStop = stops[0];
-    const firstDepartureMs = firstStop ? firstStop.plannedMs + delaySeconds * 1000 : NaN;
-    if (Number.isFinite(firstDepartureMs) && firstDepartureMs - nowMs > 2 * 60 * 1000) {
-        return { status: 'break', statusText: `Przerwa do ${formatClock(firstDepartureMs)}` };
-    }
-    return { status: 'active', statusText: 'W trasie' };
-}
 async function toTransportVehicle(rawVehicle, now, includeInactive) {
     const coordinates = readVehicleCoordinates(rawVehicle);
     if (!coordinates)
@@ -434,9 +420,9 @@ async function toTransportVehicle(rawVehicle, now, includeInactive) {
     const schedule = buildSchedule(courseStops, delaySeconds, now);
     const routeStops = buildRouteStops(courseStops, delaySeconds, now);
     const direction = getDestination(routeName || readFirstString(source, ['kierunek', 'direction', 'relacja', 'opisTrasy', 'routeDescription']));
-    const vehicleStatus = inferStatus(hasLine, lat, lng, courseStops, delaySeconds, dataAgeSec, now);
     const rawSpeed = readFirstNumber(source, ['speed', 'predkosc', 'prędkość', 'v', 'velocity']);
     const speed = computeObservedSpeedKmh(`marcel:${rawVehicleId}`, lat, lng, signalMs, rawSpeed);
+    const vehicleStatus = (0, bus_operating_state_1.busOperatingState)({ lat, lon: lng, speed, nowMs: now, stops: routeStops.map(stop => ({ ...stop, lon: stop.lng })) });
     const nextStopId = schedule[0]?.id ?? routeStops.find((stop) => !stop.isPast)?.id ?? '';
     const progress = getProgressFreshness(String(rawVehicleId), lat, lng, tripId, nextStopId, now);
     const firstStop = routeStops[0];
@@ -477,7 +463,7 @@ async function toTransportVehicle(rawVehicle, now, includeInactive) {
         model: readFirstString(source, ['model', 'marka', 'typ']),
         lastUpdate: new Date(signalMs).toISOString(),
         previousTripEndedAtMs: vehicleStatus.status === 'break' ? now : undefined,
-        nextTripStartAtMs: vehicleStatus.status === 'break' && courseStops[0] ? courseStops[0].plannedMs + delaySeconds * 1000 : undefined,
+        nextTripStartAtMs: 'nextTripStartAtMs' in vehicleStatus ? vehicleStatus.nextTripStartAtMs : undefined,
         nextTripFirstStopId: vehicleStatus.status === 'break' ? courseStops[0]?.id : undefined,
         journeyId: tripId || undefined,
         serviceId: serviceId || undefined,

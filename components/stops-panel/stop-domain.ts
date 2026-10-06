@@ -6,6 +6,7 @@ import type { Vehicle } from '@/components/BusMap';
 import { getSimilarity, normalizeStopName as normalizeMergeName } from '@/lib/rzeszow-stop-consolidation';
 import { warsawDateIso, warsawTimeMs } from '@/lib/transit-time';
 import { departureTiming, finiteDelay } from '@/lib/departure-timing';
+import { vehicleDelayMinutes } from '@/lib/delay-display';
 
 type RawStop = {
   id: string;
@@ -1088,7 +1089,8 @@ function departureFromMarcelCourseStop(
   const prediction = rawStop.realDeparture || rawStop.real_departure_time || rawCourse.realDeparture || rawCourse.real_departure_time;
   const confirmed = departureTiming(plannedAtMs, prediction, confirmedDelay);
   const estimated = !confirmed.hasRealtime && Number.isFinite(estimatedDelaySeconds);
-  const timing = estimated ? departureTiming(plannedAtMs, undefined, estimatedDelaySeconds! / 60) : confirmed;
+  const timing = estimated ? { ...departureTiming(plannedAtMs, undefined, estimatedDelaySeconds! / 60),
+    delayMins: vehicleDelayMinutes(estimatedDelaySeconds, 'marcel') } : confirmed;
   return {
     id: `marcel:${course.idKu}:${stop.kol || index}:${plannedAtMs || stop.godz || course.godz}`,
     line: 'M',
