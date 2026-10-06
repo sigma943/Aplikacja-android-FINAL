@@ -2,6 +2,7 @@
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { punctualityTimeClass } from '@/lib/punctuality-color';
 import {loadStopDepartures} from '@/lib/stop-departures';
+import { uiAccentVariables } from '@/lib/ui-accent';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
@@ -1352,6 +1353,11 @@ export default function Home() {
   const optionsButton = transparentUI
      ? (isDark ? 'bg-white/[0.075] hover:bg-white/[0.11]' : isWarm ? 'bg-white/48 hover:bg-white/64' : 'bg-white/68 hover:bg-white/88')
      : (isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-slate-100 shadow-sm border border-slate-200/60');
+  useEffect(() => {
+    for (const [key, value] of Object.entries(uiAccentVariables(themeColor, isDark))) {
+      document.documentElement.style.setProperty(key, value);
+    }
+  }, [themeColor, isDark]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1505,7 +1511,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div className={`fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
+    <div style={uiAccentVariables(themeColor, isDark) as React.CSSProperties} className={`fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -2158,8 +2164,8 @@ export default function Home() {
             transition={{ type: 'spring', stiffness: 700, damping: 35 }}
             className={`absolute inset-0 z-10 overflow-hidden ${activeTab === 'stops' ? 'pointer-events-auto' : 'pointer-events-none'} ${
                transparentUI
-                 ? 'bg-slate-950/88 backdrop-blur-2xl backdrop-saturate-150 before:pointer-events-none before:absolute before:inset-0 before:bg-white/[0.025] before:content-[""]'
-                 : 'bg-[#03060a]'
+                 ? 'backdrop-blur-2xl backdrop-saturate-150'
+                 : ''
             }`}
             aria-hidden={activeTab !== 'stops'}
          >

@@ -417,7 +417,7 @@ export function DeviceTable({
                 maxLength={80}
                 autoFocus
                 placeholder="np. Telefon Tomka"
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none transition-colors placeholder:text-slate-600 focus:border-emerald-400/40"
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none transition-colors placeholder:text-slate-600 ui-accent-input"
               />
               <div className="mt-5 flex gap-3">
                 <button
@@ -432,7 +432,7 @@ export function DeviceTable({
                   type="button"
                   disabled={renameSaving || !renameValue.trim()}
                   onClick={saveRename}
-                  className="h-12 flex-1 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 text-sm font-black text-emerald-50 transition-all hover:bg-emerald-500/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-12 flex-1 rounded-2xl border ui-accent-solid text-sm font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {renameSaving ? 'Zapisywanie...' : 'Zapisz'}
                 </button>
@@ -456,7 +456,7 @@ export function DeviceTable({
 
         <div className="w-full bg-[#111623] border border-white/5 border-t-white/10 rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Łączna liczba urządzeń</div>
-          <div className="text-2xl font-mono font-black text-emerald-400 leading-none">{devices.length}</div>
+          <div className="text-2xl font-mono font-black ui-accent-text leading-none">{devices.length}</div>
         </div>
       </div>
 
@@ -507,7 +507,7 @@ export function DeviceTable({
             {showFilterDropdown && (
               <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-full mt-2 w-full sm:w-56 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1">
                 <button onClick={() => { setFilterRole('ALL'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'ALL' ? 'bg-white/10 text-white shadow-lg' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Wszyscy</button>
-                <button onClick={() => { setFilterRole('WŁAŚCICIEL'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'WŁAŚCICIEL' ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Właściciele</button>
+                <button onClick={() => { setFilterRole('WŁAŚCICIEL'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'WŁAŚCICIEL' ? 'ui-accent-soft' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Właściciele</button>
                 <button onClick={() => { setFilterRole('ADMIN'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'ADMIN' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Administratorzy</button>
                 <button onClick={() => { setFilterRole('UŻYTKOWNIK'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'UŻYTKOWNIK' ? 'bg-slate-500/10 text-slate-300' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Użytkownicy</button>
                 <button onClick={() => { setFilterRole('BLOCKED'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'BLOCKED' ? 'bg-rose-500/10 text-rose-400' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Zablokowani</button>
@@ -668,7 +668,7 @@ export function DeviceTable({
             <div className="min-w-0 flex-1 overflow-x-auto sm:flex-none">
               <div className="hidden min-w-max items-center justify-center gap-1.5 sm:flex">
                 {Array.from({ length: totalPages }).map((_, i) => (
-                  <button key={i} onClick={() => setCurrentPage(i + 1)} className={cn('w-10 h-10 rounded-xl font-bold text-sm flex items-center justify-center transition-all cursor-pointer', currentPage === i + 1 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent')}>
+                  <button key={i} onClick={() => setCurrentPage(i + 1)} className={cn('w-10 h-10 rounded-xl font-bold text-sm flex items-center justify-center transition-all cursor-pointer', currentPage === i + 1 ? 'ui-accent-soft border' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent')}>
                     {i + 1}
                   </button>
                 ))}

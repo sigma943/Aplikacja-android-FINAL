@@ -1,4 +1,5 @@
-﻿'use client';
+'use client';
+import { uiAccentVariables } from '@/lib/ui-accent';
 
 import type { CSSProperties } from 'react';
 import { useState, useEffect, useMemo } from 'react';
@@ -1225,7 +1226,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           ? cn('flex h-full min-h-0 flex-1 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
           : cn('flex h-screen min-h-0 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
       }
-      style={{ ['--pks-accent' as string]: themeColor } as CSSProperties}
+      style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
     >
       {!isDarkTheme && (
         <style>{`

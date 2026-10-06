@@ -43,8 +43,8 @@ body {
 
 .pks-map-loading-spinner {
   border-color: color-mix(in srgb, var(--pks-loading-text, #020617) 18%, transparent);
-  border-top-color: #14b8a6;
-  box-shadow: 0 0 28px rgba(20, 184, 166, 0.18);
+  border-top-color: var(--pks-accent, #00a3a2);
+  box-shadow: 0 0 28px var(--pks-accent-soft, #00a3a21a);
 }
 
 @media (prefers-color-scheme: light) {
@@ -123,7 +123,7 @@ body {
   }
 
   .custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
-    background: rgba(45, 212, 191, 0.5);
+    background: var(--pks-accent-border, #00a3a260);
   }
 }
 
@@ -147,3 +147,63 @@ body {
   background: transparent !important;
   border: 0 !important;
 }
+
+/* UI accent is shared; route, carrier and punctuality colours stay semantic. */
+:root {
+  --pks-accent: #00a3a2;
+  --pks-accent-text: #4dbfbe;
+  --pks-accent-soft: #00a3a21a;
+  --pks-accent-hover: #00a3a228;
+  --pks-accent-border: #00a3a260;
+  --pks-accent-on: #071017;
+}
+.ui-accent-text { color: var(--pks-accent-text); }
+.ui-accent-soft { background: var(--pks-accent-soft); color: var(--pks-accent-text); border-color: var(--pks-accent-border); }
+.ui-accent-solid { background: var(--pks-accent); color: var(--pks-accent-on); border-color: transparent; }
+.ui-accent-fill { fill: var(--pks-accent-text); color: var(--pks-accent-text); }
+.ui-accent-soft:hover { background: var(--pks-accent-hover); }
+.ui-accent-solid:hover { filter: brightness(1.08); }
+.ui-accent-focus:focus-visible { outline: 2px solid var(--pks-accent); outline-offset: 3px; }
+.ui-accent-input:focus { border-color: var(--pks-accent); box-shadow: 0 0 0 3px var(--pks-accent-soft); }
+.ui-accent-search:focus-within > svg { color: var(--pks-accent-text); }
+.transit-view {
+  --transit-canvas: #071017;
+  --transit-surface: #111c25e8;
+  --transit-card: #0e1922d9;
+  --transit-border: #ffffff12;
+  background: var(--transit-canvas);
+  color-scheme: dark;
+}
+.transit-view[data-ui-mode='light'] {
+  --transit-canvas: #f4f7f8;
+  --transit-surface: #fffffff2;
+  --transit-card: #ffffffeb;
+  --transit-border: #0f172a15;
+  color-scheme: light;
+}
+.theme-oled .transit-view { --transit-canvas: #000; --transit-surface: #080c0ef2; --transit-card: #080c0ee8; }
+.theme-aurora .transit-view { --transit-canvas: #0d1020; --transit-surface: #171b2be8; --transit-card: #121627de; }
+.theme-warm .transit-view { --transit-canvas: #f2ede1; --transit-surface: #faf7eff2; --transit-card: #faf7efeb; --transit-border: #75674920; }
+.transit-surface { background: var(--transit-surface); border-color: var(--transit-border); box-shadow: 0 8px 28px #0000000a; }
+.transit-card { background: var(--transit-card); border-color: var(--transit-border); }
+.transit-stop-card:hover, .transit-stop-card:focus-within { border-color: var(--pks-accent-border); }
+.transit-stop-card { box-shadow: 0 4px 16px #00000006; }
+.transit-header-glow { background: radial-gradient(ellipse at top right, var(--pks-accent-soft), transparent 75%); }
+.transit-view .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
+.transit-view .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--pks-accent-border); }
+@media (prefers-reduced-motion: reduce) {
+  .transit-view *, .transit-view *::before, .transit-view *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+.admin-light .ui-accent-solid, .theme-warm .admin-light .ui-accent-solid { color: var(--pks-accent-on) !important; }
+button:focus-visible, [role='button']:focus-visible { outline-color: var(--pks-accent); }
+
+input[type="checkbox"], input[type="radio"] { accent-color: var(--pks-accent); }
+.leaflet-control-zoom a:hover { color: var(--pks-accent-text); }
+
+.transit-view[data-ui-mode='light'] .text-slate-400 { color: #64748b; }
+.transit-view[data-ui-mode='light'] .text-teal-400 { color: #0f766e; }
+.transit-view[data-ui-mode='light'] .text-orange-400 { color: #b45309; }
+.transit-view[data-ui-mode='light'] .text-lime-400 { color: #4d7c0f; }
+.transit-view[data-ui-mode='light'] .text-rose-300 { color: #be123c; }
+.transit-view[data-ui-mode='light'] .text-emerald-300 { color: #047857; }

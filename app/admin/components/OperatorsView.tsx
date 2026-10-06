@@ -508,7 +508,7 @@ disableStops: false,
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left group",
                     permissions[p.key] 
-                      ? "bg-emerald-500/10 border-emerald-500/30" 
+                      ? "ui-accent-soft"
                       : "bg-[#111623] border-white/5",
                     isDisabled || isSelf || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))
                       ? "opacity-60 cursor-not-allowed grayscale-[0.4] brightness-[0.85]"
@@ -518,14 +518,14 @@ disableStops: false,
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "p-2 rounded-xl transition-all group-hover:scale-110",
-                      permissions[p.key] ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-white/5 text-slate-500"
+                      permissions[p.key] ? "ui-accent-soft" : "bg-white/5 text-slate-500"
                     )}>
                       {p.icon}
                     </div>
                     <div>
                       <div className={cn(
                         "text-base font-bold",
-                        permissions[p.key] ? "text-emerald-400" : "text-slate-300"
+                        permissions[p.key] ? "ui-accent-text" : "text-slate-300"
                       )}>
                         {p.label}
                       </div>
@@ -535,11 +535,11 @@ disableStops: false,
                   
                   <div className={cn(
                     "w-12 h-7 rounded-full border flex items-center px-1 transition-all",
-                    permissions[p.key] ? "bg-emerald-500/30 border-emerald-500/50 justify-end" : "bg-white/5 border-white/10 justify-start"
+                    permissions[p.key] ? "ui-accent-soft justify-end" : "bg-white/5 border-white/10 justify-start"
                   )}>
                     <div className={cn(
                       "w-5 h-5 rounded-full shadow-lg transition-all",
-                      permissions[p.key] ? "bg-emerald-400" : "bg-slate-600"
+                      permissions[p.key] ? "ui-accent-solid" : "bg-slate-600"
                     )} />
                   </div>
                 </button>
@@ -567,7 +567,7 @@ disableStops: false,
                     : { ...permissions, canChangeRoles: false },
               });
             }}
-            className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-sm font-black transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)] active:scale-[0.98] cursor-pointer uppercase tracking-widest"
+            className="w-full py-4 ui-accent-solid rounded-xl text-sm font-black transition-all shadow-lg active:scale-[0.98] cursor-pointer uppercase tracking-widest"
           >
             {isSelf ? 'Zamknij' : 'Zapisz zmiany'}
           </button>
@@ -692,13 +692,13 @@ function GlobalPermissionsModal({
               className={cn(
                 'flex h-7 w-12 shrink-0 items-center rounded-full border px-1 transition-all',
                 readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-                settings.loginEnabled ? 'justify-end border-emerald-500/50 bg-emerald-500/20' : 'justify-start border-white/10 bg-white/5',
+                settings.loginEnabled ? 'ui-accent-soft justify-end' : 'justify-start border-white/10 bg-white/5',
               )}
             >
               <span
                 className={cn(
                   'h-5 w-5 rounded-full shadow-md transition-all',
-                  settings.loginEnabled ? 'bg-emerald-400' : 'bg-slate-600',
+                  settings.loginEnabled ? 'ui-accent-solid' : 'bg-slate-600',
                 )}
               />
             </button>
@@ -789,7 +789,7 @@ function GlobalPermissionsModal({
               'rounded-2xl px-8 py-2.5 text-sm font-bold text-white transition-all shadow-[0_4px_15px_rgba(16,185,129,0.25)]',
               saving || !dirty
                 ? 'cursor-not-allowed bg-emerald-800/40 opacity-60'
-                : 'cursor-pointer bg-emerald-500 hover:scale-[1.02] hover:bg-emerald-600 active:scale-95',
+                : 'cursor-pointer ui-accent-solid hover:scale-[1.02] active:scale-95',
             )}
           >
             {saving ? 'Zapisywanie…' : dirty ? 'Zapisz zmiany' : 'Brak zmian'}

@@ -30,6 +30,17 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify shared accent and stop views
+        run: node test/accent-browser.cjs
+
+      - name: Upload UI previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stop-ui-previews
+          path: test/ui-previews/*.png
+          if-no-files-found: ignore
+
       - name: Generate Android Icons
         run: npm run android:assets
 

@@ -258,7 +258,7 @@ export function MaintenanceView({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Szukaj endpointu..."
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 ui-accent-input"
               />
             </div>
             <SelectButton icon={<SlidersHorizontal size={15} />} value={sort} onChange={(value) => setSort(value as typeof sort)} options={[['priority', 'Sortowanie'], ['name', 'Nazwa'], ['latency', 'Opóźnienie']]} />
@@ -270,7 +270,7 @@ export function MaintenanceView({
                 setSelectedId('');
                 setDraft(emptyDraft());
               }}
-              className="flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-black uppercase tracking-widest text-cyan-200 transition-colors hover:bg-cyan-500/20 disabled:opacity-40"
+              className="flex h-11 items-center justify-center gap-2 rounded-xl border ui-accent-soft px-4 text-xs font-semibold uppercase tracking-widest transition-colors disabled:opacity-40"
             >
               <Plus size={15} />
               Dodaj
@@ -380,7 +380,7 @@ export function MaintenanceView({
                 type="button"
                 disabled={Boolean(busy)}
                 onClick={testSelected}
-                className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500/5 text-xs font-black uppercase tracking-widest text-cyan-200 transition-colors hover:bg-cyan-500/10 disabled:opacity-50"
+                className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border ui-accent-soft text-xs font-semibold uppercase tracking-widest transition-colors disabled:opacity-50"
               >
                 <RefreshCcw size={15} className={busy === 'test' ? 'animate-spin' : ''} />
                 Testuj ponownie
@@ -522,7 +522,7 @@ function EndpointForm({ draft, disabled, onChange }: { draft: MaintenanceEndpoin
           <span className="block text-xs font-black uppercase tracking-widest text-slate-300">Fallback</span>
           <span className="text-xs text-slate-500">Użyj, jeśli Firestore niedostępne</span>
         </span>
-        <input disabled={disabled} type="checkbox" checked={draft.fallbackEnabled} onChange={(event) => update('fallbackEnabled', event.target.checked)} className="h-5 w-5 accent-cyan-400" />
+        <input disabled={disabled} type="checkbox" checked={draft.fallbackEnabled} onChange={(event) => update('fallbackEnabled', event.target.checked)} className="h-5 w-5 accent-[var(--pks-accent)]" />
       </label>
       <style jsx>{`
         .field-input {
@@ -567,8 +567,8 @@ function CheckLine({ label, ok, value }: { label: string; ok: boolean; value?: s
 
 function ActionButton({ disabled, onClick, icon, label, tone = 'emerald' }: { disabled: boolean; onClick: () => void; icon: React.ReactNode; label: string; tone?: 'cyan' | 'emerald' | 'rose' }) {
   const classes = {
-    cyan: 'border-cyan-400/25 bg-cyan-500/15 text-cyan-50 hover:bg-cyan-500/25',
-    emerald: 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20',
+    cyan: 'ui-accent-soft',
+    emerald: 'ui-accent-solid',
     rose: 'border-rose-400/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/20',
   };
   return (

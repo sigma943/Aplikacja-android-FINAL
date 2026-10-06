@@ -253,8 +253,8 @@ export default function StopsPanel({
             onClick={onRetry}
             className={`rounded-2xl border px-5 py-3 text-xs font-black uppercase tracking-wider transition-colors ${
               isDarkTheme
-                ? 'border-teal-400/30 bg-teal-400/10 text-teal-300 hover:bg-teal-400/20'
-                : 'border-teal-500/35 bg-teal-500/10 text-teal-700 hover:bg-teal-500/15'
+                ? 'ui-accent-soft'
+                : 'ui-accent-soft'
             }`}
           >
             Sprobuj ponownie
