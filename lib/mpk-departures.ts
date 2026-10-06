@@ -15,11 +15,15 @@ export function mpkServicesOnDate(calendar: MpkCalendar, dateIso: string): strin
   return [...active];
 }
 
-export function mpkBoardEntries(payload: unknown) {
+export function mpkBoardEntries(payload: unknown, observedAtMs = Date.now()) {
   if (!Array.isArray(payload)) throw new Error('Invalid MPK stop board response');
   return payload.filter((row) => row && !row.is_last_stop && row.linia && row.czas_odjazdu).map((row) => ({
     line: String(row.linia), trip_headsign: row.kierunek || row.przystanek_koncowy,
     departure_time: String(row.czas_odjazdu), real_departure_time: row.czas_odjazdu_real || undefined,
     trip_id: row.trip_id, vehicle: row.nb, realtime_source: 'stop-board' as const,
+    board_is_past: row.is_past === true,
+    board_at_stop: row.at_stop === true,
+    board_observed_at_ms: observedAtMs,
+    board_time_precision_ms: /^\d{1,2}:\d{2}$/.test(String(row.czas_odjazdu_real || row.czas_odjazdu)) ? 59_999 : 0,
   }));
 }

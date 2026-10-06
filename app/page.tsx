@@ -1,4 +1,5 @@
 'use client';
+import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
@@ -773,7 +774,7 @@ export default function Home() {
       // Keep live telemetry authoritative to avoid stale detail cache snapping UI backward.
       lat: base.lat,
       lon: base.lon,
-      delay: base.delay,
+      delay: base.delay ?? details.delay,
       nextTripStartAtMs: base.nextTripStartAtMs ?? details.nextTripStartAtMs,
       nextTripFirstStopId: base.nextTripFirstStopId ?? details.nextTripFirstStopId,
       status: base.status,
@@ -1387,15 +1388,12 @@ export default function Home() {
     Boolean(selectedBus) &&
     selectedBusDetailsLoading &&
     ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
-  const selectedBusUpcomingSchedule = useMemo(() => {
-    const schedule = selectedBus?.schedule || [];
-    return schedule.filter((stop) => {
-      if (!isScheduleStopUpcoming(stop, now)) return false;
-      if (selectedBus?.lastStopId && Number(stop?.id) === Number(selectedBus.lastStopId)) return false;
-      return true;
-    });
-  }, [now, selectedBus?.lastStopId, selectedBus?.schedule]);
-  const selectedBusDisplayedStops = selectedBus?.routeStops?.length ? selectedBus.routeStops : selectedBus?.schedule?.length ? selectedBus.schedule : selectedBusUpcomingSchedule;
+  const selectedBusDisplayedStops = useMemo(() => {
+    const stops = selectedBus?.routeStops?.length ? selectedBus.routeStops : selectedBus?.schedule || [];
+    if (selectedVehicleIsTrain) return stops;
+    return upcomingVehicleStops(stops, now, selectedBus?.lastStopId);
+  }, [now, selectedBus?.lastStopId, selectedBus?.routeStops, selectedBus?.schedule, selectedVehicleIsTrain]);
+
   const openVehicleRouteStop = (stopId:string) => {
     const point=(selectedBus?.routeStops||selectedBus?.schedule||[]).find(stop=>String(stop.id)===stopId);
     const provider=selectedBus?.provider||'pks';
@@ -1927,7 +1925,7 @@ export default function Home() {
                       {(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
-                            <MapPin className="w-4 h-4" /> Wszystkie przystanki trasy
+                            <MapPin className="w-4 h-4" /> {selectedVehicleIsTrain ? 'Wszystkie przystanki trasy' : 'Następne przystanki'}
                           </h3>
                           <div className="flex flex-col gap-0 relative">
                              <div className={`absolute left-[9px] top-4 bottom-4 w-0.5 ${mapDetailLine}`}></div>

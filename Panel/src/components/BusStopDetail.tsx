@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, MapPin, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
+import { departureIsPast, departureCountdown } from '../../../lib/departure-display';
 import { Stop, Departure } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
@@ -66,7 +67,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       setCurrentTimeMs(Date.now());
     };
     updateTime();
-    const interval = setInterval(updateTime, 15000);
+    const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -99,7 +100,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   }, [departures, stop.carriers, stop.lineProviders, stopLines]);
 
   const processedDepartures = departures.map(d => ({...d,
-    isPast: selectedDayIndex===0 && currentTimeMs>0 && (d.realAtMs ?? d.plannedAtMs ?? warsawTimeMs(selectedDateKey,d.time)) < currentTimeMs
+    isPast: selectedDayIndex===0 && currentTimeMs>0 && departureIsPast(d,currentTimeMs,warsawTimeMs(selectedDateKey,d.time))
   }));
 
   const filteredDeparturesByLine = processedDepartures.filter(d => {
@@ -143,12 +144,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const formatDepartureTime = (departure: Departure) => {
     if (selectedDay !== 'today') return departure.time;
     if (!currentTimeMs) return departure.time;
-    const departureMs = Number(departure.realAtMs || departure.plannedAtMs);
-    if (!Number.isFinite(departureMs)) return departure.time;
-    const diffMs = departureMs - currentTimeMs;
-    if (diffMs < 0 || diffMs >= 30 * 60_000) return departure.time;
-    if (diffMs < 60_000) return '<1 min';
-    return `${Math.floor(diffMs / 60_000)} min`;
+    return departureCountdown(departure, currentTimeMs);
   };
 
   return (

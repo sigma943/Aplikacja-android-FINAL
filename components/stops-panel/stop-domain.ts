@@ -1062,6 +1062,10 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
     plannedAtMs,
     realAtMs,
     realtimeSource: entry.realtime_source === 'stop-board' ? 'stop-board' : undefined,
+    boardIsPast: entry.board_is_past === true,
+    boardAtStop: entry.board_at_stop === true,
+    boardObservedAtMs: typeof entry.board_observed_at_ms === 'number' ? entry.board_observed_at_ms : undefined,
+    boardTimePrecisionMs: typeof entry.board_time_precision_ms === 'number' ? entry.board_time_precision_ms : undefined,
   };
 }
 

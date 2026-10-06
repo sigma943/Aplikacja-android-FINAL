@@ -41,6 +41,10 @@ export interface Departure {
   plannedAtMs?: number;
   realAtMs?: number;
   realtimeSource?: 'stop-board' | 'vehicle-feed';
+  boardIsPast?: boolean;
+  boardAtStop?: boolean;
+  boardObservedAtMs?: number;
+  boardTimePrecisionMs?: number;
 }
 
 export interface DepartureResult { departures: Departure[]; warnings: string[]; updatedAt: number; }

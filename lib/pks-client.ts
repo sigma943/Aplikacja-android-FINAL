@@ -120,7 +120,7 @@ let pkpStationCoordinatesPromise: Promise<Record<string, { lat: number; lon: num
 const pkpTrainMetadataCache = new Map<string, { expiresAt: number; value: PkpTrainMetadata | null }>();
 const pkpTrainMetadataInflight = new Map<string, Promise<PkpTrainMetadata | null>>();
 const shapePointsCache = new Map<string, Promise<ShapePoint[]>>();
-const roadRouteCache = new Map<string, Promise<ShapePoint[]>>();
+const roadRouteCache = new Map<string, ShapePoint[]>();
 const TRANSPORT_API_BASE_URL = (
   process.env.NEXT_PUBLIC_TRANSPORT_API_BASE_URL ||
   'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi'
@@ -855,7 +855,7 @@ function buildMarcelRouteStops(stops: MarcelCourseStop[], delaySeconds: number, 
   });
 }
 
-async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean): Promise<Vehicle | null> {
+async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean, includeRoute = false): Promise<Vehicle | null> {
   const lat = readMarcelNumber(raw, ['lat', 'latitude', 'szGps', 'szerokosc', 'szerokoscGeo', 'position.lat', 'position.latitude']);
   const lon = readMarcelNumber(raw, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
@@ -875,7 +875,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     ? timestampMs
     : getObservedMarcelSignalMs(String(rawVehicleId), lat, lon, now);
   const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
-  const courseStops = await fetchMarcelCourseStops(tripId).catch(() => []);
+  const courseStops = includeRoute ? await fetchMarcelCourseStops(tripId) : [];
   const delay = estimateMarcelDelaySeconds(lat, lon, courseStops, now);
   const schedule = buildMarcelSchedule(courseStops, delay, now);
   const routeStops = buildMarcelRouteStops(courseStops, delay, now);
@@ -919,7 +919,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     speed: Number.isFinite(speed) ? speed : undefined,
     computedSpeed: speed,
     direction,
-    delay,
+    delay: includeRoute ? delay : undefined,
     dataAgeSec,
     schedule,
     routeStops,
@@ -957,12 +957,14 @@ async function fetchMarcelVehiclesDirect(includeInactive: boolean, signal?: Abor
 
 async function fetchMarcelVehicleDetailsDirect(vehicleId: string, includeInactive: boolean) {
   const lookupVehicleId = String(vehicleId || '').replace(/^marcel_/, '');
-  const vehicles = await fetchMarcelVehiclesDirect(includeInactive);
-  return vehicles.find((vehicle) =>
-    String(vehicle.id).replace(/^marcel_/, '') === lookupVehicleId ||
-    String(vehicle.vehicleNumber || '') === lookupVehicleId ||
-    String(vehicle.journeyId || '') === lookupVehicleId
-  ) || null;
+  const payload = await requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, { headers: { Accept: 'application/json' } });
+  const raw = unwrapMarcelVehiclesPayload(payload).find((row) => {
+    const id = readMarcelString(row, ['vehicle_id', 'vehicle.id', 'idPojazdu', 'pojazdId', 'idPo'])
+      || readMarcelString(row, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']);
+    const number = readMarcelString(row, ['vehicleNumber', 'vehicle_number', 'vehicle.label', 'nrBoczny', 'numerBoczny', 'nrRej', 'rejestracja']);
+    return id === lookupVehicleId || number === lookupVehicleId;
+  });
+  return raw ? mapMarcelDirectVehicle(raw, Date.now(), includeInactive, true) : null;
 }
 
 function decodeXmlEntity(value: string) {
@@ -1461,10 +1463,14 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       }
     }));
     return joinRouteChunks(results);
-  })().catch(error=>{roadRouteCache.delete(cacheKey);throw error;});
-  roadRouteCache.set(cacheKey,promise);
+  })();
+  // Pending requests belong to their caller's AbortSignal. Reusing one after
+  // selection changes can poison the new route with the previous cancellation.
+  const route = await promise;
+  if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+  roadRouteCache.set(cacheKey,route);
   if(roadRouteCache.size>100)roadRouteCache.delete(roadRouteCache.keys().next().value!);
-  return promise;
+  return route;
 }
 
 function createQuickCurvedRoute(coords: ShapePoint[]) {
@@ -2600,6 +2606,10 @@ export type MpkRzeszowScheduleEntry = {
   private_code?: string;
   vehicle?: string | number | null;
   trip_id?: string | number;
+  board_is_past?: boolean;
+  board_at_stop?: boolean;
+  board_observed_at_ms?: number;
+  board_time_precision_ms?: number;
   is_last_stop?: boolean;
   start_stop_id?: string | number;
   start_stop_name?: string;
@@ -2669,7 +2679,7 @@ export async function fetchMpkRzeszowDeparturesClient(
   options?: { signal?: AbortSignal },
 ) {
   const boardPromise = dateIso === warsawDateIso()
-    ? requestJson<unknown>(`https://www.mpkrzeszow.pl/przystanki/departures.php?${new URLSearchParams({ stopId, hide_last_stop: '1' })}`, { signal: options?.signal }).then(mpkBoardEntries)
+    ? requestJson<unknown>(`https://www.mpkrzeszow.pl/przystanki/departures.php?${new URLSearchParams({ stopId, hide_last_stop: '1' })}`, { signal: options?.signal }).then(payload => mpkBoardEntries(payload))
     : Promise.resolve([]);
   const schedulePromise = (async () => {
     const serviceIds = await mpkServiceIdsForDate(dateIso);
@@ -2684,7 +2694,8 @@ export async function fetchMpkRzeszowDeparturesClient(
   if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
   if (schedule.status === 'rejected' && (dateIso !== warsawDateIso() || board.status === 'rejected')) throw schedule.reason;
   const entries = new Map<string, MpkRzeszowScheduleEntry>();
-  const key = (entry: MpkRzeszowScheduleEntry) => `${entry.trip_id ?? `${entry.line}:${entry.trip_headsign}`}:${warsawTimeMs(dateIso, entry.departure_time)}`;
+  // Board HH:mm and GTFS HH:mm:ss must identify the same departure.
+  const key = (entry: MpkRzeszowScheduleEntry) => `${entry.trip_id ?? `${entry.line}:${entry.trip_headsign}`}:${Math.floor(warsawTimeMs(dateIso, entry.departure_time) / 60_000)}`;
   if (schedule.status === 'fulfilled') schedule.value.forEach((entry) => entries.set(key(entry), entry));
   if (board.status === 'fulfilled') board.value.forEach((entry) => entries.set(key(entry), entry));
   const result = [...entries.values()] as MpkRzeszowScheduleEntry[] & { warning?: string };

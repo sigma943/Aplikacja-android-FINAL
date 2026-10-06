@@ -21,7 +21,7 @@ const assert=require('node:assert/strict');const puppeteer=require('puppeteer-co
  await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker',{timeout:60000});
  await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
  console.log('vehicle selected');
- await page.waitForFunction(()=>document.body.innerText.toLowerCase().includes('wszystkie przystanki trasy'),{timeout:20000}).catch(async e=>{console.log(await page.evaluate(()=>document.body.innerText));await page.screenshot({path:'test/vehicle-failure.tmp.png'});throw e;});
+ await page.waitForFunction(()=>document.body.innerText.toLowerCase().includes('następne przystanki'),{timeout:20000}).catch(async e=>{console.log(await page.evaluate(()=>document.body.innerText));await page.screenshot({path:'test/vehicle-failure.tmp.png'});throw e;});
  await page.waitForFunction(()=>document.body.innerText.includes('Budy'),{timeout:60000});
  await page.waitForFunction(()=>[...performance.getEntriesByType('resource')].some(entry=>entry.name.includes('/data/bus-routes/pks/643.json')),{timeout:60000});
  const text=await page.evaluate(()=>document.body.innerText);assert.match(text,/Przerwa/);assert.ok(!text.includes('Przystanek nieznany'));

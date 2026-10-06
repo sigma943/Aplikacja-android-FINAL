@@ -739,7 +739,7 @@ const BusMarker = memo(function BusMarker({
   );
 });
 
-function VehicleMarkerLayer({
+const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
   vehicles,
   selectedVehicleId,
   themeColor,
@@ -822,7 +822,7 @@ function VehicleMarkerLayer({
   const zoom = map.getZoom();
   const isHighVolumeLayer = renderVehicles.length > 35;
   const viewportVehicles = useMemo(() => {
-    if (renderVehicles.length <= 120) return renderVehicles;
+    if (renderVehicles.length <= 35) return renderVehicles;
     const paddedBounds = map.getBounds().pad(0.2);
     return renderVehicles.filter((vehicle) => paddedBounds.contains([vehicle.lat, vehicle.lon]));
   }, [map, renderVehicles, viewTick, zoom]);
@@ -877,7 +877,10 @@ function VehicleMarkerLayer({
   useEffect(() => {
     for (const vehicle of viewportVehicles) {
       const marker = markerRefs.current.get(getVehicleMarkerKey(vehicle));
-      if (marker) marker.setLatLng([vehicle.lat, vehicle.lon]);
+      if (marker) {
+        const point = marker.getLatLng();
+        if (point.lat !== vehicle.lat || point.lng !== vehicle.lon) marker.setLatLng([vehicle.lat, vehicle.lon]);
+      }
     }
   }, [getVehicleMarkerKey, viewportVehicles]);
 
@@ -925,7 +928,7 @@ function VehicleMarkerLayer({
       })}
     </>
   );
-}
+});
 
 function RouteStopsLayer({
   selectedVehicle,
@@ -1080,11 +1083,17 @@ export default function BusMap({
     }
     return next;
   }, [routeStopIds, routeStopsData]);
+  // Show Marcel's known stop sequence while road routing loads or is unavailable.
+  // Dashed geometry is deliberately not persisted as an exact road route.
+  const routeIsApproximate = selectedVehicle?.provider === 'marcel' && snappedRoute.length < 2;
+  const paintedRoute = useMemo(() => routeIsApproximate
+    ? routeGeometryStops.map(stop => [stop.lat, stop.lon] as [number, number])
+    : snappedRoute, [routeIsApproximate, routeGeometryStops, snappedRoute]);
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
   const routeGlowOpts = { pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
-  const routePolylineOpts = { pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
+  const routePolylineOpts = { pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, dashArray: routeIsApproximate ? '8 8' : undefined, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
   const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
   const routeDirection = normalizeRouteCachePart(
     selectedVehicle?.direction ||
@@ -1221,6 +1230,11 @@ export default function BusMap({
 
   return (
     <div ref={mapContainerRef} className={`h-full w-full relative z-0 style-map ${vehicles.length > 35 ? 'is-high-volume' : ''}`}>
+      {routeIsApproximate && paintedRoute.length > 1 && (
+        <div className="absolute bottom-28 right-3 z-[1000] rounded-lg bg-slate-900/90 px-3 py-2 text-xs text-white pointer-events-none">
+          Trasa przybliżona przez przystanki
+        </div>
+      )}
       <style>{`
         /* Hide zoom controls on mobile */
         @media (max-width: 768px) {
@@ -1330,11 +1344,11 @@ export default function BusMap({
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
-          {snappedRoute.length > 0 && (
+          {paintedRoute.length > 1 && (
             <>
-              <Polyline pane="routeLinePane" key={`route-halo-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routeHaloOpts} />
-              <Polyline pane="routeLinePane" key={`route-glow-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routeGlowOpts} />
-              <Polyline pane="routeLinePane" key={`route-line-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routePolylineOpts} />
+              <Polyline pane="routeLinePane" key={`route-halo-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeHaloOpts} />
+              <Polyline pane="routeLinePane" key={`route-glow-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeGlowOpts} />
+              <Polyline pane="routeLinePane" key={`route-line-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routePolylineOpts} />
             </>
           )}
         </Pane>

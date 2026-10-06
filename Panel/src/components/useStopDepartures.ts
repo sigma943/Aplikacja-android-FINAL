@@ -31,7 +31,7 @@ export function useStopDepartures(stop: Stop, dayIndex: number, dateIso: string,
         if(active) setState(state=>({...state,isLoading:false,isFetching:false,warnings:[error instanceof Error ? error.message : 'Nie udało się pobrać odjazdów.',...(loaded ? ['Zachowano ostatnio pobrany rozkład.'] : [])]}));
       } finally {
         pending = false;
-        if(active) timer = setTimeout(refresh,dayIndex===0 ? 30_000 : 300_000);
+        if(active) timer = setTimeout(refresh,dayIndex===0 ? 10_000 : 300_000);
       }
     }
     refreshRef.current = ()=>{ void refresh(); };
