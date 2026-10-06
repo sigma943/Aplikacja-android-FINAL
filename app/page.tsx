@@ -2246,13 +2246,13 @@ export default function Home() {
             onClick={() => setIsSettingsOpen(false)}
           >
             <motion.div 
-               initial={{ y: "100%", opacity: 0, scale: 0.98 }}
-               animate={{ y: 0, opacity: 1, scale: 1 }}
+               initial={{ y: "100%", opacity: 0, scale: 0.98, maxHeight: "46dvh" }}
+               animate={{ y: 0, opacity: 1, scale: 1, maxHeight: isOptionsExpanded ? "80dvh" : "46dvh" }}
                exit={{ y: "100%", opacity: 0, scale: 0.96 }}
-               transition={{ type: "spring", stiffness: 700, damping: 35 }}
+               transition={{ type: "spring", stiffness: 700, damping: 35, maxHeight: { type: "spring", stiffness: 320, damping: 32 } }}
                role="dialog" aria-modal="true" aria-labelledby="options-title"
                onClick={(event) => event.stopPropagation()}
-               className={`flex w-full max-w-2xl ${isOptionsExpanded ? 'max-h-[80dvh]' : 'max-h-[46dvh]'} flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-h-[80dvh] md:max-w-[500px] md:p-5 ${optionsSheet}`}
+               className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
             >
                <motion.button
                   type="button"
