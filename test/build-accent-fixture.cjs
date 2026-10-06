@@ -6,7 +6,7 @@ const fs=require('node:fs');const path=require('node:path');const os=require('no
 module.exports=function buildAccentFixture(){
   const source=process.cwd();const fixture=fs.mkdtempSync(path.join(os.tmpdir(),'pks-ui-'));
   fs.mkdirSync(path.join(fixture,'app'));
-  for(const folder of ['node_modules','components','lib','Panel'])fs.symlinkSync(path.join(source,folder),path.join(fixture,folder),'dir');
+  for(const folder of ['node_modules','components','lib','Panel','public'])fs.symlinkSync(path.join(source,folder),path.join(fixture,folder),'dir');
   fs.symlinkSync(path.join(source,'app/admin'),path.join(fixture,'app/admin'),'dir');
   fs.copyFileSync(path.join(source,'app/page.tsx'),path.join(fixture,'app/page.tsx'));
   fs.copyFileSync(path.join(source,'tsconfig.json'),path.join(fixture,'tsconfig.json'));
