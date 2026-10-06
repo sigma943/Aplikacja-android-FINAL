@@ -378,7 +378,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-400/35'
                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/35'
                              }`}>
-                               {Number(dep.delayMins) > 0 ? `+${Math.abs(Number(dep.delayMins))} min` : `-${Math.abs(Number(dep.delayMins))} min`}
+                               {dep.delayEstimated ? 'szac. ' : ''}{Number(dep.delayMins) > 0 ? `+${Math.abs(Number(dep.delayMins))} min` : `-${Math.abs(Number(dep.delayMins))} min`}
                              </span>
                            )}
                         </div>

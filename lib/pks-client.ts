@@ -2730,6 +2730,51 @@ export type MarcelCourseStopPublic = {
   godz?: string;
 };
 
+export type MarcelLivePosition = { tripId: string; lat: number; lon: number; observedAtMs: number };
+let marcelLivePositionsCache: { expiresAt: number; promise: Promise<MarcelLivePosition[]> } | undefined;
+
+/** One live position download per refresh, shared by all courses of a stop. */
+export function fetchMarcelLivePositionsClient(): Promise<MarcelLivePosition[]> {
+  if (marcelLivePositionsCache && marcelLivePositionsCache.expiresAt > Date.now()) return marcelLivePositionsCache.promise;
+  const promise = requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, { headers: { Accept: 'application/json' } }).then(payload => {
+    const observedAtMs = Date.now();
+    return unwrapMarcelVehiclesPayload(payload).flatMap(row => {
+      const tripId = readMarcelString(row, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']);
+      const lat = readMarcelNumber(row, ['szGps', 'lat', 'latitude']);
+      const lon = readMarcelNumber(row, ['dlGps', 'lon', 'lng', 'longitude']);
+      const timestamp = readMarcelTimestamp(row);
+      const at = Number.isFinite(timestamp) ? timestamp : observedAtMs;
+      return tripId && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(observedAtMs - at) < 60_000
+        ? [{ tripId, lat, lon, observedAtMs: at }] : [];
+    });
+  }).catch(error => { marcelLivePositionsCache = undefined; throw error; });
+  marcelLivePositionsCache = { expiresAt: Date.now() + 10_000, promise };
+  return promise;
+}
+
+/** This is a GPS estimate, not an operator-confirmed delay. */
+export function estimateMarcelCourseDelay(courseId: number | string, publicStops: MarcelCourseStopPublic[], dateIso: string, positions: MarcelLivePosition[]): number | undefined {
+  const position = positions.find(row => row.tripId === String(courseId));
+  if (!position || Math.abs(Date.now() - position.observedAtMs) > 60_000) return undefined;
+  let previousMs: number | undefined;
+  const stops = publicStops.flatMap((stop, index) => {
+    let plannedMs = warsawTimeMs(dateIso, stop.godz);
+    if (previousMs != null && plannedMs < previousMs - 6 * 3600_000) plannedMs += 24 * 3600_000;
+    if (!Number.isFinite(plannedMs) || stop.szGps == null || stop.dlGps == null) return [];
+    const lat = Number(stop.szGps), lon = Number(stop.dlGps);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return [];
+    previousMs = plannedMs;
+    return [{ id: stop.kol || index + 1, name: '', lat, lon, plannedMs,
+      planned: new Date(plannedMs).toISOString(), km: index, order: index }];
+  });
+  if (stops.length < 2 || position.observedAtMs < stops[0].plannedMs) return undefined;
+  const distance = Math.min(...stops.slice(1).map((end, index) => squaredMetersDistanceToSegment(
+    [position.lat, position.lon], [stops[index].lat, stops[index].lon], [end.lat, end.lon],
+  ).distanceSq));
+  if (distance > 1000 ** 2) return undefined;
+  return estimateMarcelDelaySeconds(position.lat, position.lon, stops, position.observedAtMs);
+}
+
 let marcelRoutesPromise: Promise<MarcelRoute[]> | null = null;
 const marcelCoursesByRouteDateCache = new Map<string, Promise<MarcelCourse[]>>();
 const marcelPublicCourseStopsCache = new Map<string, Promise<MarcelCourseStopPublic[]>>();

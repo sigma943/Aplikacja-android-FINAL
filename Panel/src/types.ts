@@ -33,6 +33,7 @@ export interface Departure {
   time: string; // e.g. "19:24"
   status: 'on_time' | 'delayed';
   delayMins?: number;
+  delayEstimated?: boolean;
   vehicleDesc?: string; // e.g. "Autobus 16 • Iveco Crossway"
   carrier?: Carrier; // Especially for trains
   platform?: string; // For trains

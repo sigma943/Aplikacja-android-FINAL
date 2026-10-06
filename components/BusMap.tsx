@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomCo
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { officialBusRoute } from '@/lib/official-bus-routes';
+import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
@@ -1065,7 +1066,9 @@ export default function BusMap({
     if (routeStops.length > 0) return dedupeStableStopIds(routeStops);
     return dedupeStableStopIds((selectedVehicle?.schedule || []).map((s: any) => s.id));
   }, [selectedVehicle]);
-  const visibleRouteStopIds = routeStopIds;
+  const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
+    ? routeStopIds
+    : upcomingVehicleStops(routeStopsSource, Date.now(), selectedVehicle?.lastStopId).map(stop => String(stop.id));
   const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
   const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
     const next: RouteGeometryStop[] = [];
