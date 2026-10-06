@@ -1,4 +1,5 @@
 import {withRequestDeadline} from './request-deadline';
+import {roadRouteMatchesStops} from './bus-road-geometry';
 
 type Index={tripShapes:Record<string,string>;stopShapes:Record<string,string>;patterns:string[][];tripPatterns:Record<string,number>;stops:Record<string,{name:string;lat:number;lon:number}>};
 const indexes=new Map<string,Promise<Index>>();
@@ -19,13 +20,18 @@ export async function officialBusStops(provider:string,tripId:unknown) {
   const pattern=index.patterns[index.tripPatterns[String(tripId)]];
   return pattern?.map(id=>index.stops[id])||[];
 }
-export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Array<number|string>) {
+export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Array<number|string>,stopCoordinates?:Array<[number,number]>) {
   if(provider!=='pks'&&provider!=='mpk_rzeszow')return [];
   const index=await routeIndex(provider);
   const trip=String(tripId||'');
-  const shape=index.tripShapes[trip]||index.tripShapes[trip.split('_')[0]]||index.stopShapes[stopIds.join('-')];
+  const expected=stopIds.map(String).filter((id,i,all)=>i===0||id!==all[i-1]);
+  const pattern=index.patterns[index.tripPatterns[trip]];
+  const tripMatches=!expected.length || (pattern && pattern.join('-')===expected.join('-'));
+  const shape=(tripMatches ? index.tripShapes[trip] : '')||index.stopShapes[expected.join('-')];
   if(!shape || !/^[\w.+-]+$/.test(shape))return [];
   const key=provider+':'+shape;
   if(!shapes.has(key))shapes.set(key,json<Array<[number,number]>>(`/data/bus-routes/${provider}/${shape}.json`).catch(error=>{shapes.delete(key);throw error;}));
-  return shapes.get(key)!;
+  const points=await shapes.get(key)!;
+  const stops=stopCoordinates || expected.flatMap(id=>index.stops[id] ? [[index.stops[id].lat,index.stops[id].lon] as [number,number]] : []);
+  return roadRouteMatchesStops(points,stops,180) ? points : [];
 }
