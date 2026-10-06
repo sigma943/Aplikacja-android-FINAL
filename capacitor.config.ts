@@ -6,7 +6,9 @@ const config: CapacitorConfig = {
   webDir: 'out',
   plugins: {
     CapacitorHttp: {
-      enabled: true,
+      // Firebase WebChannel needs browser fetch/XHR. Transport APIs use
+      // CapacitorHttp.request explicitly and do not need global patching.
+      enabled: false,
     },
   },
 };

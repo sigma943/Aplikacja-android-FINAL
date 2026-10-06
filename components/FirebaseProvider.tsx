@@ -1,9 +1,10 @@
-﻿'use client';
+'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { auth, db, functions } from '@/lib/firebase';
-import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
+import { ensureFirebaseUser, registerDeviceOnce } from '@/lib/firebase-session';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
 import { buildDevicePermissions, type DeviceRole } from '@/lib/admin/rbac';
@@ -243,29 +244,28 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-      } else {
-        try {
-          await signInAnonymously(auth);
-        } catch (e: any) {
-          console.error("Anonymous sign-in failed", e);
-          // Fallback for testing if Anonymous Auth is disabled in Firebase Console
-          if (e.code === 'auth/admin-restricted-operation' || e.message?.includes('admin-restricted-operation')) {
-            console.warn("Anonymous Auth is disabled in Firebase Console. Using fallback guest ID for testing.");
-            let guestId = localStorage.getItem('guest_uid');
-            if (!guestId) {
-              guestId = 'guest_' + Math.random().toString(36).substring(2, 15);
-              localStorage.setItem('guest_uid', guestId);
-            }
-            // Mock user object for context
-            setUser({ uid: guestId, isAnonymous: true } as User);
-          }
-        }
-      }
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const login = () => {
+      if (cancelled) return;
+      ensureFirebaseUser(auth).catch((error) => {
+        if (cancelled) return;
+        console.error('Anonymous sign-in failed', error);
+        // A made-up guest UID has no Firebase credentials and cannot write.
+        // Retry with real credentials after temporary network failures.
+        retryTimer = setTimeout(login, 10_000);
+      });
+    };
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (cancelled) return;
+      setUser(currentUser);
+      if (!currentUser) login();
     });
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      clearTimeout(retryTimer);
+      unsubscribe();
+    };
   }, []);
 
   const getOrCreateInstallationId = async () => {
@@ -279,7 +279,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const stableNativeId = String(id.identifier || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
         if (stableNativeId) {
           const value = `android_${stableNativeId}`;
-          localStorage.setItem(key, value);
+          try { localStorage.setItem(key, value); } catch {}
           return value;
         }
       } catch (err) {
@@ -292,7 +292,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const nativeId = String(id.identifier || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
         if (nativeId) {
           const value = `android_${nativeId}`;
-          localStorage.setItem(key, value);
+          try { localStorage.setItem(key, value); } catch {}
           return value;
         }
       } catch (err) {
@@ -340,20 +340,20 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     const deviceRef = doc(db, 'devices', user.uid);
     let cancelled = false;
 
-    (async () => {
-      const instId = await getOrCreateInstallationId();
-      // #region agent log
-      agentLog(
-        'FirebaseProvider.tsx:registerIdentity:before',
-        'Registering device identity via Firestore',
-        {
-          uidPrefix: user.uid.slice(0, 8),
-          installationIdPrefix: instId.slice(0, 12),
-        },
-        'H5',
-      );
-      // #endregion
+    const register = async () => {
       try {
+        const instId = await getOrCreateInstallationId();
+        // #region agent log
+        agentLog(
+          'FirebaseProvider.tsx:registerIdentity:before',
+          'Registering device identity via Firestore',
+          {
+            uidPrefix: user.uid.slice(0, 8),
+            installationIdPrefix: instId.slice(0, 12),
+          },
+          'H5',
+        );
+        // #endregion
         const deviceInfo = await getClientDeviceInfo();
         if (process.env.NEXT_PUBLIC_USE_IDENTITY_FUNCTION === 'true') try {
           await registerDeviceIdentityFn({ installationId: instId, deviceInfo });
@@ -487,8 +487,26 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           'H5',
         );
         // #endregion
+        throw err;
       }
-    })();
+    };
+    let registered = false;
+    let running = false;
+    const attempt = async () => {
+      if (cancelled || registered || running) return;
+      running = true;
+      try {
+        await registerDeviceOnce(user.uid, register);
+        registered = true;
+      } catch {
+        // Keep the same UID and installation ID when retrying.
+      } finally {
+        running = false;
+      }
+    };
+    void attempt();
+    const retryTimer = window.setInterval(attempt, 10_000);
+    window.addEventListener('online', attempt);
 
     const unsub = onSnapshot(deviceRef, async (snapshot) => {
       if (cancelled) return;
@@ -516,7 +534,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       } else {
         setDevice(null);
-        setLoading(false);
+        // A missing record is not a successful registration. Wait for the
+        // write/retry to finish before releasing the initial loading screen.
+        setLoading(true);
       }
     }, (err) => {
       console.error("Snapshot error", err);
@@ -538,6 +558,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
+      window.clearInterval(retryTimer);
+      window.removeEventListener('online', attempt);
       unsub();
     };
   }, [user]);
