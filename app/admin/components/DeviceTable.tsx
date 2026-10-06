@@ -137,6 +137,7 @@ export function DeviceTable({
         deviceName.includes(q) ||
         dn.includes(q) ||
         device.deviceId.toLowerCase().includes(q) ||
+        (device.installationId || '').toLowerCase().includes(q) ||
         device.role.toLowerCase().includes(q);
 
       let roleMatch = true;
@@ -296,7 +297,7 @@ export function DeviceTable({
         </button>
       )}
       <div className="flex min-w-0 items-center gap-2">
-        <div className={cn('min-w-0 truncate text-white transition-colors group-hover:text-emerald-400 font-bold', compact ? 'text-base leading-none' : 'text-sm')}>
+        <div title={device.name} className={cn('min-w-0 flex-1 text-white transition-colors group-hover:text-emerald-400 font-bold', compact ? 'break-words text-base leading-snug' : 'truncate text-sm')}>
           {device.name}
         </div>
         {canRenameModels && (
@@ -416,7 +417,7 @@ export function DeviceTable({
                 maxLength={80}
                 autoFocus
                 placeholder="np. Telefon Tomka"
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none transition-colors placeholder:text-slate-600 focus:border-emerald-400/40"
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none transition-colors placeholder:text-slate-600 ui-accent-input"
               />
               <div className="mt-5 flex gap-3">
                 <button
@@ -431,7 +432,7 @@ export function DeviceTable({
                   type="button"
                   disabled={renameSaving || !renameValue.trim()}
                   onClick={saveRename}
-                  className="h-12 flex-1 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 text-sm font-black text-emerald-50 transition-all hover:bg-emerald-500/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-12 flex-1 rounded-2xl border ui-accent-solid text-sm font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {renameSaving ? 'Zapisywanie...' : 'Zapisz'}
                 </button>
@@ -455,7 +456,7 @@ export function DeviceTable({
 
         <div className="w-full bg-[#111623] border border-white/5 border-t-white/10 rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Łączna liczba urządzeń</div>
-          <div className="text-2xl font-mono font-black text-emerald-400 leading-none">{devices.length}</div>
+          <div className="text-2xl font-mono font-black ui-accent-text leading-none">{devices.length}</div>
         </div>
       </div>
 
@@ -506,7 +507,7 @@ export function DeviceTable({
             {showFilterDropdown && (
               <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-full mt-2 w-full sm:w-56 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1">
                 <button onClick={() => { setFilterRole('ALL'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'ALL' ? 'bg-white/10 text-white shadow-lg' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Wszyscy</button>
-                <button onClick={() => { setFilterRole('WŁAŚCICIEL'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'WŁAŚCICIEL' ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Właściciele</button>
+                <button onClick={() => { setFilterRole('WŁAŚCICIEL'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'WŁAŚCICIEL' ? 'ui-accent-soft' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Właściciele</button>
                 <button onClick={() => { setFilterRole('ADMIN'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'ADMIN' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Administratorzy</button>
                 <button onClick={() => { setFilterRole('UŻYTKOWNIK'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'UŻYTKOWNIK' ? 'bg-slate-500/10 text-slate-300' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Użytkownicy</button>
                 <button onClick={() => { setFilterRole('BLOCKED'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'BLOCKED' ? 'bg-rose-500/10 text-rose-400' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Zablokowani</button>
@@ -534,8 +535,8 @@ export function DeviceTable({
             return (
               <motion.div key={device.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
-                <div className="flex items-center justify-between relative z-10 gap-3">
-                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between relative z-10 gap-3">
+                  <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto sm:flex-1">
                     <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center shrink-0 shadow-lg group-hover:scale-105 transition-transform">{getIcon(device.iconType)}</div>
                     <div className="min-w-0 flex-1">
                       <DeviceName device={device} compact />
@@ -544,7 +545,7 @@ export function DeviceTable({
                       <div className={cn('text-[11px] font-medium break-words', device.lastSeenOnline ? 'text-emerald-400' : 'text-slate-400')}>{device.lastSeenLabel ?? '—'}</div>
                     </div>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 shrink-0 ml-auto">
                     <button type="button" disabled={banDisabled} title={banTitle(device, isSelf)} onClick={() => !banDisabled && onOpenBanModal(device)} className="cursor-pointer rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-400 shadow-lg transition-all hover:bg-rose-500 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30">
                       <Lock size={18} />
                     </button>
@@ -562,7 +563,7 @@ export function DeviceTable({
                 <div className="grid grid-cols-2 gap-6 py-4 border-y border-white/5 relative z-10">
                   <div>
                     <div className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">ID urządzenia</div>
-                    <div className="font-mono text-[11px] text-slate-400 break-all leading-tight font-bold">{device.deviceId}</div>
+                    <div className="font-mono text-[11px] text-slate-400 break-all leading-tight font-bold">{device.installationId || device.deviceId}</div>
                   </div>
                   <div className="flex flex-col items-end text-right border-l border-white/5">
                     <div className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Logowanie</div>
@@ -624,7 +625,7 @@ export function DeviceTable({
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-mono text-slate-400 text-xs break-all">{device.deviceId}</td>
+                      <td className="px-6 py-4 font-mono text-slate-400 text-xs break-all">{device.installationId || device.deviceId}</td>
                       <td className="px-6 py-4 text-slate-400">{device.firstLogin}</td>
                       <td className={cn('px-6 py-4 text-xs', device.lastSeenOnline ? 'font-bold text-emerald-400' : 'text-slate-400')}>{device.lastSeenLabel ?? '—'}</td>
                       <td className="px-6 py-4"><Badge role={device.role} /></td>
@@ -667,7 +668,7 @@ export function DeviceTable({
             <div className="min-w-0 flex-1 overflow-x-auto sm:flex-none">
               <div className="hidden min-w-max items-center justify-center gap-1.5 sm:flex">
                 {Array.from({ length: totalPages }).map((_, i) => (
-                  <button key={i} onClick={() => setCurrentPage(i + 1)} className={cn('w-10 h-10 rounded-xl font-bold text-sm flex items-center justify-center transition-all cursor-pointer', currentPage === i + 1 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent')}>
+                  <button key={i} onClick={() => setCurrentPage(i + 1)} className={cn('w-10 h-10 rounded-xl font-bold text-sm flex items-center justify-center transition-all cursor-pointer', currentPage === i + 1 ? 'ui-accent-soft border' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent')}>
                     {i + 1}
                   </button>
                 ))}

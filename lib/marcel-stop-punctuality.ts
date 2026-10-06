@@ -5,6 +5,9 @@ import { busDelayMinutes } from './bus-punctuality';
 /** Use the map's GPS estimate only for the same course and scheduled date. */
 export function marcelDepartureFromVehicle(departure: Departure, vehicles: Vehicle[]): Departure {
   if (departure.carrier?.id !== 'marcel' || !departure.courseId || departure.plannedAtMs == null) return departure;
+  // A freshly fetched stop estimate or operator prediction must not be replaced
+  // by an older vehicle snapshot retained by the map.
+  if (departure.realtimeSource && departure.realtimeSource !== 'position-estimate') return departure;
   const plannedAtMs = departure.plannedAtMs;
   const vehicle = vehicles.find(candidate =>
     candidate.provider === 'marcel' &&

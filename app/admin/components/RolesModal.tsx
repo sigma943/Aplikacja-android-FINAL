@@ -241,7 +241,7 @@ export function RolesModal({
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left group",
                     permissions[p.key as keyof typeof permissions] 
-                      ? "bg-emerald-500/10 border-emerald-500/30" 
+                      ? "ui-accent-soft"
                       : "bg-[#111623] border-white/5",
                     isDisabled || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))
                       ? "opacity-60 cursor-not-allowed grayscale-[0.4] brightness-[0.85]"
@@ -251,14 +251,14 @@ export function RolesModal({
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "p-2 rounded-xl transition-all group-hover:scale-110",
-                      permissions[p.key as keyof typeof permissions] ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-white/5 text-slate-500"
+                      permissions[p.key as keyof typeof permissions] ? "ui-accent-soft" : "bg-white/5 text-slate-500"
                     )}>
                       {p.icon}
                     </div>
                     <div>
                       <div className={cn(
                         "text-base font-bold",
-                        permissions[p.key as keyof typeof permissions] ? "text-emerald-400" : "text-slate-300"
+                        permissions[p.key as keyof typeof permissions] ? "ui-accent-text" : "text-slate-300"
                       )}>
                         {p.label}
                       </div>
@@ -268,11 +268,11 @@ export function RolesModal({
                   
                   <div className={cn(
                     "w-12 h-7 rounded-full border flex items-center px-1 transition-all",
-                    permissions[p.key as keyof typeof permissions] ? "bg-emerald-500/30 border-emerald-500/50 justify-end" : "bg-white/5 border-white/10 justify-start"
+                    permissions[p.key as keyof typeof permissions] ? "ui-accent-soft justify-end" : "bg-white/5 border-white/10 justify-start"
                   )}>
                     <div className={cn(
                       "w-5 h-5 rounded-full shadow-lg transition-all",
-                      permissions[p.key as keyof typeof permissions] ? "bg-emerald-400" : "bg-slate-600"
+                      permissions[p.key as keyof typeof permissions] ? "ui-accent-solid" : "bg-slate-600"
                     )} />
                   </div>
                 </button>
@@ -372,7 +372,7 @@ export function RolesModal({
                 await onSave(role, nextPermissions, name.trim(), verifiedFromRole(role) || verified);
               }
             }}
-            className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-sm font-black transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)] active:scale-[0.98] cursor-pointer uppercase tracking-widest"
+            className="w-full py-4 ui-accent-solid rounded-xl text-sm font-black transition-all shadow-lg active:scale-[0.98] cursor-pointer uppercase tracking-widest"
           >
             {isSelfTarget ? 'Zamknij' : 'Zapisz zmiany'}
           </button>

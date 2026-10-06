@@ -1,4 +1,5 @@
-﻿'use client';
+'use client';
+import { uiAccentVariables } from '@/lib/ui-accent';
 
 import type { CSSProperties } from 'react';
 import { useState, useEffect, useMemo } from 'react';
@@ -279,7 +280,22 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [adminLogRaws, setAdminLogRaws] = useState<AdminLogRaw[]>([]);
   const [logsError, setLogsError] = useState<string | null>(null);
-  const [modelAliases, setModelAliases] = useState<DeviceModelAliases>({});
+  const [customModelAliases, setModelAliases] = useState<DeviceModelAliases>({});
+  const [catalogAliases, setCatalogAliases] = useState<DeviceModelAliases>({});
+  const modelAliases = useMemo(() => ({ ...catalogAliases, ...customModelAliases }), [catalogAliases, customModelAliases]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    // Shipped with the APK; fetched only when the admin panel is opened.
+    fetch('/device-models.json', { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Device catalog unavailable'); return response.json(); })
+      .then(data => {
+        if (controller.signal.aborted || !data.aliases || typeof data.aliases !== 'object') return;
+        setCatalogAliases(data.aliases);
+      })
+      .catch(() => { /* Keep technical labels and custom aliases when unavailable. */ });
+    return () => controller.abort();
+  }, []);
   const [globalSettings, setGlobalSettings] = useState({
     loginEnabled: true,
     maintenanceMode: false,
@@ -557,6 +573,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     displayName: d.displayName,
     deviceName: d.deviceName,
     deviceId: d.id,
+    installationId: d.installationId,
     firstLogin: new Date(d.firstLogin).toLocaleString('pl-PL'),
     role: mapRole(d.role),
     rawRole: d.role,
@@ -728,6 +745,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     displayName?: string,
     extras: Partial<Pick<DeviceData, 'status' | 'verified' | 'banDetails'>> = {},
     batch?: WriteBatch,
+    deviceUid?: string,
   ) => {
     const inst = String(installationId || '').trim();
     if (!inst) return;
@@ -739,6 +757,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       verified: role === 'owner' || role === 'admin' || extras.verified === true,
       updatedAt: serverTimestamp(),
       updatedBy: user?.uid || null,
+      ...(deviceUid ? { lastUid: deviceUid } : {}),
     };
     if (extras.banDetails) {
       patch.banDetails = extras.banDetails;
@@ -884,6 +903,14 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       return;
     }
 
+    const durableInstallationId = String(targetRow?.installationId || '').trim();
+    const nativeAndroidNeedsId = /android/i.test(targetRow?.deviceInfo || '');
+    if ((fbRole === 'admin' || fbRole === 'owner') && (!durableInstallationId ||
+        (nativeAndroidNeedsId && !/^android_[a-f0-9]{16}$/i.test(durableInstallationId)))) {
+      addToast('Brak identyfikatora urządzenia', 'Uruchom aktualną aplikację na tym urządzeniu przed nadaniem trwałego dostępu.', 'role_change');
+      return;
+    }
+
     const trimmedDisplay = (displayName ?? '').trim().slice(0, 120);
 
     try {
@@ -952,6 +979,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           banDetails: targetRow?.banDetails,
         },
         roleBatch,
+        selectedDeviceForRole.id,
       );
       await roleBatch.commit();
       const whoLabel = formatDeviceLabel({
@@ -1201,7 +1229,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           ? cn('flex h-full min-h-0 flex-1 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light', transparentUI && 'pks-panel-scope')
           : cn('flex h-screen min-h-0 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
       }
-      style={{ ['--pks-accent' as string]: themeColor } as CSSProperties}
+      style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
       data-glass={embedded && transparentUI ? 'on' : 'off'}
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >

@@ -1,5 +1,5 @@
 import React, { useEffect, useDeferredValue, useMemo, useState } from 'react';
-import { Search, X, Bus, Train, Star, ChevronDown } from 'lucide-react';
+import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
 
@@ -142,20 +142,16 @@ export default function StopList({
   visibleRef.current = visibleStops;
   useEffect(() => { onVisibleStopsChange?.(visibleRef.current); }, [visibleKey,onVisibleStopsChange]);
   const shellClass = isDarkTheme ? 'text-slate-200' : 'text-slate-800';
-  const headerClass = isDarkTheme
-    ? 'border-white/[0.08] bg-[#07111d]/30 shadow-[0_18px_60px_rgba(0,0,0,0.16)]'
-    : 'border-slate-200/80 bg-white/96 shadow-[0_18px_40px_rgba(15,23,42,0.10)]';
+  const headerClass = 'transit-surface';
   const searchInputClass = isDarkTheme
-    ? 'border-white/12 bg-[#0e1622]/34 text-white shadow-black/18 placeholder:text-slate-400/75 focus:border-teal-500/40 focus:ring-teal-500/20'
-    : 'border-slate-300/90 bg-white/90 text-slate-900 placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-teal-500/20';
-  const searchIconClass = isDarkTheme ? 'text-slate-500 group-focus-within:text-teal-400' : 'text-slate-400 group-focus-within:text-teal-600';
+    ? 'border-white/12 bg-[#0e1622]/34 text-white shadow-black/18 placeholder:text-slate-400/75 '
+    : 'border-slate-300/90 bg-white/90 text-slate-900 placeholder:text-slate-500 ';
+  const searchIconClass = isDarkTheme ? 'text-slate-500' : 'text-slate-400';
   const inactiveCarrierClass = isDarkTheme
     ? 'border-white/8 bg-white/[0.03] text-slate-400 hover:border-white/16 hover:bg-white/[0.06] hover:text-white'
     : 'border-slate-300/80 bg-white/88 text-slate-600 hover:border-slate-400/80 hover:bg-white hover:text-slate-900';
-  const cardClass = isDarkTheme
-    ? 'border-white/[0.08] bg-[#0d1622]/34 hover:border-teal-400/35 hover:bg-[#142238]/48'
-    : 'border-slate-200/90 bg-white/90 hover:border-teal-500/45 hover:bg-teal-50/35';
-  const cardTitleClass = isDarkTheme ? 'text-white group-hover:text-teal-200' : 'text-slate-900 group-hover:text-teal-700';
+  const cardClass = 'transit-card transit-stop-card';
+  const cardTitleClass = isDarkTheme ? 'text-white' : 'text-slate-900';
   const secondaryTextClass = isDarkTheme ? 'text-slate-400' : 'text-slate-600';
 
   const handleCloseFullList = () => {
@@ -165,22 +161,21 @@ export default function StopList({
   };
 
   const renderCarrierFilters = (compact = false) => (
-    <div className={`flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 custom-scrollbar ${compact ? 'mt-3' : 'mt-4'}`}>
+    <div className={`flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 no-scrollbar ${compact ? 'mt-3' : 'mt-4'}`}>
       {CARRIER_FILTERS.map((filter) => {
         const isActive = carrierFilter === filter.id;
         return (
           <button
             type="button"
+            aria-pressed={isActive}
             key={filter.id}
             onClick={() => {
               setCarrierFilterValue(filter.id);
               setVisibleFullCountValue(40);
             }}
-            className={`flex shrink-0 items-center gap-2 rounded-2xl border px-3.5 py-2 text-[11px] font-black transition-all ${
+            className={`flex shrink-0 items-center gap-2 min-h-10 rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors ui-accent-focus ${
               isActive
-                ? (isDarkTheme
-                    ? 'border-teal-400/45 bg-teal-400/16 text-teal-200 shadow-[0_0_18px_rgba(20,184,166,0.14)]'
-                    : 'border-teal-500/35 bg-teal-500/12 text-teal-700 shadow-[0_0_12px_rgba(20,184,166,0.10)]')
+                ? 'ui-accent-soft'
                 : inactiveCarrierClass
             }`}
           >
@@ -200,7 +195,7 @@ export default function StopList({
     return (
       <div className="mt-1 flex min-w-0 max-w-full flex-wrap items-center gap-1 overflow-hidden">
         {visible.map((line) => (
-          <span key={line} className={`max-w-[5.5rem] truncate rounded border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line, providers?.[line]?.[0] || (pksLineSet?.has(line) ? 'pks' : providerId))}`}>
+          <span key={line} className={`max-w-[5.5rem] truncate rounded-md border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line, providers?.[line]?.[0] || (pksLineSet?.has(line) ? 'pks' : providerId))}`}>
             {line}
           </span>
         ))}
@@ -220,8 +215,17 @@ export default function StopList({
     return (
       <div
         key={`${full ? 'full' : 'list'}-${stop.id}`}
-        className={`group flex w-full max-w-full min-w-0 cursor-pointer items-center border transition-colors duration-150 ${cardClass} ${
-          full ? 'rounded-[22px] p-4' : 'rounded-[24px] p-4 lg:p-5'
+        role="button"
+        tabIndex={0}
+        aria-label={`Rozkład: ${stop.name}`}
+        onKeyDown={event => {
+          if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+          event.preventDefault();
+          if (full) handleCloseFullList();
+          onStopSelect(stop);
+        }}
+        className={`ui-accent-focus group flex w-full max-w-full min-w-0 cursor-pointer items-center border transition-colors duration-150 ${cardClass} ${
+          full ? 'rounded-[20px] p-3.5' : 'rounded-[20px] p-3.5 lg:p-4'
         }`}
         onClick={() => {
           if (full) handleCloseFullList();
@@ -229,9 +233,9 @@ export default function StopList({
         }}
       >
         <div
-          className={`mr-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors duration-150 ${
+          className={`mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors duration-150 ${
             isBus
-              ? 'border-teal-500/10 bg-teal-500/10 text-teal-400 group-hover:bg-teal-500/20 group-hover:text-teal-300'
+              ? 'ui-accent-soft'
               : 'border-blue-500/10 bg-blue-500/10 text-blue-400 group-hover:bg-blue-500/20 group-hover:text-blue-300'
           }`}
         >
@@ -239,13 +243,13 @@ export default function StopList({
         </div>
 
         <div className="min-w-0 flex-1 pr-2">
-          <h3 className={`truncate text-[16px] font-bold drop-shadow-sm transition-colors lg:text-[17px] ${cardTitleClass}`}>
+          <h3 className={`truncate text-[15px] font-semibold transition-colors lg:text-[17px] ${cardTitleClass}`}>
             {stop.name}
           </h3>
           <div className="mt-1 flex flex-col gap-1">
             <div className={`flex min-w-0 flex-wrap items-center text-[12px] font-semibold ${secondaryTextClass}`}>
-              <span className={`min-w-0 truncate ${isBus ? 'text-teal-400/90' : 'text-blue-400/90'}`}>
-                {isBus ? 'Przystanek autobusowy' : 'Stacja kolejowa'}
+              <span className={`min-w-0 truncate ${isBus ? secondaryTextClass : 'text-blue-400/90'}`}>
+                {isBus ? (stop.carriers.map(c => c.name.replace('Rzeszow', 'Rzeszów')).join(' · ') || 'Przystanek autobusowy') : 'Stacja kolejowa'}
               </span>
             </div>
             {isBus && stop.lines.length > 0 && renderLineBadges(stop.lines, full, singleProviderId, pksLineSet, stop.lineProviders)}
@@ -268,7 +272,7 @@ export default function StopList({
               size={full ? 18 : 20}
               className={
                 stop.isFavorite
-                  ? 'fill-[#f59e0b] text-[#f59e0b] drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]'
+                  ? 'ui-accent-fill'
                   : 'text-slate-500 group-hover:text-slate-400'
               }
             />
@@ -279,26 +283,27 @@ export default function StopList({
   };
 
   return (
-    <div className={`flex h-full min-w-0 max-w-full flex-col overflow-x-hidden bg-transparent ${shellClass}`}>
-      <div className={`sticky top-0 z-10 w-full min-w-0 max-w-full overflow-x-hidden border-b px-4 pb-4 pt-6 backdrop-blur-2xl backdrop-saturate-150 lg:px-10 lg:pt-8 ${headerClass}`}>
-        <div className="mb-5 flex min-w-0 items-center justify-between pl-1">
-          <div className="min-w-0">
-            <h1 className={`bg-gradient-to-r from-teal-400 via-cyan-300 to-blue-500 bg-clip-text font-black tracking-tight text-transparent ${isFullScreen ? 'text-2xl lg:text-3.5xl' : 'text-xl'}`}>
-              Rozkład Jazdy
-            </h1>
-            <p className={`mt-1 text-xs font-medium ${secondaryTextClass}`}>Znajdź najbliższe przystanki autobusowe</p>
+    <div data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view flex h-full min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
+      <div className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>
+        <div className="mb-3.5 flex min-w-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="ui-accent-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"><MapPin size={20} /></span>
+            <div className="min-w-0">
+              <h1 className={`font-semibold tracking-tight ${isFullScreen ? 'text-xl lg:text-2xl' : 'text-lg'} ${cardTitleClass}`}>Przystanki</h1>
+              <p className={`mt-0.5 text-[11px] ${secondaryTextClass}`}>Rozkłady i odjazdy na żywo</p>
+            </div>
           </div>
           <button type="button" onClick={onClose} className={`hidden rounded-full p-2 transition-all lg:flex ${isDarkTheme ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
             <X size={20} />
           </button>
         </div>
 
-        <div className="group relative">
+        <div className="ui-accent-search group relative">
           <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchIconClass}`} size={18} />
           <input
             type="text"
             placeholder="Wpisz nazwę, np. Babica, Rejtana..."
-            className={`w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none backdrop-blur-2xl transition-all focus:ring-2 lg:py-3.5 lg:text-[15px] ${searchInputClass}`}
+            className={`ui-accent-input w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none backdrop-blur-2xl transition-all focus:ring-2 lg:py-3.5 lg:text-[15px] ${searchInputClass}`}
             value={inputValue}
             onChange={(event) => setInputValue(event.target.value)}
           />
@@ -319,10 +324,10 @@ export default function StopList({
       </div>
 
       <div
-        className={`min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] pt-4 custom-scrollbar lg:px-6 ${
+        className={`min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] pt-3 custom-scrollbar lg:px-6 ${
           isFullScreen
-            ? 'grid w-full max-w-[1540px] content-start gap-4 px-4 pt-5 md:grid-cols-2 lg:mx-auto lg:gap-6 lg:px-4 lg:pt-10 xl:grid-cols-3'
-            : 'flex w-full flex-col gap-3'
+            ? 'grid w-full max-w-[1540px] content-start gap-2.5 px-3 pt-3 md:grid-cols-2 lg:mx-auto lg:gap-3 lg:px-6 lg:pt-4 xl:grid-cols-3'
+            : 'flex w-full flex-col gap-2.5'
         }`}
       >
         {isLoading ? (
@@ -349,7 +354,7 @@ export default function StopList({
                     setVisibleFullCountValue(40);
                     setIsFullListOpen(true);
                   }}
-                  className="cursor-pointer rounded-2xl border border-teal-500/20 bg-teal-500/10 px-6 py-3.5 text-xs font-extrabold uppercase tracking-wider text-teal-300 transition-colors hover:bg-teal-500/20 hover:text-white"
+                  className="cursor-pointer rounded-2xl border ui-accent-soft px-6 py-3.5 text-xs font-extrabold uppercase tracking-wider ui-accent-text transition-colors "
                 >
                   Pokaż wszystkie ({filteredStops.length})
                 </button>
@@ -391,15 +396,15 @@ export default function StopList({
           </div>
 
           <div className={`shrink-0 border-b px-4 py-4 backdrop-blur-xl lg:px-6 ${isDarkTheme ? 'border-white/[0.03] bg-[#08111c]/96' : 'border-slate-200/85 bg-white/96'}`}>
-            <div className="group relative">
+            <div className="ui-accent-search group relative">
               <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchIconClass}`} size={18} />
               <input
                 type="text"
                 placeholder="Wpisz nazwę, np. Babica, Rejtana..."
-                className={`w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none transition-all focus:ring-2 ${
+                className={`ui-accent-input w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none transition-all focus:ring-2 ${
                   isDarkTheme
-                    ? 'border-white/10 bg-[#0e1622]/90 text-white placeholder:text-slate-500 focus:border-teal-500/40 focus:ring-teal-500/20'
-                    : 'border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-teal-500/20'
+                    ? 'border-white/10 bg-[#0e1622]/90 text-white placeholder:text-slate-500 '
+                    : 'border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 '
                 }`}
                 value={fullInputValue}
                 onChange={(event) => {
@@ -434,10 +439,10 @@ export default function StopList({
                 <button
                   type="button"
                   onClick={() => setVisibleFullCountValue((count) => count + 40)}
-                  className="group flex w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-teal-500/20 bg-teal-500/10 px-6 py-3.5 text-center text-xs font-black uppercase tracking-wider text-teal-300 transition-colors hover:border-teal-500/40 hover:bg-teal-500/15 hover:shadow-[0_0_15px_rgba(20,184,166,0.15)]"
+                  className="group flex w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-2xl border ui-accent-soft px-6 py-3.5 text-center text-xs font-black uppercase tracking-wider ui-accent-text transition-colors "
                 >
                   <span>Pokaż więcej (+{fullFilteredStops.length - visibleFullCount} pozostałych)</span>
-                  <ChevronDown size={14} className="text-teal-400 transition-transform group-hover:translate-y-0.5" />
+                  <ChevronDown size={14} className="ui-accent-text transition-transform group-hover:translate-y-0.5" />
                 </button>
               </div>
             )}

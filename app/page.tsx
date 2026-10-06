@@ -1,5 +1,8 @@
 'use client';
+import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
+import { punctualityTimeClass } from '@/lib/punctuality-color';
 import {loadStopDepartures} from '@/lib/stop-departures';
+import { uiAccentVariables } from '@/lib/ui-accent';
 import {busOperatingState} from '@/lib/bus-operating-state';
 import { busPunctuality } from '@/lib/bus-punctuality';
 import { marcelDepartureFromVehicle } from '@/lib/marcel-stop-punctuality';
@@ -7,7 +10,7 @@ import { marcelDepartureFromVehicle } from '@/lib/marcel-stop-punctuality';
 import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
 import { Capacitor } from '@capacitor/core';
-import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, Eye, Palette, Monitor, Sun, Moon, Sparkles, CloudOff, Shield } from 'lucide-react';
+import { Bus, Search, RefreshCw, X, Clock, Navigation, MapPin, Map as MapIcon, Settings, Eye, Palette, Monitor, Sun, Moon, Sparkles, CloudOff, Shield, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Vehicle } from '@/components/BusMap';
 import TransportSelectorPanel, { type TransportOption } from '@/components/TransportSelectorPanel';
@@ -323,6 +326,11 @@ export default function Home() {
   const [selectedBusDetailsLoading, setSelectedBusDetailsLoading] = useState(false);
   const [isBusPanelExpanded, setIsBusPanelExpanded] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isOptionsExpanded, setIsOptionsExpanded] = useState(false);
+  const optionsHandleClickBlockedUntil = useRef(0);
+  useEffect(() => {
+    if (!isSettingsOpen) setIsOptionsExpanded(false);
+  }, [isSettingsOpen]);
   const [isOffline, setIsOffline] = useState(false);
   const [isAppForeground, setIsAppForeground] = useState<boolean>(
     typeof document === 'undefined' ? true : document.visibilityState === 'visible',
@@ -618,6 +626,7 @@ export default function Home() {
                isTomorrow,
                dateStr,
                isDelayed,
+               delayMinutes: Number.isFinite(actualDepTimeMs) ? Math.round((actualDepTimeMs - journeyPlannedMs) / 60000) : 0,
                plannedTimeMs: journeyPlannedMs,
                depTimeMs: Number.isFinite(actualDepTimeMs) ? actualDepTimeMs : journeyPlannedMs
            };
@@ -780,7 +789,7 @@ export default function Home() {
       // Keep live telemetry authoritative to avoid stale detail cache snapping UI backward.
       lat: base.lat,
       lon: base.lon,
-      delay: base.delay,
+      delay: base.delay ?? details.delay,
       nextTripStartAtMs: base.nextTripStartAtMs ?? details.nextTripStartAtMs,
       nextTripFirstStopId: base.nextTripFirstStopId ?? details.nextTripFirstStopId,
       status: base.status,
@@ -1353,6 +1362,11 @@ export default function Home() {
   const optionsButton = transparentUI
      ? (isDark ? 'bg-white/[0.075] hover:bg-white/[0.11]' : isWarm ? 'bg-white/48 hover:bg-white/64' : 'bg-white/68 hover:bg-white/88')
      : (isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-slate-100 shadow-sm border border-slate-200/60');
+  useEffect(() => {
+    for (const [key, value] of Object.entries(uiAccentVariables(themeColor, isDark))) {
+      document.documentElement.style.setProperty(key, value);
+    }
+  }, [themeColor, isDark]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1396,15 +1410,12 @@ export default function Home() {
     Boolean(selectedBus) &&
     selectedBusDetailsLoading &&
     ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
-  const selectedBusUpcomingSchedule = useMemo(() => {
-    const schedule = selectedBus?.schedule || [];
-    return schedule.filter((stop) => {
-      if (!isScheduleStopUpcoming(stop, now)) return false;
-      if (selectedBus?.lastStopId && Number(stop?.id) === Number(selectedBus.lastStopId)) return false;
-      return true;
-    });
-  }, [now, selectedBus?.lastStopId, selectedBus?.schedule]);
-  const selectedBusDisplayedStops = selectedBus?.routeStops?.length ? selectedBus.routeStops : selectedBus?.schedule?.length ? selectedBus.schedule : selectedBusUpcomingSchedule;
+  const selectedBusDisplayedStops = useMemo(() => {
+    const stops = selectedBus?.routeStops?.length ? selectedBus.routeStops : selectedBus?.schedule || [];
+    if (selectedVehicleIsTrain) return stops;
+    return upcomingVehicleStops(stops, now, selectedBus?.lastStopId);
+  }, [now, selectedBus?.lastStopId, selectedBus?.routeStops, selectedBus?.schedule, selectedVehicleIsTrain]);
+
   const openVehicleRouteStop = (stopId:string) => {
     const point=(selectedBus?.routeStops||selectedBus?.schedule||[]).find(stop=>String(stop.id)===stopId);
     const provider=selectedBus?.provider||'pks';
@@ -1509,7 +1520,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div className={`fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
+    <div style={uiAccentVariables(themeColor, isDark) as React.CSSProperties} className={`fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -1936,7 +1947,7 @@ export default function Home() {
                       {(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
-                            <MapPin className="w-4 h-4" /> Wszystkie przystanki trasy
+                            <MapPin className="w-4 h-4" /> {selectedVehicleIsTrain ? 'Wszystkie przystanki trasy' : 'Następne przystanki'}
                           </h3>
                           <div className="flex flex-col gap-0 relative">
                              <div className={`absolute left-[9px] top-4 bottom-4 w-0.5 ${mapDetailLine}`}></div>
@@ -1962,8 +1973,7 @@ export default function Home() {
                                    Number.isFinite(busDelaySec) &&
                                    Math.abs(busDelaySec) <= 18000;
                                 const computedDelayTime = plannedTime && canUseBusDelay && busDelaySec !== 0 ? new Date(plannedTime.getTime() + (busDelaySec * 1000)) : null;
-                                const rawLooksPlanned = Boolean(realTimeRaw && plannedTime && Math.abs(realTimeRaw.getTime() - plannedTime.getTime()) < 60_000);
-                                const realTime = rawLooksPlanned ? (computedDelayTime || realTimeRaw) : (realTimeRaw || computedDelayTime);
+                                const realTime = realTimeRaw || computedDelayTime;
                                 const displayTime = realTime || plannedTime;
                                 const stopDelaySec = realTime && plannedTime ? (realTime.getTime() - plannedTime.getTime()) / 1000 : 0;
                                 const punctuality = busPunctuality(canUseBusDelay ? busDelaySec : stopDelaySec, textMain);
@@ -2130,7 +2140,7 @@ export default function Home() {
                                                          </div>
                                                       </div>
                                                       <div className="flex flex-col items-end">
-                                                         <span className={`text-base font-black ${inc.diffMin <= 5 && inc.diffMin >= -1 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : textMain}`}>
+                                                         <span className={`text-base font-black ${punctualityTimeClass(inc.delayMinutes, isDark ? 'text-white' : textMain)}`}>
                                                             {inc.diffMin <= 0 && inc.diffMin >= -1 ? 'Teraz' : (inc.diffMin > 0 && inc.diffMin <= 30 ? `${inc.diffMin} min` : inc.actualTimeStr)}
                                                          </span>
                                                       </div>
@@ -2161,7 +2171,7 @@ export default function Home() {
             className={`absolute inset-0 z-10 overflow-hidden ${activeTab === 'stops' ? 'pointer-events-auto' : 'pointer-events-none'} ${
                transparentUI
                  ? 'pks-glass-frame'
-                 : isDark ? 'bg-[#03060a]' : 'bg-slate-50'
+                 : ''
             }`}
             data-panel-theme={isDark ? 'dark' : 'light'}
             aria-hidden={activeTab !== 'stops'}
@@ -2245,30 +2255,55 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className={`absolute inset-0 z-[6000] flex items-end justify-center md:items-center md:p-6 ${optionsOverlay}`}
-            onClick={(e) => e.stopPropagation()}
+            className={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
+            onClick={() => setIsSettingsOpen(false)}
           >
             <motion.div 
-               initial={{ y: "100%", opacity: 0, scale: 0.98 }}
-               animate={{ y: 0, opacity: 1, scale: 1 }}
+               initial={{ y: "100%", opacity: 0, scale: 0.98, maxHeight: "46dvh" }}
+               animate={{ y: 0, opacity: 1, scale: 1, maxHeight: isOptionsExpanded ? "80dvh" : "46dvh" }}
                exit={{ y: "100%", opacity: 0, scale: 0.96 }}
-               transition={{ type: "spring", stiffness: 700, damping: 35 }}
-               className={`${transparentUI ? 'w-[calc(100%-1rem)] mx-2' : 'w-full'} max-w-2xl max-h-[92vh] pointer-events-auto overflow-hidden rounded-t-[2rem] border-t px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 md:mx-0 md:w-full md:max-w-[560px] md:rounded-[1.75rem] md:border md:p-6 ${optionsSheet}`}
+               transition={{ type: "spring", stiffness: 700, damping: 35, maxHeight: { type: "spring", stiffness: 320, damping: 32 } }}
+               role="dialog" aria-modal="true" aria-labelledby="options-title"
+               onClick={(event) => event.stopPropagation()}
+               className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
             >
-               <div className="mb-5 flex items-center justify-between md:mb-6">
-                  <h2 className="text-2xl font-light tracking-tight md:text-2xl">Opcje aplikacji</h2>
-                  <button onClick={() => setIsSettingsOpen(false)} className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors md:h-11 md:w-11 ${isDark ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-900/8 hover:bg-slate-900/12'}`}>
-                     <X className="h-6 w-6" />
-                  </button>
+               <motion.button
+                  type="button"
+                  aria-label={isOptionsExpanded ? 'Zwiń opcje' : 'Rozwiń opcje'}
+                  aria-expanded={isOptionsExpanded}
+                  aria-controls="additional-options"
+                  className="-mt-1 mb-1 flex h-6 w-full shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
+                  style={{ touchAction: 'none' }}
+                  onPanEnd={(_, info) => {
+                    if (Math.abs(info.offset.y) < 18) return;
+                    optionsHandleClickBlockedUntil.current = Date.now() + 400;
+                    setIsOptionsExpanded(info.offset.y < 0);
+                  }}
+                  onClick={() => {
+                    if (Date.now() < optionsHandleClickBlockedUntil.current) return;
+                    setIsOptionsExpanded(value => !value);
+                  }}
+               >
+                  <span className={`h-1 w-9 rounded-full ${isDark ? 'bg-white/30' : 'bg-slate-400'}`} />
+               </motion.button>
+               <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                     <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${themeColor}18`, color: themeColor }}><Settings className="h-[18px] w-[18px]" /></span>
+                     <div>
+                        <h2 id="options-title" className="text-base font-semibold tracking-tight md:text-lg">Opcje aplikacji</h2>
+                        <p className={`text-[11px] ${textSub}`}>Twój wygląd, Twoje ustawienia</p>
+                     </div>
+                  </div>
+
                </div>
-               
-               <div className="flex max-h-[calc(92vh-7rem)] w-full flex-col gap-4 overflow-y-auto relative z-0 pr-1 md:max-h-[70vh]">
+
+               <div className="flex min-h-0 w-full flex-col gap-2 overflow-y-auto overscroll-contain relative z-0 pr-1">
                   
-                  {/* Appearance Bento Box */}
-                  <div className={`rounded-[1.45rem] border p-4 md:p-5 ${optionsCard}`}>
-                     <h3 className={`mb-4 px-1 text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-violet-200' : isWarm ? 'text-[#746a58]' : 'text-slate-500'}`}>Wygląd i kolory</h3>
+                  {/* Appearance */}
+                  <div className={`rounded-2xl border p-2.5 md:p-4 ${optionsCard}`}>
+                     <h3 className={`mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${isDark ? 'text-violet-200' : isWarm ? 'text-[#746a58]' : 'text-slate-500'}`}>Motyw aplikacji</h3>
                      
-                     <div className="mb-4 grid grid-cols-2 gap-3">
+                     <div className="mb-2 grid grid-cols-3 gap-1.5">
                         {[
                            { id: 'system', name: 'Systemowy', icon: <Monitor className="w-4 h-4 mr-1.5" /> },
                            { id: 'light', name: 'Jasny', icon: <Sun className="w-4 h-4 mr-1.5" /> },
@@ -2280,64 +2315,83 @@ export default function Home() {
                            <button
                               key={mode.id}
                               onClick={() => saveAppTheme(mode.id)}
-                              className={`flex h-14 items-center justify-center rounded-2xl text-base font-semibold transition-all border md:h-12 md:text-sm ${appTheme === mode.id ? 'shadow-[0_0_24px_rgba(0,163,162,0.16)]' : 'border-transparent'} ${optionsButton}`}
-                              style={appTheme === mode.id ? { borderColor: themeColor, color: themeColor } as React.CSSProperties : {}}
+                              aria-pressed={appTheme === mode.id}
+                              className={`relative flex h-11 items-center justify-center rounded-xl text-[11px] font-medium transition-colors border md:text-sm ${appTheme === mode.id ? '' : 'border-transparent'} ${optionsButton}`}
+                              style={appTheme === mode.id ? { borderColor: `${themeColor}80`, color: themeColor, backgroundColor: `${themeColor}18` } as React.CSSProperties : {}}
                            >
                               {mode.icon}
                               {mode.name}
+                              {appTheme === mode.id && <span className="absolute right-1 top-1 h-1 w-1 rounded-full" style={{ backgroundColor: themeColor }} />}
                            </button>
                         ))}
                      </div>
 
-                     <div className={`flex items-center justify-between rounded-3xl p-3 ${isDark ? 'bg-white/[0.04]' : 'bg-slate-900/[0.045]'}`}>
+                     <div className={`flex items-center justify-between gap-1 border-t px-1 pt-2 ${isDark ? 'border-white/8' : 'border-slate-900/8'}`}>
+                        <span className={`text-[11px] ${textSub}`}>Akcent</span>
                         {[
-                           { name: 'Teal', hex: '#00A3A2' },
-                           { name: 'Blue', hex: '#3b82f6' },
-                           { name: 'Purple', hex: '#8b5cf6' },
-                           { name: 'Rose', hex: '#f43f5e' },
-                           { name: 'Amber', hex: '#f59e0b' }
+                           { name: 'Turkusowy', hex: '#00A3A2' },
+                           { name: 'Niebieski', hex: '#3b82f6' },
+                           { name: 'Fioletowy', hex: '#8b5cf6' },
+                           { name: 'Różowy', hex: '#f43f5e' },
+                           { name: 'Bursztynowy', hex: '#f59e0b' }
                         ].map(color => (
                            <button
                               key={color.name}
                               onClick={() => saveThemeColor(color.hex)}
-                              className={`h-12 w-12 rounded-2xl transition-all md:h-10 md:w-10 ${themeColor === color.hex ? 'ring-4 ring-white scale-105 shadow-lg' : 'hover:scale-105'}`}
-                              style={{ backgroundColor: color.hex, '--tw-ring-color': isDark ? '#ffffff' : color.hex, '--tw-ring-offset-color': isDark ? '#1e293b' : '#ffffff' } as React.CSSProperties}
+                              aria-label={`Kolor akcentu: ${color.name}`}
+                              aria-pressed={themeColor === color.hex}
+                              className="flex h-11 w-9 min-[380px]:w-11 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-105"
                               title={color.name}
-                           />
+                           >
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: color.hex, boxShadow: themeColor === color.hex ? `0 0 0 2px ${isDark ? '#0d1425' : '#ffffff'}, 0 0 0 3px ${color.hex}` : undefined }}>
+                                 {themeColor === color.hex && <Check className="h-4 w-4 text-white" strokeWidth={3} />}
+                              </span>
+                           </button>
                         ))}
                      </div>
                   </div>
 
-                  {/* Settings Bento Box */}
-                  <div className="flex flex-col gap-5">
-                     <label className={`flex cursor-pointer items-center justify-between rounded-[1.45rem] border p-4 transition-colors md:p-5 ${optionsCard}`}>
-                        <div className="flex min-w-0 items-center gap-4 pr-4">
-                           <Sparkles className="h-7 w-7 shrink-0" style={{ color: themeColor }} />
+                  <AnimatePresence initial={false}>
+                  {isOptionsExpanded && <motion.div
+                     key="additional-options"
+                     id="additional-options"
+                     initial={{ height: 0, opacity: 0 }}
+                     animate={{ height: 'auto', opacity: 1 }}
+                     exit={{ height: 0, opacity: 0 }}
+                     transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                     className="shrink-0 overflow-hidden"
+                  >
+                  <div className="flex flex-col gap-2 pb-0.5">
+                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
+                        <div className="flex min-w-0 items-center gap-3 pr-3">
+                           <Sparkles className="h-5 w-5 shrink-0" style={{ color: themeColor }} />
                            <div className="flex flex-col">
-                              <span className="text-base font-semibold md:text-base">Efekt przezroczystości UI</span>
-                              <span className={`mt-1.5 text-xs leading-relaxed ${textSub}`}>Mapa za szkłem w panelach, przystankach i menu admina. Starsze urządzenia mogą zwolnić.</span>
+                              <span className="text-sm font-semibold">Przezroczystość</span>
+                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Rozmycie tła paneli</span>
                            </div>
                         </div>
-                        <div className={`relative h-9 w-16 flex-shrink-0 rounded-full transition-colors ${transparentUI ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: transparentUI ? themeColor : '' }}>
-                           <div className={`absolute left-1 top-1 h-7 w-7 rounded-full bg-white shadow-md transition-transform ${transparentUI ? 'translate-x-7' : ''}`}></div>
+                        <div className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors ${transparentUI ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: transparentUI ? themeColor : '' }}>
+                           <div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${transparentUI ? 'translate-x-5' : ''}`}></div>
                         </div>
-                        <input type="checkbox" className="hidden" checked={transparentUI} onChange={(e) => saveTransparentUI(e.target.checked)} />
+                        <input type="checkbox" className="sr-only" checked={transparentUI} onChange={(e) => saveTransparentUI(e.target.checked)} />
                      </label>
                      
-                     <label className={`flex cursor-pointer items-center justify-between rounded-[1.45rem] border p-4 transition-colors md:p-5 ${optionsCard}`}>
-                        <div className="flex min-w-0 items-center gap-4 pr-4">
-                           <Bus className={`h-7 w-7 shrink-0 ${isDark ? 'text-white/90' : 'text-slate-700'}`} />
+                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
+                        <div className="flex min-w-0 items-center gap-3 pr-3">
+                           <Bus className={`h-5 w-5 shrink-0 ${isDark ? 'text-white/90' : 'text-slate-700'}`} />
                            <div className="flex flex-col">
-                              <span className="text-base font-semibold md:text-base">Pokaż autobusy bez przypisanej linii</span>
-                              <span className={`mt-1.5 text-xs leading-relaxed ${textSub}`}>Pojazdy bez aktywnego kursu oraz ich ostatnia zapisana pozycja</span>
+                              <span className="text-sm font-semibold">Autobusy bez linii</span>
+                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Pokaż ostatnią pozycję pojazdów bez kursu</span>
                            </div>
                         </div>
-                        <div className={`relative h-9 w-16 flex-shrink-0 rounded-full transition-colors ${showInactive ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: showInactive ? themeColor : '' }}>
-                           <div className={`absolute left-1 top-1 h-7 w-7 rounded-full bg-white shadow-md transition-transform ${showInactive ? 'translate-x-7' : ''}`}></div>
+                        <div className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors ${showInactive ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: showInactive ? themeColor : '' }}>
+                           <div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${showInactive ? 'translate-x-5' : ''}`}></div>
                         </div>
-                        <input type="checkbox" className="hidden" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
+                        <input type="checkbox" className="sr-only" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
                      </label>
                   </div>
+                  </motion.div>}
+                  </AnimatePresence>
 
                </div>
             </motion.div>

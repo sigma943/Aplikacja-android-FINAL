@@ -42,7 +42,7 @@ function parseStoredDeviceInfo(deviceInfo: string, aliases: DeviceModelAliases =
     .map((part) => part.trim())
     .filter(Boolean);
   const model = parts[0] || '';
-  if (!model || /mozilla|applewebkit|chrome|safari|mobile/i.test(model)) return null;
+  if (!model || /mozilla\/|applewebkit\/|chrome\/|safari\//i.test(model)) return null;
   return {
     model: normalizeMarketingDeviceName(model, aliases),
     os: parts.slice(1).join(' | '),
@@ -57,12 +57,14 @@ const DEVICE_MARKETING_NAMES: Record<string, string> = {
 function normalizeMarketingDeviceName(model: string, aliases: DeviceModelAliases = {}): string {
   const clean = model.trim().replace(/\s+/g, ' ');
   const tokens = clean.split(/\s+/);
-  const code = tokens.find((token) => aliases[token.toUpperCase()] || DEVICE_MARKETING_NAMES[token.toUpperCase()]);
-  if (!code) return clean;
-
-  const marketingName = aliases[code.toUpperCase()] || DEVICE_MARKETING_NAMES[code.toUpperCase()];
-  if (!marketingName) return clean;
-  return marketingName;
+  const brand = tokens[0].toUpperCase();
+  // Try complete model strings too: Android model names can contain spaces.
+  for (let start = 0; start < tokens.length; start++) {
+    const code = tokens.slice(start).join(' ').toUpperCase();
+    const marketingName = aliases[code] || aliases[`${brand}:${code}`] || DEVICE_MARKETING_NAMES[code];
+    if (marketingName) return marketingName;
+  }
+  return clean;
 }
 
 export function formatDeviceOsSummary(deviceInfo: string, aliases: DeviceModelAliases = {}): string {

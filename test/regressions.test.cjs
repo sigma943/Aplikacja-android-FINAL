@@ -75,7 +75,7 @@ test('today MPK uses server service ID and merges board predictions with schedul
     let data;
     if (String(url).includes('get_current_service')) data = { service_ids: [2], date_used: warsawDateIso().replace(/-/g,'') };
     else if (String(url).includes('departures.php')) data = [{ trip_id:123, linia:'46', kierunek:'Dworzec', czas_odjazdu:'15:46', czas_odjazdu_real:'15:51' }];
-    else data = { schedule:{ '46':[{ trip_id:123,line:'46',departure_time:'15:46:00' },{ trip_id:124,line:'46',departure_time:'17:01:00' }] }};
+    else data = { schedule:{ '46':[{ trip_id:123,line:'46',departure_time:'15:46:30' },{ trip_id:124,line:'46',departure_time:'17:01:00' }] }};
     return new Response(JSON.stringify(data));
   };
   try {

@@ -1,5 +1,5 @@
 import type { Stop, Departure } from '@/Panel/src/types';
-import { fetchDeparturesClient,fetchMpkRzeszowDeparturesClient,fetchMarcelRoutesClient,fetchMarcelCoursesClient,fetchMarcelPublicCourseStopsClient } from '@/lib/pks-client';
+import { fetchDeparturesClient,fetchMpkRzeszowDeparturesClient,fetchMarcelRoutesClient,fetchMarcelCoursesClient,fetchMarcelPublicCourseStopsClient,fetchMarcelLivePositionsClient,estimateMarcelCourseDelay } from '@/lib/pks-client';
 import { stopTimetableStore,limitTimetableRequest,type DepartureSource } from '@/lib/stop-timetable-store';
 import { selectedDateIso,splitCsvValues,mapJourneyToDeparture,departureFromMpkSchedule,mergeCsvValues,stopPreciseNameKey,marcelCourseStopIndexKey,marcelCourseStopMatchKey,departureFromMarcelCourseStop } from '@/components/stops-panel/stop-domain';
 export async function loadStopDepartures (stop: Stop, dayIndex = 0) {
@@ -26,14 +26,18 @@ export async function loadStopDepartures (stop: Stop, dayIndex = 0) {
       const names = new Set(matchKeys.length ? matchKeys : [stopPreciseNameKey(stop.name)]);
       const cities = new Set(splitCsvValues(stop.providerStopIds?.marcelCityMatchKeys));
       sources.push({key:JSON.stringify(['marcel',routeIds,[...names],[...cities],dateIso]),label:'Marcel',load:async()=> {
+        const positionsPromise = dayIndex === 0
+          ? limitTimetableRequest(fetchMarcelLivePositionsClient).catch(() => [])
+          : Promise.resolve([]);
         const routes = routeIds.length ? routeIds : (await limitTimetableRequest(()=>fetchMarcelRoutesClient())).map(route=>String(route.idTr));
         const results = await Promise.allSettled(routes.map(async routeId => {
           const courses = await limitTimetableRequest(()=>fetchMarcelCoursesClient(routeId,dateIso));
           const results = await Promise.allSettled(courses.map(async course => {
             const stops = await limitTimetableRequest(()=>fetchMarcelPublicCourseStopsClient(course.idKu));
+            const estimatedDelay = estimateMarcelCourseDelay(course.idKu, stops, dateIso, await positionsPromise);
             return stops.flatMap((point,index)=> {
               const matches = cities.size ? cities.has(marcelCourseStopIndexKey(point)) : names.has(marcelCourseStopMatchKey(point));
-              const row = matches && index<stops.length-1 ? departureFromMarcelCourseStop(course,point,dateIso,index) : null;
+              const row = matches && index<stops.length-1 ? departureFromMarcelCourseStop(course,point,dateIso,index,estimatedDelay) : null;
               return row ? [row] : [];
             });
           }));

@@ -51,7 +51,7 @@ export class StopTimetableStore {
         const cached = this.good.get(source.key);
         if(cached && Date.now()-cached.at < 24*3600_000) {
           available++;
-          rows.push(...cached.data.departures.map(row => ({...row,realAtMs:row.plannedAtMs,time:row.plannedAtMs ? new Date(row.plannedAtMs).toLocaleTimeString('pl-PL',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'}) : row.time,delayMins:0,status:'on_time' as const,realtimeSource:undefined})));
+          rows.push(...cached.data.departures.map(row => ({...row,realAtMs:row.plannedAtMs,time:row.plannedAtMs ? new Date(row.plannedAtMs).toLocaleTimeString('pl-PL',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'}) : row.time,delayMins:0,delayEstimated:undefined,status:'on_time' as const,realtimeSource:undefined})));
           warnings.push(source.label+': zapisany rozkład; odświeżenie nie powiodło się.');
         } else warnings.push(source.label+': nie udało się pobrać odjazdów.');
       }

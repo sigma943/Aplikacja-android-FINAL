@@ -152,7 +152,7 @@ export default function TransportSelectorPanel({
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3 md:px-6 md:py-6">
               <h3 className={`mb-3 flex items-center gap-2 text-base font-black tracking-tight md:mb-4 md:text-xl ${theme.section}`}>
-                <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#0fb1bf]/18 text-[#0fb1bf] md:h-9 md:w-9">
+                <span className="flex h-8 w-8 items-center justify-center rounded-2xl ui-accent-soft md:h-9 md:w-9">
                   <Bus className="h-[18px] w-[18px] md:h-5 md:w-5" />
                 </span>
                 Autobusy
@@ -179,9 +179,9 @@ export default function TransportSelectorPanel({
                             : theme.cardIdle
                         }`}
                         style={{
-                          borderColor: isSelected ? option.color : undefined,
+                          borderColor: isSelected ? 'var(--pks-accent)' : undefined,
                           boxShadow: isSelected
-                            ? `0 18px 46px ${option.color}22, inset 0 0 0 1px ${option.color}28`
+                            ? '0 18px 46px var(--pks-accent-soft), inset 0 0 0 1px var(--pks-accent-border)'
                             : undefined,
                         }}
                       >
@@ -195,7 +195,7 @@ export default function TransportSelectorPanel({
                         {isSelected && (
                           <div
                             className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white shadow-lg sm:right-3 sm:top-3 sm:h-9 sm:w-9"
-                            style={{ backgroundColor: option.color }}
+                            style={{ backgroundColor: 'var(--pks-accent)', color: 'var(--pks-accent-on)' }}
                           >
                             <Check className="h-3 w-3 stroke-[3] sm:h-5 sm:w-5" />
                           </div>
@@ -239,9 +239,9 @@ export default function TransportSelectorPanel({
                                 : theme.cardIdle
                             }`}
                             style={{
-                              borderColor: isSelected ? option.color : undefined,
+                              borderColor: isSelected ? 'var(--pks-accent)' : undefined,
                               boxShadow: isSelected
-                                ? `0 18px 46px ${option.color}22, inset 0 0 0 1px ${option.color}28`
+                                ? '0 18px 46px var(--pks-accent-soft), inset 0 0 0 1px var(--pks-accent-border)'
                                 : undefined,
                             }}
                           >
@@ -255,7 +255,7 @@ export default function TransportSelectorPanel({
                             {isSelected && (
                               <div
                                 className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white shadow-lg sm:right-3 sm:top-3 sm:h-9 sm:w-9"
-                                style={{ backgroundColor: option.color }}
+                                style={{ backgroundColor: 'var(--pks-accent)', color: 'var(--pks-accent-on)' }}
                               >
                                 <Check className="h-3 w-3 stroke-[3] sm:h-5 sm:w-5" />
                               </div>
@@ -276,7 +276,7 @@ export default function TransportSelectorPanel({
               <button
                 type="button"
                 onClick={onApply}
-                className="inline-flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#0fb1bf] px-7 text-sm font-black text-white shadow-[0_16px_36px_rgba(15,177,191,0.34)] transition-transform hover:scale-[1.01] active:scale-[0.99] md:w-auto md:min-w-44"
+                className="inline-flex h-[52px] w-full items-center justify-center rounded-[18px] ui-accent-solid px-7 text-sm font-semibold shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] md:w-auto md:min-w-44"
               >
                 Zastosuj ({selectedCount})
               </button>

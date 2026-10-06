@@ -12,6 +12,7 @@ export interface Device {
   displayName?: string;
   deviceName?: string;
   deviceId: string;
+  installationId?: string;
   firstLogin: string;
   role: Role;
   rawRole?: 'owner' | 'admin' | 'user';

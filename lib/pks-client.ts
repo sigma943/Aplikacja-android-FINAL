@@ -120,7 +120,7 @@ let pkpStationCoordinatesPromise: Promise<Record<string, { lat: number; lon: num
 const pkpTrainMetadataCache = new Map<string, { expiresAt: number; value: PkpTrainMetadata | null }>();
 const pkpTrainMetadataInflight = new Map<string, Promise<PkpTrainMetadata | null>>();
 const shapePointsCache = new Map<string, Promise<ShapePoint[]>>();
-const roadRouteCache = new Map<string, Promise<ShapePoint[]>>();
+const roadRouteCache = new Map<string, ShapePoint[]>();
 const TRANSPORT_API_BASE_URL = (
   process.env.NEXT_PUBLIC_TRANSPORT_API_BASE_URL ||
   'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi'
@@ -147,6 +147,11 @@ const PKP_METADATA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PKP_METADATA_LOOKUP_LIMIT = 80;
 const mpkTripStopsByTripCache = new Map<string, Promise<any[]>>();
 const marcelCourseStopsCache = new Map<string, Promise<MarcelCourseStop[]>>();
+const marcelResolvedCourseStops = new Map<string, MarcelCourseStop[]>();
+const marcelCourseListeners = new Set<(courseId: string) => void>();
+let marcelBadgeQueue: string[] = [];
+let marcelBadgeRequests = 0;
+const marcelBadgeInflight = new Set<string>();
 const marcelPositionFreshness = new Map<string, { signature: string; signalMs: number; lastSeenMs: number }>();
 const marcelProgressState = new Map<string, {
   positionSignature: string;
@@ -496,8 +501,10 @@ async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: 
   }
 }
 
-async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
-  return fetchMarcelVehiclesDirect(includeInactive, signal);
+async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal, viewport?: PkpQueryViewport) {
+  const vehicles = await fetchMarcelVehiclesDirect(includeInactive, signal);
+  if (!signal?.aborted && viewport?.bbox) warmMarcelBadgeCourses(vehicles, viewport.bbox);
+  return vehicles;
 }
 
 function unwrapMarcelVehiclesPayload(payload: unknown): any[] {
@@ -738,14 +745,54 @@ async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop
             .filter((stop): stop is MarcelCourseStop => Boolean(stop))
             .sort((a, b) => a.order - b.order);
         })
+        .then(stops => {
+          marcelResolvedCourseStops.set(id, stops);
+          for (const listener of marcelCourseListeners) listener(id);
+          return stops;
+        })
         .catch(error => { marcelCourseStopsCache.delete(id); throw error; }),
     );
     if (marcelCourseStopsCache.size > 200) {
       const firstKey = marcelCourseStopsCache.keys().next().value;
-      if (firstKey) marcelCourseStopsCache.delete(firstKey);
+      if (firstKey) { marcelCourseStopsCache.delete(firstKey); marcelResolvedCourseStops.delete(firstKey); }
     }
   }
   return marcelCourseStopsCache.get(id)!;
+}
+
+/** Notify map markers as soon as background course data becomes available. */
+export function subscribeMarcelCourseDelays(listener: (courseId: string) => void) {
+  marcelCourseListeners.add(listener);
+  return () => { marcelCourseListeners.delete(listener); };
+}
+
+/** Use the latest vehicle position; never replay an old fleet snapshot. */
+export function withCachedMarcelDelay(vehicle: Vehicle, now = Date.now()): Vehicle {
+  if (vehicle.provider !== 'marcel') return vehicle;
+  const stops = marcelResolvedCourseStops.get(String(vehicle.tripId || vehicle.journeyId || ''));
+  if (!stops || stops.length < 2) return vehicle;
+  const signalMs = vehicle.positionObservedAtMs ?? transitTimestamp(vehicle.lastSignalTime);
+  const delay = estimateMarcelDelaySeconds(vehicle.lat, vehicle.lon, stops, Number.isFinite(signalMs) ? signalMs : now);
+  return delay === undefined || delay === vehicle.delay ? vehicle : { ...vehicle, delay };
+}
+
+/** Warm only visible courses, two at a time, without holding up position polling. */
+export function warmMarcelBadgeCourses(vehicles: Vehicle[], bbox: [number, number, number, number]) {
+  const [west, south, east, north] = bbox;
+  if (!bbox.every(Number.isFinite)) return;
+  marcelBadgeQueue = [...new Set(vehicles.filter(v => v.provider === 'marcel' && v.lon >= west && v.lon <= east && v.lat >= south && v.lat <= north)
+    .map(v => String(v.tripId || v.journeyId || '')).filter(id => id && !marcelCourseStopsCache.has(id) && !marcelBadgeInflight.has(id)))];
+  const pump = () => {
+    while (marcelBadgeRequests < 2 && marcelBadgeQueue.length) {
+      const id = marcelBadgeQueue.shift()!;
+      if (marcelCourseStopsCache.has(id) || marcelBadgeInflight.has(id)) continue;
+      marcelBadgeRequests++; marcelBadgeInflight.add(id);
+      void fetchMarcelCourseStops(id).catch(() => { /* Retry on the next fleet refresh. */ }).finally(() => {
+        marcelBadgeRequests--; marcelBadgeInflight.delete(id); pump();
+      });
+    }
+  };
+  pump();
 }
 
 function squaredMetersDistanceToSegment(point: ShapePoint, start: ShapePoint, end: ShapePoint) {
@@ -855,7 +902,7 @@ function buildMarcelRouteStops(stops: MarcelCourseStop[], delaySeconds: number, 
   });
 }
 
-async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean): Promise<Vehicle | null> {
+async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean, includeRoute = false, fetchedAtMs = now): Promise<Vehicle | null> {
   const lat = readMarcelNumber(raw, ['lat', 'latitude', 'szGps', 'szerokosc', 'szerokoscGeo', 'position.lat', 'position.latitude']);
   const lon = readMarcelNumber(raw, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
@@ -875,10 +922,11 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     ? timestampMs
     : getObservedMarcelSignalMs(String(rawVehicleId), lat, lon, now);
   const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
-  const courseStops = await fetchMarcelCourseStops(tripId).catch(() => []);
-  const delay = estimateMarcelDelaySeconds(lat, lon, courseStops, now);
-  const schedule = buildMarcelSchedule(courseStops, delay, now);
-  const routeStops = buildMarcelRouteStops(courseStops, delay, now);
+  const courseStops = includeRoute ? await fetchMarcelCourseStops(tripId) : marcelResolvedCourseStops.get(String(tripId || '')) || [];
+  const positionObservedAtMs = Number.isFinite(timestampMs) ? timestampMs : fetchedAtMs;
+  const delay = courseStops.length >= 2 ? estimateMarcelDelaySeconds(lat, lon, courseStops, positionObservedAtMs) : undefined;
+  const schedule = includeRoute ? buildMarcelSchedule(courseStops, delay ?? 0, now) : [];
+  const routeStops = includeRoute ? buildMarcelRouteStops(courseStops, delay ?? 0, now) : [];
   const fullRoutePath = routeStops.map((stop) => stop.id);
   const hasLine = line !== '?';
 
@@ -897,7 +945,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
   if (!includeInactive && !hasLine) return null;
   if (dataAgeSec > MARCEL_STALE_MS / 1000) return null;
   if (shouldHideDeadMarcelVehicle({
-    delaySeconds: delay,
+    delaySeconds: delay ?? 0,
     speed: speed ?? Number.NaN,
     positionUnchangedMinutes: progressState.positionUnchangedMinutes,
     tripProgressUnchangedMinutes: progressState.tripProgressUnchangedMinutes,
@@ -920,6 +968,7 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     computedSpeed: speed,
     direction,
     delay,
+    positionObservedAtMs,
     dataAgeSec,
     schedule,
     routeStops,
@@ -939,17 +988,14 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
 }
 
 async function fetchMarcelVehiclesDirect(includeInactive: boolean, signal?: AbortSignal) {
-  const payload = await requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, {
-    signal,
-    headers: {'Accept': 'application/json'},
-  });
+  const snapshot = await fetchMarcelPositionSnapshot(signal);
   const now = Date.now();
-  const rawVehicles = unwrapMarcelVehiclesPayload(payload);
+  const rawVehicles = snapshot.rows;
   const vehicles: Vehicle[] = [];
   const concurrency = 6;
   for (let start = 0; start < rawVehicles.length; start += concurrency) {
     const chunk = rawVehicles.slice(start, start + concurrency);
-    const mapped = await Promise.all(chunk.map((rawVehicle) => mapMarcelDirectVehicle(rawVehicle, now, includeInactive)));
+    const mapped = await Promise.all(chunk.map((rawVehicle) => mapMarcelDirectVehicle(rawVehicle, now, includeInactive, false, snapshot.observedAtMs)));
     vehicles.push(...mapped.filter((vehicle): vehicle is Vehicle => Boolean(vehicle)));
   }
   return vehicles;
@@ -957,12 +1003,14 @@ async function fetchMarcelVehiclesDirect(includeInactive: boolean, signal?: Abor
 
 async function fetchMarcelVehicleDetailsDirect(vehicleId: string, includeInactive: boolean) {
   const lookupVehicleId = String(vehicleId || '').replace(/^marcel_/, '');
-  const vehicles = await fetchMarcelVehiclesDirect(includeInactive);
-  return vehicles.find((vehicle) =>
-    String(vehicle.id).replace(/^marcel_/, '') === lookupVehicleId ||
-    String(vehicle.vehicleNumber || '') === lookupVehicleId ||
-    String(vehicle.journeyId || '') === lookupVehicleId
-  ) || null;
+  const snapshot = await fetchMarcelPositionSnapshot();
+  const raw = snapshot.rows.find((row) => {
+    const id = readMarcelString(row, ['vehicle_id', 'vehicle.id', 'idPojazdu', 'pojazdId', 'idPo'])
+      || readMarcelString(row, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']);
+    const number = readMarcelString(row, ['vehicleNumber', 'vehicle_number', 'vehicle.label', 'nrBoczny', 'numerBoczny', 'nrRej', 'rejestracja']);
+    return id === lookupVehicleId || number === lookupVehicleId;
+  });
+  return raw ? mapMarcelDirectVehicle(raw, Date.now(), includeInactive, true, snapshot.observedAtMs) : null;
 }
 
 function decodeXmlEntity(value: string) {
@@ -1434,7 +1482,7 @@ function collapseLocalLoops(points: ShapePoint[], options?: { strict?: boolean }
   return result;
 }
 
-async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal}) {
+async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal;stopWaypoints?:boolean}) {
   const points=coords.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));
   if(points.length<2)return [];
   if(roadRouteCache.has(cacheKey))return roadRouteCache.get(cacheKey)!;
@@ -1447,7 +1495,9 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
         const index=cursor++,chunk=chunks[index];
         let route: ShapePoint[]=[];
         try {
-          const query={locations:chunk.map(([lat,lon],i)=>({lat,lon,type:i===0||i===chunk.length-1?'break':'through'})),costing:'bus',directions_options:{units:'kilometers'}};
+          // Stop coordinates can sit in a bay or side road. A through point
+          // forbids turning there and can force a loop around nearby streets.
+          const query={locations:chunk.map(([lat,lon],i)=>({lat,lon,type:i===0||i===chunk.length-1?'break':options?.stopWaypoints?'via':'through',...(options?.stopWaypoints?{radius:35,rank_candidates:false}:{})})),costing:'bus',directions_options:{units:'kilometers'}};
           const data=await requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal:options?.signal});
           route=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
         }catch(error){if(options?.signal?.aborted)throw error;}
@@ -1462,10 +1512,14 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       }
     }));
     return joinRouteChunks(results);
-  })().catch(error=>{roadRouteCache.delete(cacheKey);throw error;});
-  roadRouteCache.set(cacheKey,promise);
+  })();
+  // Pending requests belong to their caller's AbortSignal. Reusing one after
+  // selection changes can poison the new route with the previous cancellation.
+  const route = await promise;
+  if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+  roadRouteCache.set(cacheKey,route);
   if(roadRouteCache.size>100)roadRouteCache.delete(roadRouteCache.keys().next().value!);
-  return promise;
+  return route;
 }
 
 function createQuickCurvedRoute(coords: ShapePoint[]) {
@@ -2177,7 +2231,7 @@ export async function fetchVehiclesClient(
       });
     }
     if (provider === 'marcel') {
-      return fetchMarcelVehiclesClient(includeInactive, options?.signal).catch((error) => {
+      return fetchMarcelVehiclesClient(includeInactive, options?.signal, options?.pkpViewport).catch((error) => {
         if ((error as any)?.name === 'AbortError') throw error;
         console.warn('Marcel provider unavailable:', error);
         return [];
@@ -2601,6 +2655,10 @@ export type MpkRzeszowScheduleEntry = {
   private_code?: string;
   vehicle?: string | number | null;
   trip_id?: string | number;
+  board_is_past?: boolean;
+  board_at_stop?: boolean;
+  board_observed_at_ms?: number;
+  board_time_precision_ms?: number;
   is_last_stop?: boolean;
   start_stop_id?: string | number;
   start_stop_name?: string;
@@ -2670,7 +2728,7 @@ export async function fetchMpkRzeszowDeparturesClient(
   options?: { signal?: AbortSignal },
 ) {
   const boardPromise = dateIso === warsawDateIso()
-    ? requestJson<unknown>(`https://www.mpkrzeszow.pl/przystanki/departures.php?${new URLSearchParams({ stopId, hide_last_stop: '1' })}`, { signal: options?.signal }).then(mpkBoardEntries)
+    ? requestJson<unknown>(`https://www.mpkrzeszow.pl/przystanki/departures.php?${new URLSearchParams({ stopId, hide_last_stop: '1' })}`, { signal: options?.signal }).then(payload => mpkBoardEntries(payload))
     : Promise.resolve([]);
   const schedulePromise = (async () => {
     const serviceIds = await mpkServiceIdsForDate(dateIso);
@@ -2685,7 +2743,8 @@ export async function fetchMpkRzeszowDeparturesClient(
   if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
   if (schedule.status === 'rejected' && (dateIso !== warsawDateIso() || board.status === 'rejected')) throw schedule.reason;
   const entries = new Map<string, MpkRzeszowScheduleEntry>();
-  const key = (entry: MpkRzeszowScheduleEntry) => `${entry.trip_id ?? `${entry.line}:${entry.trip_headsign}`}:${warsawTimeMs(dateIso, entry.departure_time)}`;
+  // Board HH:mm and GTFS HH:mm:ss must identify the same departure.
+  const key = (entry: MpkRzeszowScheduleEntry) => `${entry.trip_id ?? `${entry.line}:${entry.trip_headsign}`}:${Math.floor(warsawTimeMs(dateIso, entry.departure_time) / 60_000)}`;
   if (schedule.status === 'fulfilled') schedule.value.forEach((entry) => entries.set(key(entry), entry));
   if (board.status === 'fulfilled') board.value.forEach((entry) => entries.set(key(entry), entry));
   const result = [...entries.values()] as MpkRzeszowScheduleEntry[] & { warning?: string };
@@ -2719,6 +2778,65 @@ export type MarcelCourseStopPublic = {
   nazPr?: string;
   godz?: string;
 };
+
+export type MarcelLivePosition = { tripId: string; lat: number; lon: number; observedAtMs: number };
+type MarcelPositionSnapshot = { rows: any[]; observedAtMs: number; positions: MarcelLivePosition[] };
+let marcelPositionSnapshotCache: { expiresAt: number; promise: Promise<MarcelPositionSnapshot> } | undefined;
+
+/** Map, selected bus and stop departures share one position and observation time. */
+function fetchMarcelPositionSnapshot(signal?: AbortSignal): Promise<MarcelPositionSnapshot> {
+  if (!marcelPositionSnapshotCache || marcelPositionSnapshotCache.expiresAt <= Date.now()) {
+    const promise = requestJson<unknown>(MARCEL_DIRECT_VEHICLES_URL, { headers: { Accept: 'application/json' } }).then(payload => {
+      const observedAtMs = Date.now();
+      const rows = unwrapMarcelVehiclesPayload(payload);
+      const positions = rows.flatMap(row => {
+        const tripId = readMarcelString(row, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']);
+        const lat = readMarcelNumber(row, ['lat', 'latitude', 'szGps', 'szerokosc', 'szerokoscGeo', 'position.lat', 'position.latitude']);
+        const lon = readMarcelNumber(row, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
+        const timestamp = readMarcelTimestamp(row);
+        const at = Number.isFinite(timestamp) ? timestamp : observedAtMs;
+        return tripId && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(observedAtMs - at) < 60_000
+          ? [{ tripId, lat, lon, observedAtMs: at }] : [];
+      });
+      if (marcelPositionSnapshotCache?.promise === promise) marcelPositionSnapshotCache.expiresAt = observedAtMs + 10_000;
+      return { rows, observedAtMs, positions };
+    }).catch(error => {
+      if (marcelPositionSnapshotCache?.promise === promise) marcelPositionSnapshotCache = undefined;
+      throw error;
+    });
+    marcelPositionSnapshotCache = { expiresAt: Infinity, promise };
+  }
+  const snapshot = marcelPositionSnapshotCache.promise;
+  return signal ? withRequestDeadline(() => snapshot, signal) : snapshot;
+}
+
+/** One live position download per refresh, shared by all courses of a stop. */
+export function fetchMarcelLivePositionsClient(): Promise<MarcelLivePosition[]> {
+  return fetchMarcelPositionSnapshot().then(snapshot => snapshot.positions);
+}
+
+/** This is a GPS estimate, not an operator-confirmed delay. */
+export function estimateMarcelCourseDelay(courseId: number | string, publicStops: MarcelCourseStopPublic[], dateIso: string, positions: MarcelLivePosition[]): number | undefined {
+  const position = positions.find(row => row.tripId === String(courseId));
+  if (!position || Math.abs(Date.now() - position.observedAtMs) > 60_000) return undefined;
+  let previousMs: number | undefined;
+  const stops = publicStops.flatMap((stop, index) => {
+    let plannedMs = warsawTimeMs(dateIso, stop.godz);
+    if (previousMs != null && plannedMs < previousMs - 6 * 3600_000) plannedMs += 24 * 3600_000;
+    if (!Number.isFinite(plannedMs) || stop.szGps == null || stop.dlGps == null) return [];
+    const lat = Number(stop.szGps), lon = Number(stop.dlGps);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return [];
+    previousMs = plannedMs;
+    return [{ id: stop.kol || index + 1, name: '', lat, lon, plannedMs,
+      planned: new Date(plannedMs).toISOString(), km: index, order: index }];
+  });
+  if (stops.length < 2 || position.observedAtMs < stops[0].plannedMs) return undefined;
+  const distance = Math.min(...stops.slice(1).map((end, index) => squaredMetersDistanceToSegment(
+    [position.lat, position.lon], [stops[index].lat, stops[index].lon], [end.lat, end.lon],
+  ).distanceSq));
+  if (distance > 1000 ** 2) return undefined;
+  return estimateMarcelDelaySeconds(position.lat, position.lon, stops, position.observedAtMs);
+}
 
 let marcelRoutesPromise: Promise<MarcelRoute[]> | null = null;
 const marcelCoursesByRouteDateCache = new Map<string, Promise<MarcelCourse[]>>();
@@ -2806,7 +2924,7 @@ export async function fetchRouteGeometryClient(
         request.direction,
         stopCoords.map(([lat, lon]) => `${lat.toFixed(6)},${lon.toFixed(6)}`).join('|'),
       ].join(':'),
-      { strictShortSegments: request.carrier === 'mpk_rzeszow',signal:options?.signal },
+      { strictShortSegments: request.carrier === 'mpk_rzeszow',stopWaypoints:request.carrier === 'marcel',signal:options?.signal },
     );
     if (fallbackPoints.length <= 1) {
       return {

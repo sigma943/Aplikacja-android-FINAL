@@ -5,6 +5,7 @@ import { fetchMarcelCoursesClient, fetchMarcelPublicCourseStopsClient, fetchMarc
 import type { Vehicle } from '@/components/BusMap';
 import { getSimilarity, normalizeStopName as normalizeMergeName } from '@/lib/rzeszow-stop-consolidation';
 import { warsawDateIso, warsawTimeMs } from '@/lib/transit-time';
+import { departureTiming, finiteDelay } from '@/lib/departure-timing';
 import { busDelayMinutes } from '@/lib/bus-punctuality';
 
 type RawStop = {
@@ -993,15 +994,10 @@ function mapJourneyToDeparture(journey: Record<string, unknown>, index: number):
   const line = cleanLine(journey.line_name || journey.line || '?') || '?';
   const plannedAtMs = timestampFromJourney(journey);
   const vehicleId = String(journey.vehicle_id || journey.vehicleId || journey.vehicle_number || '').trim();
-  const hasRealtimeMarker = Boolean(
-    vehicleId || journey.realDeparture || journey.real_departure_time,
-  );
-  const delayMinutes = hasRealtimeMarker ? Number(journey.deviation ?? journey.delayMinutes ?? 0) : 0;
-  const roundedDelayMinutes = busDelayMinutes(delayMinutes * 60);
-  const hasDelay = roundedDelayMinutes !== 0;
-  const realAtMs = Number.isFinite(plannedAtMs) && Number.isFinite(delayMinutes)
-    ? (plannedAtMs as number) + delayMinutes * 60_000
-    : plannedAtMs;
+  const timing = departureTiming(plannedAtMs, journey.realDeparture || journey.real_departure_time,
+    journey.deviation ?? journey.delayMinutes);
+  const hasDelay = timing.hasRealtime && timing.delayMins !== 0;
+  const realAtMs = timing.realAtMs;
   const direction = String(journey.route_description || journey.direction || journey.destination || 'Nieznany kierunek');
   if (
     isTechnicalDepartureData(line, direction, [
@@ -1023,12 +1019,12 @@ function mapJourneyToDeparture(journey: Record<string, unknown>, index: number):
     direction,
     time: formatWarsawTime(realAtMs, journey.realDeparture || journey.plannedDeparture || journey.timetable_time),
     status: hasDelay ? 'delayed' : 'on_time',
-    delayMins: roundedDelayMinutes,
+    delayMins: timing.delayMins,
     carrier,
     type: 'departure',
     plannedAtMs,
     realAtMs,
-    realtimeSource: hasRealtimeMarker ? 'vehicle-feed' : undefined,
+    realtimeSource: timing.hasRealtime ? 'stop-board' : undefined,
   };
 }
 
@@ -1064,6 +1060,10 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
     plannedAtMs,
     realAtMs,
     realtimeSource: entry.realtime_source === 'stop-board' ? 'stop-board' : undefined,
+    boardIsPast: entry.board_is_past === true,
+    boardAtStop: entry.board_at_stop === true,
+    boardObservedAtMs: typeof entry.board_observed_at_ms === 'number' ? entry.board_observed_at_ms : undefined,
+    boardTimePrecisionMs: typeof entry.board_time_precision_ms === 'number' ? entry.board_time_precision_ms : undefined,
   };
 }
 
@@ -1072,6 +1072,7 @@ function departureFromMarcelCourseStop(
   stop: MarcelCourseStopPublic,
   dateIso: string,
   index: number,
+  estimatedDelaySeconds?: number,
 ): Departure | null {
   if (
     isTechnicalDepartureData('M', course.nazTr || stop.nazTr || '', [
@@ -1082,18 +1083,28 @@ function departureFromMarcelCourseStop(
     return null;
   }
   const plannedAtMs = parseTimeOnDate(dateIso, stop.godz || course.godz);
+  const rawStop = stop as unknown as Record<string, unknown>;
+  const rawCourse = course as unknown as Record<string, unknown>;
+  const confirmedDelay = finiteDelay(rawStop.delayMinutes ?? rawStop.deviation ?? rawCourse.delayMinutes ?? rawCourse.deviation);
+  const prediction = rawStop.realDeparture || rawStop.real_departure_time || rawCourse.realDeparture || rawCourse.real_departure_time;
+  const confirmed = departureTiming(plannedAtMs, prediction, confirmedDelay);
+  const estimated = !confirmed.hasRealtime && Number.isFinite(estimatedDelaySeconds);
+  const timing = estimated ? { ...departureTiming(plannedAtMs, undefined, estimatedDelaySeconds! / 60),
+    delayMins: busDelayMinutes(estimatedDelaySeconds!) } : confirmed;
   return {
     id: `marcel:${course.idKu}:${stop.kol || index}:${plannedAtMs || stop.godz || course.godz}`,
     courseId: String(course.idKu),
     line: 'M',
     direction: marcelDirectionDestination(course.nazTr || stop.nazTr || 'Marcel'),
-    time: formatWarsawTime(plannedAtMs, stop.godz || course.godz),
-    status: 'on_time',
-    delayMins: 0,
+    time: formatWarsawTime(timing.realAtMs, stop.godz || course.godz),
+    status: timing.hasRealtime && timing.delayMins !== 0 ? 'delayed' : 'on_time',
+    delayMins: timing.delayMins,
+    delayEstimated: estimated || undefined,
+    realtimeSource: timing.hasRealtime ? 'vehicle-feed' : undefined,
     carrier: MARCEL_CARRIER,
     type: 'departure',
     plannedAtMs,
-    realAtMs: plannedAtMs,
+    realAtMs: timing.realAtMs,
   };
 }
 

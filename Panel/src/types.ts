@@ -34,6 +34,7 @@ export interface Departure {
   time: string; // e.g. "19:24"
   status: 'on_time' | 'delayed';
   delayMins?: number;
+  delayEstimated?: boolean;
   vehicleDesc?: string; // e.g. "Autobus 16 • Iveco Crossway"
   carrier?: Carrier; // Especially for trains
   platform?: string; // For trains
@@ -42,6 +43,10 @@ export interface Departure {
   plannedAtMs?: number;
   realAtMs?: number;
   realtimeSource?: 'stop-board' | 'vehicle-feed' | 'position-estimate';
+  boardIsPast?: boolean;
+  boardAtStop?: boolean;
+  boardObservedAtMs?: number;
+  boardTimePrecisionMs?: number;
 }
 
 export interface DepartureResult { departures: Departure[]; warnings: string[]; updatedAt: number; }

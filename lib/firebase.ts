@@ -1,17 +1,18 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFunctions } from 'firebase/functions';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
+import { Capacitor } from '@capacitor/core';
 import firebaseConfig from '../firebase-applet-config.json';
 import { agentLog } from '@/lib/debug-agent-log';
 
 type FirebaseClientConfig = typeof firebaseConfig & { firestoreDatabaseId?: string };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const cfg = firebaseConfig as FirebaseClientConfig;
-export const db = cfg.firestoreDatabaseId
-  ? getFirestore(app, cfg.firestoreDatabaseId)
-  : getFirestore(app);
+export const db = initializeFirestore(app, Capacitor.isNativePlatform()
+  ? { experimentalForceLongPolling: true }
+  : {}, cfg.firestoreDatabaseId || '(default)');
 export const auth = getAuth(app);
 export const functions = getFunctions(app, 'us-central1');
 

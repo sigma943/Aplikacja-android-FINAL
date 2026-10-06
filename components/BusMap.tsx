@@ -5,15 +5,18 @@ import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomCo
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { officialBusRoute } from '@/lib/official-bus-routes';
+import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
+import { runFrameBatch } from '@/lib/map-frame-batch';
+import { loadRouteWithRetry } from '@/lib/route-load-retry';
 import { busDelayMinutes } from '@/lib/bus-punctuality';
-import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
+import { fetchRouteGeometryClient, subscribeMarcelCourseDelays, warmMarcelBadgeCourses, withCachedMarcelDelay, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
 const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v6-providers';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v8-marcel-stop-waypoints';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -296,7 +299,7 @@ function MapStateTracker({
   return null;
 }
 
-const formatDelay = (delaySec: number | undefined) => {
+const formatDelay = (delaySec: number | undefined, provider?: string) => {
   if (delaySec === undefined) return null;
   if (!Number.isFinite(delaySec) || Math.abs(delaySec) > 18000) return null;
   const signedMinutes = busDelayMinutes(delaySec);
@@ -373,7 +376,7 @@ const createBusIcon = (
 
   const display = routeShortName || '?';
   const numberLabel = String(vehicleLabel || '').trim();
-  const delayInfo = formatDelay(delaySec);
+  const delayInfo = formatDelay(delaySec, iconVariant);
   
   let opacityClass = 'opacity-90';
   let filterStyle = '';
@@ -552,6 +555,7 @@ export interface Vehicle {
   speed?: number;
   direction?: string;
   delay?: number;
+  positionObservedAtMs?: number;
   dataAgeSec?: number;
   schedule?: StopSchedule[];
   routeStops?: StopSchedule[];
@@ -740,7 +744,20 @@ const BusMarker = memo(function BusMarker({
   );
 });
 
-function VehicleMarkerLayer({
+const VehicleClusterMarker = memo(function VehicleClusterMarker({ groupKey, lat, lon, count, color, offset, onClick }: {
+  groupKey: string; lat: number; lon: number; count: number; color: string; offset: number;
+  onClick: (key: string) => void;
+}) {
+  const position = useMemo<[number, number]>(() => [lat, lon], [lat, lon]);
+  const handlers = useMemo(() => ({ click: (event: L.LeafletMouseEvent) => {
+    L.DomEvent.stopPropagation(event as any);
+    onClick(groupKey);
+  } }), [groupKey, onClick]);
+  return <Marker position={position} zIndexOffset={900}
+    icon={getCachedClusterIcon(count, count >= 10 ? 54 : 46, color, offset)} eventHandlers={handlers} />;
+});
+
+const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
   vehicles,
   selectedVehicleId,
   themeColor,
@@ -755,6 +772,7 @@ function VehicleMarkerLayer({
 }) {
   const map = useMap();
   const [viewTick, setViewTick] = useState(0);
+  const [badgeRevision, setBadgeRevision] = useState(0);
   const [renderVehicles, setRenderVehicles] = useState(vehicles);
   const latestVehiclesRef = useRef(vehicles);
   const latestVehicleByKeyRef = useRef(new Map<string, Vehicle>());
@@ -779,7 +797,12 @@ function VehicleMarkerLayer({
       window.cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    setRenderVehicles(latestVehiclesRef.current);
+    // zoomend and moveend can arrive together; perform one render per frame.
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      setViewTick(value => value + 1);
+      setRenderVehicles(latestVehiclesRef.current);
+    });
   }, []);
 
   useMapEvents({
@@ -791,12 +814,10 @@ function VehicleMarkerLayer({
     },
     zoomend: () => {
       mapMovingRef.current = false;
-      setViewTick((value) => value + 1);
       flushVehicleUpdates();
     },
     moveend: () => {
       mapMovingRef.current = false;
-      setViewTick((value) => value + 1);
       flushVehicleUpdates();
     },
   });
@@ -822,11 +843,24 @@ function VehicleMarkerLayer({
 
   const zoom = map.getZoom();
   const isHighVolumeLayer = renderVehicles.length > 35;
-  const viewportVehicles = useMemo(() => {
-    if (renderVehicles.length <= 120) return renderVehicles;
+  const visibleVehicles = useMemo(() => {
+    if (renderVehicles.length <= 35) return renderVehicles;
     const paddedBounds = map.getBounds().pad(0.2);
     return renderVehicles.filter((vehicle) => paddedBounds.contains([vehicle.lat, vehicle.lon]));
   }, [map, renderVehicles, viewTick, zoom]);
+  useEffect(() => {
+    const courseIds = new Set(visibleVehicles.filter(v => v.provider === 'marcel')
+      .map(v => String(v.tripId || v.journeyId || '')));
+    const unsubscribe = subscribeMarcelCourseDelays(courseId => {
+      if (courseIds.has(courseId)) setBadgeRevision(value => value + 1);
+    });
+    const bounds = map.getBounds().pad(0.2);
+    warmMarcelBadgeCourses(visibleVehicles, [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
+    return unsubscribe;
+  }, [map, visibleVehicles]);
+
+  const viewportVehicles = useMemo(() => visibleVehicles.map(vehicle => withCachedMarcelDelay(vehicle)),
+    [visibleVehicles, badgeRevision]);
   const shouldCluster = viewportVehicles.length > 8 && (zoom <= 14 || (isHighVolumeLayer && zoom <= 15));
   const groups = useMemo(() => {
     if (!shouldCluster) {
@@ -875,11 +909,30 @@ function VehicleMarkerLayer({
     }));
   }, [map, shouldCluster, viewportVehicles, viewTick, zoom]);
 
+  const groupsRef = useRef(groups);
+  groupsRef.current = groups;
+  const handleClusterClick = useCallback((key: string) => {
+    const group = groupsRef.current.find(group => group.groupKey === key);
+    if (!group) return;
+    const bounds = L.latLngBounds(group.vehicles.map(vehicle => [vehicle.lat, vehicle.lon] as [number, number]));
+    map.fitBounds(bounds.pad(0.35), { animate: true, maxZoom: Math.max(14, map.getZoom() + 2) });
+  }, [map]);
+
   useEffect(() => {
+    const updates: { marker: L.Marker; lat: number; lon: number }[] = [];
     for (const vehicle of viewportVehicles) {
       const marker = markerRefs.current.get(getVehicleMarkerKey(vehicle));
-      if (marker) marker.setLatLng([vehicle.lat, vehicle.lon]);
+      if (marker) {
+        const point = marker.getLatLng();
+        if (point.lat !== vehicle.lat || point.lng !== vehicle.lon) updates.push({ marker, lat: vehicle.lat, lon: vehicle.lon });
+      }
     }
+    return runFrameBatch(updates, ({ marker, lat, lon }) => marker.setLatLng([lat, lon]), {
+      request: callback => window.requestAnimationFrame(callback),
+      cancel: id => window.cancelAnimationFrame(id),
+      now: () => performance.now(),
+      paused: () => mapMovingRef.current,
+    });
   }, [getVehicleMarkerKey, viewportVehicles]);
 
   return (
@@ -887,21 +940,12 @@ function VehicleMarkerLayer({
       {groups.map((group) => {
         if (group.vehicles.length > 1) {
           const count = group.vehicles.length;
-          const size = count >= 10 ? 54 : 46;
           const clusterColor = getVehicleColor(group.vehicles[0]);
           return (
-            <Marker
+            <VehicleClusterMarker
               key={`cluster-${group.groupKey}`}
-              position={[group.lat, group.lon]}
-              zIndexOffset={900}
-              icon={getCachedClusterIcon(count, size, clusterColor, group.visualOffset)}
-              eventHandlers={{
-                click: (e) => {
-                  L.DomEvent.stopPropagation(e as any);
-                  const bounds = L.latLngBounds(group.vehicles.map((vehicle) => [vehicle.lat, vehicle.lon] as [number, number]));
-                  map.fitBounds(bounds.pad(0.35), { animate: true, maxZoom: Math.max(14, zoom + 2) });
-                },
-              }}
+              groupKey={group.groupKey} lat={group.lat} lon={group.lon} count={count}
+              color={clusterColor} offset={group.visualOffset} onClick={handleClusterClick}
             />
           );
         }
@@ -926,7 +970,7 @@ function VehicleMarkerLayer({
       })}
     </>
   );
-}
+});
 
 function RouteStopsLayer({
   selectedVehicle,
@@ -1063,7 +1107,9 @@ export default function BusMap({
     if (routeStops.length > 0) return dedupeStableStopIds(routeStops);
     return dedupeStableStopIds((selectedVehicle?.schedule || []).map((s: any) => s.id));
   }, [selectedVehicle]);
-  const visibleRouteStopIds = routeStopIds;
+  const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
+    ? routeStopIds
+    : upcomingVehicleStops(routeStopsSource, Date.now(), selectedVehicle?.lastStopId).map(stop => String(stop.id));
   const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
   const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
     const next: RouteGeometryStop[] = [];
@@ -1081,6 +1127,14 @@ export default function BusMap({
     }
     return next;
   }, [routeStopIds, routeStopsData]);
+  // Paint only road geometry. Stop-to-stop chords can cut across buildings and fields.
+  const paintedRoute = snappedRoute;
+  // Selected details contain punctuality before the background fleet cache warms.
+  const markerVehicles = useMemo(() => vehicles.map(vehicle =>
+    selectedVehicle?.provider === vehicle.provider && selectedVehicle?.id === vehicle.id &&
+    vehicle.delay === undefined && Number.isFinite(selectedVehicle.delay)
+      ? { ...vehicle, delay: selectedVehicle.delay } : vehicle),
+  [vehicles, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.delay]);
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
@@ -1164,7 +1218,7 @@ export default function BusMap({
         return;
       }
 
-      const response = await fetchRouteGeometryClient({
+      const response = await loadRouteWithRetry(() => fetchRouteGeometryClient({
         carrier: selectedVehicle.provider || 'pks',
         line: selectedVehicle.routeShortName || selectedVehicle.routeId || selectedVehicle.name || 'unknown',
         direction: selectedVehicle.direction || routeGeometryStops[routeGeometryStops.length - 1]?.name || 'unknown',
@@ -1179,7 +1233,7 @@ export default function BusMap({
         dataVersion: routeGeometryVersion,
         mode: routeMode,
         stops: routeGeometryStops,
-      }, { signal: controller.signal });
+      }, { signal: controller.signal }), controller.signal);
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
         const points = (response.geometry?.coordinates || [])
           .map(([lon, lat]) => [lat, lon] as [number, number])
@@ -1331,11 +1385,11 @@ export default function BusMap({
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
-          {snappedRoute.length > 0 && (
+          {paintedRoute.length > 1 && (
             <>
-              <Polyline pane="routeLinePane" key={`route-halo-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routeHaloOpts} />
-              <Polyline pane="routeLinePane" key={`route-glow-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routeGlowOpts} />
-              <Polyline pane="routeLinePane" key={`route-line-${selectedVehicleId}-${routeKey}`} positions={snappedRoute} pathOptions={routePolylineOpts} />
+              <Polyline pane="routeLinePane" key={`route-halo-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeHaloOpts} />
+              <Polyline pane="routeLinePane" key={`route-glow-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeGlowOpts} />
+              <Polyline pane="routeLinePane" key={`route-line-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routePolylineOpts} />
             </>
           )}
         </Pane>
@@ -1355,7 +1409,7 @@ export default function BusMap({
         </Pane>
 
         <VehicleMarkerLayer
-          vehicles={vehicles}
+          vehicles={markerVehicles}
           selectedVehicleId={selectedVehicleId}
           themeColor={themeColor}
           refreshInterval={refreshInterval}

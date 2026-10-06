@@ -3,6 +3,8 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -22,8 +24,22 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Test Application
+        run: npm test
+
       - name: Build Android Web Assets
         run: npm run build:android:web
+
+      - name: Verify shared accent and stop views
+        run: node test/accent-browser.cjs
+
+      - name: Upload UI previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stop-ui-previews
+          path: test/ui-previews/*.png
+          if-no-files-found: ignore
 
       - name: Generate Android Icons
         run: npm run android:assets
@@ -38,6 +54,38 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-36 build-tools;36.0.0"
+
+      - name: Verify Firebase restoration rules
+        run: npm run test:rules
+
+      - name: Restore persistent APK signing key
+        env:
+          APK_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          APK_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          APK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          APK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$APK_KEYSTORE_BASE64" ]; then
+            echo "::warning::Persistent signing key is not configured. This test APK cannot guarantee device identity across different builds."
+            exit 0
+          fi
+          python - <<'PY'
+          import base64, os, pathlib
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'pks-live-signing.keystore'
+          path.write_bytes(base64.b64decode(''.join(os.environ['APK_KEYSTORE_BASE64'].split()), validate=True))
+          path.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'APK_SIGNING_STORE_FILE={path}\n')
+              for source, target, default in [
+                  ('APK_STORE_PASSWORD', 'APK_SIGNING_STORE_PASSWORD', 'android'),
+                  ('APK_KEY_ALIAS', 'APK_SIGNING_KEY_ALIAS', 'androiddebugkey'),
+                  ('APK_KEY_PASSWORD', 'APK_SIGNING_KEY_PASSWORD', 'android'),
+              ]:
+                  value = os.environ.get(source) or default
+                  if '\n' in value or '\r' in value:
+                      raise ValueError('Signing configuration must use single-line values')
+                  output.write(f'{target}={value}\n')
+          PY
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
