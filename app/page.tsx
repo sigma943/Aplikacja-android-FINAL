@@ -340,17 +340,10 @@ export default function Home() {
   // Customization States
   const [themeColor, setThemeColor] = useState('#00A3A2');
   const [showInactive, setShowInactive] = useState(false);
-  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'>(() => {
-    if (typeof window === 'undefined') return 'system';
-    const raw = (localStorage.getItem('mks_app_theme') || 'system').trim().toLowerCase();
-    if (raw === 'amoled' || raw === 'oled' || raw === 'dark_oled' || raw === 'darkoled') return 'dark-oled';
-    if (raw === 'light' || raw === 'light-warm' || raw === 'dark' || raw === 'dark-oled' || raw === 'dark-aurora') return raw;
-    return 'system';
-  });
-  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-  });
+  // Match the exported HTML first; restore preferences after hydration so React
+  // updates theme classes rather than retaining mismatched server attributes.
+  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'>('system');
+  const [systemIsDark, setSystemIsDark] = useState(false);
   const [transparentUI, setTransparentUI] = useState(true);
 
   // Stops States
@@ -671,8 +664,9 @@ export default function Home() {
     if (sTheme && sTheme !== themeColor) setTimeout(() => setThemeColor(sTheme), 0);
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
-    const sAppTheme = localStorage.getItem('mks_app_theme') as any;
-    if (sAppTheme) setAppTheme(sAppTheme);
+    const sAppTheme = (localStorage.getItem('mks_app_theme') || 'system').trim().toLowerCase();
+    if (['amoled', 'oled', 'dark_oled', 'darkoled'].includes(sAppTheme)) setAppTheme('dark-oled');
+    else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora') setAppTheme(sAppTheme);
     const sTrans = localStorage.getItem('mks_transparent');
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
     const favs = localStorage.getItem('mks_fav_stops');

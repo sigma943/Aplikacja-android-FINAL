@@ -98,6 +98,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'false','show on map opens compact card');
     assert.ok(await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height)<120);
     await page.click('[aria-label="Rozwiń panel przystanku"]');
+    await page.waitForFunction(()=>[...document.querySelectorAll('[data-map-stop-sheet] .map-detail-row')].some(el=>el.textContent.includes('Rzeszów')));
     await new Promise(resolve=>setTimeout(resolve,400));
     assert.ok(await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height)<=851*0.42+1);
     const mapBefore=await page.$eval('.leaflet-map-pane',el=>el.style.transform);
