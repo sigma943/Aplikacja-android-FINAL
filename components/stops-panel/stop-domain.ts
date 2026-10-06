@@ -5,6 +5,7 @@ import { fetchMarcelCoursesClient, fetchMarcelPublicCourseStopsClient, fetchMarc
 import type { Vehicle } from '@/components/BusMap';
 import { getSimilarity, normalizeStopName as normalizeMergeName } from '@/lib/rzeszow-stop-consolidation';
 import { warsawDateIso, warsawTimeMs } from '@/lib/transit-time';
+import { busDelayMinutes } from '@/lib/bus-punctuality';
 
 type RawStop = {
   id: string;
@@ -996,7 +997,8 @@ function mapJourneyToDeparture(journey: Record<string, unknown>, index: number):
     vehicleId || journey.realDeparture || journey.real_departure_time,
   );
   const delayMinutes = hasRealtimeMarker ? Number(journey.deviation ?? journey.delayMinutes ?? 0) : 0;
-  const hasDelay = hasRealtimeMarker && Number.isFinite(delayMinutes) && Math.abs(delayMinutes) > 1;
+  const roundedDelayMinutes = busDelayMinutes(delayMinutes * 60);
+  const hasDelay = roundedDelayMinutes !== 0;
   const realAtMs = Number.isFinite(plannedAtMs) && Number.isFinite(delayMinutes)
     ? (plannedAtMs as number) + delayMinutes * 60_000
     : plannedAtMs;
@@ -1021,7 +1023,7 @@ function mapJourneyToDeparture(journey: Record<string, unknown>, index: number):
     direction,
     time: formatWarsawTime(realAtMs, journey.realDeparture || journey.plannedDeparture || journey.timetable_time),
     status: hasDelay ? 'delayed' : 'on_time',
-    delayMins: hasDelay ? Math.round(delayMinutes) : 0,
+    delayMins: roundedDelayMinutes,
     carrier,
     type: 'departure',
     plannedAtMs,
@@ -1038,7 +1040,7 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
   if (realAtMs != null && plannedAtMs != null && realAtMs < plannedAtMs - 12 * 3600_000) {
     realAtMs = parseTimeOnDate(warsawDateIso(1, new Date(`${dateIso}T12:00:00Z`)), entry.real_departure_time);
   }
-  const delayMins = plannedAtMs != null && realAtMs != null ? Math.round((realAtMs - plannedAtMs) / 60_000) : 0;
+  const delayMins = plannedAtMs != null && realAtMs != null ? busDelayMinutes((realAtMs - plannedAtMs) / 1000) : 0;
   const direction = String(entry.trip_headsign || entry.end_stop_name || 'Nieznany kierunek').trim();
   if (
     isTechnicalDepartureData(line, direction, [
@@ -1082,6 +1084,7 @@ function departureFromMarcelCourseStop(
   const plannedAtMs = parseTimeOnDate(dateIso, stop.godz || course.godz);
   return {
     id: `marcel:${course.idKu}:${stop.kol || index}:${plannedAtMs || stop.godz || course.godz}`,
+    courseId: String(course.idKu),
     line: 'M',
     direction: marcelDirectionDestination(course.nazTr || stop.nazTr || 'Marcel'),
     time: formatWarsawTime(plannedAtMs, stop.godz || course.godz),

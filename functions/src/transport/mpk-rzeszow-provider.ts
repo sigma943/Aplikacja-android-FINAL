@@ -358,7 +358,8 @@ function isMpkWaitingStatus(status: string) {
 
 function getEffectiveMpkDelay(rawDelay: number, status: string) {
   if (!Number.isFinite(rawDelay) || Math.abs(rawDelay) > 18000) return 0;
-  return isMpkWaitingStatus(status) ? 0 : rawDelay;
+  // MPK reports planned minus actual time; the app uses actual minus planned.
+  return isMpkWaitingStatus(status) || rawDelay === 0 ? 0 : -rawDelay;
 }
 
 function toTransportVehicle(

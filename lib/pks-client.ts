@@ -1020,7 +1020,8 @@ function getEffectiveMpkDelay(
     return 0;
   }
 
-  return rawDelay;
+  // MPK reports planned minus actual time; the app uses actual minus planned.
+  return rawDelay === 0 ? 0 : -rawDelay;
 }
 
 function buildDateFromMpkTime(timeValue: unknown, anchorDate: Date, previousDate: Date|null) {

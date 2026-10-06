@@ -5,12 +5,15 @@ import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { Stop, Departure } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
+import type { Vehicle } from '../../../components/BusMap';
+import { marcelDepartureFromVehicle } from '../../../lib/marcel-stop-punctuality';
 
 interface BusStopDetailProps {
   stop: Stop;
   onBack: () => void;
   toggleFavorite: (stopId: string) => void;
   loadDepartures: DepartureLoader;
+  vehicles?: Vehicle[];
   onShowOnMap?: (stop: Stop) => void;
   isDarkTheme?: boolean;
 }
@@ -48,7 +51,7 @@ function getDynamicDays() {
   return days;
 }
 
-export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, onShowOnMap, isDarkTheme = true }: BusStopDetailProps) {
+export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, vehicles = [], onShowOnMap, isDarkTheme = true }: BusStopDetailProps) {
   const todayKey = warsawDateIso();
   const days = useMemo(getDynamicDays,[todayKey]);
   const [selectedLine, setSelectedLine] = useState<string>('all');
@@ -58,7 +61,10 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const selectedDayIndex = Math.max(0,days.findIndex(d=>d.key===selectedDay));
   const selectedDateKey = warsawDateIso(selectedDayIndex);
-  const {departures,warnings,isLoading} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures);
+  const {departures: scheduledDepartures,warnings,isLoading} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures);
+  const departures = useMemo(() => scheduledDepartures
+    .map(departure => marcelDepartureFromVehicle(departure, vehicles))
+    .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
   const animateDepartures = false;
 
   useEffect(() => {
@@ -382,7 +388,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-400/35'
                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/35'
                              }`}>
-                               {Number(dep.delayMins) > 0 ? `+${Math.abs(Number(dep.delayMins))} min` : `-${Math.abs(Number(dep.delayMins))} min`}
+                               {dep.realtimeSource === 'position-estimate' ? 'szac. ' : ''}{Number(dep.delayMins) > 0 ? `+${Math.abs(Number(dep.delayMins))} min` : `-${Math.abs(Number(dep.delayMins))} min`}
                              </span>
                            )}
                         </div>

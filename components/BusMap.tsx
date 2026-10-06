@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomCo
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { officialBusRoute } from '@/lib/official-bus-routes';
+import { busDelayMinutes } from '@/lib/bus-punctuality';
 import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
@@ -297,13 +298,13 @@ function MapStateTracker({
 
 const formatDelay = (delaySec: number | undefined) => {
   if (delaySec === undefined) return null;
-  if (Math.abs(delaySec) > 18000) return null; // Ignore absurd delays > 5 hours
-  const abs = Math.abs(delaySec);
-  const min = Math.floor(abs / 60);
+  if (!Number.isFinite(delaySec) || Math.abs(delaySec) > 18000) return null;
+  const signedMinutes = busDelayMinutes(delaySec);
+  const min = Math.abs(signedMinutes);
   
-  if (delaySec < -60) {
+  if (signedMinutes < 0) {
     return { text: `Przed ${min}m`, textLong: `Przed czasem: ${min} min`, class: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' }; // Ahead of time
-  } else if (delaySec > 60) {
+  } else if (signedMinutes > 0) {
     return { text: `Opóźn. ${min}m`, textLong: `Opóźniony: ${min} min`, class: 'text-rose-600', bg: 'bg-rose-50 border-rose-200' }; // Delayed
   }
   return { text: 'Punktualnie', textLong: 'Zgodnie z planem', class: 'text-slate-500', bg: 'bg-white border-slate-200' };
@@ -333,7 +334,7 @@ export const getCachedBusIcon = (
   zoom: number = 14,
 ) => {
   const ageBucket = getMarkerAgeBucket(dataAgeSec);
-  const delayBucket = delaySec === undefined ? 'na' : Math.trunc(delaySec / 60);
+  const delayBucket = delaySec === undefined ? 'na' : busDelayMinutes(delaySec);
   const zoomBucket = zoom <= 12 ? 12 : zoom <= 13 ? 13 : 14;
   const hash = `${routeShortName}_${vehicleId}_${vehicleLabel}_${delayBucket}_${isSelected}_${themeColor}_${ageBucket}_${isHighVolume}_${iconVariant}_${zoomBucket}`;
   
@@ -382,11 +383,11 @@ const createBusIcon = (
     : `z-[100] scale-100 ${opacityClass} ${isHighVolume ? '' : 'drop-shadow-md hover:scale-105'}`;
 
   let badgeHtml = '';
-  if (delayInfo && delaySec !== undefined && Math.abs(delaySec) > 60) {
+  if (delayInfo && delaySec !== undefined && busDelayMinutes(delaySec) !== 0) {
     const delayPositionClass = delaySec > 0 ? '-top-[18px] left-[34px]' : '-top-4 -right-3';
     badgeHtml = `
       <div class="absolute ${delayPositionClass} px-1.5 py-0.5 rounded ${delayInfo.bg} ${delayInfo.class} text-[9px] font-black border border-white ${isHighVolume?'':'shadow-sm'} z-50 whitespace-nowrap">
-        ${delaySec > 0 ? '+' : '-'}${Math.floor(Math.abs(delaySec)/60)}
+        ${delaySec > 0 ? '+' : '-'}${Math.abs(busDelayMinutes(delaySec))}
       </div>
     `;
   }
@@ -463,10 +464,10 @@ const createTrainIcon = (
     : `z-[100] scale-100 opacity-95 ${isHighVolume ? '' : 'drop-shadow-md hover:scale-105'}`;
 
   let badgeHtml = '';
-  if (delayInfo && delaySec !== undefined && Math.abs(delaySec) > 60) {
+  if (delayInfo && delaySec !== undefined && busDelayMinutes(delaySec) !== 0) {
     badgeHtml = `
       <div class="absolute -top-2 -right-2 px-1.5 py-0.5 rounded ${delayInfo.bg} ${delayInfo.class} text-[9px] font-black border border-white ${isHighVolume ? '' : 'shadow-sm'} z-50 whitespace-nowrap">
-        ${delaySec > 0 ? '+' : '-'}${Math.floor(Math.abs(delaySec) / 60)}
+        ${delaySec > 0 ? '+' : '-'}${Math.abs(busDelayMinutes(delaySec))}
       </div>
     `;
   }
@@ -658,7 +659,7 @@ const BusMarker = memo(function BusMarker({
   registerMarker,
 }: BusMarkerProps) {
   const initialPosition = useMemo<[number, number]>(() => [vehicle.lat, vehicle.lon], []); // eslint-disable-line react-hooks/exhaustive-deps
-  const delayBucket = vehicle.delay === undefined ? 'na' : Math.trunc(vehicle.delay / 60);
+  const delayBucket = vehicle.delay === undefined ? 'na' : busDelayMinutes(vehicle.delay);
   const ageBucket = getMarkerAgeBucket(vehicle.dataAgeSec);
   const icon = useMemo(
     () =>
@@ -728,7 +729,7 @@ const BusMarker = memo(function BusMarker({
     prevVehicle.provider === nextVehicle.provider &&
     prevVehicle.iconVariant === nextVehicle.iconVariant &&
     prevVehicle.vehicleNumber === nextVehicle.vehicleNumber &&
-    Math.trunc((prevVehicle.delay || 0) / 60) === Math.trunc((nextVehicle.delay || 0) / 60) &&
+    busDelayMinutes(prevVehicle.delay || 0) === busDelayMinutes(nextVehicle.delay || 0) &&
     getMarkerAgeBucket(prevVehicle.dataAgeSec) === getMarkerAgeBucket(nextVehicle.dataAgeSec) &&
     prev.isSelected === next.isSelected &&
     prev.isHighVolume === next.isHighVolume &&
