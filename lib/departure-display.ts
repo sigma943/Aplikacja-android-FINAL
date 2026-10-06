@@ -16,6 +16,10 @@ export function departureCountdown(departure: Departure, nowMs: number) {
   if (!Number.isFinite(time)) return departure.time;
   const diffMs = time! - nowMs;
   if (diffMs >= 30 * 60_000 || departureIsPast(departure, nowMs, time!)) return departure.time;
-  if (diffMs < 60_000) return '<1 min';
-  return `${Math.floor(diffMs / 60_000)} min`;
+  // MPK board times such as 14:21 describe a whole minute. Subtracting
+  // seconds would turn 3 min into 2 min at 14:18:01, one minute too soon.
+  const minutePrecision = departure.realtimeSource === 'stop-board' && (departure.boardTimePrecisionMs ?? 0) > 0;
+  const countdownMs = minutePrecision ? time! - Math.floor(nowMs / 60_000) * 60_000 : diffMs;
+  if (countdownMs < 60_000) return '<1 min';
+  return `${Math.floor(countdownMs / 60_000)} min`;
 }
