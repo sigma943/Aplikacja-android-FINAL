@@ -6,6 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { officialBusRoute } from '@/lib/official-bus-routes';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
+import { runFrameBatch } from '@/lib/map-frame-batch';
 import { fetchRouteGeometryClient, type RouteGeometryStop } from '@/lib/pks-client';
 
 const PKS_COLOR = '#14b8a6';
@@ -729,7 +730,8 @@ const BusMarker = memo(function BusMarker({
     prevVehicle.provider === nextVehicle.provider &&
     prevVehicle.iconVariant === nextVehicle.iconVariant &&
     prevVehicle.vehicleNumber === nextVehicle.vehicleNumber &&
-    Math.trunc((prevVehicle.delay || 0) / 60) === Math.trunc((nextVehicle.delay || 0) / 60) &&
+    (prevVehicle.delay === undefined ? 'na' : Math.trunc(prevVehicle.delay / 60)) ===
+      (nextVehicle.delay === undefined ? 'na' : Math.trunc(nextVehicle.delay / 60)) &&
     getMarkerAgeBucket(prevVehicle.dataAgeSec) === getMarkerAgeBucket(nextVehicle.dataAgeSec) &&
     prev.isSelected === next.isSelected &&
     prev.isHighVolume === next.isHighVolume &&
@@ -738,6 +740,19 @@ const BusMarker = memo(function BusMarker({
     prev.onMarkerClick === next.onMarkerClick &&
     prev.registerMarker === next.registerMarker
   );
+});
+
+const VehicleClusterMarker = memo(function VehicleClusterMarker({ groupKey, lat, lon, count, color, offset, onClick }: {
+  groupKey: string; lat: number; lon: number; count: number; color: string; offset: number;
+  onClick: (key: string) => void;
+}) {
+  const position = useMemo<[number, number]>(() => [lat, lon], [lat, lon]);
+  const handlers = useMemo(() => ({ click: (event: L.LeafletMouseEvent) => {
+    L.DomEvent.stopPropagation(event as any);
+    onClick(groupKey);
+  } }), [groupKey, onClick]);
+  return <Marker position={position} zIndexOffset={900}
+    icon={getCachedClusterIcon(count, count >= 10 ? 54 : 46, color, offset)} eventHandlers={handlers} />;
 });
 
 const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
@@ -779,7 +794,12 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
       window.cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    setRenderVehicles(latestVehiclesRef.current);
+    // zoomend and moveend can arrive together; perform one render per frame.
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      setViewTick(value => value + 1);
+      setRenderVehicles(latestVehiclesRef.current);
+    });
   }, []);
 
   useMapEvents({
@@ -791,12 +811,10 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
     },
     zoomend: () => {
       mapMovingRef.current = false;
-      setViewTick((value) => value + 1);
       flushVehicleUpdates();
     },
     moveend: () => {
       mapMovingRef.current = false;
-      setViewTick((value) => value + 1);
       flushVehicleUpdates();
     },
   });
@@ -875,14 +893,30 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
     }));
   }, [map, shouldCluster, viewportVehicles, viewTick, zoom]);
 
+  const groupsRef = useRef(groups);
+  groupsRef.current = groups;
+  const handleClusterClick = useCallback((key: string) => {
+    const group = groupsRef.current.find(group => group.groupKey === key);
+    if (!group) return;
+    const bounds = L.latLngBounds(group.vehicles.map(vehicle => [vehicle.lat, vehicle.lon] as [number, number]));
+    map.fitBounds(bounds.pad(0.35), { animate: true, maxZoom: Math.max(14, map.getZoom() + 2) });
+  }, [map]);
+
   useEffect(() => {
+    const updates: { marker: L.Marker; lat: number; lon: number }[] = [];
     for (const vehicle of viewportVehicles) {
       const marker = markerRefs.current.get(getVehicleMarkerKey(vehicle));
       if (marker) {
         const point = marker.getLatLng();
-        if (point.lat !== vehicle.lat || point.lng !== vehicle.lon) marker.setLatLng([vehicle.lat, vehicle.lon]);
+        if (point.lat !== vehicle.lat || point.lng !== vehicle.lon) updates.push({ marker, lat: vehicle.lat, lon: vehicle.lon });
       }
     }
+    return runFrameBatch(updates, ({ marker, lat, lon }) => marker.setLatLng([lat, lon]), {
+      request: callback => window.requestAnimationFrame(callback),
+      cancel: id => window.cancelAnimationFrame(id),
+      now: () => performance.now(),
+      paused: () => mapMovingRef.current,
+    });
   }, [getVehicleMarkerKey, viewportVehicles]);
 
   return (
@@ -890,21 +924,12 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
       {groups.map((group) => {
         if (group.vehicles.length > 1) {
           const count = group.vehicles.length;
-          const size = count >= 10 ? 54 : 46;
           const clusterColor = getVehicleColor(group.vehicles[0]);
           return (
-            <Marker
+            <VehicleClusterMarker
               key={`cluster-${group.groupKey}`}
-              position={[group.lat, group.lon]}
-              zIndexOffset={900}
-              icon={getCachedClusterIcon(count, size, clusterColor, group.visualOffset)}
-              eventHandlers={{
-                click: (e) => {
-                  L.DomEvent.stopPropagation(e as any);
-                  const bounds = L.latLngBounds(group.vehicles.map((vehicle) => [vehicle.lat, vehicle.lon] as [number, number]));
-                  map.fitBounds(bounds.pad(0.35), { animate: true, maxZoom: Math.max(14, zoom + 2) });
-                },
-              }}
+              groupKey={group.groupKey} lat={group.lat} lon={group.lon} count={count}
+              color={clusterColor} offset={group.visualOffset} onClick={handleClusterClick}
             />
           );
         }

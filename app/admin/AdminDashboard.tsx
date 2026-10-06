@@ -278,7 +278,22 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [adminLogRaws, setAdminLogRaws] = useState<AdminLogRaw[]>([]);
   const [logsError, setLogsError] = useState<string | null>(null);
-  const [modelAliases, setModelAliases] = useState<DeviceModelAliases>({});
+  const [customModelAliases, setModelAliases] = useState<DeviceModelAliases>({});
+  const [catalogAliases, setCatalogAliases] = useState<DeviceModelAliases>({});
+  const modelAliases = useMemo(() => ({ ...catalogAliases, ...customModelAliases }), [catalogAliases, customModelAliases]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    // Shipped with the APK; fetched only when the admin panel is opened.
+    fetch('/device-models.json', { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Device catalog unavailable'); return response.json(); })
+      .then(data => {
+        if (controller.signal.aborted || !data.aliases || typeof data.aliases !== 'object') return;
+        setCatalogAliases(data.aliases);
+      })
+      .catch(() => { /* Keep technical labels and custom aliases when unavailable. */ });
+    return () => controller.abort();
+  }, []);
   const [globalSettings, setGlobalSettings] = useState({
     loginEnabled: true,
     maintenanceMode: false,

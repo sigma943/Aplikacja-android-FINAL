@@ -296,7 +296,7 @@ export function DeviceTable({
         </button>
       )}
       <div className="flex min-w-0 items-center gap-2">
-        <div className={cn('min-w-0 truncate text-white transition-colors group-hover:text-emerald-400 font-bold', compact ? 'text-base leading-none' : 'text-sm')}>
+        <div title={device.name} className={cn('min-w-0 flex-1 text-white transition-colors group-hover:text-emerald-400 font-bold', compact ? 'break-words text-base leading-snug' : 'truncate text-sm')}>
           {device.name}
         </div>
         {canRenameModels && (
@@ -534,8 +534,8 @@ export function DeviceTable({
             return (
               <motion.div key={device.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
-                <div className="flex items-center justify-between relative z-10 gap-3">
-                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between relative z-10 gap-3">
+                  <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto sm:flex-1">
                     <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center shrink-0 shadow-lg group-hover:scale-105 transition-transform">{getIcon(device.iconType)}</div>
                     <div className="min-w-0 flex-1">
                       <DeviceName device={device} compact />
@@ -544,7 +544,7 @@ export function DeviceTable({
                       <div className={cn('text-[11px] font-medium break-words', device.lastSeenOnline ? 'text-emerald-400' : 'text-slate-400')}>{device.lastSeenLabel ?? '—'}</div>
                     </div>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 shrink-0 ml-auto">
                     <button type="button" disabled={banDisabled} title={banTitle(device, isSelf)} onClick={() => !banDisabled && onOpenBanModal(device)} className="cursor-pointer rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-400 shadow-lg transition-all hover:bg-rose-500 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30">
                       <Lock size={18} />
                     </button>
