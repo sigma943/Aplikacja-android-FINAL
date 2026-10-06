@@ -571,6 +571,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     displayName: d.displayName,
     deviceName: d.deviceName,
     deviceId: d.id,
+    installationId: d.installationId,
     firstLogin: new Date(d.firstLogin).toLocaleString('pl-PL'),
     role: mapRole(d.role),
     rawRole: d.role,
@@ -742,6 +743,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     displayName?: string,
     extras: Partial<Pick<DeviceData, 'status' | 'verified' | 'banDetails'>> = {},
     batch?: WriteBatch,
+    deviceUid?: string,
   ) => {
     const inst = String(installationId || '').trim();
     if (!inst) return;
@@ -753,6 +755,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       verified: role === 'owner' || role === 'admin' || extras.verified === true,
       updatedAt: serverTimestamp(),
       updatedBy: user?.uid || null,
+      ...(deviceUid ? { lastUid: deviceUid } : {}),
     };
     if (extras.banDetails) {
       patch.banDetails = extras.banDetails;
@@ -898,6 +901,14 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
       return;
     }
 
+    const durableInstallationId = String(targetRow?.installationId || '').trim();
+    const nativeAndroidNeedsId = /android/i.test(targetRow?.deviceInfo || '');
+    if ((fbRole === 'admin' || fbRole === 'owner') && (!durableInstallationId ||
+        (nativeAndroidNeedsId && !/^android_[a-f0-9]{16}$/i.test(durableInstallationId)))) {
+      addToast('Brak identyfikatora urządzenia', 'Uruchom aktualną aplikację na tym urządzeniu przed nadaniem trwałego dostępu.', 'role_change');
+      return;
+    }
+
     const trimmedDisplay = (displayName ?? '').trim().slice(0, 120);
 
     try {
@@ -966,6 +977,7 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
           banDetails: targetRow?.banDetails,
         },
         roleBatch,
+        selectedDeviceForRole.id,
       );
       await roleBatch.commit();
       const whoLabel = formatDeviceLabel({

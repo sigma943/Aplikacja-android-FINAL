@@ -352,52 +352,7 @@ exports.registerDeviceIdentity = (0, https_1.onCall)(async (request) => {
                 }
             }
         }
-        // Fallback for Android reinstalls where installationId changed:
-        // restore identity only for previously privileged devices (owner/admin)
-        // matched by normalized deviceInfo. Never promote plain user this way.
-        if (!existingSnap.exists && !('role' in patch) && deviceInfo) {
-            const sameInfoSnap = await db
-                .collection('devices')
-                .where('deviceInfo', '==', deviceInfo)
-                .limit(20)
-                .get();
-            let privilegedCandidate = null;
-            for (const docSnap of sameInfoSnap.docs) {
-                const candidateUid = docSnap.id;
-                if (!candidateUid || candidateUid === uid)
-                    continue;
-                const candidate = docSnap.data();
-                const candidateRole = normalizeStoredRole(candidate?.role);
-                if (candidateRole !== 'owner' && candidateRole !== 'admin')
-                    continue;
-                privilegedCandidate = {
-                    uid: candidateUid,
-                    role: candidateRole,
-                    status: candidate?.status === 'banned' ? 'banned' : 'active',
-                    permissions: candidate?.permissions && typeof candidate.permissions === 'object'
-                        ? candidate.permissions
-                        : permissionsForRole(candidateRole),
-                    verified: true,
-                    banDetails: candidate?.banDetails,
-                    displayName: typeof candidate?.displayName === 'string' ? candidate.displayName : undefined,
-                };
-                break;
-            }
-            if (privilegedCandidate) {
-                previousUidToDeduplicate = privilegedCandidate.uid;
-                patch.role = privilegedCandidate.role;
-                patch.permissions = privilegedCandidate.permissions;
-                patch.verified = privilegedCandidate.verified;
-                if (!isBlocked)
-                    patch.status = privilegedCandidate.status;
-                if (privilegedCandidate.status === 'banned' && isPlainObject(privilegedCandidate.banDetails)) {
-                    patch.banDetails = privilegedCandidate.banDetails;
-                }
-                if (typeof privilegedCandidate.displayName === 'string' && privilegedCandidate.displayName.trim()) {
-                    patch.displayName = privilegedCandidate.displayName.trim().slice(0, 120);
-                }
-            }
-        }
+        // A matching model name is not device identity. Restore only the exact installation profile.
         if (!existingSnap.exists) {
             if (!('role' in patch) && installationRole) {
                 patch.role = installationRole;

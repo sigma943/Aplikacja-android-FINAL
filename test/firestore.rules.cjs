@@ -1,7 +1,7 @@
 const { test, before, after, beforeEach } = require('node:test');
 const fs = require('node:fs');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, setDoc, updateDoc, getDocs, collection, writeBatch } = require('firebase/firestore');
+const { doc, setDoc, updateDoc, getDoc, getDocs, collection, writeBatch } = require('firebase/firestore');
 const loadTs = require('./load-ts.cjs');
 const { buildDevicePermissions } = loadTs('lib/admin/rbac.ts');
 let env;
@@ -33,6 +33,28 @@ test('owner atomically grants a role and creates a previously missing installati
   batch.update(doc(db,'devices','user'),{role:'admin',permissions,verified:true});
   batch.set(doc(db,'installations','user-install'),{installationId:'user-install',role:'admin',permissions,status:'active',verified:true,updatedBy:'owner'});
   await assertSucceeds(batch.commit());
+});
+
+for (const role of ['admin', 'owner']) {
+  test(`reinstall restores ${role} and exact permissions from the saved device identifier`, async () => {
+    const installationId = 'android_0123456789abcdef';
+    const permissions = buildDevicePermissions(role, { canBan: false });
+    await env.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), 'installations', installationId), {
+        installationId, role, permissions, verified: true, status: 'active', updatedBy: 'owner', lastUid: 'removed-installation-uid',
+      });
+    });
+    const db = env.authenticatedContext('reinstalled-uid').firestore();
+    const saved = (await assertSucceeds(getDoc(doc(db, 'installations', installationId)))).data();
+    await assertSucceeds(setDoc(doc(db, 'devices', 'reinstalled-uid'), device(saved.role, installationId, saved.permissions)));
+    assert.deepStrictEqual((await getDoc(doc(db, 'devices', 'reinstalled-uid'))).data().permissions, permissions);
+    await assertFails(setDoc(doc(db, 'devices', 'another-uid'), device(saved.role, installationId, permissions)));
+  });
+}
+
+test('another physical device cannot restore a privileged role from a missing installation profile', async () => {
+  const db = env.authenticatedContext('new-phone').firestore();
+  await assertFails(setDoc(doc(db, 'devices', 'new-phone'), device('owner', 'android_different_device')));
 });
 test('admin can grant only its own capabilities to a user', async () => {
   const db = env.authenticatedContext('admin').firestore();

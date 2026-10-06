@@ -16,8 +16,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (System.getenv('APK_SIGNING_STORE_FILE')) {
+            persistent {
+                storeFile file(System.getenv('APK_SIGNING_STORE_FILE'))
+                storePassword System.getenv('APK_SIGNING_STORE_PASSWORD') ?: 'android'
+                keyAlias System.getenv('APK_SIGNING_KEY_ALIAS') ?: 'androiddebugkey'
+                keyPassword System.getenv('APK_SIGNING_KEY_PASSWORD') ?: 'android'
+            }
+        }
+    }
     buildTypes {
+        debug {
+            if (System.getenv('APK_SIGNING_STORE_FILE')) signingConfig signingConfigs.persistent
+        }
         release {
+            if (System.getenv('APK_SIGNING_STORE_FILE')) signingConfig signingConfigs.persistent
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

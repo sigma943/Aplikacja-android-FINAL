@@ -137,6 +137,7 @@ export function DeviceTable({
         deviceName.includes(q) ||
         dn.includes(q) ||
         device.deviceId.toLowerCase().includes(q) ||
+        (device.installationId || '').toLowerCase().includes(q) ||
         device.role.toLowerCase().includes(q);
 
       let roleMatch = true;
@@ -562,7 +563,7 @@ export function DeviceTable({
                 <div className="grid grid-cols-2 gap-6 py-4 border-y border-white/5 relative z-10">
                   <div>
                     <div className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">ID urządzenia</div>
-                    <div className="font-mono text-[11px] text-slate-400 break-all leading-tight font-bold">{device.deviceId}</div>
+                    <div className="font-mono text-[11px] text-slate-400 break-all leading-tight font-bold">{device.installationId || device.deviceId}</div>
                   </div>
                   <div className="flex flex-col items-end text-right border-l border-white/5">
                     <div className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Logowanie</div>
@@ -624,7 +625,7 @@ export function DeviceTable({
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-mono text-slate-400 text-xs break-all">{device.deviceId}</td>
+                      <td className="px-6 py-4 font-mono text-slate-400 text-xs break-all">{device.installationId || device.deviceId}</td>
                       <td className="px-6 py-4 text-slate-400">{device.firstLogin}</td>
                       <td className={cn('px-6 py-4 text-xs', device.lastSeenOnline ? 'font-bold text-emerald-400' : 'text-slate-400')}>{device.lastSeenLabel ?? '—'}</td>
                       <td className="px-6 py-4"><Badge role={device.role} /></td>

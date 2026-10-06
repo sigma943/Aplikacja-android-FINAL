@@ -2237,30 +2237,32 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm md:items-center md:p-6 ${optionsOverlay}`}
-            onClick={(e) => e.stopPropagation()}
+            className={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
+            onClick={() => setIsSettingsOpen(false)}
           >
             <motion.div 
                initial={{ y: "100%", opacity: 0, scale: 0.98 }}
                animate={{ y: 0, opacity: 1, scale: 1 }}
                exit={{ y: "100%", opacity: 0, scale: 0.96 }}
                transition={{ type: "spring", stiffness: 700, damping: 35 }}
-               className={`w-full max-w-2xl max-h-[92vh] pointer-events-auto overflow-hidden rounded-t-[2rem] border-t px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 backdrop-blur-3xl md:max-w-[560px] md:rounded-[1.75rem] md:border md:p-6 ${optionsSheet}`}
+               role="dialog" aria-modal="true" aria-labelledby="options-title"
+               onClick={(event) => event.stopPropagation()}
+               className={`flex w-full max-w-2xl max-h-[46dvh] flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-h-[80dvh] md:max-w-[500px] md:p-5 ${optionsSheet}`}
             >
-               <div className="mb-5 flex items-center justify-between md:mb-6">
-                  <h2 className="text-2xl font-light tracking-tight md:text-2xl">Opcje aplikacji</h2>
-                  <button onClick={() => setIsSettingsOpen(false)} className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors md:h-11 md:w-11 ${isDark ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-900/8 hover:bg-slate-900/12'}`}>
+               <div className="mb-3 flex shrink-0 items-center justify-between gap-3 md:mb-4">
+                  <h2 id="options-title" className="text-lg font-semibold tracking-tight md:text-xl">Opcje aplikacji</h2>
+                  <button onClick={() => setIsSettingsOpen(false)} className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors md:h-11 md:w-11 ${isDark ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-900/8 hover:bg-slate-900/12'}`}>
                      <X className="h-6 w-6" />
                   </button>
                </div>
                
-               <div className="flex max-h-[calc(92vh-7rem)] w-full flex-col gap-4 overflow-y-auto relative z-0 pr-1 md:max-h-[70vh]">
+               <div className="flex min-h-0 w-full flex-col gap-3 overflow-y-auto overscroll-contain relative z-0 pr-1">
                   
                   {/* Appearance Bento Box */}
-                  <div className={`rounded-[1.45rem] border p-4 md:p-5 ${optionsCard}`}>
-                     <h3 className={`mb-4 px-1 text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-violet-200' : isWarm ? 'text-[#746a58]' : 'text-slate-500'}`}>Wygląd i kolory</h3>
+                  <div className={`rounded-2xl border p-3 md:p-4 ${optionsCard}`}>
+                     <h3 className={`mb-3 px-1 text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-violet-200' : isWarm ? 'text-[#746a58]' : 'text-slate-500'}`}>Wygląd i kolory</h3>
                      
-                     <div className="mb-4 grid grid-cols-2 gap-3">
+                     <div className="mb-3 grid grid-cols-3 gap-2">
                         {[
                            { id: 'system', name: 'Systemowy', icon: <Monitor className="w-4 h-4 mr-1.5" /> },
                            { id: 'light', name: 'Jasny', icon: <Sun className="w-4 h-4 mr-1.5" /> },
@@ -2272,7 +2274,7 @@ export default function Home() {
                            <button
                               key={mode.id}
                               onClick={() => saveAppTheme(mode.id)}
-                              className={`flex h-14 items-center justify-center rounded-2xl text-base font-semibold transition-all border md:h-12 md:text-sm ${appTheme === mode.id ? 'shadow-[0_0_24px_rgba(0,163,162,0.16)]' : 'border-transparent'} ${optionsButton}`}
+                              className={`flex h-11 items-center justify-center rounded-xl text-xs font-semibold transition-all border md:h-12 md:text-sm ${appTheme === mode.id ? 'shadow-[0_0_24px_rgba(0,163,162,0.16)]' : 'border-transparent'} ${optionsButton}`}
                               style={appTheme === mode.id ? { borderColor: themeColor, color: themeColor } as React.CSSProperties : {}}
                            >
                               {mode.icon}
@@ -2292,7 +2294,7 @@ export default function Home() {
                            <button
                               key={color.name}
                               onClick={() => saveThemeColor(color.hex)}
-                              className={`h-12 w-12 rounded-2xl transition-all md:h-10 md:w-10 ${themeColor === color.hex ? 'ring-4 ring-white scale-105 shadow-lg' : 'hover:scale-105'}`}
+                              className={`h-9 w-9 rounded-xl transition-all md:h-10 md:w-10 ${themeColor === color.hex ? 'ring-4 ring-white scale-105 shadow-lg' : 'hover:scale-105'}`}
                               style={{ backgroundColor: color.hex, '--tw-ring-color': isDark ? '#ffffff' : color.hex, '--tw-ring-offset-color': isDark ? '#1e293b' : '#ffffff' } as React.CSSProperties}
                               title={color.name}
                            />
@@ -2301,13 +2303,13 @@ export default function Home() {
                   </div>
 
                   {/* Settings Bento Box */}
-                  <div className="flex flex-col gap-5">
-                     <label className={`flex cursor-pointer items-center justify-between rounded-[1.45rem] border p-4 transition-colors md:p-5 ${optionsCard}`}>
-                        <div className="flex min-w-0 items-center gap-4 pr-4">
-                           <Sparkles className="h-7 w-7 shrink-0" style={{ color: themeColor }} />
+                  <div className="flex flex-col gap-3">
+                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
+                        <div className="flex min-w-0 items-center gap-3 pr-3">
+                           <Sparkles className="h-5 w-5 shrink-0" style={{ color: themeColor }} />
                            <div className="flex flex-col">
-                              <span className="text-base font-semibold md:text-base">Efekt przezroczystości UI</span>
-                              <span className={`mt-1.5 text-xs leading-relaxed ${textSub}`}>Rozmycie tła interfejsu (starsze urządzenia mogą zwolnić)</span>
+                              <span className="text-sm font-semibold">Efekt przezroczystości UI</span>
+                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Rozmycie tła interfejsu (starsze urządzenia mogą zwolnić)</span>
                            </div>
                         </div>
                         <div className={`relative h-9 w-16 flex-shrink-0 rounded-full transition-colors ${transparentUI ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: transparentUI ? themeColor : '' }}>
@@ -2316,12 +2318,12 @@ export default function Home() {
                         <input type="checkbox" className="hidden" checked={transparentUI} onChange={(e) => saveTransparentUI(e.target.checked)} />
                      </label>
                      
-                     <label className={`flex cursor-pointer items-center justify-between rounded-[1.45rem] border p-4 transition-colors md:p-5 ${optionsCard}`}>
-                        <div className="flex min-w-0 items-center gap-4 pr-4">
-                           <Bus className={`h-7 w-7 shrink-0 ${isDark ? 'text-white/90' : 'text-slate-700'}`} />
+                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
+                        <div className="flex min-w-0 items-center gap-3 pr-3">
+                           <Bus className={`h-5 w-5 shrink-0 ${isDark ? 'text-white/90' : 'text-slate-700'}`} />
                            <div className="flex flex-col">
-                              <span className="text-base font-semibold md:text-base">Pokaż autobusy bez przypisanej linii</span>
-                              <span className={`mt-1.5 text-xs leading-relaxed ${textSub}`}>Pojazdy bez aktywnego kursu oraz ich ostatnia zapisana pozycja</span>
+                              <span className="text-sm font-semibold">Pokaż autobusy bez przypisanej linii</span>
+                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Pojazdy bez aktywnego kursu oraz ich ostatnia zapisana pozycja</span>
                            </div>
                         </div>
                         <div className={`relative h-9 w-16 flex-shrink-0 rounded-full transition-colors ${showInactive ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: showInactive ? themeColor : '' }}>
