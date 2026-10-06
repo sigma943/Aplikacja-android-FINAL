@@ -1,0 +1,25 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+const root = path.resolve(__dirname, '..');
+
+module.exports = function loadTs(relativePath, overrides = {}, extraExports = '') {
+  const filename = path.resolve(root, relativePath);
+  const source = fs.readFileSync(filename, 'utf8') + extraExports;
+  const output = ts.transpileModule(source, { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
+  }}).outputText;
+  const module = { exports: {} };
+  const localRequire = (name) => {
+    if (Object.hasOwn(overrides, name)) return overrides[name];
+    if (name.startsWith('.') || name.startsWith('@/')) {
+      const resolved = name.startsWith('@/') ? name.slice(2) : path.relative(root, path.resolve(path.dirname(filename), name));
+      if(resolved.endsWith('.json')) return require(path.resolve(root,resolved));
+      return loadTs(`${resolved}.ts`, overrides);
+    }
+    return require(name);
+  };
+  vm.runInThisContext(`(function(require,module,exports){${output}\n})`, { filename })(localRequire, module, module.exports);
+  return module.exports;
+};
