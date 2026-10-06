@@ -6,7 +6,7 @@ import type { Vehicle } from '@/components/BusMap';
 import { getSimilarity, normalizeStopName as normalizeMergeName } from '@/lib/rzeszow-stop-consolidation';
 import { warsawDateIso, warsawTimeMs } from '@/lib/transit-time';
 import { departureTiming, finiteDelay } from '@/lib/departure-timing';
-import { vehicleDelayMinutes } from '@/lib/delay-display';
+import { busDelayMinutes } from '@/lib/bus-punctuality';
 
 type RawStop = {
   id: string;
@@ -1036,7 +1036,7 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
   if (realAtMs != null && plannedAtMs != null && realAtMs < plannedAtMs - 12 * 3600_000) {
     realAtMs = parseTimeOnDate(warsawDateIso(1, new Date(`${dateIso}T12:00:00Z`)), entry.real_departure_time);
   }
-  const delayMins = plannedAtMs != null && realAtMs != null ? Math.round((realAtMs - plannedAtMs) / 60_000) : 0;
+  const delayMins = plannedAtMs != null && realAtMs != null ? busDelayMinutes((realAtMs - plannedAtMs) / 1000) : 0;
   const direction = String(entry.trip_headsign || entry.end_stop_name || 'Nieznany kierunek').trim();
   if (
     isTechnicalDepartureData(line, direction, [
@@ -1090,9 +1090,10 @@ function departureFromMarcelCourseStop(
   const confirmed = departureTiming(plannedAtMs, prediction, confirmedDelay);
   const estimated = !confirmed.hasRealtime && Number.isFinite(estimatedDelaySeconds);
   const timing = estimated ? { ...departureTiming(plannedAtMs, undefined, estimatedDelaySeconds! / 60),
-    delayMins: vehicleDelayMinutes(estimatedDelaySeconds, 'marcel') } : confirmed;
+    delayMins: busDelayMinutes(estimatedDelaySeconds!) } : confirmed;
   return {
     id: `marcel:${course.idKu}:${stop.kol || index}:${plannedAtMs || stop.godz || course.godz}`,
+    courseId: String(course.idKu),
     line: 'M',
     direction: marcelDirectionDestination(course.nazTr || stop.nazTr || 'Marcel'),
     time: formatWarsawTime(timing.realAtMs, stop.godz || course.godz),

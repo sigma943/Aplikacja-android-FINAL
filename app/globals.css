@@ -1,5 +1,90 @@
 @import "tailwindcss";
 
+/* Only opted-in panels use glass. Keep the map and carrier/status colours intact. */
+.pks-glass-frame,
+.pks-panel-scope {
+  --panel-glass: rgb(9 18 29 / 38%);
+  --panel-surface: rgb(15 25 39 / 60%);
+  --panel-solid: #0d1622;
+  --panel-edge: rgb(255 255 255 / 14%);
+}
+
+[data-panel-theme="light"].pks-glass-frame,
+[data-panel-theme="light"].pks-panel-scope {
+  --panel-glass: rgb(248 250 252 / 42%);
+  --panel-surface: rgb(255 255 255 / 62%);
+  --panel-solid: #fff;
+  --panel-edge: rgb(255 255 255 / 64%);
+}
+
+.theme-warm [data-panel-theme="light"].pks-glass-frame,
+.theme-warm [data-panel-theme="light"].pks-panel-scope {
+  --panel-glass: rgb(247 240 223 / 42%);
+  --panel-surface: rgb(255 250 240 / 62%);
+  --panel-solid: #fffaf0;
+}
+
+.pks-glass-frame {
+  inset: 8px 8px calc(env(safe-area-inset-bottom) + 76px) !important;
+  overflow: hidden;
+  border: 1px solid var(--panel-edge);
+  border-radius: 24px;
+  background: var(--panel-glass);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: blur(12px) saturate(140%);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 18%), inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+@media (min-width: 768px) {
+  .pks-glass-frame {
+    inset: 20px 24px 84px !important;
+    border-radius: 28px;
+  }
+}
+
+.pks-panel-scope[data-panel-theme][data-glass="on"],
+.pks-panel-scope[data-panel-theme][data-glass="on"] :is(
+  [class~="bg-[#040609]"], [class~="bg-[#05080c]/94"], [class~="bg-[#050b12]/96"]
+) {
+  background: transparent !important;
+}
+
+/* Named neutral surfaces, never coloured badges, buttons or the Leaflet map. */
+.pks-panel-scope[data-panel-theme][data-glass] :is(
+  [class~="bg-[#080B12]"], [class~="bg-[#0F131D]"], [class~="bg-[#0F131D]/95"],
+  [class~="bg-[#111623]"], [class~="bg-[#111623]/50"], [class~="bg-[#151B28]"],
+  [class~="bg-[#0b1019]"], [class~="bg-[#07111a]"], [class~="bg-[#0a0f18]/80"],
+  [class~="bg-[#08111c]/96"], [class~="bg-[#0b121e]/96"], [class~="bg-[#0d1622]/92"],
+  [class~="bg-[#0d1622]/96"], [class~="bg-[#0e1622]/90"], [class~="bg-[#121f31]/40"],
+  [class~="bg-slate-900/96"], [class~="bg-white/96"], [class~="bg-white/98"],
+  [class~="bg-white/90"], [class~="bg-white/88"], [class~="bg-white/85"],
+  [class~="bg-white/78"], [class~="bg-white/70"]
+) {
+  background-color: var(--panel-solid) !important;
+}
+
+.pks-panel-scope[data-panel-theme][data-glass="on"] :is(
+  [class~="bg-[#080B12]"], [class~="bg-[#0F131D]"], [class~="bg-[#0F131D]/95"],
+  [class~="bg-[#111623]"], [class~="bg-[#111623]/50"], [class~="bg-[#151B28]"],
+  [class~="bg-[#0b1019]"], [class~="bg-[#07111a]"], [class~="bg-[#0a0f18]/80"],
+  [class~="bg-[#08111c]/96"], [class~="bg-[#0b121e]/96"], [class~="bg-[#0d1622]/92"],
+  [class~="bg-[#0d1622]/96"], [class~="bg-[#0e1622]/90"], [class~="bg-[#121f31]/40"],
+  [class~="bg-slate-900/96"], [class~="bg-white/96"], [class~="bg-white/98"],
+  [class~="bg-white/90"], [class~="bg-white/88"], [class~="bg-white/85"],
+  [class~="bg-white/78"], [class~="bg-white/70"], .admin-topbar
+) {
+  background-color: var(--panel-surface) !important;
+  border-color: var(--panel-edge) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+.pks-panel-scope[data-glass="off"] *,
+.pks-panel-scope[data-glass="on"] :is([class~="bg-[#05080c]/94"], [class~="bg-[#050b12]/96"]) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 :root {
   --pks-initial-bg: #000000;
   --pks-loading-text: #020617;
@@ -189,6 +274,9 @@ body {
 .transit-stop-card:hover, .transit-stop-card:focus-within { border-color: var(--pks-accent-border); }
 .transit-stop-card { box-shadow: 0 4px 16px #00000006; }
 .transit-header-glow { background: radial-gradient(ellipse at top right, var(--pks-accent-soft), transparent 75%); }
+.pks-panel-scope[data-glass='on'] .transit-view { background: transparent; }
+.pks-panel-scope[data-glass='on'] .transit-surface,
+.pks-panel-scope[data-glass='on'] .transit-card { background: var(--panel-surface); border-color: var(--panel-edge); }
 .transit-view .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
 .transit-view .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--pks-accent-border); }
 @media (prefers-reduced-motion: reduce) {

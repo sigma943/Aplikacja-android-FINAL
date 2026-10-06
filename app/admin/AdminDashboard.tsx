@@ -267,13 +267,14 @@ function computeBanStats(devices: ({ id: string } & DeviceData)[]) {
 
 export interface AdminDashboardProps {
   embedded?: boolean;
+  transparentUI?: boolean;
   onExit?: () => void;
   /** Kolor akcentu z ustawień mapy (kolorystyka) */
   themeColor?: string;
   isDarkTheme?: boolean;
 }
 
-export default function AdminDashboard({ embedded = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
+export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
   const { device: currentDevice, loading, user, localLastSeenMs } = useFirebase();
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
   const [devicesError, setDevicesError] = useState<string | null>(null);
@@ -1207,7 +1208,9 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
 
   if (activeView === 'banned') {
     return (
-      <div className="relative">
+      <div className={cn('relative flex-1 overflow-y-auto', embedded && transparentUI && 'pks-panel-scope')}
+        data-glass={embedded && transparentUI ? 'on' : 'off'}
+        data-panel-theme="dark">
         <BanScreen />
         <button
           onClick={() => setActiveView('devices')}
@@ -1223,10 +1226,12 @@ export default function AdminDashboard({ embedded = false, onExit, themeColor = 
     <div
       className={
         embedded
-          ? cn('flex h-full min-h-0 flex-1 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
+          ? cn('flex h-full min-h-0 flex-1 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light', transparentUI && 'pks-panel-scope')
           : cn('flex h-screen min-h-0 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
       }
       style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
+      data-glass={embedded && transparentUI ? 'on' : 'off'}
+      data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >
       {!isDarkTheme && (
         <style>{`

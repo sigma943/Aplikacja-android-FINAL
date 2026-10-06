@@ -1,19 +1,32 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const loadTs=require('./load-ts.cjs');
 const domain=loadTs('components/stops-panel/stop-domain.ts',{'@/lib/pks-client':{}});
-const {vehicleDelayMinutes}=loadTs('lib/delay-display.ts');
+const {busDelayMinutes}=loadTs('lib/bus-punctuality.ts');
+const {marcelDepartureFromVehicle}=loadTs('lib/marcel-stop-punctuality.ts');
 const {getCachedBusIcon}=loadTs('components/BusMap.tsx',{'react-leaflet':{},leaflet:{divIcon:options=>options},'leaflet/dist/leaflet.css':{},'@/lib/pks-client':{}});
 
 test('Marcel 4-versus-5 case, rounding boundaries and icon cache agree with stop departures',()=>{
   for(const seconds of [-280,-269,-271,-270,269,270,271,59,-59]){
-    const minutes=vehicleDelayMinutes(seconds,'marcel');
+    const minutes=busDelayMinutes(seconds);
     const row=domain.departureFromMarcelCourseStop({idKu:42,nazTr:'Sanok-Rzeszów'},{kol:2,godz:'15:45'},'2026-10-06',0,seconds);
     assert.equal(row.delayMins,minutes);
     const html=getCachedBusIcon('M','marcel_rounding',seconds,false,'#68c44a',0,true,'marcel','',16).html;
-    assert.match(html,new RegExp(`${minutes>0?'\\+':'-'}${Math.abs(minutes)}(?:\\s|<)`));
+    if(minutes)assert.match(html,new RegExp(`${minutes>0?'\\+':'-'}${Math.abs(minutes)}(?:\\s|<)`));
+    else assert.doesNotMatch(html,/>\s*[+-]\d+\s*<\/div>/);
   }
-  assert.equal(vehicleDelayMinutes(-280,'marcel'),-5);
-  assert.equal(vehicleDelayMinutes(280,'pks'),4);
-  assert.equal(vehicleDelayMinutes(-280,'mpk_rzeszow'),-4);
+  assert.equal(busDelayMinutes(-280),-5);
+  assert.equal(busDelayMinutes(280),5);
+  assert.equal(busDelayMinutes(-270),-5);
+});
+
+test('a retained map snapshot never overwrites a fresh stop estimate or operator prediction',()=>{
+  const plannedAtMs=Date.parse('2026-10-06T13:45:00Z');
+  const bus={id:'marcel_42',provider:'marcel',tripId:'42',status:'active',dataAgeSec:0,delay:-240,
+    routeStops:[{id:1,planned:new Date(plannedAtMs).toISOString()}]};
+  for(const estimated of [true,false]){
+    const departure={id:'test',line:'M',carrier:{id:'marcel'},courseId:'42',plannedAtMs,
+      realAtMs:plannedAtMs-280_000,realtimeSource:'vehicle-feed',delayEstimated:estimated,delayMins:-5};
+    assert.equal(marcelDepartureFromVehicle(departure,[bus]),departure);
+  }
 });
 
 for(const gpsTimestamp of [true,false])test(`Marcel map, details and stops share positions and GPS time (${gpsTimestamp?'timestamp':'receipt time'})`,async()=>{
@@ -36,7 +49,7 @@ for(const gpsTimestamp of [true,false])test(`Marcel map, details and stops share
     assert.equal(api.withCachedMarcelDelay(fleet[0],now+50_000).delay,delay,'elapsed wall time must not change a fixed GPS estimate');
     if(gpsTimestamp)assert.equal(delay,-280);
     const departure=domain.departureFromMarcelCourseStop({idKu:42,nazTr:'Sanok-Rzeszów'},stops[1],'2026-10-06',0,delay);
-    assert.equal(departure.delayMins,vehicleDelayMinutes(marker.delay,'marcel'));
+    assert.equal(departure.delayMins,busDelayMinutes(marker.delay));
     now+=11_000;
     const [freshFleet,freshPositions]=await Promise.all([api.fetchVehiclesClient(true,['marcel'],options),api.fetchMarcelLivePositionsClient()]);
     assert.equal(positionCalls,2);

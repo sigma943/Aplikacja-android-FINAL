@@ -1,5 +1,6 @@
 import { warsawDateIso, warsawTimeMs } from './transit-time';
 import { transitTimestamp } from './bus-operating-state';
+import { busDelayMinutes } from './bus-punctuality';
 
 export function finiteDelay(value: unknown): number | undefined {
   if ((typeof value !== 'number' && typeof value !== 'string') || (typeof value === 'string' && !value.trim())) return undefined;
@@ -20,6 +21,6 @@ export function departureTiming(plannedAtMs: number | undefined, real: unknown, 
   }
   const hasPrediction = Number.isFinite(actual);
   const realAtMs = hasPrediction ? actual : plannedAtMs != null && delay != null ? plannedAtMs + delay * 60_000 : plannedAtMs;
-  const delayMins = plannedAtMs != null && realAtMs != null ? Math.round((realAtMs - plannedAtMs) / 60_000) : 0;
+  const delayMins = plannedAtMs != null && realAtMs != null ? busDelayMinutes((realAtMs - plannedAtMs) / 1000) : 0;
   return { realAtMs, delayMins, hasRealtime: hasPrediction || delay != null };
 }

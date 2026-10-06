@@ -22,6 +22,7 @@ export default function StopsPanel({
   isLoading,
   hasError,
   favorites,
+  vehicles,
   transparentUI,
   isDarkTheme,
   onRetry,
@@ -266,13 +267,9 @@ export default function StopsPanel({
 
   return (
     <div
-      className={
-        transparentUI
-          ? `absolute inset-0 z-10 overflow-hidden backdrop-blur-2xl backdrop-saturate-150 ${
-              isDarkTheme ? 'bg-slate-950/88' : 'bg-white/92'
-            }`
-          : `absolute inset-0 z-10 overflow-hidden ${isDarkTheme ? 'bg-[#03060a]' : 'bg-slate-50'}`
-      }
+      className={`pks-panel-scope absolute inset-0 z-10 overflow-hidden ${transparentUI ? 'bg-transparent' : isDarkTheme ? 'bg-[#03060a]' : 'bg-slate-50'}`}
+      data-glass={transparentUI ? 'on' : 'off'}
+      data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >
       {Object.keys(catalogErrors).length>0 && <div role="status" className="absolute bottom-3 left-3 right-3 z-50 rounded-xl border border-amber-500/30 bg-slate-900 p-3 text-sm text-amber-200">
         {Object.keys(catalogErrors).join(', ')}: nie udało się pobrać pełnej listy przystanków.
@@ -285,6 +282,7 @@ export default function StopsPanel({
             onBack={() => setSelectedStop(null)}
             toggleFavorite={toggleFavorite}
             loadDepartures={loadStopDepartures}
+            vehicles={vehicles}
             onShowOnMap={onShowOnMap}
             isDarkTheme={isDarkTheme}
           />
