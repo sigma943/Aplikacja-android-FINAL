@@ -85,7 +85,10 @@ const server=http.createServer((req,res)=>{
     await page.click('[data-carrier-grid] button[aria-label="PKS Rzeszów"]');
     assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
-    await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));await page.reload({waitUntil:'domcontentloaded'});
+    // Check saved theme in a fresh document, preserving the browser context's
+    // storage. Page.reload sporadically times out at this animated-view boundary.
+    await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));
+    await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-ui-theme="dark"]');
     await accent('Fioletowy');
     await button('Przystanki');
