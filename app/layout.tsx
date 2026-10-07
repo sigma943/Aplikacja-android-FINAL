@@ -1,5 +1,6 @@
 import type {Metadata} from 'next';
 import './globals.css';
+import UIMotionProvider from '@/components/UIMotionProvider';
 import { FirebaseProvider } from '@/components/FirebaseProvider';
 
 export const metadata: Metadata = {
@@ -25,7 +26,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       </head>
       <body suppressHydrationWarning>
         <FirebaseProvider>
-          {children}
+          <UIMotionProvider>{children}</UIMotionProvider>
         </FirebaseProvider>
       </body>
     </html>

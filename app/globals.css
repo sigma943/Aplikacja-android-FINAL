@@ -387,3 +387,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--pks-accent); }
 .transit-view[data-ui-mode='light'] .text-lime-400 { color: #4d7c0f; }
 .transit-view[data-ui-mode='light'] .text-rose-300 { color: #be123c; }
 .transit-view[data-ui-mode='light'] .text-emerald-300 { color: #047857; }
+
+/* Quiet tactile feedback across map, settings, timetables and administration. */
+.pks-theme-root button { transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, scale 160ms ease; }
+.pks-theme-root button:active:not(:disabled) { scale: .97; }
+@media (prefers-reduced-motion: reduce) {
+  .pks-theme-root *, .pks-theme-root *::before, .pks-theme-root *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .pks-theme-root button:active { scale: 1; }
+}

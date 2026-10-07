@@ -1,3 +1,4 @@
+import { routeGeometryKey } from './route-geometry-key';
 import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
 import { getTransportRuntime, transportApiBase } from './transport-runtime';
 import {officialBusStops} from './official-bus-routes';
@@ -122,6 +123,7 @@ const pkpTrainMetadataCache = new Map<string, { expiresAt: number; value: PkpTra
 const pkpTrainMetadataInflight = new Map<string, Promise<PkpTrainMetadata | null>>();
 const shapePointsCache = new Map<string, Promise<ShapePoint[]>>();
 const roadRouteCache = new Map<string, ShapePoint[]>();
+const roadRoutePending = new Map<string, Promise<ShapePoint[]>>();
 const TRANSPORT_API_BASE_URL = (
   process.env.NEXT_PUBLIC_TRANSPORT_API_BASE_URL ||
   'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi'
@@ -1483,11 +1485,15 @@ function collapseLocalLoops(points: ShapePoint[], options?: { strict?: boolean }
   return result;
 }
 
-async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal;stopWaypoints?:boolean}) {
+async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal;stopWaypoints?:boolean;onResolved?:(points:ShapePoint[])=>void}) {
   const points=coords.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));
   if(points.length<2)return [];
-  if(roadRouteCache.has(cacheKey))return roadRouteCache.get(cacheKey)!;
-  const promise=(async()=> {
+  if(roadRouteCache.has(cacheKey)) {
+    const route = roadRouteCache.get(cacheKey)!; options?.onResolved?.(route); return route;
+  }
+  let promise = roadRoutePending.get(cacheKey);
+  if (!promise) {
+  promise=(async()=> {
     const chunks=routeChunks(points);
     const results: ShapePoint[][]=new Array(chunks.length);
     let cursor=0;
@@ -1499,14 +1505,14 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
           // Stop coordinates can sit in a bay or side road. A through point
           // forbids turning there and can force a loop around nearby streets.
           const query={locations:chunk.map(([lat,lon],i)=>({lat,lon,type:i===0||i===chunk.length-1?'break':options?.stopWaypoints?'via':'through',...(options?.stopWaypoints?{radius:35,rank_candidates:false}:{})})),costing:'bus',directions_options:{units:'kilometers'}};
-          const data=await requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal:options?.signal});
+          const data=await withRequestDeadline(signal => requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal}), undefined, 4000);
           route=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
           if (!roadRouteMatchesStops(route,chunk)) route=[];
-        }catch(error){if(options?.signal?.aborted)throw error;}
+        }catch {}
         if(route.length<2) {
           const coordinates=chunk.map(([lat,lon])=>lon+','+lat).join(';');
           const data=await requestJson<{code?:string;routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
-            'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false',{signal:options?.signal});
+            'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false');
           route=(data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
         }
         if(!roadRouteMatchesStops(route,chunk))throw new Error('Incomplete road route: missing or unordered stops');
@@ -1515,13 +1521,17 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
     }));
     return joinRouteChunks(results);
   })();
-  // Pending requests belong to their caller's AbortSignal. Reusing one after
-  // selection changes can poison the new route with the previous cancellation.
-  const route = await promise;
-  if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
-  roadRouteCache.set(cacheKey,route);
-  if(roadRouteCache.size>100)roadRouteCache.delete(roadRouteCache.keys().next().value!);
-  return route;
+  // The geometry belongs to the stop pattern, not the selected marker. Let the
+  // bounded request finish/cache even if the user closes the panel meanwhile.
+  promise = promise.then(route => {
+    roadRouteCache.set(cacheKey,route);
+    if(roadRouteCache.size>100)roadRouteCache.delete(roadRouteCache.keys().next().value!);
+    return route;
+  }).finally(() => roadRoutePending.delete(cacheKey));
+  roadRoutePending.set(cacheKey,promise);
+  }
+  const resolved = promise.then(route => { options?.onResolved?.(route); return route; });
+  return withRequestDeadline(() => resolved, options?.signal, 60_000);
 }
 
 function createQuickCurvedRoute(coords: ShapePoint[]) {
@@ -2941,6 +2951,15 @@ export async function fetchRouteGeometryClient(
     const stopCoords = request.stops
       .filter((stop) => Number.isFinite(stop.lat) && Number.isFinite(stop.lon))
       .map((stop) => [Number(stop.lat), Number(stop.lon)] as ShapePoint);
+    const persist = (points: ShapePoint[]) => {
+    if (points.length > 1 && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('routeGeometry:' + routeGeometryKey(request.mode || 'road', request.carrier,
+          request.line, request.direction, request.stops), JSON.stringify({version: request.dataVersion,
+          expiresAt: Date.now()+30*24*60*60*1000, points: points}));
+      } catch { /* Memory caching remains available when storage is full. */ }
+    }
+    };
     const fallbackPoints = await fetchRoadRouteForStops(
       stopCoords,
       [
@@ -2949,7 +2968,7 @@ export async function fetchRouteGeometryClient(
         request.direction,
         stopCoords.map(([lat, lon]) => `${lat.toFixed(6)},${lon.toFixed(6)}`).join('|'),
       ].join(':'),
-      { strictShortSegments: request.carrier === 'mpk_rzeszow',stopWaypoints:true,signal:options?.signal },
+      { strictShortSegments: request.carrier === 'mpk_rzeszow',stopWaypoints:true,signal:options?.signal,onResolved:persist },
     );
     if (fallbackPoints.length <= 1) {
       return {

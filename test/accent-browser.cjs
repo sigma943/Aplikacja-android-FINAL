@@ -92,6 +92,7 @@ const server=http.createServer((req,res)=>{
     const previewScroll=await page.$eval('[data-stop-list-scroll]',el=>el.scrollTop);
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim().startsWith('Pokaż wszystkie (')).click());
     await page.waitForSelector('[data-stop-list-mode="full"]');
+    assert.ok(await page.$eval('[data-stop-list-mode="full"]',el=>Number(getComputedStyle(el).opacity))<1,'full list enters with a fade instead of teleporting');
     await new Promise(resolve=>setTimeout(resolve,450));
     assert.equal(await page.$$eval('[data-stop-list-scroll]',els=>els.length),1,'full view replaces the preview scroll container');
     assert.equal(await page.$$eval('input[placeholder*="Babica"]',els=>els.length),1,'full view has no preview header underneath');

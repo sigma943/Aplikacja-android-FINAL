@@ -4,7 +4,7 @@ import type { Carrier, Departure, Stop } from '@/Panel/src/types';
 import { fetchMarcelCoursesClient, fetchMarcelPublicCourseStopsClient, fetchMarcelRoutesClient, fetchVehicleDetailsClient, type MarcelCourse, type MarcelCourseStopPublic, type TransportProviderId } from '@/lib/pks-client';
 import type { Vehicle } from '@/components/BusMap';
 import { getSimilarity, normalizeStopName as normalizeMergeName } from '@/lib/rzeszow-stop-consolidation';
-import { warsawDateIso, warsawTimeMs } from '@/lib/transit-time';
+import { warsawDateIso, warsawTimeMs, warsawClock } from '@/lib/transit-time';
 import { departureTiming, finiteDelay } from '@/lib/departure-timing';
 import { busDelayMinutes } from '@/lib/bus-punctuality';
 
@@ -979,11 +979,7 @@ function timestampFromJourney(journey: Record<string, unknown>) {
 
 function formatWarsawTime(ms: number | undefined, fallback?: unknown) {
   if (Number.isFinite(ms)) {
-    return new Date(ms as number).toLocaleTimeString('pl-PL', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'Europe/Warsaw',
-    });
+    return warsawClock(ms as number);
   }
   const raw = String(fallback || '').trim();
   const match = raw.match(/(\d{1,2}):(\d{2})/);

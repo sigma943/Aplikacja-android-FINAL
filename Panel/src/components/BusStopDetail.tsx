@@ -4,7 +4,7 @@ import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { departureIsPast, departureCountdown } from '../../../lib/departure-display';
 import { Stop, Departure } from '../types';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
 import type { Vehicle } from '../../../components/BusMap';
 import { marcelDepartureFromVehicle } from '../../../lib/marcel-stop-punctuality';
@@ -66,7 +66,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const departures = useMemo(() => scheduledDepartures
     .map(departure => marcelDepartureFromVehicle(departure, vehicles))
     .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
-  const animateDepartures = false;
+  const reduceMotion = useReducedMotion();
+  const animateDepartures = !reduceMotion && !showAllDepartures;
 
   useEffect(() => {
     const updateTime = () => {
@@ -105,8 +106,11 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     return map;
   }, [departures, stop.carriers, stop.lineProviders, stopLines]);
 
-  const processedDepartures = departures.map(d => ({...d,
-    isPast: selectedDayIndex===0 && currentTimeMs>0 && departureIsPast(d,currentTimeMs,warsawTimeMs(selectedDateKey,d.time))
+  const timedDepartures = useMemo(() => departures.map(d => ({
+    ...d, fallbackAtMs: d.plannedAtMs ?? warsawTimeMs(selectedDateKey,d.time),
+  })), [departures, selectedDateKey]);
+  const processedDepartures = timedDepartures.map(d => ({...d,
+    isPast: selectedDayIndex===0 && currentTimeMs>0 && departureIsPast(d,currentTimeMs,d.fallbackAtMs)
   }));
 
   const filteredDeparturesByLine = processedDepartures.filter(d => {
@@ -150,10 +154,10 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
   return (
     <motion.div 
-      initial={{ opacity: 0, x: 15 }}
+      initial={reduceMotion ? false : { opacity: 0, x: 15 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 15 }}
-      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+      transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
       data-ui-mode={isDarkTheme ? "dark" : "light"}
       className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
     >
@@ -314,7 +318,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                     const departureTimeLabel = formatDepartureTime(dep);
                     return (
                       <motion.div 
-                        layout="position"
+                        layout={animateDepartures ? "position" : false}
                         initial={animateDepartures ? { opacity: 0, y: 8 } : false}
                         animate={animateDepartures ? { opacity: isPast ? 0.45 : 1, y: 0 } : { opacity: isPast ? 0.45 : 1, y: 0 }}
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}

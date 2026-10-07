@@ -1,5 +1,6 @@
 import type { Departure } from '@/Panel/src/types';
 import type { Vehicle } from '@/components/BusMap';
+import { warsawClock } from './transit-time';
 import { busDelayMinutes } from './bus-punctuality';
 
 /** Use the map's GPS estimate only for the same course and scheduled date. */
@@ -25,7 +26,7 @@ export function marcelDepartureFromVehicle(departure: Departure, vehicles: Vehic
   return {
     ...departure,
     realAtMs,
-    time: new Date(realAtMs).toLocaleTimeString('pl-PL', { timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit' }),
+    time: warsawClock(realAtMs),
     delayMins,
     status: delayMins === 0 ? 'on_time' : 'delayed',
     realtimeSource: 'position-estimate',
