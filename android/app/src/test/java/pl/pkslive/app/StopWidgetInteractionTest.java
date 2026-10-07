@@ -38,7 +38,9 @@ public class StopWidgetInteractionTest {
     Intent request=Shadows.shadowOf((Application)context).getBroadcastIntents().stream().filter(i->StopWidgetProvider.REFRESH.equals(i.getAction())).findFirst().orElseThrow(()->new AssertionError("refresh click sent no broadcast"));
     assertEquals(7,request.getIntExtra("widgetId",-1));
     JobInfo job=((JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).getPendingJob(7402);
-    assertNotNull(job);assertTrue(job.isExpedited());assertTrue(job.getExtras().getBoolean("manual"));assertEquals(7,job.getExtras().getInt("widgetId"));
+    assertNotNull("refresh broadcast did not schedule its job",job);
+    assertTrue("manual job was not expedited",job.isExpedited());
+    assertTrue(job.getExtras().getBoolean("manual"));assertEquals(7,job.getExtras().getInt("widgetId"));
     assertTrue(StopWidgetProvider.prefs(context).getLong("refreshing_7",0)>0);
     assertTrue(((TextView)inflate(context,320,180).findViewById(R.id.widget_status)).getText().toString().contains("Odświeżanie"));
   }
@@ -46,5 +48,13 @@ public class StopWidgetInteractionTest {
     StopWidgetProvider.refresh(context,7,true);long accepted=StopWidgetProvider.prefs(context).getLong("manual_7",0);
     StopWidgetProvider.refresh(context,7,true);
     assertEquals(accepted,StopWidgetProvider.prefs(context).getLong("manual_7",0));assertTrue(StopWidgetProvider.prefs(context).getString("notice_7","").contains("za"));
+  }
+  @Test public void exhaustedExpeditedQuotaFallsBackToANormalManualJob(){
+    JobScheduler scheduler=(JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+    Shadows.shadowOf(scheduler).failExpeditedJob(true);
+    StopWidgetProvider.refresh(context,7,true);
+    JobInfo job=scheduler.getPendingJob(7402);
+    assertNotNull(job);assertFalse(job.isExpedited());assertTrue(job.getExtras().getBoolean("manual"));
+    assertTrue(StopWidgetProvider.prefs(context).getLong("refreshing_7",0)>0);
   }
 }
