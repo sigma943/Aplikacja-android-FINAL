@@ -1,4 +1,5 @@
 'use client';
+import {BackScope,useAppBack} from '@/lib/use-app-back';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { punctualityTimeClass } from '@/lib/punctuality-color';
 import {loadStopDepartures} from '@/lib/stop-departures';
@@ -412,73 +413,18 @@ export default function Home() {
     return raw.replace(/^Rzeszów\s+D\.A\.\s+st\.\s*0*\d+$/i, 'Rzeszów D.A.');
   }, []);
 
-  // Handle hardware back button to prevent accidental app exits when viewing a panel
-  useEffect(() => {
-     if (selectedBus || selectedStopId) {
-        window.history.pushState({ panelOpen: true }, '');
-     }
-  }, [selectedBus, selectedStopId]);
-
-  useEffect(() => {
-     const handlePopState = (e: PopStateEvent) => {
-        if (isTransportPanelOpen) {
-           setIsTransportPanelOpen(false);
-           return;
-        }
-        if (selectedBus || selectedStopId) {
-           setSelectedBus(null);
-           setSelectedStopId(null);
-           setSelectedExternalStop(null);
-        }
-     };
-     window.addEventListener('popstate', handlePopState);
-     return () => window.removeEventListener('popstate', handlePopState);
-  }, [isTransportPanelOpen, selectedBus, selectedStopId]);
-
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-
-    let cancelled = false;
-    let listenerPromise: Promise<{ remove: () => Promise<void> }> | null = null;
-
-    listenerPromise = import('@capacitor/app').then(({ App }) =>
-      App.addListener('backButton', () => {
-        if (cancelled) return;
-
-        if (isSettingsOpen) {
-          setIsSettingsOpen(false);
-          return;
-        }
-        if (isTransportPanelOpen) {
-          setIsTransportPanelOpen(false);
-          return;
-        }
-        if (selectedBus) {
-          setSelectedBus(null);
-          return;
-        }
-        if (selectedStopId) {
-          setSelectedStopId(null);
-          setSelectedExternalStop(null);
-          return;
-        }
-        if (activeTab === 'admin') {
-          return;
-        }
-        if (activeTab === 'stops' && !isMapTabDisabled) {
-          setActiveTab('map');
-          return;
-        }
-
-        App.exitApp();
-      }),
-    );
-
-    return () => {
-      cancelled = true;
-      listenerPromise?.then((listener) => listener.remove()).catch(() => {});
-    };
-  }, [activeTab, isMapTabDisabled, isSettingsOpen, isTransportPanelOpen, selectedBus, selectedStopId]);
+  const adminReturnTab = useRef<'map' | 'stops'>('map');
+  const mapStopReturnTab = useRef<'stops' | null>(null);
+  useAppBack(isSettingsOpen, () => {setIsSettingsOpen(false);return true;},100);
+  useAppBack(isTransportPanelOpen, () => {setIsTransportPanelOpen(false);return true;},90);
+  useAppBack(activeTab === 'map' && Boolean(selectedBus || selectedStopId), () => {
+    if(!selectedStopId) {setSelectedBus(null);return true;}
+    setSelectedStopId(null);setSelectedExternalStop(null);
+    if(selectedBus)return true;
+    if(mapStopReturnTab.current) {setActiveTab(mapStopReturnTab.current);mapStopReturnTab.current=null;}
+    return true;
+  },60);
+  useAppBack(activeTab === 'stops' && !isMapTabDisabled, () => {setActiveTab('map');return true;},10);
 
   useEffect(() => {
     let cancelled = false;
@@ -1549,6 +1495,7 @@ export default function Home() {
       {/* Main Content Area */}
       <div className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
          
+         <BackScope enabled={activeTab === 'admin'}>
          <AnimatePresence mode="wait">
             {activeTab === 'admin' && canOpenAdminEmbed && (
                <motion.div
@@ -1560,10 +1507,11 @@ export default function Home() {
                   className={`absolute inset-0 z-[25] flex min-h-0 flex-col ${transparentUI ? 'pks-glass-frame' : isDark ? 'bg-[#040609]' : isWarm ? 'bg-[#f2ede1]' : 'bg-slate-50'}`}
                   data-panel-theme={isDark ? 'dark' : 'light'}
                >
-                  <AdminDashboard embedded transparentUI={transparentUI} themeColor={themeColor} isDarkTheme={isDark} onExit={() => setActiveTab(isMapTabDisabled ? 'stops' : 'map')} />
+                  <AdminDashboard embedded transparentUI={transparentUI} themeColor={themeColor} isDarkTheme={isDark} onExit={() => setActiveTab(isMapTabDisabled ? 'stops' : adminReturnTab.current)} />
                </motion.div>
             )}
          </AnimatePresence>
+         </BackScope>
 
          {/* ============== MAP VIEW ============== */}
          <div className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
@@ -1987,7 +1935,7 @@ export default function Home() {
             key="new-stops-panel"
             initial={false}
             animate={activeTab === 'stops' ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 14, scale: 0.985 }}
-            transition={{ type: 'spring', stiffness: 700, damping: 35 }}
+            transition={{duration: 0.5, ease: [0.25, 0.1, 0.25, 1]}}
             className={`absolute inset-0 z-10 overflow-hidden ${activeTab === 'stops' ? 'pointer-events-auto' : 'pointer-events-none'} ${
                transparentUI
                  ? 'pks-glass-frame'
@@ -1997,6 +1945,7 @@ export default function Home() {
             aria-hidden={activeTab !== 'stops'}
          >
             {hasOpenedStops && <StopsPanel
+               active={activeTab === 'stops'}
                stops={stopsList}
                isLoading={stopsList.length === 0 && !stopsLoadError}
                hasError={stopsLoadError}
@@ -2008,6 +1957,7 @@ export default function Home() {
                onClose={() => { if (!isMapTabDisabled) setActiveTab('map'); }}
                onToggleFavorite={toggleFavoriteStop}
                onShowOnMap={(stop) => {
+                  mapStopReturnTab.current = 'stops';
                   if (isMapTabDisabled) return;
                   if (stop.lat !== undefined && stop.lon !== undefined) {
                      setMapCenter([stop.lat, stop.lon]);
@@ -2049,7 +1999,7 @@ export default function Home() {
             {canOpenAdminEmbed && (
                <button 
                   type="button"
-                  onClick={() => { setActiveTab('admin'); setSelectedBus(null); setSelectedStopId(null); setSelectedExternalStop(null); setIsSettingsOpen(false); }}
+                  onClick={() => { if(activeTab !== 'admin')adminReturnTab.current = activeTab === 'stops' ? 'stops' : 'map';setActiveTab('admin'); setSelectedBus(null); setSelectedStopId(null); setSelectedExternalStop(null); setIsSettingsOpen(false); }}
                   className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${activeTab === 'admin' ? '' : 'hover:text-current/90'}`}
                   style={activeTab === 'admin' ? { color: themeColor } : {}}
                >

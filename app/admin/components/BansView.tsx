@@ -1,3 +1,4 @@
+import {useAppBack} from '@/lib/use-app-back';
 ﻿import { useState, useMemo } from 'react';
 import { Search, Filter, Lock, LockOpen, Smartphone, ChevronDown, Menu, Calendar, Info, MapPin } from 'lucide-react';
 import { useEffect, useRef } from 'react';
@@ -29,6 +30,7 @@ export function BansView({
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(3);
   const [filterStatus, setFilterStatus] = useState('ALL');
+  useAppBack(showFilters, () => {setShowFilters(false);return true;},95);
   const filtersRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

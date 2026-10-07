@@ -1,3 +1,4 @@
+import {useAppBack} from '@/lib/use-app-back';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { callInitialize, callSaveEndpoint, callTestEndpoint, callSetActive, callDisable, callRollback } from '@/lib/maintenance-spark';
 import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
@@ -124,6 +125,7 @@ export function MaintenanceView({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  useAppBack(showHistory, () => {setShowHistory(false);return true;},95);
   const [ready, setReady] = useState(false);
   const [draftTest, setDraftTest] = useState<MaintenanceEndpoint['lastTest']>();
   const actionInFlight = useRef(false);

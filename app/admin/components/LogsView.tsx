@@ -1,3 +1,4 @@
+import {useAppBack} from '@/lib/use-app-back';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, ChevronDown, Calendar, RefreshCcw, LogIn, MonitorOff, ShieldAlert, UserCog, PowerOff, MapPin, Menu, Trash2, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -78,6 +79,13 @@ export function LogsView({
   const [isClearingLogs, setIsClearingLogs] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearLogsError, setClearLogsError] = useState<string | null>(null);
+  useAppBack(showFilterDropdown || showDatePicker || showClearConfirm, () => {
+    if(showClearConfirm) {if(!isClearingLogs)setShowClearConfirm(false);}
+    else if(showDatePicker)setShowDatePicker(false);
+    else if(showFilterDropdown)setShowFilterDropdown(false);
+    else return false;
+    return true;
+  },95);
   const filtersRef = useRef<HTMLDivElement | null>(null);
   
   const [visibleCount, setVisibleCount] = useState(5);

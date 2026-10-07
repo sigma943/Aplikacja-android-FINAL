@@ -1,4 +1,5 @@
 'use client';
+import {useAppBack} from '@/lib/use-app-back';
 import { motion, useReducedMotion } from 'motion/react';
 import { buildStopsCatalog } from '@/lib/stops-catalog';
 import { loadStopDepartures } from '@/lib/stop-departures';
@@ -19,6 +20,7 @@ import { warsawDateIso } from '@/lib/transit-time';
 import { StopsPanelProps, MarcelIndexedStop, StopsSearchState, MERGED_STOPS_RUNTIME_CACHE, stopCollectionSignature, ensureMpkCityPrefix, splitCsvValues, pksLinesForStop, getMarcelStopsIndex, sortedLines, selectedDateIso } from './stop-domain';
 
 export default function StopsPanel({
+  active = true,
   stops,
   isLoading,
   hasError,
@@ -34,6 +36,7 @@ export default function StopsPanel({
   const [catalogAttempt,setCatalogAttempt] = useState(0);
   const [catalogErrors,setCatalogErrors] = useState<Record<string,boolean>>({});
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
+  useAppBack(active && Boolean(selectedStop), () => {setSelectedStop(null);return true;},50);
   const [cachedPksStops, setCachedPksStops] = useState(() => peekStopsCatalogCache()?.pks || []);
   const [cacheReady, setCacheReady] = useState(false);
   const [mpkStops, setMpkStops] = useState<MpkCatalogStop[]>(() => peekStopsCatalogCache()?.mpk || []);
@@ -277,7 +280,7 @@ export default function StopsPanel({
         {Object.keys(catalogErrors).join(', ')}: nie udało się pobrać pełnej listy przystanków.
         <button onClick={()=>{setCatalogErrors({});setCatalogAttempt(value=>value+1);}} className="ml-3 underline">Ponów</button>
       </div>}
-      <motion.div key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}} className="h-full w-full">
+      <motion.div key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}} className="h-full w-full">
         {currentSelectedStop ? (
           <BusStopDetail
             stop={currentSelectedStop}
@@ -290,6 +293,7 @@ export default function StopsPanel({
           />
         ) : (
           <StopList
+            backEnabled={active}
             stops={uiStops}
             onVisibleStopsChange={refreshVisibleLines}
             isLoading={!uiStops.length && (isLoading || isPreparingStops || !cacheReady)}

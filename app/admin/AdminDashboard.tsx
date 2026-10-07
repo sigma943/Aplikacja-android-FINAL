@@ -4,7 +4,7 @@ import { uiAccentVariables } from '@/lib/ui-accent';
 
 import type { CSSProperties } from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Capacitor } from '@capacitor/core';
+import {useAppBack} from '@/lib/use-app-back';
 import { X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { DeviceTable } from './components/DeviceTable';
@@ -314,58 +314,16 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   const [editProfileValue, setEditProfileValue] = useState('');
   const [editProfileSaving, setEditProfileSaving] = useState(false);
 
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-
-    let cancelled = false;
-    let listenerPromise: Promise<{ remove: () => Promise<void> }> | null = null;
-
-    listenerPromise = import('@capacitor/app').then(({ App }) =>
-      App.addListener('backButton', () => {
-        if (cancelled) return;
-
-        if (selectedDeviceForRole) {
-          setSelectedDeviceForRole(null);
-          return;
-        }
-        if (selectedDeviceForBan) {
-          setSelectedDeviceForBan(null);
-          return;
-        }
-        if (isEditProfileOpen) {
-          setIsEditProfileOpen(false);
-          return;
-        }
-        if (isSidebarOpen) {
-          setIsSidebarOpen(false);
-          return;
-        }
-        if (activeView !== 'devices') {
-          setActiveView('devices');
-          return;
-        }
-        if (embedded && onExit) {
-          onExit();
-          return;
-        }
-
-        App.exitApp();
-      }),
-    );
-
-    return () => {
-      cancelled = true;
-      listenerPromise?.then((listener) => listener.remove()).catch(() => {});
-    };
-  }, [
-    activeView,
-    embedded,
-    isEditProfileOpen,
-    isSidebarOpen,
-    onExit,
-    selectedDeviceForBan,
-    selectedDeviceForRole,
-  ]);
+  useAppBack(Boolean(selectedDeviceForRole || selectedDeviceForBan || isEditProfileOpen || isSidebarOpen || activeView !== 'devices' || (embedded && onExit)), () => {
+    if(selectedDeviceForRole)setSelectedDeviceForRole(null);
+    else if(selectedDeviceForBan)setSelectedDeviceForBan(null);
+    else if(isEditProfileOpen)setIsEditProfileOpen(false);
+    else if(isSidebarOpen)setIsSidebarOpen(false);
+    else if(activeView !== 'devices')setActiveView('devices');
+    else if(embedded && onExit)onExit();
+    else return false;
+    return true;
+  },80);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
