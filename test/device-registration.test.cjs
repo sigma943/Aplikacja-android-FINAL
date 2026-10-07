@@ -13,6 +13,19 @@ for(const role of ['owner','admin','user'])test(`reinstall transfers ${role} onc
  await c.registerRestoredDevice({},'new-uid',installationId,'Other',false,{});assert.equal(c.records.get('devices/new-uid'),record);
 });
 test('unrelated previous record is never deleted',async()=>{const c=client({'installations/android_aabbccddeeff0011':{lastUid:'other-uid'},'devices/other-uid':{installationId:'different'}});await c.registerRestoredDevice({},'new-uid','android_aabbccddeeff0011','Phone',false,{});assert.ok(c.records.has('devices/other-uid'));});
+test('deleting an admin device and installation revokes grants on reopening with the same or a new UID',async()=>{
+ for(const uid of ['admin-device','new-device'])for(const autoBan of [false,true]){
+  const installationId='android_0123456789abcdef';
+  const profile={installationId,lastUid:'admin-device',role:'admin',permissions:{monitor:true,canChangeRoles:true},verified:true};
+  const c=client({'devices/admin-device':profile,['installations/'+installationId]:profile});
+  c.records.delete('devices/admin-device');c.records.delete('installations/'+installationId);
+  await c.registerRestoredDevice({},uid,installationId,'Phone',autoBan,{reason:'auto'});
+  const restored=c.records.get('devices/'+uid);
+  assert.equal(restored.role,'user');assert.equal(restored.verified,false);
+  assert.equal(restored.permissions.monitor,false);assert.equal(restored.permissions.canChangeRoles,false);
+  assert.equal(restored.status,autoBan?'banned':'active');
+ }
+});
 test('Android ID survives cache loss and native reader fallback; transient failures never generate UUID',async()=>{const c=client();const fail=async()=>{throw Error('temporarily unavailable')};assert.equal(await c.stableAndroidInstallationId(async()=> '0123456789ABCDEF',fail),'android_0123456789abcdef');assert.equal(await c.stableAndroidInstallationId(fail,async()=> '0123456789abcdef'),'android_0123456789abcdef');assert.equal(await c.stableAndroidInstallationId(fail,fail,'android_0123456789abcdef'),'android_0123456789abcdef');await assert.rejects(c.stableAndroidInstallationId(fail,fail),/identyfikatora Androida/);});
 test('legacy rules restore owner without downgrade and remove matching prior UID',async()=>{
  const id='android_0123456789abcdef',profile={installationId:id,lastUid:'prior-owner-uid',role:'owner',permissions:{monitor:true,canBan:false},verified:true,status:'active',firstLogin:'original'};

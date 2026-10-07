@@ -481,6 +481,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         // A missing record is not a successful registration. Wait for the
         // write/retry to finish before releasing the initial loading screen.
         setLoading(true);
+        // Deletion revokes the current access immediately. Re-register from
+        // server records rather than the previous role held in React state.
+        if(registered && snapshot.metadata?.fromCache!==true) {
+          registered=false;
+          mirroredAccess='';
+          void attempt();
+        }
       }
     }, (err) => {
       console.error("Snapshot error", err);

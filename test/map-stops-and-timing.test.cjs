@@ -35,6 +35,8 @@ test('city and rural stop colours, zoom threshold, viewport and selection are de
   const city={id:'city',type:'bus',name:'Rzeszów, Przemysłowa',lat:50,lon:22};
   const rural={id:'rural',type:'bus',name:'Baryczka 69',lat:50.001,lon:22.001};
   assert.equal(mapStopColor(city),'#ff7a00');assert.equal(mapStopColor(rural),'#14b8a6');
+  for(const name of ['Rzeszów D.A. st. 5','Rzeszów D.A. stanowisko 1','Rzeszów, Dworzec Autobusowy 02','Rzeszów Dworzec PKS 03'])assert.equal(mapStopColor({name}),'#14b8a6');
+  assert.equal(mapStopColor({name:'Rzeszów, Dworzec Główny PKP 01'}),'#ff7a00');
   assert.deepEqual(visibleMapStops([city,rural],[21.9,49.9,22.1,50.1],15),[]);
   assert.equal(visibleMapStops([city,rural,{...rural,id:'far',lat:49}], [21.9,49.9,22.1,50.1],16,'rural')[0].id,'rural');
   assert.match(mapStopIconHtml('#ff7a00',true),/is-selected/);

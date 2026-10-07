@@ -311,6 +311,11 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(await page.evaluate(()=>window.__startupTest.profile().permissions),{monitor:true,canBan:false});
     const profileWrites=await page.evaluate(()=>window.__startupTest.writes());await page.evaluate(()=>window.__startupTest.heartbeat());
     assert.equal(await page.evaluate(()=>window.__startupTest.writes()),profileWrites,'heartbeats must not overwrite saved grants');
+    await page.evaluate(()=>window.__startupTest.deleteDevice());
+    await page.waitForSelector('[data-restored-role="user"]');
+    assert.equal(await page.evaluate(()=>window.__startupTest.profile()?.role),'user','deleted administrator re-registers without the revoked rank');
+    assert.equal(await page.evaluate(()=>window.__startupTest.profile()?.verified),false);
+    console.log('Browser: deleting both admin device and installation revokes admin immediately and re-registers as an unverified user without a stuck loading screen.');
     console.log('Browser: real FirebaseProvider recovers after startup deadline and restores owner despite old Firestore rules without reload or downgrade.');
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');

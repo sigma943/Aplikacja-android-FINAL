@@ -2,6 +2,10 @@
 
 Okno tworzenia ma nieprzezroczyste tło, podgląd rozmiaru i motywu oraz stale widoczny przycisk dodawania. Nie ma górnego uchwytu ani X. Anuluj, przycisk Wstecz i dotknięcie tła zamykają okno z animacją; ograniczenie animacji w ustawieniach systemowych jest respektowane. Usuwanie widżetu z ekranu głównego i jego animację obsługuje launcher Androida. Aplikacja usuwa konfigurację i anuluje zadania, gdy ostatni widżet zostanie usunięty.
 
+Nagłówek ma osobne miejsce na wektorową ikonę odświeżania; ikona nie może wystawać nad godziny odjazdów. Ręczne kliknięcie korzysta z zadania pilnego Androida 12+, a po wyczerpaniu jego limitu przechodzi na zwykłe zadanie z terminem uruchomienia. Odświeżanie automatyczne zachowuje ustawiony interwał i zasady oszczędzania baterii. Ręczne ponowienia mają minutowy odstęp, a widżet pokazuje stan operacji lub informację o odstępie. Kliknięcie podczas pracy zadania okresowego czeka na zakończenie obecnego zadania zamiast przepadać.
+
+Tło ma systemowy identyfikator `android.R.id.background`, co pozwala launcherowi prawidłowo rozpoznać powierzchnię widżetu. Nie istnieje publiczny interfejs Androida wymuszający konkretną animację rozprysku HyperOS. Efekt usunięcia zależy od launchera, wersji systemu i ustawień animacji telefonu.
+
 Mały widżet ma osobny układ: mniejszy nagłówek, pełny wiersz odjazdu i brak stopki, jeśli zabrakłoby miejsca. Większe rozmiary pokazują kierunki i czas aktualizacji. Liczba pełnych wierszy wynika z faktycznej wysokości przekazanej przez launcher. Godziny HH:mm nie stają się nieprawidłowym odliczaniem między pobraniami.
 
 Każdy widżet zapisuje częstotliwość 15, 30, 60 lub 120 minut (domyślnie 30) oraz tryb: pauza w oszczędzaniu baterii (domyślnie), włączone również w oszczędzaniu baterii albo wyłączone — tylko ręczne odświeżanie. Starsze konfiguracje otrzymują wartości domyślne. Pierwsze pobranie po utworzeniu jest dozwolone również w trybie ręcznym, aby od razu wyświetlić odjazdy.

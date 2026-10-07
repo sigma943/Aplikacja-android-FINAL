@@ -2,6 +2,7 @@ import type {Stop} from '@/Panel/src/types';
 export const MAP_STOPS_MIN_ZOOM=16;
 export function mapStopColor(stop:Pick<Stop,'name'>){
   const name=stop.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  if(/^rzeszow\b/.test(name)&&(/\bd\s*\.?\s*a\s*\.?\s*(?:st\b|stanow|$)/.test(name)||/\b(?:dworzec|dworz\.)\s*(?:autobusowy|pks)\b/.test(name)))return '#14b8a6';
   return /^rzeszow(?:\b|\s|,)/.test(name)?'#ff7a00':'#14b8a6';
 }
 export function visibleMapStops(stops:Stop[],bbox:[number,number,number,number],zoom:number,selected?:string|null){

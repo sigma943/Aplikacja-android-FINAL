@@ -1,13 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
+    testOptions { unitTests { includeAndroidResources = true } }
     namespace = "pl.pkslive.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "pl.pkslive.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 242
+        versionCode 243
         versionName "2.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -52,6 +53,7 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
+    testImplementation 'org.robolectric:robolectric:4.16'
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
