@@ -553,7 +553,7 @@ function geoBucketKeys(lat?: number, lon?: number) {
 }
 
 function normalizeStopMergeName(value: unknown) {
-  return normalizeStopName(stopDisplayName(value))
+  return normalizeStopName(stopDisplayName(value).replace(/[.,/]+/g, ' '))
     .replace(/\bpodkarp\.\b/g, 'podkarpacka')
     .replace(/\bpodkarp(?:acka)?\b/g, 'podkarpacka')
     .replace(/\bpodkarp\b/g, 'podkarpacka')

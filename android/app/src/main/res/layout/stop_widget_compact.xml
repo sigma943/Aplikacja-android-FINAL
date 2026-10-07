@@ -1,4 +1,4 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="8dp" android:background="@drawable/widget_dark">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="8dp" android:clipToOutline="true" android:background="@drawable/widget_glass_dark">
  <LinearLayout android:layout_width="match_parent" android:layout_height="28dp" android:gravity="center_vertical">
   <ImageView android:layout_width="14dp" android:layout_height="14dp" android:layout_marginEnd="4dp" android:src="@drawable/widget_bus" android:contentDescription="Autobus"/>
   <TextView android:id="@+id/widget_title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:includeFontPadding="false" android:textStyle="bold" android:textSize="11sp" android:maxLines="1" android:ellipsize="end"/>

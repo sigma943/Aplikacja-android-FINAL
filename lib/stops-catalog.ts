@@ -204,7 +204,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.34 : 0;
         if (hasGeo && distance > 550) continue;
         // A list may consolidate nearby stops; map pins must represent one physical platform.
-        if (physicalPoints && (!hasGeo || distance > (sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8))) continue;
+        if (physicalPoints && (!hasGeo || distance > (exactIdentity ? (sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8) : 140))) continue;
         if (!hasGeo && candidate.baseNameKey !== baseNameKey && similarity < 0.92) continue;
         const distanceScore = hasGeo
           ? distance <= 35

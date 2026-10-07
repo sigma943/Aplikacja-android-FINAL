@@ -8,8 +8,8 @@ try{
  await page.evaluateOnNewDocument(()=>{const Original=Date;window.Date=class extends Original{constructor(...args){super(...(args.length?args:[Original.parse('2026-10-07T11:45:20Z')]));}static now(){return Original.parse('2026-10-07T11:45:20Z');}};if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17}));});
  await page.setRequestInterception(true);
  page.on('request',request=>{const url=request.url();const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:'03'}}});
-  if(url.includes('mpkrzeszow.pl/przystanki/stopscache'))return json([{stop_id:900001,stop_name:'Rzeszów TestMap 03',stop_lat:50.04,stop_lon:22,lines:'2'}]);
+  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:'03'},'3795':{n:'RZESZÓW, PODKARP.MATUSZCZAKA',lat:50.01679,lon:21.9753,areaId:'1945',code:'03'}}});
+  if(url.includes('mpkrzeszow.pl/przystanki/stopscache'))return json([{stop_id:900001,stop_name:'Rzeszów TestMap 03',stop_lat:50.04,stop_lon:22,lines:'2'},{stop_id:256,stop_name:'Podkarpacka / Matuszczaka 03',stop_lat:50.0168019697084,stop_lon:21.9754108786583,lines:'11'}]);
   if(url.includes('offline_schedule.php'))return json({schedule:{'2':[{line:'2',trip_headsign:'Centrum',departure_time:'13:55:00',trip_id:'test-map'}]}});
   if(url.includes('mpkrzeszow.pl')||url.includes('api-site.marcel-bus.pl')||url.includes('/pks/get_vehicles.php'))return json([]);
   if(url.includes('nearest-departures'))return json({journeys:[]});
@@ -33,6 +33,12 @@ try{
  const preview=process.env.MAP_STOPS_PREVIEW||path.resolve('test/ui-previews/map-stops.png');fs.mkdirSync(path.dirname(preview),{recursive:true});await page.screenshot({path:preview});
  await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.map-catalog-stop[title^="Rzeszów TestMap" i]');
  assert.equal(await page.evaluate(()=>localStorage.getItem('mks_show_map_stops')),'true','preference survives reload');
+ await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.0168,lng:21.9754},zoom:18})));await page.reload({waitUntil:'domcontentloaded'});
+ await page.waitForSelector('.map-catalog-stop[title*="Matuszczaka" i]');
+ await page.waitForFunction(()=>document.querySelectorAll('.map-catalog-stop[title*="Matuszczaka" i]').length===1);
+ await page.click('.map-catalog-stop[title*="Matuszczaka" i]');await page.waitForSelector('.map-stop-ring.is-selected');
+ assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/matuszczaka/i);
+ await page.screenshot({path:path.resolve('test/ui-previews/map-real-platform-merged.png')});
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.9822,lng:21.94},zoom:17})));await page.reload({waitUntil:'domcontentloaded'});
  await page.waitForSelector('.map-catalog-stop[title^="Boguchwała Testmap"]');
  assert.equal(await page.$eval('.map-catalog-stop[title^="Boguchwała Testmap"] .map-stop-ring',el=>getComputedStyle(el).backgroundColor),'rgb(20, 184, 166)');
@@ -49,6 +55,8 @@ try{
  assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>el.parentElement.parentElement.tagName),'BODY','widget dialog uses a portal above transformed panels');
  assert.match(await page.$eval('[aria-labelledby="widget-title"]',el=>el.textContent),/Generuj widżet/);
  assert.equal(await page.$eval('[aria-label="Zamknij okno widżetu"]',el=>el.querySelector('svg')===null),true,'text cancellation replaces the handle and X');
+ assert.equal(await page.$eval('[aria-label="Efekt szkła widżetu"]',el=>el.checked),true);
+ await page.click('[aria-label="Efekt szkła widżetu"]');assert.equal(await page.$eval('[aria-label="Efekt szkła widżetu"]',el=>el.checked),false);
  assert.equal(await page.$eval('#widget-refresh-interval',el=>el.value),'30');
  assert.equal(await page.$eval('input[name="widget-refresh-mode"]:checked',el=>el.parentElement.textContent.includes('Pauza')),true);
  await page.select('#widget-refresh-interval','120');

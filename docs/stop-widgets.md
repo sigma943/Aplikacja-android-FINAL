@@ -15,3 +15,8 @@ Jedno wspólne zadanie JobScheduler używa najkrótszego aktywnego interwału. K
 Widżety pobierają rozkład konkretnego przystanku, bez całej floty. Kilka widżetów tego samego przystanku współdzieli odpowiedź w danym zadaniu; filtrowanie linii odbywa się przy renderowaniu. Zadanie trwa najwyżej dwie minuty, pojedynczy przystanek 75 sekund, a aktywne są najwyżej dwa połączenia HTTP. Zatrzymanie zamyka WebView i połączenia, bez natychmiastowego ponowienia. Najdawniej próbowane przystanki mają pierwszeństwo w następnym zadaniu.
 
 Przycisk ↻ dotyczy jednego widżetu i ma limit jednej próby na minutę. Otwarta aplikacja może przekazać pobrane już odjazdy, respektując interwał i tryb automatycznego odświeżania. Zmiana rozmiaru lub motywu odczytuje zapisane lokalnie dane i nie pobiera rozkładu. Instalacja nowszego APK anuluje stary alarm minutowy i aktualizuje harmonogram.
+
+
+Tło widżetu domyślnie ma efekt szkła: półprzezroczysty gradient i jasny obrys. Tekst zachowuje pełną nieprzezroczystość. W generatorze można wyłączyć szkło; starsze widżety otrzymują je automatycznie po aktualizacji. To statyczny wygląd bez dodatkowych odświeżeń i bez pobierania tapety. RemoteViews nie rozmywa tapety launchera.
+
+Na Androidzie 12+ powierzchnia używa systemowego promienia narożników i przycinania obrysu. Nie deklarujemy widżetu jako zastrzeżonego Xiaomi Widget: jego specyfikacja wymaga osobnego procesu i innych ograniczeń, a opisany przełącznik animacji dotyczy przejścia do Activity, nie usuwania. Efekt rozprysku po usunięciu pozostaje decyzją HyperOS.

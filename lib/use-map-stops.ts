@@ -8,7 +8,7 @@ import {ensureMpkCityPrefix,stopCollectionSignature} from '@/components/stops-pa
 import type {RawStop} from '@/components/stops-panel/stop-domain';
 
 function physicalCatalog(pks:RawStop[],mpk:CatalogSnapshot['mpk'],marcel:CatalogSnapshot['marcel']){
-  return buildStopsCatalog(pks,mpk,marcel,'map:physical:v2:'+ [pks,mpk,marcel].map(stopCollectionSignature).join('|'),true);
+  return buildStopsCatalog(pks,mpk,marcel,'map:physical:v3:'+ [pks,mpk,marcel].map(stopCollectionSignature).join('|'),true);
 }
 
 /** Load only the stop catalog when enabled; departures are fetched after selection. */

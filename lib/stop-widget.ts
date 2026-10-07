@@ -4,7 +4,7 @@ import {departureFromLiveVehicle} from './vehicle-stop-timing';
 import {departureIsPast} from './departure-display';
 import {warsawDateIso, warsawTimeMs} from './transit-time';
 import type {Vehicle} from '@/components/BusMap';
-export interface StopWidgetConfig {stop: Stop; lines: string[] | null; size: 'small'|'medium'|'large'; theme: 'system'|'light'|'dark'; refreshMinutes?: 15|30|60|120; refreshMode?: 'always'|'battery-saver'|'off'}
+export interface StopWidgetConfig {stop: Stop; lines: string[] | null; size: 'small'|'medium'|'large'; theme: 'system'|'light'|'dark'; glass?:boolean; refreshMinutes?: 15|30|60|120; refreshMode?: 'always'|'battery-saver'|'off'}
 export function widgetDepartures(departures: Departure[], vehicles: Vehicle[], lines: string[] | null, now=Date.now(),limit=16) {
   return departures.map(d=>departureFromLiveVehicle(d,vehicles)).map(d=>({...d,plannedAtMs:d.plannedAtMs??warsawTimeMs(warsawDateIso(0,new Date(now)),d.time)}))
     .filter(d=>(lines===null||lines.includes(d.line))&&!departureIsPast(d,now,d.plannedAtMs))

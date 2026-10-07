@@ -64,3 +64,26 @@ test('close stops in one provider need full identity, not merely a shared locali
   const map=buildStopsCatalog([stops[1],stops[0],stops[2]],[],[],'nearby-different-landmarks',true);
   assert.equal(map.length,2);assert.equal(map.find(s=>s.id==='a').providerStopIds.pks,'a,c');
 });
+
+test('real Podkarpacka/Matuszczaka records merge like the list while retaining both directions',()=>{
+  const client=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}},'\nexport {formatPksStops};');
+  const data={items:['3794','3795'].map(id=>{const point=snapshot.stops[id];return {stop_point_id:id,name:point.n,stop_area_name:point.n,stop_point_code:point.code,stop_area_id:point.areaId,location:point};})};
+  const pks=Object.entries(client.formatPksStops(data,snapshot)).map(([id,s])=>({id,name:s.n,lat:s.lat,lon:s.lon,lines:['108']}));
+  const gtfs=JSON.parse(fs.readFileSync('public/data/bus-routes/mpk_rzeszow.json','utf8')).stops;
+  const mpk=['213','256'].map(id=>({id,...gtfs[id],lines:['11']}));
+  const map=buildStopsCatalog(pks,mpk,[],'actual-podkarpacka-map',true);
+  const list=buildStopsCatalog(pks,mpk,[],'actual-podkarpacka-list');
+  assert.equal(map.length,2);assert.equal(list.length,2);
+  for(const [pksId,mpkId] of [['3794','213'],['3795','256']]){
+    const stop=map.find(s=>s.providerStopIds.pks===pksId);
+    assert.equal(stop.providerStopIds.mpk_rzeszow,mpkId);assert.deepEqual(stop.lines,['11','108']);
+    assert.equal(stop.lat,gtfs[mpkId].lat);assert.equal(stop.lon,gtfs[mpkId].lon);
+    assert.deepEqual(stop.providerStopIds,list.find(s=>s.providerStopIds.pks===pksId).providerStopIds);
+  }
+});
+test('map and list share cross-provider proximity rules for differently abbreviated rural names',()=>{
+  const pks=[{id:'school',name:'Konieczkowa, Szk. 08',lat:49.84,lon:21.92,lines:['108']}];
+  const mpk=[{id:'school-city',name:'Konieczkowa szkoła 08',lat:49.84015,lon:21.92,lines:['2']}];
+  assert.equal(buildStopsCatalog(pks,mpk,[],'rural-abbreviations-map',true).length,1);
+  assert.equal(buildStopsCatalog(pks,mpk,[],'rural-abbreviations-list').length,1);
+});

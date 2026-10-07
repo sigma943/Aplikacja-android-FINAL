@@ -45,6 +45,21 @@ public class StopWidgetInteractionTest {
     ((ViewGroup)root).offsetDescendantRectToMyCoords(time,bounds);
     assertTrue(bounds.right<=root.getWidth());assertTrue(bounds.bottom<=root.getHeight());
   }
+  @Test public void glassUsesTranslucentBackgroundAndOpaqueContentInBothThemes()throws Exception{
+    for(String theme:new String[]{"dark","light"}){
+      StopWidgetProvider.prefs(context).edit().putString("config_7","{\"stop\":{\"name\":\"Test\"},\"theme\":\""+theme+"\"}").apply();
+      View root=inflate(context,320,180);
+      android.graphics.drawable.GradientDrawable bg=(android.graphics.drawable.GradientDrawable)root.getBackground();
+      for(int color:bg.getColors()){assertTrue(android.graphics.Color.alpha(color)<255);assertTrue(android.graphics.Color.alpha(color)>=128);}
+      assertEquals(1f,root.getAlpha(),0f);assertEquals(1f,root.findViewById(R.id.widget_title).getAlpha(),0f);
+      assertTrue(root.getClipToOutline());assertTrue(bg.getCornerRadius()>0);
+    }
+  }
+  @Test public void glassCanBeDisabledForAnOpaqueBackground()throws Exception{
+    StopWidgetProvider.prefs(context).edit().putString("config_7","{\"stop\":{\"name\":\"Test\"},\"glass\":false}").apply();
+    android.graphics.drawable.GradientDrawable bg=(android.graphics.drawable.GradientDrawable)inflate(context,320,180).getBackground();
+    for(int color:bg.getColors())assertEquals(255,android.graphics.Color.alpha(color));
+  }
   @Test public void refreshClickSendsTheWidgetIdAndQueuesExpeditedJobEvenWhenAutomaticRefreshIsOff()throws Exception{
     // Robolectric records PendingIntent broadcasts but does not deliver all
     // manifest receivers. Register the real receiver for this interaction test.
