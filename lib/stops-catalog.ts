@@ -15,6 +15,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       /\b\d{1,3}[a-z]?$/.test(normalizeStopMergeName(a)) && platformKey(a) === platformKey(b);
 
     const byTechnical = new Map<string, InternalStop>();
+    const platformBuckets = new Map<string, Set<InternalStop>>();
     const baseBuckets = new Map<string, InternalStop[]>();
     const tokenBuckets = new Map<string, Set<InternalStop>>();
     const geoBuckets = new Map<string, Set<InternalStop>>();
@@ -23,6 +24,9 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     const technicalKey = (provider: string, id: string) => `${provider}:${String(id).trim()}`;
 
     const registerBucket = (stop: InternalStop) => {
+      const identity = platformKey(stop.name);
+      const platforms = platformBuckets.get(identity) || new Set<InternalStop>();
+      platforms.add(stop); platformBuckets.set(identity, platforms);
       const list = baseBuckets.get(stop.baseNameKey) || [];
       if (!list.includes(stop)) list.push(stop);
       baseBuckets.set(stop.baseNameKey, list);
@@ -151,6 +155,16 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     ) => {
       const baseNameKey = stopBaseNameKey(raw.name);
       if (!baseNameKey) return null;
+      if (exactIdentity) {
+        let best: InternalStop | null = null, bestDistance = Infinity;
+        for (const candidate of platformBuckets.get(platformKey(raw.name)) || []) {
+          if (!(candidate.sourceProviderIds || []).some(provider => candidateProviders.has(provider))) continue;
+          if (platformKey(candidate.name) !== platformKey(raw.name)) continue;
+          const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
+          if (distance <= (sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8) && distance < bestDistance) {best = candidate; bestDistance = distance;}
+        }
+        return best;
+      }
       const latKey = Number.isFinite(raw.lat) ? Number(raw.lat).toFixed(4) : 'x';
       const lonKey = Number.isFinite(raw.lon) ? Number(raw.lon).toFixed(4) : 'x';
       const providerKey = [...candidateProviders].sort().join('+');

@@ -944,6 +944,15 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
   );
 });
 
+function SelectedStopPin({id,point,stops,color}:{id?:string|null;point?:StopData;stops:Stop[];color:string}) {
+  const map=useMap();const [revision,setRevision]=useState(0);
+  useMapEvents({zoomend:()=>setRevision(v=>v+1),moveend:()=>setRevision(v=>v+1)});
+  if(!id||!point)return null;
+  const b=map.getBounds();
+  if(visibleMapStops(stops,[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],map.getZoom(),id).some(stop=>stop.id===id))return null;
+  return <Marker position={[point.lat,point.lon]} zIndexOffset={5000} icon={L.divIcon({className:'stop-highlight-pin',html:`<svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" style="color:${color};filter:drop-shadow(0 3px 4px #0005)"><path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/><circle cx="19" cy="18" r="6.5" fill="white"/></svg>`,iconSize:[38,48],iconAnchor:[19,46]})}/>;
+}
+
 function CatalogStopsLayer({stops,selected,onSelect}:{stops:Stop[];selected?:string|null;onSelect?:(stop:Stop)=>void}) {
   const map=useMap();
   const [revision,setRevision]=useState(0);
@@ -1342,25 +1351,7 @@ export default function BusMap({
           maxZoom={19}
         />
 
-        {/* Highlighted Selected Stop */}
-        {highlightedStopId && routeStopsData[highlightedStopId] && !mapStops.some(stop=>stop.id===highlightedStopId) && (
-          <Marker 
-            position={[routeStopsData[highlightedStopId].lat, routeStopsData[highlightedStopId].lon]}
-            zIndexOffset={5000}
-            icon={L.divIcon({
-               className: 'stop-highlight-pin',
-               html: `
-                 <svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" aria-hidden="true" style="color:${themeColor};filter:drop-shadow(0 3px 4px #0005)">
-                   <path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/>
-                   <circle cx="19" cy="18" r="6.5" fill="white"/>
-                 </svg>
-               `,
-               iconSize: [38, 48],
-               iconAnchor: [19, 46],
-            })}
-          />
-        )}
-
+        <SelectedStopPin id={highlightedStopId} point={highlightedStopId?routeStopsData[highlightedStopId]:undefined} stops={mapStops} color={themeColor}/>
         {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={highlightedStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}

@@ -84,6 +84,11 @@ public class StopWidgetProvider extends AppWidgetProvider {
     String notice=now-prefs(c).getLong("noticeAt_"+id,0)<10000?prefs(c).getString("notice_"+id,""):"";
     if(refreshing)footer="Odświeżanie odjazdów…";else if(!notice.isEmpty())footer=notice;
     if(!footerVisible&&(refreshing||!notice.isEmpty()))view.setTextViewText(R.id.widget_title,refreshing?"Odświeżanie…":notice);
+    view.removeAllViews(R.id.widget_refresh_progress);
+    view.setViewVisibility(R.id.widget_refresh_progress,refreshing?View.VISIBLE:View.GONE);
+    view.setViewVisibility(R.id.widget_refresh,refreshing?View.INVISIBLE:View.VISIBLE);
+    if(refreshing){RemoteViews spinner=new RemoteViews(c.getPackageName(),R.layout.widget_refresh_spinner);view.addView(R.id.widget_refresh_progress,spinner);}
+    view.setOnClickPendingIntent(R.id.widget_refresh_progress,PendingIntent.getBroadcast(c,id,update,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
     view.setViewVisibility(R.id.widget_status,footerVisible||count==0?View.VISIBLE:View.GONE);
     if(stale&&count>0&&!footerVisible&&!refreshing&&notice.isEmpty())view.setTextViewText(R.id.widget_title,"Nieaktualne • "+title);
     view.setTextViewText(R.id.widget_status,footer);view.setTextColor(R.id.widget_status,muted);return view;

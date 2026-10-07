@@ -108,6 +108,7 @@ export default function StopsPanel({
         if (!cachedStops.length) throw new Error('Empty MPK stop catalog');
         if (!active) return;
         setMpkStops((current) => (mpkSignature(current) === mpkSignature(cachedStops) ? current : cachedStops));
+        setCatalogErrors(({ MPK, ...remaining }) => remaining);
       } catch (error) {
         if ((error as { name?: string })?.name !== 'AbortError') {
           console.warn('[StopsPanel] MPK stops unavailable', error);
@@ -118,10 +119,12 @@ export default function StopsPanel({
 
     const loadMarcelStopsSnapshot = async () => {
       try {
-        const cachedStops = await getMarcelStopsIndex(dateIso);
-        if (!cachedStops.length) throw new Error('Empty Marcel stop catalog');
+        const cachedStops = await getMarcelStopsIndex(dateIso, {onPartial: partial => {
+          if (active && partial.length) setMarcelStops(current => stopCollectionSignature(current) === stopCollectionSignature(partial) ? current : partial);
+        }});
         if (!active) return;
         setMarcelStops((current) => (stopCollectionSignature(current) === stopCollectionSignature(cachedStops) ? current : cachedStops));
+        setCatalogErrors(({ Marcel, ...remaining }) => remaining);
       } catch (error) {
         console.warn('[StopsPanel] Marcel stops unavailable', error);
         if(active) setCatalogErrors(current=>({...current,Marcel:true}));
@@ -278,10 +281,6 @@ export default function StopsPanel({
       data-glass={transparentUI ? 'on' : 'off'}
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >
-      {Object.keys(catalogErrors).length>0 && <div role="status" className="absolute bottom-3 left-3 right-3 z-50 rounded-xl border border-amber-500/30 bg-slate-900 p-3 text-sm text-amber-200">
-        {Object.keys(catalogErrors).join(', ')}: nie udało się pobrać pełnej listy przystanków.
-        <button onClick={()=>{setCatalogErrors({});setCatalogAttempt(value=>value+1);}} className="ml-3 underline">Ponów</button>
-      </div>}
       <motion.div key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}} className="h-full w-full">
         {currentSelectedStop ? (
           <BusStopDetail
@@ -296,6 +295,10 @@ export default function StopsPanel({
           />
         ) : (
           <StopList
+            notice={Object.keys(catalogErrors).length>0 && <div role="status" className="col-span-full rounded-xl border border-amber-500/30 bg-slate-900 p-3 text-sm text-amber-200">
+        {Object.keys(catalogErrors).join(', ')}: nie udało się pobrać pełnej listy przystanków.
+        <button onClick={()=>{setCatalogErrors({});setCatalogAttempt(value=>value+1);}} className="ml-3 underline">Ponów</button>
+      </div>}
             backEnabled={active}
             stops={uiStops}
             onVisibleStopsChange={refreshVisibleLines}

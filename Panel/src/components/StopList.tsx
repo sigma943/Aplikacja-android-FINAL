@@ -7,6 +7,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import VirtualStopCards from './VirtualStopCards';
 
 interface StopListProps {
+  notice?: React.ReactNode;
   backEnabled?: boolean;
   onVisibleStopsChange?: (stops: Stop[]) => void;
   onStopSelect: (stop: Stop) => void;
@@ -74,6 +75,7 @@ function filterStops(stops: SearchableStop[], query: string, carrierFilter: Carr
 }
 
 export default function StopList({
+  notice,
   backEnabled = true,
   onStopSelect,
   onVisibleStopsChange,
@@ -361,6 +363,7 @@ export default function StopList({
             : 'flex w-full flex-col gap-2.5'
         }`}
       >
+        {notice}
         {isLoading ? (
           Array.from({ length: isFullScreen ? 6 : 4 }).map((_, index) => (
             <div key={`stop-skeleton-${index}`} className={`flex h-[89px] items-center rounded-[22px] border p-4 ${isDarkTheme ? 'border-white/[0.03] bg-[#0d1622]/30' : 'border-slate-200 bg-white/85'}`}>

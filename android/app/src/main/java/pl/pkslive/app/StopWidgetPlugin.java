@@ -10,6 +10,7 @@ import org.json.JSONObject;
 import java.util.UUID;
 @CapacitorPlugin(name="StopWidget")
 public class StopWidgetPlugin extends Plugin {
+  @PluginMethod public void systemTheme(PluginCall call){JSObject result=new JSObject();result.put("dark",(getContext().getResources().getConfiguration().uiMode&android.content.res.Configuration.UI_MODE_NIGHT_MASK)==android.content.res.Configuration.UI_MODE_NIGHT_YES);call.resolve(result);}
   @PluginMethod public void pin(PluginCall call) {
     getActivity().runOnUiThread(()->{
       AppWidgetManager manager=AppWidgetManager.getInstance(getContext());

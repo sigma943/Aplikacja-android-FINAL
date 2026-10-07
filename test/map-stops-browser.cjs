@@ -28,6 +28,15 @@ try{
  assert.equal(await page.$eval('.map-catalog-stop[title^="Rzeszów TestMap" i] svg',el=>getComputedStyle(el).color),'rgb(255, 255, 255)');
  await page.click('.map-catalog-stop[title^="Rzeszów TestMap" i]');await page.waitForSelector('[data-map-stop-sheet]');
  await page.waitForSelector('.map-stop-ring.is-selected');assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/Rzeszów TestMap/i);
+ await page.$eval('.leaflet-container',el=>{el.focus();el.dispatchEvent(new KeyboardEvent('keydown',{key:'-',keyCode:189,which:189,bubbles:true}));});
+ await new Promise(resolve=>setTimeout(resolve,400));
+ await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'-',keyCode:189,which:189,bubbles:true})));
+ await page.waitForSelector('.map-catalog-stop',{hidden:true});await page.waitForSelector('.stop-highlight-pin');
+ await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'+',keyCode:187,which:187,bubbles:true})));
+ await new Promise(resolve=>setTimeout(resolve,400));
+ await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'+',keyCode:187,which:187,bubbles:true})));
+ await page.waitForSelector('.map-stop-ring.is-selected');await page.waitForSelector('.stop-highlight-pin',{hidden:true});
+
  await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]')?.textContent.includes('Centrum'));
  await page.click('[aria-label="Rozwiń panel przystanku"]');await page.waitForSelector('#map-stop-departures');
  const preview=process.env.MAP_STOPS_PREVIEW||path.resolve('test/ui-previews/map-stops.png');fs.mkdirSync(path.dirname(preview),{recursive:true});await page.screenshot({path:preview});

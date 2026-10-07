@@ -855,28 +855,42 @@ function marcelCourseStopIndexKey(stop: MarcelCourseStopPublic) {
   return [normalizeStopName(stop.nazMi), marcelCourseStopMatchKey(stop)].filter(Boolean).join('|');
 }
 
-function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean }) {
+const marcelIndexListeners = new Map<string, Set<(stops: MarcelIndexedStop[]) => void>>();
+function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean; onPartial?: (stops: MarcelIndexedStop[]) => void }) {
   const cacheKey = `${MARCEL_STOPS_PERSISTENT_PREFIX}${dateIso}`;
   const cached = readStopCache<MarcelIndexedStop[]>(cacheKey);
   const isFresh = cached && Date.now() - cached.savedAt < STOP_CACHE_TTL_MS;
   if (cached && isFresh && !options?.forceRefresh) return Promise.resolve(cached.data);
 
+  const listener = options?.onPartial;
+  if (listener) {
+    if (!marcelIndexListeners.has(dateIso)) marcelIndexListeners.set(dateIso, new Set());
+    marcelIndexListeners.get(dateIso)!.add(listener);
+    if (cached?.data.length) listener(cached.data);
+  }
   if (options?.forceRefresh) MARCEL_STOPS_INDEX_CACHE.delete(dateIso);
   if (!MARCEL_STOPS_INDEX_CACHE.has(dateIso)) {
     MARCEL_STOPS_INDEX_CACHE.set(dateIso, (async () => {
       const routes = await fetchMarcelRoutesClient();
-      const routeDays = routes.flatMap(route=>Array.from({length:7},(_,offset)=>({route,date:warsawDateIso(offset,new Date(dateIso+'T12:00:00Z'))})));
-      const routeCourses = await mapWithConcurrency(routeDays, 6, async ({route,date}) => ({
-        routeId: String(route.idTr),
-        courses: await fetchMarcelCoursesClient(route.idTr, date),
-      }));
-      const courseRefs = routeCourses.flatMap(({ routeId, courses }) =>
-        courses.map((course) => ({ routeId, courseId: course.idKu })),
-      );
-      const uniqueCourseRefs = [...new Map(courseRefs.map((ref) => [String(ref.courseId), ref])).values()];
       const indexedStops = new Map<string, MarcelIndexedStop & { routeIdSet: Set<string> }>();
 
-      await mapWithConcurrency(uniqueCourseRefs, 10, async ({ routeId, courseId }) => {
+      let lastPublished = 0;
+      const snapshot = () => [...indexedStops.values()].map(({ routeIdSet, ...stop }) => ({ ...stop, routeIds: [...routeIdSet] }));
+      const publish = (final = false) => {
+        if (!final && Date.now() - lastPublished < 500) return;
+        lastPublished = Date.now();
+        const partial = snapshot();
+        marcelIndexListeners.get(dateIso)?.forEach(callback => callback(partial));
+      };
+      await mapWithConcurrency(routes, 4, async route => {
+        const routeId = String(route.idTr);
+        let courses = await fetchMarcelCoursesClient(route.idTr, dateIso);
+        // Look ahead only for routes without service today; do not download seven full timetables.
+        for (let offset = 1; !courses.length && offset < 7; offset++) {
+          courses = await fetchMarcelCoursesClient(route.idTr, warsawDateIso(offset, new Date(dateIso + 'T12:00:00Z')));
+        }
+        const courseIds = [...new Set(courses.map(course => course.idKu))];
+        await mapWithConcurrency(courseIds, 2, async courseId => {
         const stopsForCourse = await fetchMarcelPublicCourseStopsClient(courseId);
         stopsForCourse.forEach((courseStop) => {
           const matchName = stripMarcelStopName(courseStop.nazPr);
@@ -905,12 +919,12 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
             routeIdSet: new Set([routeId]),
           });
         });
+        publish();
+        });
       });
 
-      const stops = [...indexedStops.values()].map(({ routeIdSet, ...stop }) => ({
-        ...stop,
-        routeIds: [...routeIdSet],
-      }));
+      publish(true);
+      const stops = snapshot();
       writeStopCache(cacheKey, stops);
       return stops;
     })());
@@ -919,6 +933,9 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
     MARCEL_STOPS_INDEX_CACHE.delete(dateIso);
     if (cached) return cached.data;
     throw error;
+  }).finally(() => {
+    if (listener) marcelIndexListeners.get(dateIso)?.delete(listener);
+    if (!marcelIndexListeners.get(dateIso)?.size) marcelIndexListeners.delete(dateIso);
   });
 }
 

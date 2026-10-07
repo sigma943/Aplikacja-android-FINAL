@@ -38,7 +38,8 @@ public class StopWidgetInteractionTest {
     assertEquals("Podkarpacka Matuszczaka 04",title.getText().toString());
     ImageView refresh=root.findViewById(R.id.widget_refresh);
     assertNotNull(refresh.getDrawable());assertNotNull(refresh.getBackground());
-    assertTrue(refresh.getLeft()>=title.getRight());
+    android.graphics.Rect refreshBounds=new android.graphics.Rect();refresh.getDrawingRect(refreshBounds);((ViewGroup)root).offsetDescendantRectToMyCoords(refresh,refreshBounds);
+    assertTrue(refreshBounds.left>=title.getRight());
     TextView time=root.findViewById(R.id.widget_time);
     assertNotNull(time);assertTrue(time.getMeasuredWidth()>0);
     android.graphics.Rect bounds=new android.graphics.Rect();time.getDrawingRect(bounds);
@@ -77,6 +78,19 @@ public class StopWidgetInteractionTest {
     assertTrue(StopWidgetProvider.prefs(context).getLong("refreshing_7",0)>0);
     assertTrue(((TextView)inflate(context,320,180).findViewById(R.id.widget_status)).getText().toString().contains("Odświeżanie"));
     } finally {context.unregisterReceiver(receiver);}
+  }
+  @Test public void refreshAnimationExistsOnlyWhileLoadingAndKeepsItsClickTarget()throws Exception{
+    assertEquals(View.GONE,inflate(context,320,180).findViewById(R.id.widget_refresh_progress).getVisibility());
+    StopWidgetProvider.prefs(context).edit().putLong("refreshing_7",System.currentTimeMillis()).apply();
+    View root=inflate(context,320,180);
+    ViewFlipper spinner=root.findViewById(R.id.widget_spinner);
+    assertNotNull(spinner);assertTrue(spinner.isAutoStart());assertEquals(16,spinner.getChildCount());
+    assertEquals(65,spinner.getFlipInterval());assertTrue(root.findViewById(R.id.widget_refresh_progress).isClickable());
+    assertEquals(View.INVISIBLE,root.findViewById(R.id.widget_refresh).getVisibility());
+    spinner.showNext();assertEquals(22.5f,spinner.getCurrentView().getRotation(),0f);
+    StopWidgetProvider.prefs(context).edit().remove("refreshing_7").apply();
+    View finished=inflate(context,320,180);
+    assertNull(finished.findViewById(R.id.widget_spinner));assertEquals(View.VISIBLE,finished.findViewById(R.id.widget_refresh).getVisibility());
   }
   @Test public void repeatedTapDoesNotQueueAnotherRequestAndReportsTheCooldown(){
     StopWidgetProvider.refresh(context,7,true);long accepted=StopWidgetProvider.prefs(context).getLong("manual_7",0);
