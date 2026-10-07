@@ -21,6 +21,7 @@ import { StopsPanelProps, MarcelIndexedStop, StopsSearchState, MERGED_STOPS_RUNT
 
 export default function StopsPanel({
   active = true,
+  initialStop,
   stops,
   isLoading,
   hasError,
@@ -36,6 +37,7 @@ export default function StopsPanel({
   const [catalogAttempt,setCatalogAttempt] = useState(0);
   const [catalogErrors,setCatalogErrors] = useState<Record<string,boolean>>({});
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
+  useEffect(()=>{if(initialStop)setSelectedStop(initialStop);},[initialStop]);
   useAppBack(active && Boolean(selectedStop), () => {setSelectedStop(null);return true;},50);
   const [cachedPksStops, setCachedPksStops] = useState(() => peekStopsCatalogCache()?.pks || []);
   const [cacheReady, setCacheReady] = useState(false);

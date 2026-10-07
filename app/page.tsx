@@ -1,4 +1,5 @@
 'use client';
+import {onWidgetOpen} from '@/lib/stop-widget';
 
 import {useMapStops} from '@/lib/use-map-stops';
 import {useStopDepartures} from '@/Panel/src/components/useStopDepartures';
@@ -368,6 +369,8 @@ export default function Home() {
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
+  const [widgetStop,setWidgetStop]=useState<StopsPanelStop|null>(null);
+  useEffect(()=>onWidgetOpen(stop=>{setWidgetStop(stop);setActiveTab('stops');}),[]);
   const [hasOpenedStops, setHasOpenedStops] = useState(false);
   useEffect(() => {
     if (activeTab === 'stops') setHasOpenedStops(true);
@@ -1790,6 +1793,7 @@ export default function Home() {
             aria-hidden={activeTab !== 'stops'}
          >
             {hasOpenedStops && <StopsPanel
+               initialStop={widgetStop}
                active={activeTab === 'stops'}
                stops={stopsList}
                isLoading={stopsList.length === 0 && !stopsLoadError}

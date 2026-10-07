@@ -37,6 +37,37 @@ try{
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.9822,lng:21.94},zoom:15})));await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-container');
  await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');assert.equal(await page.$$('.map-catalog-stop').then(rows=>rows.length),0,'overview zoom hides dots');
  await option();assert.equal(await page.evaluate(()=>localStorage.getItem('mks_show_map_stops')),'false');
+ await button('Przystanki');
+ await page.waitForSelector('input[placeholder*="Babica"]');
+ await page.type('input[placeholder*="Babica"]','Rzeszów TestMap');
+ await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent==='Rzeszów TestMap'));
+ await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent==='Rzeszów TestMap').click());
+ await page.waitForSelector('[aria-label="Generuj widżet przystanku"]');await page.click('[aria-label="Generuj widżet przystanku"]');
+ await page.waitForSelector('[aria-labelledby="widget-title"]');
+ assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>el.parentElement.parentElement.tagName),'BODY','widget dialog uses a portal above transformed panels');
+ assert.match(await page.$eval('[aria-labelledby="widget-title"]',el=>el.textContent),/Generuj widżet/);
+ assert.equal(await page.$eval('[aria-label="Zamknij okno widżetu"]',el=>el.querySelector('svg')===null),true,'only the rounded handle is shown, without X');
+ await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Tylko wybrane linie')).click());
+ await page.waitForSelector('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),true);await page.click('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),false);
+ await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Duży')).click());
+ assert.equal(await page.$eval('[aria-labelledby="widget-title"] button[aria-pressed="true"]',el=>el.textContent.includes('Duży')),true);
+ await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent==='Jasny').click());
+ const widgetPreview=path.resolve('test/ui-previews/generate-widget.png');await page.screenshot({path:widgetPreview});
+ await page.keyboard.press('Escape');await page.waitForSelector('[aria-labelledby="widget-title"]',{hidden:true});
+ const runner=await browser.newPage();const runnerErrors=[];runner.on('pageerror',e=>runnerErrors.push(e.message));
+ await runner.evaluateOnNewDocument(()=>{
+  const Original=Date;window.Date=class extends Original{constructor(...args){super(...(args.length?args:[Original.parse('2026-10-07T11:45:20Z')]));}static now(){return Original.parse('2026-10-07T11:45:20Z');}};
+  window.widgetUrls=[];
+  window.NativeWidget={config:()=>JSON.stringify({stop:{id:'900002',name:'Boguchwała TestMap',type:'bus',carriers:[],lines:['108'],isFavorite:false,sourceProviderIds:['pks']},lines:null,size:'medium',theme:'system'}),
+   http:(id,url)=>{window.widgetUrls.push(url);const data=url.includes('nearest-departures')?{journeys:[{line_name:'108',route_description:'Rzeszów',timetable_time:'2026-10-07 13:55:00'}]}:[];setTimeout(()=>window.widgetHttpResult(id,200,JSON.stringify(data)),0);},
+   complete:(rows)=>{window.widgetResult=JSON.parse(rows);},failed:()=>{window.widgetFailed=true;}};
+ });
+ await runner.goto(origin+'/widget-data/index.html',{waitUntil:'domcontentloaded'});
+ await runner.waitForFunction(()=>window.widgetResult||window.widgetFailed,{timeout:30000});
+ assert.equal(await runner.evaluate(()=>window.widgetFailed),undefined,'background runner succeeds without Firebase login');
+ assert.equal(await runner.evaluate(()=>window.widgetResult[0].line),'108');
+ assert.ok(await runner.evaluate(()=>window.widgetUrls.some(url=>url.startsWith('http://einfo.zgpks.rzeszow.pl/api/its/infoboard/nearest-departures/'))),'runner uses the Android transport endpoint, not a missing local API route');
+ assert.deepEqual(runnerErrors,[]);await runner.close();
  assert.deepEqual(errors,[]);console.log('Map stops: enable, city/rural colours, click/highlight/sheet, persistence, zoom threshold and disable passed.');
 }finally{await browser.close();server.close();fixture.cleanup();}
 })().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});

@@ -193,7 +193,8 @@ type PkpTrainMetadata = {
   trainName?: string;
 };
 
-const isNative = () => Capacitor.isNativePlatform();
+const isWidgetRunner = () => typeof window !== 'undefined' && Boolean((window as any).NativeWidget);
+const isNative = () => Capacitor.isNativePlatform() || isWidgetRunner();
 const EINFO_DIRECT = 'http://einfo.zgpks.rzeszow.pl/api';
 
 function einfoFallbackUrl(pathAndOptionalQuery: string) {
@@ -208,7 +209,7 @@ async function requestJson<T>(url: string, init?: RequestInit & {headers?: Recor
 }
 
 async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
-  if (isNative()) {
+  if (isNative() && !isWidgetRunner()) {
     let data: unknown;
     if (typeof init?.body === 'string' && init.body) {
       try {
@@ -348,7 +349,7 @@ async function requestText(url: string, init?: RequestInit & {headers?: Record<s
 }
 
 async function requestTextImpl(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
-  if (isNative()) {
+  if (isNative() && !isWidgetRunner()) {
     const response = await CapacitorHttp.request({
       url,
       method: init?.method || 'GET',

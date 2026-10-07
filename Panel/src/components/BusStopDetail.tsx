@@ -1,6 +1,8 @@
+import {syncStopWidgets} from '../../../lib/stop-widget';
+import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
 import {useForegroundRefresh} from '../../../lib/use-foreground-refresh';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ArrowLeft, MapPin, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, MapPin, LayoutGrid, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { departureIsPast, departureCountdown } from '../../../lib/departure-display';
@@ -55,6 +57,7 @@ function getDynamicDays() {
 }
 
 export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, vehicles = [], onShowOnMap, isDarkTheme = true, active = true }: BusStopDetailProps) {
+  const [showWidget,setShowWidget]=useState(false);
   const todayKey = warsawDateIso();
   const days = useMemo(getDynamicDays,[todayKey]);
   const [selectedLine, setSelectedLine] = useState<string>('all');
@@ -68,6 +71,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const departures = useMemo(() => scheduledDepartures
     .map(departure => departureFromLiveVehicle(departure, vehicles))
     .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
+  useEffect(()=>{if(active&&selectedDayIndex===0&&!isLoading&&(!warnings.length||departures.length))void syncStopWidgets(stop.id,departures,vehicles,warnings).catch(()=>{});},[stop.id,departures,vehicles,warnings,isLoading,active,selectedDayIndex]);
   const reduceMotion = useReducedMotion();
   const animateDepartures = !reduceMotion && !showAllDepartures;
 
@@ -178,6 +182,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                 <MapPin size={13} className="ui-accent-text" />
                 <span>Pokaż na mapie</span>
               </button>
+              <button aria-label="Generuj widżet przystanku" onClick={()=>setShowWidget(true)} className={`ui-accent-focus ui-accent-text w-10 h-10 flex items-center justify-center rounded-xl border flex-shrink-0 ${mapButtonClass}`}><LayoutGrid size={19}/></button>
               <button 
                 aria-label={stop.isFavorite ? "Usuń z ulubionych" : "Dodaj do ulubionych"}
                 onClick={() => toggleFavorite(stop.id)} 
@@ -408,6 +413,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
         </div>
       </div>
+      {showWidget&&<GenerateStopWidget stop={stop} lines={combinedLines} departures={departures} vehicles={vehicles} dark={isDarkTheme} onClose={()=>setShowWidget(false)}/>}
     </motion.div>
   );
 }

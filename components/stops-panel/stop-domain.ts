@@ -19,6 +19,7 @@ type RawStop = {
 };
 
 interface StopsPanelProps {
+  initialStop?: Stop | null;
   active?: boolean;
   stops: RawStop[];
   isLoading: boolean;

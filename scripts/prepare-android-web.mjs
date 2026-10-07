@@ -40,6 +40,7 @@ function copyDir(src, dest) {
 cleanDir(outDir);
 
 copyIfExists(path.join(appDir, 'index.html'), path.join(outDir, 'index.html'));
+copyIfExists(path.join(appDir, 'widget-data.html'), path.join(outDir, 'widget-data', 'index.html'));
 copyIfExists(path.join(appDir, 'admin.html'), path.join(outDir, 'admin', 'index.html'));
 copyIfExists(path.join(appDir, '_not-found.html'), path.join(outDir, '404.html'));
 copyIfExists(path.join(appDir, 'manifest.webmanifest.body'), path.join(outDir, 'manifest.webmanifest'));

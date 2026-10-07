@@ -1,7 +1,7 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import UIMotionProvider from '@/components/UIMotionProvider';
-import { FirebaseProvider } from '@/components/FirebaseProvider';
+import AppProviders from '@/components/AppProviders';
 
 export const metadata: Metadata = {
   title: 'PKS Live',
@@ -25,9 +25,9 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
         />
       </head>
       <body suppressHydrationWarning>
-        <FirebaseProvider>
+        <AppProviders>
           <UIMotionProvider>{children}</UIMotionProvider>
-        </FirebaseProvider>
+        </AppProviders>
       </body>
     </html>
   );
