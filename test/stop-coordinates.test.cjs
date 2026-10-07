@@ -61,6 +61,6 @@ test('close stops in one provider need full identity, not merely a shared locali
   const stops=[{id:'a',name:'Konieczkowa szkoła',lat:49.84,lon:21.92,lines:[]},
     {id:'b',name:'Konieczkowa kościół',lat:49.84001,lon:21.92,lines:[]},
     {id:'c',name:'Konieczkowa szkoła',lat:49.84002,lon:21.92,lines:[]}];
-  const map=buildStopsCatalog(stops,[],[],'nearby-different-landmarks',true);
+  const map=buildStopsCatalog([stops[1],stops[0],stops[2]],[],[],'nearby-different-landmarks',true);
   assert.equal(map.length,2);assert.equal(map.find(s=>s.id==='a').providerStopIds.pks,'a,c');
 });

@@ -155,7 +155,9 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       const lonKey = Number.isFinite(raw.lon) ? Number(raw.lon).toFixed(4) : 'x';
       const providerKey = [...candidateProviders].sort().join('+');
       const cacheKey = `${providerKey}|${exactIdentity}|${normalizeStopMergeName(raw.name)}|${latKey}|${lonKey}`;
-      if (crossMatchCache.has(cacheKey)) return crossMatchCache.get(cacheKey) || null;
+      // A same-provider lookup runs while its catalog is still growing. A miss
+      // cannot be reused after another physical stop has been registered.
+      if (!exactIdentity && crossMatchCache.has(cacheKey)) return crossMatchCache.get(cacheKey) || null;
 
       const localGpsSet = new Set<InternalStop>();
       geoBucketKeys(raw.lat, raw.lon).forEach((key) => {
