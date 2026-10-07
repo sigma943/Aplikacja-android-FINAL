@@ -8,7 +8,7 @@ import { ensureFirebaseUser, registerDeviceOnce } from '@/lib/firebase-session';
 import { setTransportRuntime } from '@/lib/transport-runtime';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
-import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc, deleteField } from 'firebase/firestore';
 import { buildDevicePermissions, type DeviceRole } from '@/lib/admin/rbac';
 import { agentLog } from '@/lib/debug-agent-log';
 import { CloudOff, RefreshCw, Wrench } from 'lucide-react';
@@ -175,6 +175,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
+  const [startupError,setStartupError]=useState<string|null>(null);
   const [browserOffline, setBrowserOffline] = useState(false);
   const [networkStatusReady, setNetworkStatusReady] = useState(
     () => typeof window === 'undefined' || !Capacitor.isNativePlatform(),
@@ -253,6 +254,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       ensureFirebaseUser(auth).catch((error) => {
         if (cancelled) return;
         console.error('Anonymous sign-in failed', error);
+        setStartupError(startupFailureMessage(error));
         // A made-up guest UID has no Firebase credentials and cannot write.
         // Retry with real credentials after temporary network failures.
         retryTimer = setTimeout(login, 10_000);
@@ -324,6 +326,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
     const deviceRef = doc(db, 'devices', user.uid);
     let cancelled = false;
+    let mirroredAccess = '';
 
     const register = async () => {
       try {
@@ -425,7 +428,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       try {
         await registerDeviceOnce(user.uid, register);
         registered = true;
-      } catch {
+        if(!cancelled)setStartupError(null);
+      } catch(error) {
+        if(!cancelled)setStartupError(startupFailureMessage(error));
         // Keep the same UID and installation ID when retrying.
       } finally {
         running = false;
@@ -439,6 +444,17 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       if (snapshot.exists()) {
         const data = snapshot.data() as DeviceData;
+        // Persist access changes from the admin UI AND Firebase Console. Heartbeats
+        // must not rewrite the saved profile, and UI defaults must not alter grants.
+        if(data.installationId&&data.permissions) {
+          const access={installationId:data.installationId,role:data.role,permissions:data.permissions,status:data.status||'active',verified:data.verified===true,
+            ...(data.banDetails?{banDetails:data.banDetails}:{}),...(data.displayName?{displayName:data.displayName}:{}),...(data.deviceName?{deviceName:data.deviceName}:{}),...(typeof data.firstLogin==='string'?{firstLogin:data.firstLogin}:{})};
+          const signature=JSON.stringify(access);
+          if(signature!==mirroredAccess) {
+            mirroredAccess=signature;
+            void setDoc(doc(db,'installations',data.installationId),{...access,banDetails:data.banDetails||deleteField(),displayName:data.displayName||deleteField(),updatedBy:user.uid,lastUid:user.uid,updatedAt:serverTimestamp()},{merge:true}).catch(error=>console.warn('Access profile mirror failed',error));
+          }
+        }
         if ((data.role === 'owner' || data.role === 'admin') && data.verified !== true) {
           data.verified = true;
         }
@@ -458,6 +474,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         );
         // #endregion
         setDevice(data);
+        setStartupError(null);
         setLoading(false);
       } else {
         setDevice(null);
@@ -595,7 +612,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     !initialRenderReleased && (!networkStatusReady || browserOffline || loading || (!isPrivilegedDevice && settingsLoading));
 
   useEffect(() => {
-    if (!connectionTimedOut && !shouldHoldInitialRender && !initialRenderReleased) {
+    if (!shouldHoldInitialRender && !initialRenderReleased) {
       const releaseTimer = window.setTimeout(() => setInitialRenderReleased(true), 0);
       return () => window.clearTimeout(releaseTimer);
     }
@@ -603,6 +620,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!shouldHoldInitialRender) {
+      setConnectionTimedOut(false);
       return;
     }
     if (connectionTimedOut) return;
@@ -635,7 +653,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs, hiddenProviderIds }}>
-      {connectionTimedOut ? (
+      {startupError && !device && !shouldShowInitialOffline ? (
+        <ConnectionTimeoutScreen errorMessage={startupError} />
+      ) : connectionTimedOut && shouldHoldInitialRender ? (
         <ConnectionTimeoutScreen timeout />
       ) : shouldShowInitialOffline ? (
         <ConnectionTimeoutScreen />
@@ -820,7 +840,15 @@ function LoadingScreen() {
   );
 }
 
-function ConnectionTimeoutScreen({ timeout = false }: { timeout?: boolean }) {
+function startupFailureMessage(error:unknown) {
+  const code=String((error as {code?:string})?.code||'');
+  if(code.includes('permission-denied'))return 'Firebase odrzucił przywrócenie profilu. Opublikuj aktualne reguły Firestore. Zapisana ranga nie została zmieniona.';
+  if(code.includes('operation-not-allowed'))return 'Włącz logowanie anonimowe w Firebase Authentication.';
+  if(error instanceof Error&&error.message.includes('identyfikatora Androida'))return error.message;
+  return 'Nie udało się połączyć z Firebase. Sprawdź internet; aplikacja ponowi połączenie automatycznie.';
+}
+
+function ConnectionTimeoutScreen({ timeout = false,errorMessage }: { timeout?: boolean;errorMessage?:string }) {
   const [theme] = useState(themeShell);
 
   return (
@@ -832,10 +860,10 @@ function ConnectionTimeoutScreen({ timeout = false }: { timeout?: boolean }) {
           <CloudOff size={38} strokeWidth={2.4} />
         </div>
         <h1 className={`text-2xl font-black tracking-tight ${theme.main}`}>
-          {timeout ? 'Przekroczono czas połączenia' : 'Brak połączenia z internetem'}
+          {errorMessage ? 'Nie udało się przywrócić urządzenia' : timeout ? 'Przekroczono czas połączenia' : 'Brak połączenia z internetem'}
         </h1>
-        <p className="mt-5 font-mono text-base font-bold text-red-400">
-          {timeout ? 'ConnectionTimeoutError' : 'NetworkError'}
+        <p className="mt-5 text-sm leading-relaxed text-red-400">
+          {errorMessage || (timeout ? 'Spróbuj ponownie. Aplikacja uruchomi się również automatycznie po przywróceniu połączenia.' : 'Sprawdź Wi-Fi lub transmisję danych.')}
         </p>
         <div className="my-7 h-px w-full bg-white/10" />
         <button

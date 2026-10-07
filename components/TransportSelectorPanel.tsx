@@ -37,7 +37,7 @@ function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) 
 
   if (themeMode === 'dark-oled') {
     return {
-      shell: `border-white/10 ${transparentUI ? 'bg-[#080c10]/84' : 'bg-[#080c10]/98'} text-white ${glass}`,
+      shell: `border-white/10 ${transparentUI ? 'bg-[#141d26]/62' : 'bg-[#080c10]/98'} text-white ${glass}`,
       header: 'border-white/10',
       sub: 'text-slate-300',
       cardBase: 'bg-white/[0.035]',
@@ -50,7 +50,7 @@ function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) 
 
   if (themeMode === 'dark-aurora') {
     return {
-      shell: `border-fuchsia-300/16 ${transparentUI ? 'bg-[#111026]/78' : 'bg-[#111026]/96'} text-white ${glass}`,
+      shell: `border-fuchsia-300/16 ${transparentUI ? 'bg-[#211b36]/60' : 'bg-[#111026]/96'} text-white ${glass}`,
       header: 'border-fuchsia-300/14',
       sub: 'text-violet-200/76',
       cardBase: 'bg-white/[0.045]',
@@ -63,7 +63,7 @@ function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) 
 
   if (themeMode === 'light-warm') {
     return {
-      shell: `border-[#cfc89f] ${transparentUI ? 'bg-[#f8f2e4]/78' : 'bg-[#f8f2e4]/97'} text-[#2f2a1f] ${glass}`,
+      shell: `border-[#cfc89f] ${transparentUI ? 'bg-[#f8f2e4]/64' : 'bg-[#f8f2e4]/97'} text-[#2f2a1f] ${glass}`,
       header: 'border-[#d8cfaa]',
       sub: 'text-[#6d674f]',
       cardBase: 'bg-white/45',
@@ -76,7 +76,7 @@ function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) 
 
   if (!isDark) {
     return {
-      shell: `border-slate-200 ${transparentUI ? 'bg-white/78' : 'bg-white/97'} text-slate-950 ${glass}`,
+      shell: `border-slate-200 ${transparentUI ? 'bg-white/64' : 'bg-white/97'} text-slate-950 ${glass}`,
       header: 'border-slate-200',
       sub: 'text-slate-600',
       cardBase: 'bg-slate-50',
@@ -88,7 +88,7 @@ function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) 
   }
 
   return {
-    shell: `border-white/10 ${transparentUI ? 'bg-[#071017]/78' : 'bg-[#071017]/96'} text-white ${glass}`,
+    shell: `border-white/10 ${transparentUI ? 'bg-[#1b2937]/58' : 'bg-[#071017]/96'} text-white ${glass}`,
     header: 'border-white/10',
     sub: 'text-slate-300',
     cardBase: 'bg-white/[0.04]',
@@ -123,7 +123,7 @@ export default function TransportSelectorPanel({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 z-[120] flex items-end justify-center bg-black/45 p-2 pb-[calc(86px+env(safe-area-inset-bottom))] backdrop-blur-sm md:items-center md:p-8"
+          className={`absolute inset-0 z-[120] flex items-end justify-center ${transparentUI ? 'bg-black/15' : 'bg-black/45 backdrop-blur-sm'} p-2 pb-[calc(86px+env(safe-area-inset-bottom))] md:items-center md:p-8`}
           onClick={onClose}
         >
           <motion.div
@@ -131,6 +131,7 @@ export default function TransportSelectorPanel({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 22, scale: 0.985 }}
             transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+            data-carrier-sheet data-glass={transparentUI ? 'on' : 'off'}
             onClick={(event) => event.stopPropagation()}
             className={`flex max-h-[calc(100dvh-96px-env(safe-area-inset-bottom))] w-full flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:max-h-[min(720px,calc(100dvh-64px))] md:max-w-[600px] ${theme.shell}`}
           >

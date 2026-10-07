@@ -221,3 +221,25 @@ test('restore works if the prior UID document is already absent; failed transfer
  const unsafeDb=env.authenticatedContext('unverified-new-uid').firestore();
  await assertFails(setDoc(doc(unsafeDb,'devices','unverified-new-uid'),device('user','unsafe-install',buildDevicePermissions('owner'))));
 });
+
+test('owner reinstallation starts under the previously deployed rules and removes the old record',async()=>{
+ const legacy=await initializeTestEnvironment({projectId:'demo-pks-legacy',firestore:{host:'127.0.0.1',port:8088,rules:fs.readFileSync('test/fixtures/firestore-before-device-transfer.rules','utf8')}});
+ try{
+  await legacy.clearFirestore();const id='android_0123456789abcdef';const saved={...device('owner',id),lastUid:'previous-owner-uid',updatedBy:'owner',displayName:'Owner',firstLogin:'2026-01-01'};
+  await legacy.withSecurityRulesDisabled(async context=>{const db=context.firestore();await setDoc(doc(db,'devices','previous-owner-uid'),saved);await setDoc(doc(db,'installations',id),saved);await setDoc(doc(db,'admin_settings','security'),{autoBan:false});});
+  const db=legacy.authenticatedContext('reinstalled-owner-uid').firestore();
+  const {registerRestoredDevice}=loadTs('lib/device-registration.ts',{'firebase/firestore':firebaseSdk});
+  await assertSucceeds(registerRestoredDevice(db,'reinstalled-owner-uid',id,'Phone',false,{}));
+  assert.equal((await getDoc(doc(db,'devices','reinstalled-owner-uid'))).data().role,'owner');
+  assert.equal((await getDoc(doc(db,'devices','previous-owner-uid'))).exists(),false);
+  assert.equal((await getDoc(doc(db,'installations',id))).data().lastUid,'reinstalled-owner-uid');
+ }finally{await legacy.cleanup();}
+});
+test('maintenance editor clears history on Spark; read-only admin and users cannot delete it',async()=>{
+ await env.withSecurityRulesDisabled(async context=>{const db=context.firestore();await setDoc(doc(db,'maintenance_changes','entry-one'),{action:'test',createdAt:firebaseSdk.Timestamp.now(),summary:'Event'});await setDoc(doc(db,'devices','viewer'),device('admin','viewer-install',{globalSettings:true}));});
+ const user=sparkClient('user',env.authenticatedContext('user').firestore());
+ const viewer=sparkClient('viewer',env.authenticatedContext('viewer').firestore());
+ await assert.rejects(user.callClearHistory({}),e=>e.code==='permission-denied');await assert.rejects(viewer.callClearHistory({}),e=>e.code==='permission-denied');
+ await assertFails(firebaseSdk.deleteDoc(doc(env.authenticatedContext('viewer').firestore(),'maintenance_changes','entry-one')));
+ const ownerDb=env.authenticatedContext('owner').firestore();const result=await assertSucceeds(sparkClient('owner',ownerDb).callClearHistory({}));assert.equal(result.data.deletedCount,1);assert.equal((await getDocs(collection(ownerDb,'maintenance_changes'))).size,0);
+});

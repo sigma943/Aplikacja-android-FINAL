@@ -1,4 +1,4 @@
-import {doc,runTransaction,serverTimestamp,type Firestore} from 'firebase/firestore';
+import {doc,getDoc,setDoc,deleteDoc,runTransaction,serverTimestamp,type Firestore} from 'firebase/firestore';
 import {buildDevicePermissions,type DeviceRole} from './admin/rbac';
 
 type Profile=Record<string,any>;
@@ -16,6 +16,29 @@ export function restoredDevicePayload(profile:Profile,previous:Profile,installat
 
 /** Atomically transfer the existing physical-device record to the new Auth UID. */
 export async function registerRestoredDevice(db:Firestore,uid:string,installationId:string,deviceInfo:string,autoBan:boolean,banDetails:Profile) {
+  try {
+    await transferDevice(db,uid,installationId,deviceInfo,autoBan,banDetails);
+  } catch(error) {
+    const code=String((error as {code?:string})?.code||'');
+    if(code!=='permission-denied'&&code!=='firestore/permission-denied')throw error;
+    // Older deployed rules allow restoring our own UID, but not reading/deleting
+    // the previous UID until the owner record exists. Do not downgrade its role.
+    const currentRef=doc(db,'devices',uid),profileRef=doc(db,'installations',installationId);
+    if((await getDoc(currentRef)).exists())return;
+    const snapshot=await getDoc(profileRef);
+    const profile=snapshot.exists()?snapshot.data():{};
+    const payload=restoredDevicePayload(profile,{},installationId,deviceInfo,autoBan,banDetails);
+    await setDoc(currentRef,{...payload,lastSeenAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    await setDoc(profileRef,{...payload,installationId,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
+    if(payload.role==='owner'&&typeof profile.lastUid==='string'&&profile.lastUid!==uid&&/^[\w-]{6,128}$/.test(profile.lastUid)) {
+      const previousRef=doc(db,'devices',profile.lastUid);
+      const previous=await getDoc(previousRef);
+      if(previous.exists()&&previous.data().installationId===installationId)await deleteDoc(previousRef);
+    }
+  }
+}
+
+async function transferDevice(db:Firestore,uid:string,installationId:string,deviceInfo:string,autoBan:boolean,banDetails:Profile) {
   return runTransaction(db,async tx=>{
     const currentRef=doc(db,'devices',uid),profileRef=doc(db,'installations',installationId);
     const current=await tx.get(currentRef);

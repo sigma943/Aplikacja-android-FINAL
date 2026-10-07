@@ -81,3 +81,17 @@ sekrety opisane wyżej, z aliasem `pks-live`. Nowy klucz oznacza jednorazową zm
 Android ID względem poprzednich APK i konieczność ponownego nadania rangi.
 Reinstalowanie dokładnie tego samego APK zachowuje podpis również przed ustawieniem
 sekretów; kolejne buildy wymagają stałego klucza.
+
+## Wersja 2.3 — start przy starszych regułach
+
+Jeśli poprzednio wdrożone reguły odrzucą atomowe przeniesienie UID, aplikacja
+przywraca dokładny zapisany profil własnego urządzenia ścieżką zgodną ze starymi
+regułami. Dla właściciela usuwa następnie powiązany poprzedni wpis. Starsze reguły
+mogą blokować sprzątanie poprzedniego wpisu administratora — aktualne reguły nadal
+są potrzebne do pełnego przenoszenia wszystkich rang i czyszczenia historii.
+Zmiany dostępu z konsoli Firebase są od razu odzwierciedlane w profilu instalacji;
+heartbeat nie nadpisuje uprawnień. Po późnej udanej rejestracji ekran przekroczenia
+czasu znika automatycznie. Odmowa uprawnień ma osobny komunikat z przyczyną.
+
+Identyfikator po ponownym zainstalowaniu tego samego APK pozostaje identyczny.
+Dla kolejnych buildów nadal należy ustawić ten sam prywatny klucz podpisu opisany wyżej.
