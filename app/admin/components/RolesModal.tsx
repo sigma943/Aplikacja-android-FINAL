@@ -1,3 +1,4 @@
+import {AdminModalPortal} from './AdminModalPortal';
 import { X, Shield, Monitor, Users, Lock, Activity, Hammer, Globe, SlidersHorizontal, UserCog } from 'lucide-react';
 import { Device } from '../types';
 import { cn } from '@/lib/utils';
@@ -160,22 +161,23 @@ export function RolesModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-[#020408]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <AdminModalPortal>
+    <div role="dialog" aria-modal="true" aria-label="Edycja uprawnień" className="admin-modal-overlay bg-[#020408]/80 backdrop-blur-sm">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-lg shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden"
+        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-lg shadow-2xl relative flex flex-col max-h-full overflow-hidden"
       >
         
         {/* Header */}
-        <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-sky-500/10 flex items-center justify-center border border-sky-500/20 shadow-[0_0_15px_rgba(14,165,233,0.1)]">
-              <Shield className="text-sky-400" size={24} />
+        <div className="p-4 sm:p-6 border-b border-white/5 flex min-w-0 items-center justify-between gap-3 shrink-0">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="w-12 h-12 aspect-square shrink-0 rounded-2xl bg-sky-500/10 flex items-center justify-center border border-sky-500/20 shadow-[0_0_15px_rgba(14,165,233,0.1)]">
+              <Shield className="shrink-0 text-sky-400" size={24} />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Edycja uprawnień</h2>
-              <p className="text-sm text-slate-400">
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Edycja uprawnień</h2>
+              <p className="break-words text-xs sm:text-sm text-slate-400">
                 Imię i nazwisko oraz rola w panelu:{' '}
                 <strong className="text-white">{device.name}</strong>
                 <span className="text-slate-500"> · </span>
@@ -183,12 +185,12 @@ export function RolesModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-3 text-slate-400 hover:text-white rounded-2xl hover:bg-white/5 transition-all cursor-pointer">
+          <button onClick={onClose} className="shrink-0 p-2 text-slate-400 hover:text-white rounded-2xl hover:bg-white/5 transition-all cursor-pointer">
             <X size={24} />
           </button>
         </div>
 
-        <div className="p-6 space-y-8 overflow-y-auto">
+        <div className="min-h-0 flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto overscroll-contain">
           {isSelfTarget && (
             <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
               To Twoje urządzenie — edycja własnej roli z aplikacji jest zablokowana (w tym zapis pseudonimu).
@@ -354,7 +356,7 @@ export function RolesModal({
 
         </div>
 
-        <div className="p-6 border-t border-white/5 bg-[#111623]/50 backdrop-blur-xl shrink-0">
+        <div className="p-4 sm:p-6 border-t border-white/5 bg-[#111623]/50 backdrop-blur-xl shrink-0">
           <button 
             type="button"
             onClick={async () => {
@@ -380,6 +382,7 @@ export function RolesModal({
 
       </motion.div>
     </div>
+    </AdminModalPortal>
   );
 }
 

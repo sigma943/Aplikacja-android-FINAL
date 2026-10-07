@@ -192,3 +192,31 @@ test('Spark read-only admin can diagnose without writes; editor can persist; ban
     await assertFails(updateDoc(doc(env.authenticatedContext('banned').firestore(), 'maintenance_endpoints', endpointId), { enabled: false, updatedBy: 'banned', updatedAt: firebaseSdk.serverTimestamp() }));
   } finally { /* Health requests are isolated from the emulator transport. */ }
 });
+
+for(const role of ['owner','admin','user'])test(`atomic physical-device transfer preserves ${role} and removes previous UID including ban`,async()=>{
+ const id='android_0123456789abcdef';const previousUid='previous-uid';const permissions=buildDevicePermissions(role,{canBan:false});
+ const saved={...device(role,id,permissions),status:'banned',banDetails:{reason:'retain',expiresAt:'',gifUrl:''},lastUid:previousUid,updatedBy:'owner',displayName:'Operator',deviceName:'My phone'};
+ await env.withSecurityRulesDisabled(async context=>{const db=context.firestore();await setDoc(doc(db,'devices',previousUid),saved);await setDoc(doc(db,'installations',id),saved);});
+ const db=env.authenticatedContext('new-device-uid').firestore();
+ const {registerRestoredDevice}=loadTs('lib/device-registration.ts',{'firebase/firestore':firebaseSdk});
+ await assertSucceeds(registerRestoredDevice(db,'new-device-uid',id,'Poco F8 Pro',false,{}));
+ const record=(await getDoc(doc(db,'devices','new-device-uid'))).data();
+ assert.equal(record.role,role);assert.deepStrictEqual(record.permissions,permissions);assert.equal(record.status,'banned');assert.deepStrictEqual(record.banDetails,saved.banDetails);assert.equal(record.firstLogin,saved.firstLogin);assert.equal(record.deviceName,'My phone');
+ await env.withSecurityRulesDisabled(async context=>{assert.equal((await getDoc(doc(context.firestore(),'devices',previousUid))).exists(),false);});
+ assert.equal((await getDoc(doc(db,'installations',id))).data().lastUid,'new-device-uid');
+ // A second reinstall uses the just-transferred profile, without accumulating another device.
+ const nextDb=env.authenticatedContext('next-device-uid').firestore();
+ await assertSucceeds(registerRestoredDevice(nextDb,'next-device-uid',id,'Phone',false,{}));
+ await env.withSecurityRulesDisabled(async context=>{const db=context.firestore();assert.equal((await getDoc(doc(db,'devices','new-device-uid'))).exists(),false);assert.equal((await getDoc(doc(db,'devices','next-device-uid'))).exists(),true);});
+});
+test('restore works if the prior UID document is already absent; failed transfer cannot delete another device',async()=>{
+ const id='android_0123456789abcdef';const saved={...device('admin',id),lastUid:'missing-previous-uid',updatedBy:'owner'};
+ await env.withSecurityRulesDisabled(async context=>setDoc(doc(context.firestore(),'installations',id),saved));
+ const db=env.authenticatedContext('fresh-uid').firestore();const {registerRestoredDevice}=loadTs('lib/device-registration.ts',{'firebase/firestore':firebaseSdk});
+ await assertSucceeds(registerRestoredDevice(db,'fresh-uid',id,'Phone',false,{}));
+ const batch=writeBatch(env.authenticatedContext('attacker-uid').firestore());
+ batch.delete(doc(env.authenticatedContext('attacker-uid').firestore(),'devices','user'));
+ await assertFails(batch.commit());
+ const unsafeDb=env.authenticatedContext('unverified-new-uid').firestore();
+ await assertFails(setDoc(doc(unsafeDb,'devices','unverified-new-uid'),device('user','unsafe-install',buildDevicePermissions('owner'))));
+});

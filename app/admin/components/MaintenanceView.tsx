@@ -1,3 +1,4 @@
+import {AdminModalPortal} from './AdminModalPortal';
 import {useAppBack} from '@/lib/use-app-back';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { callInitialize, callSaveEndpoint, callTestEndpoint, callSetActive, callDisable, callRollback } from '@/lib/maintenance-spark';
@@ -454,9 +455,10 @@ export function MaintenanceView({
 
       <AnimatePresence>
         {showHistory && (
-          <motion.div className="fixed inset-0 z-[12000] flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }} className="max-h-[85dvh] w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-[#111623] shadow-2xl">
-              <div className="flex items-center justify-between border-b border-white/10 p-5">
+          <AdminModalPortal>
+          <motion.div role="dialog" aria-modal="true" aria-label="Historia zmian" className="admin-modal-overlay bg-black/60 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }} className="flex max-h-full min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#111623] shadow-2xl">
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 p-5">
                 <div>
                   <h2 className="text-lg font-black text-white">Historia zmian</h2>
                   <p className="text-xs text-slate-500">Ostatnie operacje infrastruktury API</p>
@@ -465,7 +467,7 @@ export function MaintenanceView({
                   <X size={18} />
                 </button>
               </div>
-              <div className="max-h-[65dvh] space-y-2 overflow-y-auto p-4">
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
                 {changes.length ? changes.map((change) => (
                   <div key={change.id} className="rounded-2xl border border-white/10 bg-black/15 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -480,6 +482,7 @@ export function MaintenanceView({
               </div>
             </motion.div>
           </motion.div>
+          </AdminModalPortal>
         )}
       </AnimatePresence>
     </div>

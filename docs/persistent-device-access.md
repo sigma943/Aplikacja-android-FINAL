@@ -54,5 +54,30 @@ krótkotrwałym cache CI do przechowywania klucza. Sekrety nie są dostępne dla
 
 Testy reguł w CI sprawdzają ponowną rejestrację administratora i właściciela
 z dokładnymi zapisanymi uprawnieniami i odmowę przy braku profilu.
-Opcje na telefonie zajmują maksymalnie 46% wysokości ekranu. Zawartość przewija
-się wewnątrz, zachowując wszystkie ustawienia i stały nagłówek z przyciskiem zamknięcia.
+
+Rejestracja na planie Spark przenosi wpis urządzenia ze starego UID na nowy w jednej
+transakcji. Zachowuje pierwsze logowanie, własną nazwę, dokładne uprawnienia i blokadę.
+Poprzedni wpis znika po udanym zapisie. Sam chwilowy błąd odczytu Android ID nie
+powoduje wygenerowania nowego losowego identyfikatora.
+
+Nowe reguły trzeba jednorazowo opublikować z aktualnego checkoutu:
+
+```bash
+npx firebase login
+npx firebase deploy --project aplikacja-b20fa --only firestore:rules
+```
+
+To wdraża wyłącznie reguły Firestore i działa na planie Spark. Połączenie GitHub
+nie udostępnia uprawnień do wdrożenia projektu Firebase ani ustawiania sekretów GitHub.
+
+Jeśli nie masz dotychczasowego klucza, utwórz lokalnie nowy prywatny klucz (JDK):
+
+```bash
+keytool -genkeypair -keystore pks-live.keystore -alias pks-live -keyalg RSA -keysize 3072 -validity 10000
+```
+
+Keytool poprosi o hasło. Zachowaj klucz i hasło w bezpiecznym miejscu; ustaw cztery
+sekrety opisane wyżej, z aliasem `pks-live`. Nowy klucz oznacza jednorazową zmianę
+Android ID względem poprzednich APK i konieczność ponownego nadania rangi.
+Reinstalowanie dokładnie tego samego APK zachowuje podpis również przed ustawieniem
+sekretów; kolejne buildy wymagają stałego klucza.

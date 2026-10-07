@@ -1,3 +1,4 @@
+import {AdminModalPortal} from './AdminModalPortal';
 import {useAppBack} from '@/lib/use-app-back';
 import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown, Pencil, X, Check, CheckCircle2, Trash2 } from 'lucide-react';
 import { Badge } from './Badge';
@@ -387,8 +388,8 @@ export function DeviceTable({
           </motion.div>
         )}
         {renameDevice && (
-          <motion.div
-            className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/60 p-4 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] backdrop-blur-sm sm:pb-4"
+          <AdminModalPortal><motion.div
+            className="admin-modal-overlay bg-black/60 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -399,7 +400,7 @@ export function DeviceTable({
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 28, opacity: 0, scale: 0.98 }}
               onClick={(e) => e.stopPropagation()}
-              className="max-h-[calc(100dvh-8rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-[#111623] p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-6"
+              className="max-h-full w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-[#111623] p-5 shadow-2xl sm:p-6"
             >
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
@@ -447,7 +448,7 @@ export function DeviceTable({
                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </motion.div></AdminModalPortal>
         )}
       </AnimatePresence>
       <div className="flex flex-col gap-6 mb-8">
