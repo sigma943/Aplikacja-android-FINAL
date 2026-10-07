@@ -1722,7 +1722,7 @@ export default function Home() {
                              ) : selectedBusDisplayedStops.map((sch: any, idx: number) => {
                                 const timing = vehicleStopDeparture(selectedBus,sch);
                                 const timeStr = departureCountdown(timing,now);
-                                const timeClass = punctualityTimeClass(timing.delayMins);
+                                const timeClass = punctualityTimeClass(timing.delayMins,textMain);
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = Boolean(sch.isPast) || Boolean(selectedBus.lastStopId && sch.id === selectedBus.lastStopId);
                                 return (

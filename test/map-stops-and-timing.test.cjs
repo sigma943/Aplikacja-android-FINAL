@@ -3,7 +3,7 @@ const {vehicleStopDeparture,departureFromLiveVehicle,timedVehicleStops}=loadTs('
 const {departureCountdown}=loadTs('lib/departure-display.ts');
 const {upcomingVehicleStops}=loadTs('lib/vehicle-upcoming-stops.ts');
 const now=Date.parse('2026-10-07T11:45:20Z'),planned=now+10*60000;
-const vehicle={id:'117',provider:'pks',journeyId:42,routeShortName:'108',direction:'Gwoźnica',status:'active',dataAgeSec:5};
+const vehicle={id:'117',provider:'pks',journeyId:42,routeShortName:'108',direction:'Gwoźnica',status:'active',dataAgeSec:5,lastSignalTime:new Date(now).toISOString()};
 const stop={id:2083,name:'Baryczka',planned:new Date(planned).toISOString(),real:new Date(planned+60_000).toISOString()};
 for(const delay of [-180,0,180])test(`PKS stop board, map stop sheet and vehicle timetable agree for ${delay}s`,()=>{
   const bus={...vehicle,delay,routeStops:[stop]};
