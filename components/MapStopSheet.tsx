@@ -1,7 +1,7 @@
 'use client';
 
 import { Clock, ChevronUp } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 
 export interface MapStopDeparture {
   id: string;
@@ -25,6 +25,7 @@ interface Props {
 }
 
 export default function MapStopSheet({ name, expanded, onExpandedChange, transparent, dark, loading, error, departures }: Props) {
+  const reduceMotion = useReducedMotion();
   const next = departures[0];
   return (
     <motion.section
@@ -33,12 +34,12 @@ export default function MapStopSheet({ name, expanded, onExpandedChange, transpa
       data-expanded={expanded}
       data-glass={transparent ? 'on' : 'off'}
       data-ui-mode={dark ? 'dark' : 'light'}
-      initial={{ y: '100%', opacity: 0 }}
+      initial={reduceMotion ? false : { y: '100%', opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: '100%', opacity: 0 }}
-      transition={{ type: 'spring', stiffness: 360, damping: 34 }}
+      transition={reduceMotion ? {duration: 0} : { type: 'spring', stiffness: 360, damping: 34 }}
       className="map-stop-sheet map-detail-shell absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-2 right-2 z-40 flex min-h-0 flex-col overflow-hidden rounded-[24px] border md:bottom-4 md:left-4 md:right-auto md:w-[380px]"
-      style={{ height: expanded ? 'min(42dvh, 380px)' : '84px' }}
+      style={{ height: expanded ? 'min(42dvh, 380px)' : '84px', transition: reduceMotion ? 'none' : 'height 280ms cubic-bezier(.22,1,.36,1)' }}
     >
       <motion.button
         type="button"

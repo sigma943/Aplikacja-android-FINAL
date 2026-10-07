@@ -1,4 +1,5 @@
 'use client';
+import { motion, useReducedMotion } from 'motion/react';
 import { uiAccentVariables } from '@/lib/ui-accent';
 
 import type { CSSProperties } from 'react';
@@ -303,6 +304,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     hiddenProviderIds: [] as string[],
   });
 
+  const reduceMotion = useReducedMotion();
   const [activeView, setActiveView] = useState('devices');
   const [selectedDeviceForRole, setSelectedDeviceForRole] = useState<Device | null>(null);
   const [selectedDeviceForBan, setSelectedDeviceForBan] = useState<Device | null>(null);
@@ -1477,6 +1479,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           </div>
         )}
 
+        <motion.div className="flex min-h-0 flex-1 flex-col" key={activeView} initial={reduceMotion ? false : {opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}}>
         {activeView === 'devices' && (
           <DeviceTable
             devices={devices}
@@ -1601,6 +1604,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           onMenuClick={() => setIsSidebarOpen(true)}
         />
         )}
+        </motion.div>
       </div>
 
       {selectedDeviceForRole && (

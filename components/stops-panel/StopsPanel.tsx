@@ -1,4 +1,5 @@
 'use client';
+import { motion, useReducedMotion } from 'motion/react';
 import { buildStopsCatalog } from '@/lib/stops-catalog';
 import { loadStopDepartures } from '@/lib/stop-departures';
 import { peekStopsCatalogCache, readStopsCatalogCache, writeStopsCatalogCache, type MpkCatalogStop } from '@/lib/stops-catalog-cache';
@@ -232,6 +233,7 @@ export default function StopsPanel({
     setSelectedStop((current) => (current?.id === stopId ? { ...current, isFavorite: !current.isFavorite } : current));
   }, [onToggleFavorite]);
 
+  const reduceMotion = useReducedMotion();
   const handleSelectStop = useCallback((stop: Stop) => {
     setSelectedStop(stop);
   }, []);
@@ -275,7 +277,7 @@ export default function StopsPanel({
         {Object.keys(catalogErrors).join(', ')}: nie udało się pobrać pełnej listy przystanków.
         <button onClick={()=>{setCatalogErrors({});setCatalogAttempt(value=>value+1);}} className="ml-3 underline">Ponów</button>
       </div>}
-      <div className="h-full w-full">
+      <motion.div key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}} className="h-full w-full">
         {currentSelectedStop ? (
           <BusStopDetail
             stop={currentSelectedStop}
@@ -300,7 +302,7 @@ export default function StopsPanel({
             onSearchStateChange={(patch) => setStopsSearchState((current) => ({ ...current, ...patch }))}
           />
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { memo, startTransition, useEffect, useState, useRef, useCallback, useMem
 import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomControl, useMapEvents, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { routeGeometryKey } from '@/lib/route-geometry-key';
 import { officialBusRoute } from '@/lib/official-bus-routes';
 import { roadRouteMatchesStops, simplifyRoadRoute } from '@/lib/bus-road-geometry';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
@@ -201,9 +202,9 @@ async function readIndexedRouteGeometry(cacheKey: string, version: string) {
 }
 
 async function readPersistentRouteGeometry(cacheKey: string, version: string) {
-  const indexed = await readIndexedRouteGeometry(cacheKey, version).catch(() => []);
-  if (indexed.length > 1) return indexed;
-  return readLocalRouteGeometry(cacheKey, version);
+  const local = readLocalRouteGeometry(cacheKey, version);
+  if (local.length > 1) return local;
+  return readIndexedRouteGeometry(cacheKey, version).catch(() => []);
 }
 
 function writeLocalRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
@@ -1115,14 +1116,7 @@ export default function BusMap({
   const routeMode = selectedVehicle?.provider === 'pkp_intercity' ? 'rail' : 'road';
   const routeGeometryVersion = routeMode === 'rail' ? RAIL_ROUTE_GEOMETRY_CACHE_VERSION : ROAD_ROUTE_GEOMETRY_CACHE_VERSION;
   const routeKey = selectedVehicle
-    ? [
-        routeMode,
-        normalizeRouteCachePart(selectedVehicle.provider || 'pks'),
-        routeLine,
-        routeDirection,
-        String(selectedVehicle.tripId || selectedVehicle.journeyId || selectedVehicle.routeId || ''),
-        routeStopsHash,
-      ].join(':')
+    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops)
     : '';
 
   useEffect(() => {

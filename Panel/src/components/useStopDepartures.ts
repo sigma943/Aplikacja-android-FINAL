@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import type { Departure, DepartureResult, Stop } from '../types';
 import { stopRequestKey } from '../../../lib/stop-timetable-store';
 
@@ -26,7 +26,7 @@ export function useStopDepartures(stop: Stop, dayIndex: number, dateIso: string,
         if(!active) return;
         const result = Array.isArray(value) ? {departures:value,warnings:[]} : value;
         loaded = true;
-        setState({...result,isLoading:false,isFetching:false});
+        startTransition(() => setState({...result,isLoading:false,isFetching:false}));
       } catch(error) {
         if(active) setState(state=>({...state,isLoading:false,isFetching:false,warnings:[error instanceof Error ? error.message : 'Nie udało się pobrać odjazdów.',...(loaded ? ['Zachowano ostatnio pobrany rozkład.'] : [])]}));
       } finally {
@@ -35,7 +35,8 @@ export function useStopDepartures(stop: Stop, dayIndex: number, dateIso: string,
       }
     }
     refreshRef.current = ()=>{ void refresh(); };
-    void refresh();
+    // Give the new panel and its loading state a frame before cold timetable work.
+    timer = setTimeout(() => { void refresh(); }, 40);
     return ()=>{active=false;clearTimeout(timer);};
   },[key,dateIso,dayIndex]);
   return {...state,refresh:()=>refreshRef.current()};

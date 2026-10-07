@@ -88,33 +88,30 @@ test('Marcel fleet polling avoids per-bus route downloads; selection loads only 
   } finally { global.fetch = original; }
 });
 
-test('an aborted road route does not poison a replacement request with the same cache key', async () => {
+test('closing a route panel cancels its waiter while the shared geometry finishes for reselect', async () => {
   const original = global.fetch;
   const controller = new AbortController();
-  let calls = 0;
-  let started;
+  let calls = 0, release, started;
   const ready = new Promise(resolve => { started = resolve; });
-  global.fetch = async (url, options) => {
-    calls++;
-    if (calls === 1) {
-      started();
-      return new Promise((resolve, reject) => options.signal.addEventListener('abort',
-        () => reject(new DOMException('aborted', 'AbortError')), { once: true }));
-    }
-    return new Response(JSON.stringify({ trip: { legs: [{ shape: encodePolyline([[50,22],[50.1,22.1]]) }] } }));
+  const points = [[50,22],[50.1,22.1]];
+  global.fetch = async () => {
+    calls++; started();
+    await new Promise(resolve => {release=resolve;});
+    return new Response(JSON.stringify({trip:{legs:[{shape:encodePolyline(points)}]}}));
   };
   try {
-    const { fetchRoadRouteForStops } = loadTs('lib/pks-client.ts', native, '\nexport { fetchRoadRouteForStops };');
-    const points = [[50, 22], [50.1, 22.1]];
-    const first = fetchRoadRouteForStops(points, 'same-course', { signal: controller.signal });
-    const rejected = assert.rejects(first, { name: 'AbortError' });
-    await ready;
-    controller.abort();
-    const replacement = await fetchRoadRouteForStops(points, 'same-course');
-    await rejected;
-    assert.ok(replacement.length > 1);
-    assert.equal(calls, 2);
-    assert.deepEqual(await fetchRoadRouteForStops(points, 'same-course'), replacement);
-    assert.equal(calls, 2);
-  } finally { global.fetch = original; }
+    const {fetchRoadRouteForStops} = loadTs('lib/pks-client.ts',native,'\nexport { fetchRoadRouteForStops };');
+    let saved;
+    const first = fetchRoadRouteForStops(points,'same-course',{signal:controller.signal,onResolved:route=>{saved=route;}});
+    const rejected = assert.rejects(first,{name:'AbortError'});
+    await ready; controller.abort(); await rejected;
+    const second = fetchRoadRouteForStops(points,'same-course');
+    release();
+    const replacement = await second;
+    assert.deepEqual(replacement,points);
+    assert.deepEqual(saved,points,'the closed selection still saves its completed shape');
+    assert.equal(calls,1);
+    assert.deepEqual(await fetchRoadRouteForStops(points,'same-course'),replacement);
+    assert.equal(calls,1);
+  } finally {global.fetch=original;}
 });

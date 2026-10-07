@@ -1450,7 +1450,7 @@ export default function Home() {
     setIsBusPanelExpanded(false);
     setIsSettingsOpen(false);
     setIsTransportPanelOpen(false);
-    loadVehicleDetails(v, { force: true });
+    loadVehicleDetails(v);
   }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
   
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
@@ -2034,7 +2034,7 @@ export default function Home() {
             >
                <MapIcon className="h-6 w-6" />
                <span className="text-[11px] font-semibold leading-none">Mapa</span>
-               {activeTab === 'map' && <span className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
+               {activeTab === 'map' && <motion.span layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
             </button>
             <button 
                disabled={isStopsTabDisabled}
@@ -2044,7 +2044,7 @@ export default function Home() {
             >
                <StopTabIcon className="h-6 w-6" />
                <span className="text-[11px] font-semibold leading-none">Przystanki</span>
-               {activeTab === 'stops' && <span className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
+               {activeTab === 'stops' && <motion.span layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
             </button>
             {canOpenAdminEmbed && (
                <button 
@@ -2055,7 +2055,7 @@ export default function Home() {
                >
                   <Shield className="h-6 w-6" />
                   <span className="text-[11px] font-semibold leading-none">Admin</span>
-                  {activeTab === 'admin' && <span className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
+                  {activeTab === 'admin' && <motion.span layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
                </button>
             )}
             <button 
