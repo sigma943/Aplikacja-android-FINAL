@@ -15,7 +15,7 @@ import static org.junit.Assert.*;
 @Config(sdk=31)
 public class StopWidgetInteractionTest {
   private Context context;
-  @Before public void setup(){context=RuntimeEnvironment.getApplication();StopWidgetProvider.prefs(context).edit().clear().putString("config_7","{\"stop\":{\"name\":\"Rzeszów, Podkarpacka Matuszczaka 04\"},\"refreshMode\":\"off\"}").putString("rows_7","[{\"line\":\"108\",\"direction\":\"Gwoźnica Górna\",\"realAtMs\":"+(System.currentTimeMillis()+600000)+"}]").apply();}
+  @Before public void setup(){context=RuntimeEnvironment.getApplication();StopWidgetProvider.prefs(context).edit().clear().putLong("updated_7",System.currentTimeMillis()).putString("config_7","{\"stop\":{\"name\":\"Rzeszów, Podkarpacka Matuszczaka 04\"},\"refreshMode\":\"off\"}").putString("rows_7","[{\"line\":\"108\",\"direction\":\"Gwoźnica Górna\",\"realAtMs\":"+(System.currentTimeMillis()+600000)+"}]").apply();}
   private View inflate(Context c,int width,int height)throws Exception{
     View root=StopWidgetProvider.createView(c,7,width,height).apply(c,new FrameLayout(c));
     float density=c.getResources().getDisplayMetrics().density;
