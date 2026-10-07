@@ -72,3 +72,23 @@ test('Marcel live feed is shared; estimates reject stale, distant and not-yet-st
     assert.equal(api.estimateMarcelCourseDelay(999, stops, '2026-10-06', positions), undefined);
   } finally { global.fetch = originalFetch; Date.now = originalNow; }
 });
+
+test('duplicate same-time visits keep the chronological occurrence without cutting the future suffix',()=>{
+  const t=time=>`2026-10-07T${time}:00Z`;
+  const stops=[{id:1,planned:t('14:29')},{id:2,planned:t('14:31')},{id:3,planned:t('14:34')},{id:4,planned:t('14:36')},{id:2,planned:t('14:31')},{id:5,planned:t('14:44')}];
+  assert.deepEqual(upcomingVehicleStops(stops,Date.parse(t('14:35'))).map(s=>s.id),[4,5]);
+  assert.deepEqual(upcomingVehicleStops(stops,Date.parse(t('14:30'))).map(s=>s.id),[2,3,4,5]);
+});
+test('a bad earlier duplicate is removed and a genuine later return remains',()=>{
+  const t=time=>`2026-10-07T${time}:00Z`;
+  const stops=[{id:1,planned:t('14:20')},{id:2,planned:t('14:31')},{id:3,planned:t('14:25')},{id:2,planned:t('14:31')},{id:4,planned:t('14:40')},{id:2,planned:t('14:45')}];
+  assert.deepEqual(upcomingVehicleStops(stops,Date.parse(t('14:21'))).map(s=>[s.id,s.planned]),[[3,t('14:25')],[2,t('14:31')],[4,t('14:40')],[2,t('14:45')]]);
+});
+test('duplicate cleanup compares complete timestamps and preserves midnight visits',()=>{
+  const stops=[{id:1,planned:'2026-10-07T23:55:00Z'},{id:2,planned:'2026-10-08T00:05:00Z'},{id:1,planned:'2026-10-08T00:15:00Z'}];
+  assert.deepEqual(upcomingVehicleStops(stops,Date.parse('2026-10-07T23:56:00Z')).map(s=>s.id),[2,1]);
+});
+test('duplicate named stop aliases share a visit even if backend IDs differ',()=>{
+  const stops=[{id:1,name:'Niebylec 2',planned:'2026-10-07T14:31:00Z'},{id:2,name:'Jawornik',planned:'2026-10-07T14:36:00Z'},{id:101,name:' Niebylec  2 ',planned:'2026-10-07T14:31:00Z'},{id:3,name:'Konieczkowa',planned:'2026-10-07T14:44:00Z'}];
+  assert.deepEqual(upcomingVehicleStops(stops,Date.parse('2026-10-07T14:30:00Z')).map(s=>s.id),[1,2,3]);
+});

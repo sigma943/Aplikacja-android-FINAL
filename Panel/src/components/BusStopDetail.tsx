@@ -413,7 +413,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
         </div>
       </div>
-      {showWidget&&<GenerateStopWidget stop={stop} lines={combinedLines} departures={selectedDayIndex===0?departures:[]} vehicles={vehicles} dark={isDarkTheme} onClose={()=>setShowWidget(false)}/>}
+      <AnimatePresence>{showWidget&&<GenerateStopWidget stop={stop} lines={combinedLines} departures={selectedDayIndex===0?departures:[]} vehicles={vehicles} dark={isDarkTheme} onClose={()=>setShowWidget(false)}/>}</AnimatePresence>
     </motion.div>
   );
 }

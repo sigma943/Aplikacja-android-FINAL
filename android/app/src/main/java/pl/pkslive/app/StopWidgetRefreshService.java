@@ -22,8 +22,6 @@ public class StopWidgetRefreshService extends JobService {
   @Override public boolean onStartJob(JobParameters p){
     if(job!=null)return false;
     manual=p.getExtras().getBoolean("manual",false);
-    PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
-    if(!manual&&power.isPowerSaveMode())return false;
     job=p;stopped=false;startedAt=System.currentTimeMillis();snapshots.clear();
     int target=p.getExtras().getInt("widgetId",-1);
     ids=target!=-1?new int[]{target}:StopWidgetProvider.ids(this);
@@ -40,7 +38,7 @@ public class StopWidgetRefreshService extends JobService {
     while(index<ids.length){
       int id=ids[index];
       if(!StopWidgetProvider.prefs(this).contains("config_"+id)){index++;continue;}
-      if(!manual&&System.currentTimeMillis()-StopWidgetProvider.prefs(this).getLong("updated_"+id,0)<15*60*1000L){index++;continue;}
+      if(!manual&&!StopWidgetProvider.due(this,id)){index++;continue;}
       String[] cached=snapshots.get(stopKey(id));
       if(cached!=null){StopWidgetProvider.prefs(this).edit().putString("rows_"+id,cached[0]).putString("warning_"+id,cached[1]).putLong("updated_"+id,Long.parseLong(cached[2])).apply();StopWidgetProvider.render(this,id);index++;continue;}
       break;

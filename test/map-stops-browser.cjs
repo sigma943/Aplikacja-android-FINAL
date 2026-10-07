@@ -47,7 +47,16 @@ try{
  await page.waitForSelector('[aria-labelledby="widget-title"]');
  assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>el.parentElement.parentElement.tagName),'BODY','widget dialog uses a portal above transformed panels');
  assert.match(await page.$eval('[aria-labelledby="widget-title"]',el=>el.textContent),/Generuj widżet/);
- assert.equal(await page.$eval('[aria-label="Zamknij okno widżetu"]',el=>el.querySelector('svg')===null),true,'only the rounded handle is shown, without X');
+ assert.equal(await page.$eval('[aria-label="Zamknij okno widżetu"]',el=>el.querySelector('svg')===null),true,'text cancellation replaces the handle and X');
+ assert.equal(await page.$eval('#widget-refresh-interval',el=>el.value),'30');
+ assert.equal(await page.$eval('input[name="widget-refresh-mode"]:checked',el=>el.parentElement.textContent.includes('Pauza')),true);
+ await page.select('#widget-refresh-interval','120');
+ await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Wyłączone — tylko ręcznie')).click());
+ assert.equal(await page.$eval('#widget-refresh-interval',el=>el.disabled),true);
+ await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Pauza w oszczędzaniu')).click());
+ assert.equal(await page.$eval('#widget-refresh-interval',el=>el.disabled),false);
+ const pinned=await page.$eval('[aria-labelledby="widget-title"] footer',el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=window.innerHeight;});assert.equal(pinned,true,'generate action stays within viewport');
+ assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>getComputedStyle(el).backgroundColor),'rgb(16, 30, 38)','opaque dark dialog');
  await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Tylko wybrane linie')).click());
  await page.waitForSelector('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),true);await page.click('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),false);
  await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Duży')).click());
