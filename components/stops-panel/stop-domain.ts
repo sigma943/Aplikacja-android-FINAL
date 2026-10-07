@@ -19,6 +19,7 @@ type RawStop = {
 };
 
 interface StopsPanelProps {
+  active?: boolean;
   stops: RawStop[];
   isLoading: boolean;
   hasError: boolean;
@@ -78,6 +79,9 @@ type InternalStop = Stop & {
 };
 
 type StopsSearchState = {
+  isFullListOpen?: boolean;
+  previewScrollTop?: number;
+  fullScrollTop?: number;
   inputValue: string;
   fullInputValue: string;
   carrierFilter: 'all' | 'pks' | 'mpk' | 'marcel';

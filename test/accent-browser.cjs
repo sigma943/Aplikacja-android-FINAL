@@ -56,7 +56,7 @@ const server=http.createServer((req,res)=>{
       await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
       await page.type('input[placeholder*="Babica"]','Baryczka');
       await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent==='Baryczka 69'));
-      await new Promise(resolve=>setTimeout(resolve,450));
+      await new Promise(resolve=>setTimeout(resolve,650));
     };
     const accent=async name=>{
       console.log('Selecting accent:',name);
@@ -65,7 +65,7 @@ const server=http.createServer((req,res)=>{
       await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
     };
     const overflow=async()=>assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.transit-view')].some(el=>el.scrollWidth>el.clientWidth+1)),false);
-    const screenshot=async name=>{await new Promise(resolve=>setTimeout(resolve,450));return page.screenshot({path:`test/ui-previews/${name}.png`});};
+    const screenshot=async name=>{await new Promise(resolve=>setTimeout(resolve,650));return page.screenshot({path:`test/ui-previews/${name}.png`});};
     await page.goto(origin,{waitUntil:'domcontentloaded'});
     console.log('App loaded');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
@@ -93,7 +93,7 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim().startsWith('Pokaż wszystkie (')).click());
     await page.waitForSelector('[data-stop-list-mode="full"]');
     assert.ok(await page.$eval('[data-stop-list-mode="full"]',el=>Number(getComputedStyle(el).opacity))<1,'full list enters with a fade instead of teleporting');
-    await new Promise(resolve=>setTimeout(resolve,450));
+    await new Promise(resolve=>setTimeout(resolve,650));
     assert.equal(await page.$$eval('[data-stop-list-scroll]',els=>els.length),1,'full view replaces the preview scroll container');
     assert.equal(await page.$$eval('input[placeholder*="Babica"]',els=>els.length),1,'full view has no preview header underneath');
     const assertCards=async()=>assert.equal(await page.$$eval('[data-stop-card-id]',cards=>cards.every((card,index)=>{
@@ -110,6 +110,20 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[data-stop-list-mode="preview"]');
     assert.equal(await page.$$eval('[data-stop-card-id]',els=>els.length),30);
     assert.ok(Math.abs(await page.$eval('[data-stop-list-scroll]',el=>el.scrollTop)-previewScroll)<2,'closing restores the previous scroll position');
+    // Browser and Android use the same dispatcher. Each press must consume one view.
+    await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim().startsWith('Pokaż wszystkie (')).click());
+    await page.waitForSelector('[data-full-stop-list]');
+    await new Promise(resolve=>setTimeout(resolve,650));
+    await page.click('[data-full-stop-list] [data-stop-card-id]');
+    await page.waitForSelector('[aria-label="Wróć do listy przystanków"]');
+    await page.evaluate(()=>history.back());
+    await page.waitForSelector('[data-full-stop-list]');
+    assert.equal(await page.$eval('[data-full-stop-list]',el=>el.closest('[aria-hidden]').getAttribute('aria-hidden')),'false','Back from detail stays on stops and restores the full list');
+    await page.waitForFunction(()=>history.state?.pksBackGuard===true);
+    await page.evaluate(()=>history.back());
+    await page.waitForSelector('[data-stop-list-mode="preview"]');
+    assert.equal(await page.$eval('[data-stop-list-mode="preview"]',el=>el.closest('[aria-hidden]').getAttribute('aria-hidden')),'false','second Back closes only the full list');
+    await new Promise(resolve=>setTimeout(resolve,650));
     await page.$eval('[data-stop-list-scroll]',el=>{el.scrollTop=0;});
     const favorite=await page.evaluate(()=>{const card=document.querySelectorAll('[data-stop-card-id]')[2];return {id:card.dataset.stopCardId,top:card.getBoundingClientRect().top};});
     await page.evaluate(id=>document.querySelector(`[data-stop-card-id="${id}"] [aria-label="Dodaj do ulubionych"]`).click(),favorite.id);
@@ -131,6 +145,13 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[data-stop-lines]',el=>parseFloat(getComputedStyle(el).paddingBottom)),0,'line badges do not add a second spacer');
     await accent('Niebieski');
     assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(59, 130, 246)');
+    await (await visible('[aria-label="Pokaż przystanek na mapie"]')).click();
+    await page.waitForSelector('[data-map-stop-sheet]');
+    await page.evaluate(()=>history.back());
+    await page.waitForFunction(()=>{const button=document.querySelector('[aria-label="Wróć do listy przystanków"]');return button&&button.closest('[aria-hidden]').getAttribute('aria-hidden')==='false';});
+    await page.waitForSelector('[data-map-stop-sheet]',{hidden:true});
+    assert.equal(await page.$('[data-map-stop-sheet]'),null,'Back from a map preview returns to its stop detail');
+
     await (await visible('[aria-label="Wróć do listy przystanków"]')).click();
     const after=await style('.transit-stop-card .ui-accent-soft','backgroundColor');
     assert.notEqual(before,after);
@@ -182,7 +203,7 @@ const server=http.createServer((req,res)=>{
     await page.reload({waitUntil:'domcontentloaded'});await openStops();await showStopOnMap();
     assert.notEqual(await style('[data-map-stop-sheet]','backgroundColor'),oledGlass,'dark and AMOLED have distinct glass palettes');
     assert.equal(await page.$$eval('.map-stop-handle .rounded-2xl',els=>els.length),0,'stop handle retains only the title and arrow');
-    await button('Opcje');await page.waitForSelector('[data-options-sheet]');await new Promise(resolve=>setTimeout(resolve,450));
+    await button('Opcje');await page.waitForSelector('[data-options-sheet]');await new Promise(resolve=>setTimeout(resolve,650));
     const compactHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
     const optionsHandle=await page.$('[aria-label="Rozwiń opcje"]');const optionsBounds=await optionsHandle.boundingBox();
     const handleX=optionsBounds.x+optionsBounds.width/2,handleY=optionsBounds.y+optionsBounds.height/2;
@@ -190,15 +211,18 @@ const server=http.createServer((req,res)=>{
     const draggingHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
     assert.ok(draggingHeight>compactHeight+45,'settings follow the pointer before release');
     await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-options-sheet]').dataset.expanded==='true');
-    await new Promise(resolve=>setTimeout(resolve,450));await screenshot('options-expanded');
+    await new Promise(resolve=>setTimeout(resolve,650));await screenshot('options-expanded');
     const expandedHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
     const collapseHandle=await page.$('[aria-label="Zwiń opcje"]');const collapseBounds=await collapseHandle.boundingBox();
     const collapseY=collapseBounds.y+collapseBounds.height/2;
     await page.mouse.move(handleX,collapseY);await page.mouse.down();await page.mouse.move(handleX,collapseY+70,{steps:8});
     assert.ok(await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height)<expandedHeight-45,'settings follow a downward drag before release');
     await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-options-sheet]').dataset.expanded==='false');
-    await new Promise(resolve=>setTimeout(resolve,450));await screenshot('options-compact');
+    await new Promise(resolve=>setTimeout(resolve,650));await screenshot('options-compact');
     await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
+    await button('Opcje');await page.waitForSelector('[data-options-sheet]');
+    await page.waitForFunction(()=>history.state?.pksBackGuard===true);
+    await page.evaluate(()=>history.back());await page.waitForSelector('[data-options-sheet]',{hidden:true});
     showFixtureBus=true;
     await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.14922,lng:21.95757},zoom:12})));
     await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
@@ -211,6 +235,8 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
     await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='false');
     await screenshot('bus-compact');
+    await page.waitForFunction(()=>history.state?.pksBackGuard===true);
+    await page.evaluate(()=>history.back());await page.waitForSelector('[data-map-bus-sheet]',{hidden:true});
     await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
     await button('Dodaj');

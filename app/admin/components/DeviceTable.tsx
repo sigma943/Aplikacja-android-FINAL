@@ -1,3 +1,4 @@
+import {useAppBack} from '@/lib/use-app-back';
 import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLeft, ChevronRight, Menu, ArrowUpDown, Pencil, X, Check, CheckCircle2, Trash2 } from 'lucide-react';
 import { Badge } from './Badge';
 import { cn } from '@/lib/utils';
@@ -51,6 +52,14 @@ export function DeviceTable({
   const [deleteDevice, setDeleteDevice] = useState<Device | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  useAppBack(Boolean(renameDevice || deleteDevice || showFilterDropdown || showSortDropdown), () => {
+    if(showSortDropdown)setShowSortDropdown(false);
+    else if(showFilterDropdown)setShowFilterDropdown(false);
+    else if(renameDevice) {if(!renameSaving)setRenameDevice(null);}
+    else if(deleteDevice) {if(!deleteSaving)setDeleteDevice(null);}
+    else return false;
+    return true;
+  },95);
   const toolbarDropdownsRef = useRef<HTMLDivElement | null>(null);
   const itemsPerPage = 5;
 

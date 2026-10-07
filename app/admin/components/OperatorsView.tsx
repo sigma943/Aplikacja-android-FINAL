@@ -1,3 +1,4 @@
+import {useAppBack} from '@/lib/use-app-back';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Filter, Plus, Monitor, Shield, Users, Settings, MoreVertical, Activity, Lock, X, Menu, Hammer, Crown, Globe, SlidersHorizontal, UserCog } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,13 @@ export function OperatorsView({
   const [editingOperator, setEditingOperator] = useState<Operator | null>(null);
   const [showGlobalPermissions, setShowGlobalPermissions] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  useAppBack(Boolean(editingOperator || showGlobalPermissions || showFilterDropdown), () => {
+    if(showFilterDropdown)setShowFilterDropdown(false);
+    else if(editingOperator)setEditingOperator(null);
+    else if(showGlobalPermissions)setShowGlobalPermissions(false);
+    else return false;
+    return true;
+  },95);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

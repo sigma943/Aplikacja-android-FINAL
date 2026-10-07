@@ -1,3 +1,4 @@
+import {useAppBack} from '../../../lib/use-app-back';
 import React, { useEffect, useDeferredValue, useMemo, useState } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
 import { Stop } from '../types';
@@ -5,6 +6,7 @@ import { getLineStyle } from '../utils/lineStyles';
 import { motion, useReducedMotion } from 'motion/react';
 
 interface StopListProps {
+  backEnabled?: boolean;
   onVisibleStopsChange?: (stops: Stop[]) => void;
   onStopSelect: (stop: Stop) => void;
   onClose?: () => void;
@@ -14,12 +16,18 @@ interface StopListProps {
   isLoading?: boolean;
   isDarkTheme?: boolean;
   searchState?: {
+    isFullListOpen?: boolean;
+    previewScrollTop?: number;
+    fullScrollTop?: number;
     inputValue: string;
     fullInputValue: string;
     carrierFilter: CarrierFilterId;
     visibleFullCount: number;
   };
   onSearchStateChange?: (state: {
+    isFullListOpen?: boolean;
+    previewScrollTop?: number;
+    fullScrollTop?: number;
     inputValue?: string;
     fullInputValue?: string;
     carrierFilter?: CarrierFilterId;
@@ -65,6 +73,7 @@ function filterStops(stops: SearchableStop[], query: string, carrierFilter: Carr
 }
 
 export default function StopList({
+  backEnabled = true,
   onStopSelect,
   onVisibleStopsChange,
   onClose,
@@ -78,10 +87,13 @@ export default function StopList({
 }: StopListProps) {
   const [localInputValue, setLocalInputValue] = useState('');
   const reduceMotion = useReducedMotion();
-  const [isFullListOpen, setIsFullListOpen] = useState(false);
+  const [localFullListOpen, setLocalFullListOpen] = useState(false);
+  const isFullListOpen = searchState?.isFullListOpen ?? localFullListOpen;
+  const setIsFullListOpen = (value: boolean) => {setLocalFullListOpen(value);onSearchStateChange?.({isFullListOpen:value});};
+  useAppBack(backEnabled && isFullListOpen, () => {handleCloseFullList();return true;},40);
   const listScrollRef = React.useRef<HTMLDivElement>(null);
-  const previewScrollRef = React.useRef(0);
-  useEffect(() => { if (listScrollRef.current) listScrollRef.current.scrollTop = isFullListOpen ? 0 : previewScrollRef.current; }, [isFullListOpen]);
+  const previewScrollRef = React.useRef(searchState?.previewScrollTop || 0);
+  useEffect(() => { if (listScrollRef.current) listScrollRef.current.scrollTop = isFullListOpen ? (searchState?.fullScrollTop || 0) : previewScrollRef.current; }, [isFullListOpen]);
   const [localFullInputValue, setLocalFullInputValue] = useState('');
   const [localCarrierFilter, setLocalCarrierFilter] = useState<CarrierFilterId>('all');
   const [localVisibleFullCount, setLocalVisibleFullCount] = useState(40);
@@ -159,6 +171,10 @@ export default function StopList({
   const cardTitleClass = isDarkTheme ? 'text-white' : 'text-slate-900';
   const secondaryTextClass = isDarkTheme ? 'text-slate-400' : 'text-slate-600';
 
+  const rememberScroll = () => {
+    const top = listScrollRef.current?.scrollTop || 0;
+    onSearchStateChange?.(isFullListOpen ? {fullScrollTop: top} : {previewScrollTop: top});
+  };
   const handleCloseFullList = () => {
     setFullInputValue('');
     setVisibleFullCountValue(40);
@@ -222,21 +238,21 @@ export default function StopList({
         key={`${full ? 'full' : 'list'}-${stop.id}`}
         layout="position"
         data-stop-card-id={stop.id}
-        transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 380, damping: 34}}}
+        transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 230, damping: 30}}}
         role="button"
         tabIndex={0}
         aria-label={`Rozkład: ${stop.name}`}
         onKeyDown={event => {
           if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
           event.preventDefault();
-          if (full) handleCloseFullList();
+          rememberScroll();
           onStopSelect(stop);
         }}
         className={`ui-accent-focus group flex w-full max-w-full min-w-0 shrink-0 cursor-pointer items-center border transition-colors duration-150 ${cardClass} ${
           full ? 'rounded-[20px] p-3.5' : 'rounded-[20px] p-3.5 lg:p-4'
         }`}
         onClick={() => {
-          if (full) handleCloseFullList();
+          rememberScroll();
           onStopSelect(stop);
         }}
       >
@@ -292,7 +308,7 @@ export default function StopList({
   };
 
   return (
-    <motion.div key={isFullListOpen ? "full" : "preview"} initial={reduceMotion ? false : {opacity: 0, y: isFullListOpen ? 18 : -10}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.28, ease: [0.22, 1, 0.36, 1]}} data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
+    <motion.div key={isFullListOpen ? "full" : "preview"} initial={reduceMotion ? false : {opacity: 0, y: isFullListOpen ? 18 : -10}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.52, ease: [0.25, 0.1, 0.25, 1]}} data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
       {!isFullListOpen && <>
       <div className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>
         <div className="mb-3.5 flex min-w-0 items-center justify-between gap-3">
@@ -365,6 +381,7 @@ export default function StopList({
                   type="button"
                   onClick={() => {
                     previewScrollRef.current = listScrollRef.current?.scrollTop || 0;
+                    onSearchStateChange?.({previewScrollTop: previewScrollRef.current, fullScrollTop: 0});
                     setFullInputValue(inputValue);
                     setVisibleFullCountValue(40);
                     setIsFullListOpen(true);

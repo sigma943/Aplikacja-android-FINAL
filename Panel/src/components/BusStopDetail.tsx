@@ -157,7 +157,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       initial={reduceMotion ? false : { opacity: 0, x: 15 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 15 }}
-      transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1] }}
       data-ui-mode={isDarkTheme ? "dark" : "light"}
       className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
     >
@@ -175,6 +175,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
             
             <div className="flex items-center ml-auto gap-2">
               <button
+                aria-label="Pokaż przystanek na mapie"
                 onClick={() => onShowOnMap?.(stop)}
                 disabled={!onShowOnMap}
                 className={`flex flex-shrink-0 items-center justify-center gap-1.5 h-10 px-3 rounded-xl border text-[11px] font-semibold transition-colors cursor-pointer active:scale-95 leading-none ui-accent-focus font-sans backdrop-blur-xl disabled:cursor-not-allowed disabled:opacity-40 ${mapButtonClass}`}
@@ -322,7 +323,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         initial={animateDepartures ? { opacity: 0, y: 8 } : false}
                         animate={animateDepartures ? { opacity: isPast ? 0.45 : 1, y: 0 } : { opacity: isPast ? 0.45 : 1, y: 0 }}
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
-                        transition={animateDepartures ? { duration: 0.18, delay: Math.min(idx * 0.05, 0.3) } : { duration: 0 }}
+                        transition={animateDepartures ? { duration: 0.3, delay: Math.min(idx * 0.06, 0.3) } : { duration: 0 }}
                         key={dep.id} 
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? `border-b ${rowBorderClass}` : ''} ${rowClass} transition-colors cursor-pointer ${isPast ? (isDarkTheme ? 'bg-black/15' : 'bg-slate-100/70') : ''}`}
                       >
