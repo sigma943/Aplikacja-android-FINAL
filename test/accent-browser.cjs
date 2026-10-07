@@ -265,7 +265,9 @@ const server=http.createServer((req,res)=>{
       const box=await page.evaluate(()=>{const overlay=document.querySelector('.admin-modal-overlay'),card=overlay.firstElementChild,r=card.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:innerHeight,width:innerWidth};});
       assert.ok(box.top>=10&&box.bottom<=box.height-10,JSON.stringify(box));assert.ok(box.left>=10&&box.right<=box.width-10,JSON.stringify(box));
     };
-    await fitDialog();await screenshot('admin-history-mobile');
+    await fitDialog();
+    assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.admin-modal-overlay div')].some(el=>el.scrollWidth>el.clientWidth+1)),false,'History must fit long endpoint and action names');
+    await screenshot('admin-history-mobile');
     await page.goto(`${origin}/dialog-fixture/`,{waitUntil:'domcontentloaded'});
     await fitDialog();
     const shield=await page.evaluate(()=>{const el=document.querySelector('.admin-modal-overlay .lucide-shield');const r=el.getBoundingClientRect(),parent=el.parentElement.getBoundingClientRect();return {w:r.width,h:r.height,pw:parent.width,ph:parent.height};});

@@ -463,18 +463,18 @@ export function MaintenanceView({
                   <h2 className="text-lg font-black text-white">Historia zmian</h2>
                   <p className="text-xs text-slate-500">Ostatnie operacje infrastruktury API</p>
                 </div>
-                <button type="button" onClick={() => setShowHistory(false)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-white">
+                <button type="button" onClick={() => setShowHistory(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-white">
                   <X size={18} />
                 </button>
               </div>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
                 {changes.length ? changes.map((change) => (
                   <div key={change.id} className="rounded-2xl border border-white/10 bg-black/15 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-black text-white">{change.summary}</span>
-                      <Badge>{change.action}</Badge>
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0 break-all text-sm font-black text-white">{change.summary}</span>
+                      <Badge className="max-w-full break-all whitespace-normal">{change.action}</Badge>
                     </div>
-                    <div className="mt-2 text-xs text-slate-500">{change.endpointId} · {changeDate(change.createdAtMs)}</div>
+                    <div className="mt-2 break-all text-xs text-slate-500">{change.endpointId} · {changeDate(change.createdAtMs)}</div>
                   </div>
                 )) : (
                   <div className="py-10 text-center text-sm text-slate-500">Brak historii zmian.</div>
