@@ -213,6 +213,11 @@ const server=http.createServer((req,res)=>{
     const draggingHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
     assert.ok(draggingHeight>compactHeight+45,'settings follow the pointer before release');
     await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-options-sheet]').dataset.expanded==='true');
+    assert.equal(await page.$$eval('[aria-label="Lżejsze efekty"]',els=>els.length),1,'performance preference appears once, below appearance');
+    await page.$eval('[aria-label="Lżejsze efekty"]',el=>el.click());
+    await page.waitForFunction(()=>document.querySelector('.pks-theme-root').classList.contains('pks-light-effects')&&localStorage.getItem('mks_light_effects')==='true');
+    await page.$eval('[aria-label="Lżejsze efekty"]',el=>el.click());
+    await page.waitForFunction(()=>!document.querySelector('.pks-theme-root').classList.contains('pks-light-effects'));
     await new Promise(resolve=>setTimeout(resolve,650));await screenshot('options-expanded');
     const expandedHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
     const collapseHandle=await page.$('[aria-label="Zwiń opcje"]');const collapseBounds=await collapseHandle.boundingBox();

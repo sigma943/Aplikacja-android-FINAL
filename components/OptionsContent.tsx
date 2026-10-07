@@ -9,11 +9,6 @@ export default function OptionsContent({themeColor, textSub, optionsCard, isDark
                      <div>
                         <h2 id="options-title" className="text-base font-semibold tracking-tight md:text-lg">Opcje aplikacji</h2>
                         <p className={`text-[11px] ${textSub}`}>Twój wygląd, Twoje ustawienia</p>
-   
-                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 md:p-4 ${optionsCard}`}>
-                       <div className="pr-3"><span className="text-sm font-semibold">Lżejsze efekty</span><p className={`mt-1 text-[11px] ${textSub}`}>Mniej rozmycia i cieni na słabszych telefonach</p></div>
-                       <input aria-label="Lżejsze efekty" type="checkbox" checked={lightEffects} onChange={event=>saveLightEffects(event.target.checked)} className="h-5 w-5 shrink-0" style={{accentColor:themeColor}}/>
-                     </label>
                   </div>
                   </div>
 
@@ -103,9 +98,10 @@ export default function OptionsContent({themeColor, textSub, optionsCard, isDark
                         <input type="checkbox" className="sr-only" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
                      </label>
 
-                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 md:p-4 ${optionsCard}`}>
-                       <div className="pr-3"><span className="text-sm font-semibold">Lżejsze efekty</span><p className={`mt-1 text-[11px] ${textSub}`}>Mniej rozmycia i cieni na słabszych telefonach</p></div>
-                       <input aria-label="Lżejsze efekty" type="checkbox" checked={lightEffects} onChange={event=>saveLightEffects(event.target.checked)} className="h-5 w-5 shrink-0" style={{accentColor:themeColor}}/>
+                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
+                       <div className="flex min-w-0 items-center gap-3 pr-3"><Sparkles className="h-5 w-5 shrink-0" style={{color:themeColor}}/><div><span className="text-sm font-semibold">Lżejsze efekty</span><p className={`mt-1 text-[11px] ${textSub}`}>Mniej rozmycia i cieni na słabszych telefonach</p></div></div>
+                       <div className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${lightEffects ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{backgroundColor:lightEffects?themeColor:''}}><div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${lightEffects?'translate-x-5':''}`}/></div>
+                       <input aria-label="Lżejsze efekty" type="checkbox" checked={lightEffects} onChange={event=>saveLightEffects(event.target.checked)} className="sr-only"/>
                      </label>
                   </div>
                   </div>
