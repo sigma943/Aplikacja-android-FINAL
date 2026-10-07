@@ -214,8 +214,9 @@ test('restore works if the prior UID document is already absent; failed transfer
  await env.withSecurityRulesDisabled(async context=>setDoc(doc(context.firestore(),'installations',id),saved));
  const db=env.authenticatedContext('fresh-uid').firestore();const {registerRestoredDevice}=loadTs('lib/device-registration.ts',{'firebase/firestore':firebaseSdk});
  await assertSucceeds(registerRestoredDevice(db,'fresh-uid',id,'Phone',false,{}));
- const batch=writeBatch(env.authenticatedContext('attacker-uid').firestore());
- batch.delete(doc(env.authenticatedContext('attacker-uid').firestore(),'devices','user'));
+ const attackerDb=env.authenticatedContext('attacker-uid').firestore();
+ const batch=writeBatch(attackerDb);
+ batch.delete(doc(attackerDb,'devices','user'));
  await assertFails(batch.commit());
  const unsafeDb=env.authenticatedContext('unverified-new-uid').firestore();
  await assertFails(setDoc(doc(unsafeDb,'devices','unverified-new-uid'),device('user','unsafe-install',buildDevicePermissions('owner'))));
