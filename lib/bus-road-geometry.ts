@@ -98,3 +98,30 @@ export function cleanRoadJunctionLoops(route:Point[],stops:Point[]):Point[] {
   }
   return result;
 }
+
+/** Stops are catalog pins, not mandatory driveways: allow nearby road candidates. */
+export function roadRoutingLocations(stops:Point[],stopWaypoints:boolean,boundaries={start:true,end:true}) {
+  return stops.map(([lat,lon],index)=>({lat,lon,type:index===0||index===stops.length-1?'break':stopWaypoints?'via':'through',
+    ...(stopWaypoints?{radius:(index===0&&boundaries.start)||(index===stops.length-1&&boundaries.end)?35:150,rank_candidates:false}:{})}));
+}
+/** Only request an alternative for a short out-and-back/closed junction excursion. */
+export function hasLocalRoadExcursion(route:Point[]) {
+  for(let end=2;end<route.length;end++) {
+    let length=0;
+    for(let start=end-1;start>=Math.max(0,end-160);start--) {
+      length+=roadDistance(route[start],route[start+1]);if(length>900)break;
+      if(end-start<2||length<30||roadDistance(route[start],route[end])>12)continue;
+      if(route.slice(start,end+1).every(point=>roadDistance(point,route[start])<=150))return true;
+    }
+  }
+  return false;
+}
+/** Prefer an actual road corridor only if every stop is still passed in order. */
+export function preferRoadCorridor(route:Point[],candidate:Point[],stops:Point[]) {
+  // Repeated stops describe a deliberate return leg; a shortcut must not erase it.
+  if(stops.some((stop,index)=>stops.slice(0,Math.max(0,index-1)).some(previous=>roadDistance(stop,previous)<10)))return route;
+  if(!roadRouteMatchesStops(candidate,stops,150))return route;
+  const length=(points:Point[])=>points.slice(1).reduce((total,point,index)=>total+roadDistance(points[index],point),0);
+  const oldLength=length(route),newLength=length(candidate);
+  return oldLength-newLength>=30&&newLength<oldLength*.95?candidate:route;
+}

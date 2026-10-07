@@ -23,6 +23,10 @@ test('a 20-stop Marcel course respects the real Valhalla 10-location limit witho
     assert.equal(requests.length,3);
     assert.deepEqual(requests.map(q=>q.locations.length),[10,10,2]);
     assert.ok(requests.every(q=>q.costing==='bus'));
+    assert.equal(requests[0].locations[0].radius,35);
+    assert.equal(requests[0].locations.at(-1).radius,150,'chunk boundaries are intermediate stops, not termini');
+    assert.equal(requests[1].locations[0].radius,150);
+    assert.equal(requests[2].locations.at(-1).radius,35);
     assert.deepEqual(response.geometry.coordinates, points.map(([lat,lon])=>[lon,lat]));
     assert.equal(response.isSynthetic,false);
   } finally { global.fetch = original; }

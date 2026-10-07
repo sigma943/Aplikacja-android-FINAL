@@ -5,10 +5,10 @@ import {departureIsPast} from './departure-display';
 import {warsawDateIso, warsawTimeMs} from './transit-time';
 import type {Vehicle} from '@/components/BusMap';
 export interface StopWidgetConfig {stop: Stop; lines: string[] | null; size: 'small'|'medium'|'large'; theme: 'system'|'light'|'dark'}
-export function widgetDepartures(departures: Departure[], vehicles: Vehicle[], lines: string[] | null, now=Date.now()) {
+export function widgetDepartures(departures: Departure[], vehicles: Vehicle[], lines: string[] | null, now=Date.now(),limit=16) {
   return departures.map(d=>departureFromLiveVehicle(d,vehicles)).map(d=>({...d,plannedAtMs:d.plannedAtMs??warsawTimeMs(warsawDateIso(0,new Date(now)),d.time)}))
     .filter(d=>(lines===null||lines.includes(d.line))&&!departureIsPast(d,now,d.plannedAtMs))
-    .sort((a,b)=>(a.realAtMs??a.plannedAtMs)-(b.realAtMs??b.plannedAtMs)).slice(0,16);
+    .sort((a,b)=>(a.realAtMs??a.plannedAtMs)-(b.realAtMs??b.plannedAtMs)).slice(0,limit);
 }
 const plugin=registerPlugin<{sync(options:{stopId:string;departures:string;warning:string}):Promise<void>;getLaunchStop():Promise<{stop?:Stop}>;addListener(event:'openStop',cb:(data:{stop?:Stop})=>void):Promise<PluginListenerHandle>;pin(options:{config:string; departures:string}):Promise<{token:string}>; status(options:{token:string}):Promise<{added:boolean}>}>('StopWidget');
 export const canGenerateWidget=()=>Capacitor.getPlatform()==='android';
@@ -27,5 +27,5 @@ export function onWidgetOpen(callback:(stop:Stop)=>void) {
 }
 
 export async function syncStopWidgets(stopId:string,departures:Departure[],vehicles:Vehicle[],warnings:string[]) {
-  if(canGenerateWidget())await plugin.sync({stopId,departures:JSON.stringify(widgetDepartures(departures,vehicles,null)),warning:warnings.join(' • ')});
+  if(canGenerateWidget())await plugin.sync({stopId,departures:JSON.stringify(widgetDepartures(departures,vehicles,null,Date.now(),128)),warning:warnings.join(' • ')});
 }

@@ -17,3 +17,9 @@ test('widget preserves MPK minute precision and caps cached rows',()=>{
  assert.equal(widgetDepartures([mpk],[],null,now).length,1);
  assert.equal(widgetDepartures(Array.from({length:25},(_,i)=>row(String(i),'108',(i+1)*60000)),[],null,now).length,16);
 });
+test('shared stop snapshots keep later departures for widgets with different line selections',()=>{
+ const departures=Array.from({length:24},(_,i)=>row(String(i),i===20?'288':'108',(i+1)*60000));
+ const shared=widgetDepartures(departures,[],null,now,128);
+ assert.equal(widgetDepartures(shared,[],['288'],now)[0].id,'20');
+ assert.equal(widgetDepartures(shared,[],['108'],now).length,16);
+});

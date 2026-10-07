@@ -6,7 +6,7 @@ import { routeGeometryKey } from './route-geometry-key';
 import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
 import { getTransportRuntime, transportApiBase } from './transport-runtime';
 import {officialBusStops} from './official-bus-routes';
-import {decodePolyline,routeChunks,joinRouteChunks,roadRouteMatchesStops} from './bus-road-geometry';
+import {decodePolyline,routeChunks,joinRouteChunks,roadRouteMatchesStops,roadRoutingLocations,hasLocalRoadExcursion,preferRoadCorridor} from './bus-road-geometry';
 import { busOperatingState, transitTimestamp } from './bus-operating-state';
 import pksSchoolCalendar from '@/public/data/mpk-service-calendar.json';
 import {Capacitor, CapacitorHttp} from '@capacitor/core';
@@ -1516,14 +1516,15 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
     await Promise.all(Array.from({length:Math.min(3,chunks.length)},async()=> {
       while(cursor<chunks.length) {
         const index=cursor++,chunk=chunks[index];
+        const boundaries={start:index===0,end:index===chunks.length-1};
         let route: ShapePoint[]=[];
         try {
           // Stop coordinates can sit in a bay or side road. A through point
           // forbids turning there and can force a loop around nearby streets.
-          const query={locations:chunk.map(([lat,lon],i)=>({lat,lon,type:i===0||i===chunk.length-1?'break':options?.stopWaypoints?'via':'through',...(options?.stopWaypoints?{radius:35,rank_candidates:false}:{})})),costing:'bus',directions_options:{units:'kilometers'}};
+          const query={locations:roadRoutingLocations(chunk,Boolean(options?.stopWaypoints),boundaries),costing:'bus',directions_options:{units:'kilometers'}};
           const data=await withRequestDeadline(signal => requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal}), undefined, 4000);
           route=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
-          if (!roadRouteMatchesStops(route,chunk)) route=[];
+          if (!roadRouteMatchesStops(route,chunk,150)) route=[];
         }catch {}
         if(route.length<2) {
           const coordinates=chunk.map(([lat,lon])=>lon+','+lat).join(';');
@@ -1531,7 +1532,15 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
             'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false');
           route=(data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
         }
-        if(!roadRouteMatchesStops(route,chunk))throw new Error('Incomplete road route: missing or unordered stops');
+        if(options?.stopWaypoints&&chunk.length>2&&hasLocalRoadExcursion(route)) {
+          try {
+            const query={locations:roadRoutingLocations([chunk[0],chunk.at(-1)!],true,boundaries),costing:'bus',directions_options:{units:'kilometers'}};
+            const data=await withRequestDeadline(signal=>requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal}),undefined,4000);
+            const candidate=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
+            route=preferRoadCorridor(route,candidate,chunk);
+          }catch { /* Keep the complete original road route if no safe alternative exists. */ }
+        }
+        if(!roadRouteMatchesStops(route,chunk,150))throw new Error('Incomplete road route: missing or unordered stops');
         results[index]=route;
       }
     }));

@@ -22,7 +22,7 @@ const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v10-clean-junctions';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v11-offset-stop-corridors';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -1316,8 +1316,8 @@ export default function BusMap({
         }
 
         .map-catalog-stop {background:transparent;border:0;display:flex;align-items:center;justify-content:center;}
-        .map-stop-ring {display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--stop-color);border-radius:50%;color:var(--stop-color);background:transparent;box-shadow:0 1px 5px #0006;transition:transform .24s ease,box-shadow .24s ease,background .24s ease;}
-        .map-stop-ring.is-selected {transform:scale(1.28);background:color-mix(in srgb,var(--stop-color) 22%,#10242e);box-shadow:0 0 0 5px color-mix(in srgb,var(--stop-color) 22%,transparent),0 0 18px var(--stop-color);animation:map-stop-select .42s ease-out;}
+        .map-stop-ring {display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--stop-color);border-radius:50%;color:#fff;background:var(--stop-color);box-shadow:0 1px 5px #0006;transition:transform .24s ease,box-shadow .24s ease,background .24s ease;}
+        .map-stop-ring.is-selected {transform:scale(1.28);background:var(--stop-color);box-shadow:0 0 0 5px color-mix(in srgb,var(--stop-color) 22%,transparent),0 0 18px var(--stop-color);animation:map-stop-select .42s ease-out;}
         @keyframes map-stop-select {from {transform:scale(.9);box-shadow:0 0 0 0 transparent;}to {transform:scale(1.28);}}
         @media(prefers-reduced-motion:reduce){.map-stop-ring,.map-stop-ring.is-selected{transition:none;animation:none;}}
         .mks-route-stop-marker {

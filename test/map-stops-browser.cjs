@@ -23,7 +23,8 @@ try{
  assert.equal(await page.$$('.map-catalog-stop').then(rows=>rows.length),0,'stops are disabled initially');
  await option();
  await page.waitForSelector('.map-catalog-stop[title="Rzeszów TestMap"]');
- const color=await page.$eval('.map-catalog-stop[title="Rzeszów TestMap"] .map-stop-ring',el=>getComputedStyle(el).color);assert.equal(color,'rgb(255, 122, 0)');
+ const color=await page.$eval('.map-catalog-stop[title="Rzeszów TestMap"] .map-stop-ring',el=>getComputedStyle(el).backgroundColor);assert.equal(color,'rgb(255, 122, 0)');
+ assert.equal(await page.$eval('.map-catalog-stop[title="Rzeszów TestMap"] svg',el=>getComputedStyle(el).color),'rgb(255, 255, 255)');
  await page.click('.map-catalog-stop[title="Rzeszów TestMap"]');await page.waitForSelector('[data-map-stop-sheet]');
  await page.waitForSelector('.map-stop-ring.is-selected');assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/Rzeszów TestMap/);
  await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]')?.textContent.includes('Centrum'));
@@ -33,7 +34,7 @@ try{
  assert.equal(await page.evaluate(()=>localStorage.getItem('mks_show_map_stops')),'true','preference survives reload');
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.9822,lng:21.94},zoom:17})));await page.reload({waitUntil:'domcontentloaded'});
  await page.waitForSelector('.map-catalog-stop[title^="Boguchwała Testmap"]');
- assert.equal(await page.$eval('.map-catalog-stop[title^="Boguchwała Testmap"] .map-stop-ring',el=>getComputedStyle(el).color),'rgb(20, 184, 166)');
+ assert.equal(await page.$eval('.map-catalog-stop[title^="Boguchwała Testmap"] .map-stop-ring',el=>getComputedStyle(el).backgroundColor),'rgb(20, 184, 166)');
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.9822,lng:21.94},zoom:15})));await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-container');
  await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');assert.equal(await page.$$('.map-catalog-stop').then(rows=>rows.length),0,'overview zoom hides dots');
  await option();assert.equal(await page.evaluate(()=>localStorage.getItem('mks_show_map_stops')),'false');
@@ -67,6 +68,7 @@ try{
  assert.equal(await runner.evaluate(()=>window.widgetFailed),undefined,'background runner succeeds without Firebase login');
  assert.equal(await runner.evaluate(()=>window.widgetResult[0].line),'108');
  assert.ok(await runner.evaluate(()=>window.widgetUrls.some(url=>url.startsWith('http://einfo.zgpks.rzeszow.pl/api/its/infoboard/nearest-departures/'))),'runner uses the Android transport endpoint, not a missing local API route');
+ assert.ok(await runner.evaluate(()=>window.widgetUrls.every(url=>!url.includes('get_vehicles')&&!url.includes('/api/its/vehicles'))),'background widgets do not download the entire vehicle fleet');
  assert.deepEqual(runnerErrors,[]);await runner.close();
  assert.deepEqual(errors,[]);console.log('Map stops: enable, city/rural colours, click/highlight/sheet, persistence, zoom threshold and disable passed.');
 }finally{await browser.close();server.close();fixture.cleanup();}
