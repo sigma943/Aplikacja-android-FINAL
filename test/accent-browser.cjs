@@ -236,6 +236,11 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(await page.$eval('.mks-bus-marker svg[data-bus-glyph]',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))])),carrierGeometry,'map and carrier picker use exactly the same bus geometry');
     await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
     await page.waitForSelector('[data-map-bus-sheet]');
+    await page.waitForFunction(()=>{
+      const lines=[...document.querySelectorAll('.leaflet-routeLine-pane path')];
+      return lines.length===3 && lines.every(line=>(line.getAttribute('d')||'').length>100);
+    },{timeout:20000});
+    assert.equal(await page.$$eval('.leaflet-routeLine-pane path',lines=>lines.every(line=>Number(line.getAttribute('stroke-opacity'))>0)),true,'selected bus paints all three visible route strokes');
     assert.equal(await page.$eval('[data-map-bus-sheet]',el=>el.dataset.expanded),'false','a bus selection opens its compact panel');
     await page.click('[aria-label="Rozwiń panel autobusu"]');
     await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='true');await new Promise(resolve=>setTimeout(resolve,450));const busHandle=await page.$('[aria-label="Zwiń panel autobusu"]');const busBounds=await busHandle.boundingBox();const busHeight=await page.$eval('[data-map-bus-sheet]',el=>el.getBoundingClientRect().height);await page.mouse.move(busBounds.x+30,busBounds.y+12);await page.mouse.down();await page.mouse.move(busBounds.x+30,busBounds.y+62,{steps:8});assert.ok(await page.$eval('[data-map-bus-sheet]',el=>el.getBoundingClientRect().height)<busHeight-20,'bus sheet follows finger');await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='false');await page.click('[aria-label="Rozwiń panel autobusu"]');

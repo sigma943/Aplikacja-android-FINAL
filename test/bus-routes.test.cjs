@@ -72,6 +72,27 @@ test('PKS panel loads the full ordered route, names and positions, not just upco
     assert.ok(result.routeStops.every(stop=>Number.isFinite(stop.lat)&&Number.isFinite(stop.lon)));
   }finally{global.fetch=original;}
 });
+test('PKS route renders from bundled GTFS geometry with live IDs and corrected map coordinates',async()=>{
+  const original=global.fetch;
+  const raw=require('./fixtures/pks-vehicle.json');
+  const snapshot=require('../public/data/pks-stop-points.json').stops;
+  const index=require('../public/data/bus-routes/pks.json');
+  const ids=raw.journey.route.stop_points;
+  const coordinates=ids.map(id=>[snapshot[id].lat,snapshot[id].lon]);
+  const urls=[];
+  global.fetch=async url=>{urls.push(String(url));return new Response(fs.readFileSync('public'+url));};
+  try {
+    const {officialBusRoute}=loadTs('lib/official-bus-routes.ts');
+    assert.equal(index.stopShapes[ids.join('-')],undefined);
+    assert.notDeepEqual(ids.map(String),index.patterns[index.tripPatterns[raw.trip_id]]);
+    const route=await officialBusRoute('pks',raw.trip_id,ids,coordinates);
+    assert.ok(route.length>100,'complete official route must render without a routing service');
+    assert.equal(urls.length,2);
+    assert.deepEqual(await officialBusRoute('pks',raw.trip_id,[...ids].reverse(),[...coordinates].reverse()),[]);
+    assert.deepEqual(await officialBusRoute('pks',raw.trip_id,ids.slice(1),coordinates.slice(1)),[]);
+    assert.deepEqual(await officialBusRoute('pks',raw.trip_id,ids,coordinates.map(([lat,lon])=>[lat+1,lon])),[]);
+  }finally{global.fetch=original;}
+});
 test('MPK trip coordinates use MPK stop namespace and exact advanced trip data',async()=>{
   const original=global.fetch;const fixture=require('./fixtures/mpk-trip.json');
   global.fetch=async url=>new Response(JSON.stringify(String(url).includes('get_trip_stops_advanced')?fixture:[]));

@@ -26,7 +26,12 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
   const trip=String(tripId||'');
   const expected=stopIds.map(String).filter((id,i,all)=>i===0||id!==all[i-1]);
   const pattern=index.patterns[index.tripPatterns[trip]];
-  const tripMatches=!expected.length || (pattern && pattern.join('-')===expected.join('-'));
+  // PKS live stop IDs and GTFS stop IDs belong to different namespaces. An
+  // exact trip can still be checked against its complete, ordered live stops.
+  // Never accept a trip prefix, a partial route, or geometry in reverse order.
+  const completeCoordinates=!!pattern && !!stopCoordinates &&
+    stopCoordinates.length===expected.length && pattern.length===expected.length;
+  const tripMatches=!expected.length || (pattern && pattern.join('-')===expected.join('-')) || completeCoordinates;
   const shape=(tripMatches ? index.tripShapes[trip] : '')||index.stopShapes[expected.join('-')];
   if(!shape || !/^[\w.+-]+$/.test(shape))return [];
   const key=provider+':'+shape;
