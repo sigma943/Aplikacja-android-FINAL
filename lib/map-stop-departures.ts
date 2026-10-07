@@ -1,12 +1,12 @@
 import type {Departure} from '@/Panel/src/types';
 import type {Vehicle} from '@/components/BusMap';
 import type {MapStopDeparture} from '@/components/MapStopSheet';
-import {marcelDepartureFromVehicle} from './marcel-stop-punctuality';
+import {departureFromLiveVehicle} from './vehicle-stop-timing';
 import {departureCountdown,departureIsPast} from './departure-display';
 import {warsawDateIso} from './transit-time';
 export function mapStopDepartureRows(rows:Departure[],vehicles:Vehicle[],now:number):MapStopDeparture[]{
   const unique=new Map<string,Departure>();
-  rows.forEach(row=>unique.set(`${row.carrier?.id}:${row.id}`,marcelDepartureFromVehicle(row,vehicles)));
+  rows.forEach(row=>unique.set(`${row.carrier?.id}:${row.id}`,departureFromLiveVehicle(row,vehicles)));
   return [...unique.values()].filter(row=>{
     const time=row.realAtMs??row.plannedAtMs;
     return Number.isFinite(time)&&!departureIsPast(row,now,time!)&&!/(zjazd|zajezd|technicz|serwis|warsztat|deadhead)/i.test(`${row.line} ${row.direction}`);

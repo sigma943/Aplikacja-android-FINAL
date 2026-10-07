@@ -8,7 +8,7 @@ import { Stop, Departure } from '../types';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
 import type { Vehicle } from '../../../components/BusMap';
-import { marcelDepartureFromVehicle } from '../../../lib/marcel-stop-punctuality';
+import { departureFromLiveVehicle } from '../../../lib/vehicle-stop-timing';
 
 interface BusStopDetailProps {
   stop: Stop;
@@ -66,7 +66,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const selectedDateKey = warsawDateIso(selectedDayIndex);
   const {departures: scheduledDepartures,warnings,isLoading} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures,active);
   const departures = useMemo(() => scheduledDepartures
-    .map(departure => marcelDepartureFromVehicle(departure, vehicles))
+    .map(departure => departureFromLiveVehicle(departure, vehicles))
     .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
   const reduceMotion = useReducedMotion();
   const animateDepartures = !reduceMotion && !showAllDepartures;

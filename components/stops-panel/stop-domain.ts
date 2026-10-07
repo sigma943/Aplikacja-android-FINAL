@@ -990,7 +990,7 @@ function formatWarsawTime(ms: number | undefined, fallback?: unknown) {
   return match ? `${match[1].padStart(2, '0')}:${match[2]}` : '--:--';
 }
 
-function mapJourneyToDeparture(journey: Record<string, unknown>, index: number): Departure | null {
+function mapJourneyToDeparture(journey: Record<string, unknown>, index: number, stopId?: string): Departure | null {
   const line = cleanLine(journey.line_name || journey.line || '?') || '?';
   const plannedAtMs = timestampFromJourney(journey);
   const vehicleId = String(journey.vehicle_id || journey.vehicleId || journey.vehicle_number || '').trim();
@@ -1015,6 +1015,9 @@ function mapJourneyToDeparture(journey: Record<string, unknown>, index: number):
 
   return {
     id: [line, plannedAtMs || journey.timetable_time || index, direction, vehicleId || 'schedule'].join(':'),
+    courseId: String(journey.journey_id ?? journey.trip_id ?? '').trim() || undefined,
+    vehicleId: vehicleId || undefined,
+    stopId: stopId || String(journey.stop_point_id ?? '').trim() || undefined,
     line,
     direction,
     time: formatWarsawTime(realAtMs, journey.realDeparture || journey.plannedDeparture || journey.timetable_time),

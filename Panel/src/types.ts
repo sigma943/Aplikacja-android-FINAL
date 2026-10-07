@@ -29,6 +29,8 @@ export interface Stop {
 export interface Departure {
   id: string;
   courseId?: string;
+  vehicleId?: string;
+  stopId?: string;
   line: string; // e.g. "233" or "IC 83170"
   direction: string;
   time: string; // e.g. "19:24"

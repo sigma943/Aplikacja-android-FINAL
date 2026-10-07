@@ -1,8 +1,8 @@
 'use client';
-import {Monitor,Sun,Moon,Sparkles,Check,Settings,Bus} from 'lucide-react';
+import {Monitor,Sun,Moon,Sparkles,Check,Settings,Bus,MapPin} from 'lucide-react';
 import type {CSSProperties} from 'react';
-type Props={themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
-export default function OptionsContent({themeColor, textSub, optionsCard, isDark, isWarm, appTheme, optionsButton, isOptionsExpanded, saveAppTheme, saveThemeColor, transparentUI, saveTransparentUI, showInactive, saveInactive, lightEffects, saveLightEffects}:Props){return <>
+type Props={showMapStops?:boolean;saveMapStops?:(value:boolean)=>void;themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
+export default function OptionsContent({themeColor, textSub, optionsCard, isDark, isWarm, appTheme, optionsButton, isOptionsExpanded, saveAppTheme, saveThemeColor, transparentUI, saveTransparentUI, showInactive, saveInactive, lightEffects, saveLightEffects,showMapStops=false,saveMapStops}:Props){return <>
                <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
                      <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${themeColor}18`, color: themeColor }}><Settings className="h-[18px] w-[18px]" /></span>
@@ -96,6 +96,12 @@ export default function OptionsContent({themeColor, textSub, optionsCard, isDark
                            <div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${showInactive ? 'translate-x-5' : ''}`}></div>
                         </div>
                         <input type="checkbox" className="sr-only" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
+                     </label>
+
+                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 md:p-4 ${optionsCard}`}>
+                       <div className="flex min-w-0 items-center gap-3 pr-3"><MapPin className="h-5 w-5 shrink-0" style={{color:themeColor}}/><div><span className="text-sm font-semibold">Pokaż przystanki na mapie</span><p className={`mt-1 text-[11px] ${textSub}`}>Przybliż mapę i dotknij przystanku, aby sprawdzić odjazdy</p></div></div>
+                       <div className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${showMapStops?'':isDark?'bg-white/12':'bg-slate-300'}`} style={{backgroundColor:showMapStops?themeColor:''}}><div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${showMapStops?'translate-x-5':''}`}/></div>
+                       <input aria-label="Pokaż przystanki na mapie" type="checkbox" className="sr-only" checked={showMapStops} onChange={event=>saveMapStops?.(event.target.checked)}/>
                      </label>
 
                      <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>

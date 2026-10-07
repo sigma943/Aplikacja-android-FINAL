@@ -77,5 +77,6 @@ export function readStopsCatalogCache(): Promise<CatalogSnapshot | null> {
 export async function writeStopsCatalogCache(snapshot: CatalogSnapshot) {
   if (!validCatalogSnapshot(snapshot)) return;
   memory = snapshot;
+  if(typeof window!=='undefined')window.dispatchEvent(new Event('pks-live:catalog-updated'));
   await catalogStorage(store => store.put(snapshot, 'latest'));
 }

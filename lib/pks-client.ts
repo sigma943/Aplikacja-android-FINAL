@@ -1762,7 +1762,7 @@ function mapVehicle(
     speed,
     computedSpeed: speed,
     direction: destination,
-    delay: typeof v.delay === 'number' ? v.delay : typeof v.deviation === 'number' ? v.deviation * 60 : 0,
+    delay: typeof v.delay === 'number' ? v.delay : typeof v.deviation === 'number' ? v.deviation * 60 : undefined,
     dataAgeSec: ageSec,
     schedule,
     routePath,
@@ -2626,6 +2626,7 @@ function processTimetable(ttData: any, dayIso: string, codeToCompare: string) {
       if (isMatch && isJourneyRunning(journey.legends || [], dayIso)) {
         if (!Number.isFinite(warsawTimeMs(dayIso, journey.time))) return;
         mapped.push({
+          journey_id: journey.journey_id,
           timetable_time: new Date(warsawTimeMs(dayIso, journey.time)).toISOString(),
           past: false,
           deviation: null,

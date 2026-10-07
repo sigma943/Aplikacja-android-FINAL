@@ -1,5 +1,6 @@
 'use client';
 
+import {useMapStops} from '@/lib/use-map-stops';
 import {useStopDepartures} from '@/Panel/src/components/useStopDepartures';
 import {mapStopDepartureRows} from '@/lib/map-stop-departures';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
@@ -11,7 +12,8 @@ import {loadStopDepartures} from '@/lib/stop-departures';
 import { uiAccentVariables } from '@/lib/ui-accent';
 import {busOperatingState} from '@/lib/bus-operating-state';
 import { busPunctuality } from '@/lib/bus-punctuality';
-import { marcelDepartureFromVehicle } from '@/lib/marcel-stop-punctuality';
+import { vehicleStopDeparture,timedVehicleStops } from '@/lib/vehicle-stop-timing';
+import { departureCountdown } from '@/lib/departure-display';
 
 import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
@@ -357,6 +359,7 @@ export default function Home() {
   // Customization States
   const [themeColor, setThemeColor] = useState('#00A3A2');
   const [showInactive, setShowInactive] = useState(false);
+  const [showMapStops,setShowMapStops]=useState(false);
   // Match the exported HTML first; restore preferences after hydration so React
   // updates theme classes rather than retaining mismatched server attributes.
   const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'>('dark-oled');
@@ -381,6 +384,7 @@ export default function Home() {
     if (activeTab === 'stops' && isStopsTabDisabled) setActiveTab('map');
   }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled]);
   const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, lat?: number, lon?: number}[]>([]);
+  const mapStops=useMapStops(showMapStops,stopsList);
   const [stopsLoadError, setStopsLoadError] = useState(false);
   const stopsLoadPendingRef = useRef(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
@@ -496,7 +500,7 @@ export default function Home() {
   }, []);
 
   const [now, setNow] = useState(0);
-  useForegroundRefresh('home-clock',async()=>{setNow(Date.now());},selectedBus?.status==='break'?1000:5000);
+  useForegroundRefresh('home-clock',async()=>{setNow(Date.now());},1000);
 
   const mapStopSource = useMemo<StopsPanelStop>(() => {
     const known=stopsList.find(stop=>stop.id===selectedStopId);
@@ -517,6 +521,7 @@ export default function Home() {
 
     const sTheme = localStorage.getItem('mks_theme');
     if (sTheme && sTheme !== themeColor) setTimeout(() => setThemeColor(sTheme), 0);
+    setShowMapStops(localStorage.getItem('mks_show_map_stops')==='true');
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
     const sAppTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
@@ -540,6 +545,7 @@ export default function Home() {
   }, []);
 
   const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex); };
+  const saveMapStops=(value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));};
   const saveInactive = (val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); };
   const saveAppTheme = (val: any) => {
     setAppTheme(val);
@@ -1018,9 +1024,9 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if ((activeTab === 'stops' || selectedBus || selectedStopId) && stopsList.length === 0 && !stopsLoadError) loadStops();
+    if ((activeTab === 'stops' || selectedBus || selectedStopId || showMapStops) && stopsList.length === 0 && !stopsLoadError) loadStops();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedBus?.id, selectedStopId]);
+  }, [activeTab, selectedBus?.id, selectedStopId, showMapStops]);
 
   useEffect(() => {
     const update = () => loadStops();
@@ -1169,10 +1175,10 @@ export default function Home() {
     selectedBusDetailsLoading &&
     ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
   const selectedBusDisplayedStops = useMemo(() => {
-    const stops = selectedBus?.routeStops?.length ? selectedBus.routeStops : selectedBus?.schedule || [];
+    const stops = selectedBus ? timedVehicleStops(selectedBus) : [];
     if (selectedVehicleIsTrain) return stops;
     return upcomingVehicleStops(stops, now, selectedBus?.lastStopId);
-  }, [now, selectedBus?.lastStopId, selectedBus?.routeStops, selectedBus?.schedule, selectedVehicleIsTrain]);
+  }, [now, selectedBus?.lastStopId, selectedBus?.routeStops, selectedBus?.schedule, selectedBus?.delay, selectedBus?.status, selectedVehicleIsTrain]);
 
   const openVehicleRouteStop = (stopId:string) => {
     const point=(selectedBus?.routeStops||selectedBus?.schedule||[]).find(stop=>String(stop.id)===stopId);
@@ -1397,6 +1403,8 @@ export default function Home() {
                selectedVehicleId={selectedBus?.id}
                selectedVehicle={selectedBus}
                stopsData={stopsDataMap}
+               mapStops={mapStops}
+               onMapStopClick={(stop)=>{mapStopReturnTab.current=null;setSelectedBus(null);setSelectedExternalStop(stop);setSelectedStopId(stop.id);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);}}
                themeColor={themeColor}
                refreshInterval={refreshInterval}
                forcedCenter={mapCenter}
@@ -1712,34 +1720,9 @@ export default function Home() {
                                   </div>
                                 ))
                              ) : selectedBusDisplayedStops.map((sch: any, idx: number) => {
-                                const parsedRealTime = sch.real ? new Date(sch.real) : null;
-                                const realTimeRaw = parsedRealTime && !Number.isNaN(parsedRealTime.getTime()) ? parsedRealTime : null;
-                                const parsedPlannedTime = sch.planned ? new Date(sch.planned) : null;
-                                const plannedTime = parsedPlannedTime && !Number.isNaN(parsedPlannedTime.getTime()) ? parsedPlannedTime : null;
-                                const busDelaySec = Number(selectedBus.delay);
-                                const canUseBusDelay =
-                                   selectedBus.status !== 'break' &&
-                                   selectedBus.status !== 'inactive' &&
-                                   Number.isFinite(busDelaySec) &&
-                                   Math.abs(busDelaySec) <= 18000;
-                                const computedDelayTime = plannedTime && canUseBusDelay && busDelaySec !== 0 ? new Date(plannedTime.getTime() + (busDelaySec * 1000)) : null;
-                                const realTime = realTimeRaw || computedDelayTime;
-                                const displayTime = realTime || plannedTime;
-                                const stopDelaySec = realTime && plannedTime ? (realTime.getTime() - plannedTime.getTime()) / 1000 : 0;
-                                const punctuality = busPunctuality(canUseBusDelay ? busDelaySec : stopDelaySec, textMain);
-                                const formatTime = (time: Date) => {
-                                   const isTomorrow = time.getDate() !== new Date().getDate();
-                                   const mm = time.getMinutes().toString().padStart(2, '0');
-                                   const hh = time.getHours().toString().padStart(2, '0');
-                                   if (isTomorrow) {
-                                      const dd = time.getDate().toString().padStart(2, '0');
-                                      const mo = (time.getMonth() + 1).toString().padStart(2, '0');
-                                      return `${dd}.${mo} ${hh}:${mm}`;
-                                   }
-                                   return `${hh}:${mm}`;
-                                };
-                                const timeStr = displayTime ? formatTime(displayTime) : '';
-                                const timeClass = punctuality.colorClass;
+                                const timing = vehicleStopDeparture(selectedBus,sch);
+                                const timeStr = departureCountdown(timing,now);
+                                const timeClass = punctualityTimeClass(timing.delayMins);
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = Boolean(sch.isPast) || Boolean(selectedBus.lastStopId && sch.id === selectedBus.lastStopId);
                                 return (
@@ -1891,7 +1874,7 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <OptionsContent themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
+            <OptionsContent showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
         )}
       </AnimatePresence>

@@ -3,10 +3,13 @@
 import { memo, startTransition, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomControl, useMapEvents, Pane } from 'react-leaflet';
 import L from 'leaflet';
+import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
+import type {Stop} from '@/Panel/src/types';
+import {mapStopColor,mapStopIconHtml,visibleMapStops} from '@/lib/map-stop-markers';
 import 'leaflet/dist/leaflet.css';
 import { routeGeometryKey } from '@/lib/route-geometry-key';
 import { officialBusRoute } from '@/lib/official-bus-routes';
-import { roadRouteMatchesStops, simplifyRoadRoute } from '@/lib/bus-road-geometry';
+import { roadRouteMatchesStops, simplifyRoadRoute, cleanRoadJunctionLoops } from '@/lib/bus-road-geometry';
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { runFrameBatch } from '@/lib/map-frame-batch';
 import { loadRouteWithRetry } from '@/lib/route-load-retry';
@@ -19,7 +22,7 @@ const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v9-validated-stop-waypoints';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v10-clean-junctions';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -570,6 +573,8 @@ function isUpcomingScheduleStop(
 }
 
 interface BusMapProps {
+  mapStops?: Stop[];
+  onMapStopClick?: (stop:Stop)=>void;
   vehicles: Vehicle[];
   onVehicleClick?: (vehicle: Vehicle) => void;
   selectedVehicleId?: string | null;
@@ -939,6 +944,17 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
   );
 });
 
+function CatalogStopsLayer({stops,selected,onSelect}:{stops:Stop[];selected?:string|null;onSelect?:(stop:Stop)=>void}) {
+  const map=useMap();
+  const [revision,setRevision]=useState(0);
+  useMapEvents({moveend:()=>setRevision(value=>value+1),zoomend:()=>setRevision(value=>value+1)});
+  const visible=useMemo(()=>{const bounds=map.getBounds();return visibleMapStops(stops,[bounds.getWest(),bounds.getSouth(),bounds.getEast(),bounds.getNorth()],map.getZoom(),selected);},[map,stops,selected,revision]);
+  const icons=useMemo(()=>new Map(visible.map(stop=>[stop.id,L.divIcon({className:'map-catalog-stop',html:mapStopIconHtml(mapStopColor(stop),stop.id===selected),iconSize:[40,40],iconAnchor:[20,20]})])),[visible,selected]);
+  return <>{visible.map(stop=><Marker key={stop.id} position={[stop.lat!,stop.lon!]} title={stop.name} alt={stop.name}
+    icon={icons.get(stop.id)!} zIndexOffset={stop.id===selected?4500:-500}
+    eventHandlers={{click:event=>{L.DomEvent.stopPropagation(event.originalEvent);onSelect?.(stop);}}}/>)}</>;
+}
+
 function RouteStopsLayer({
   selectedVehicle,
   stopsData,
@@ -999,6 +1015,8 @@ function RouteStopsLayer({
 }
 
 export default function BusMap({ 
+  mapStops = [],
+  onMapStopClick,
   vehicles, 
   onVehicleClick, 
   selectedVehicleId, 
@@ -1048,10 +1066,8 @@ export default function BusMap({
   const routeAbortRef = useRef<AbortController | null>(null);
   const activeRouteRequestIdRef = useRef(0);
   const routeStopsSource = useMemo(() => {
-    const routeStops = selectedVehicle?.routeStops || [];
-    if (routeStops.length > 0) return routeStops;
-    return selectedVehicle?.schedule || [];
-  }, [selectedVehicle?.routeStops, selectedVehicle?.schedule]);
+    return selectedVehicle ? timedVehicleStops(selectedVehicle) : [];
+  }, [selectedVehicle?.routeStops, selectedVehicle?.schedule, selectedVehicle?.delay, selectedVehicle?.status]);
   const routeStopsData = useMemo(() => {
     const next: Record<string, StopData> = selectedVehicle?.provider && selectedVehicle.provider !== 'pks'
       ? {}
@@ -1158,7 +1174,7 @@ export default function BusMap({
       const localRoute = await readPersistentRouteGeometry(routeKey, routeGeometryVersion);
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (localRoute.length > 1 && (routeMode === 'rail' || roadRouteMatchesStops(localRoute, routeGeometryStops.map(stop => [stop.lat,stop.lon]), 180))) {
-        const refinedLocalRoute = simplifyRouteForPaint(localRoute);
+        const refinedLocalRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(localRoute,routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : localRoute);
         refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
         refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
         setSnappedRoute(refinedLocalRoute);
@@ -1170,7 +1186,7 @@ export default function BusMap({
         : [];
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (officialRoute.length > 1) {
-        const refinedOfficialRoute = simplifyRouteForPaint(officialRoute);
+        const refinedOfficialRoute = simplifyRouteForPaint(cleanRoadJunctionLoops(officialRoute,routeGeometryStops.map(stop=>[stop.lat,stop.lon])));
         refinedRouteCacheRef.current.set(routeKey, refinedOfficialRoute);
         refinedRouteByVehicleRef.current.set(currentIdentity, refinedOfficialRoute);
         writePersistentRouteGeometry(routeKey, refinedOfficialRoute, routeGeometryVersion);
@@ -1199,7 +1215,7 @@ export default function BusMap({
           .map(([lon, lat]) => [lat, lon] as [number, number])
           .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
         if (points.length > 1) {
-          const refinedRoute = simplifyRouteForPaint(points);
+          const refinedRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(points,routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : points);
           refinedRouteCacheRef.current.set(routeKey, refinedRoute);
           if (response.cacheKey) refinedRouteCacheRef.current.set(response.cacheKey, refinedRoute);
           refinedRouteByVehicleRef.current.set(currentIdentity, refinedRoute);
@@ -1299,6 +1315,11 @@ export default function BusMap({
           transition-duration: 0s !important;
         }
 
+        .map-catalog-stop {background:transparent;border:0;display:flex;align-items:center;justify-content:center;}
+        .map-stop-ring {display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--stop-color);border-radius:50%;color:var(--stop-color);background:transparent;box-shadow:0 1px 5px #0006;transition:transform .24s ease,box-shadow .24s ease,background .24s ease;}
+        .map-stop-ring.is-selected {transform:scale(1.28);background:color-mix(in srgb,var(--stop-color) 22%,#10242e);box-shadow:0 0 0 5px color-mix(in srgb,var(--stop-color) 22%,transparent),0 0 18px var(--stop-color);animation:map-stop-select .42s ease-out;}
+        @keyframes map-stop-select {from {transform:scale(.9);box-shadow:0 0 0 0 transparent;}to {transform:scale(1.28);}}
+        @media(prefers-reduced-motion:reduce){.map-stop-ring,.map-stop-ring.is-selected{transition:none;animation:none;}}
         .mks-route-stop-marker {
           filter: drop-shadow(0 0 7px rgba(255,255,255,0.62)) drop-shadow(0 2px 6px rgba(0,0,0,0.5));
         }
@@ -1322,7 +1343,7 @@ export default function BusMap({
         />
 
         {/* Highlighted Selected Stop */}
-        {highlightedStopId && routeStopsData[highlightedStopId] && (
+        {highlightedStopId && routeStopsData[highlightedStopId] && !mapStops.some(stop=>stop.id===highlightedStopId) && (
           <Marker 
             position={[routeStopsData[highlightedStopId].lat, routeStopsData[highlightedStopId].lon]}
             zIndexOffset={5000}
@@ -1339,6 +1360,8 @@ export default function BusMap({
             })}
           />
         )}
+
+        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={highlightedStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>

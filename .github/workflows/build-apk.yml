@@ -38,6 +38,9 @@ jobs:
       - name: Verify shared accent and stop views
         run: node test/accent-browser.cjs
 
+      - name: Verify map stop interactions
+        run: node test/map-stops-browser.cjs
+
       - name: Upload UI previews
         if: always()
         uses: actions/upload-artifact@v4

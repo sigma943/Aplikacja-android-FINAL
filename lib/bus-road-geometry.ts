@@ -73,3 +73,28 @@ export function joinRouteChunks(chunks:Point[][]):Point[] {
   }
   return result;
 }
+
+/** Remove tiny self-returning routing artifacts at a junction, keeping stop visits. */
+export function cleanRoadJunctionLoops(route:Point[],stops:Point[]):Point[] {
+  const result:Point[]=[];
+  for(let routeIndex=0;routeIndex<route.length;routeIndex++){
+    const point=route[routeIndex];
+    result.push(point);
+    const end=result.length-1;
+    let length=0;
+    for(let start=end-1;start>=Math.max(0,end-120);start--){
+      length+=roadDistance(result[start],result[start+1]);
+      if(length>100)break;
+      if(end-start<3||roadDistance(result[start],point)>4)continue;
+      const loop=result.slice(start,end+1);
+      if(loop.some(p=>roadDistance(p,point)>30))continue;
+      // A bay, terminus or return leg is real when a stop lies on the excursion.
+      if(stops.some(stop=>loop.some(p=>roadDistance(p,stop)<35)))continue;
+      const candidate=[...result.slice(0,start+1),...route.slice(routeIndex+1)];
+      if(!roadRouteMatchesStops(candidate,stops,180))continue;
+      result.splice(start+1,end-start);
+      break;
+    }
+  }
+  return result;
+}

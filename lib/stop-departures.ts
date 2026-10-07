@@ -11,7 +11,7 @@ export async function loadStopDepartures (stop: Stop, dayIndex = 0,partial?: (re
       for(const point of points) sources.push({
         key:JSON.stringify(['pks',point,dateIso]),label:'PKS',load:async()=> {
           const response = await limitTimetableRequest(()=>fetchDeparturesClient(point.id,point.areaId,point.code,dateIso));
-          return {departures: response.journeys.map((row: any,index: number)=>mapJourneyToDeparture(row,index)).filter((row: Departure|null): row is Departure=>Boolean(row)),warning:response.warning};
+          return {departures: response.journeys.map((row: any,index: number)=>mapJourneyToDeparture(row,index,point.id)).filter((row: Departure|null): row is Departure=>Boolean(row)),warning:response.warning};
         },
       });
     }
