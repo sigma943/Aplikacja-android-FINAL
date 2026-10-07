@@ -38,7 +38,7 @@ test('city and rural stop colours, zoom threshold, viewport and selection are de
   assert.deepEqual(visibleMapStops([city,rural],[21.9,49.9,22.1,50.1],15),[]);
   assert.equal(visibleMapStops([city,rural,{...rural,id:'far',lat:49}], [21.9,49.9,22.1,50.1],16,'rural')[0].id,'rural');
   assert.match(mapStopIconHtml('#ff7a00',true),/is-selected/);
-  assert.match(mapStopIconHtml('#ff7a00',false),/fill="none"/);
+  assert.match(mapStopIconHtml('#ff7a00',false),/fill="currentColor"/);
 });
 const {cleanRoadJunctionLoops,roadRouteMatchesStops}=loadTs('lib/bus-road-geometry.ts');
 test('small junction loop is removed while real stop excursions and longer road loops survive',()=>{

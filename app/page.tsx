@@ -13,7 +13,6 @@ import { uiAccentVariables } from '@/lib/ui-accent';
 import {busOperatingState} from '@/lib/bus-operating-state';
 import { busPunctuality } from '@/lib/bus-punctuality';
 import { vehicleStopDeparture,timedVehicleStops } from '@/lib/vehicle-stop-timing';
-import { departureCountdown } from '@/lib/departure-display';
 
 import { startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import dynamic from 'next/dynamic';
@@ -1721,7 +1720,7 @@ export default function Home() {
                                 ))
                              ) : selectedBusDisplayedStops.map((sch: any, idx: number) => {
                                 const timing = vehicleStopDeparture(selectedBus,sch);
-                                const timeStr = departureCountdown(timing,now);
+                                const timeStr = timing.time;
                                 const timeClass = punctualityTimeClass(timing.delayMins,textMain);
                                 const isHighlighted = sch.id?.toString() === selectedStopId;
                                 const isPastStop = Boolean(sch.isPast) || Boolean(selectedBus.lastStopId && sch.id === selectedBus.lastStopId);
