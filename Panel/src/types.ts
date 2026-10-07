@@ -32,7 +32,7 @@ export interface Departure {
   line: string; // e.g. "233" or "IC 83170"
   direction: string;
   time: string; // e.g. "19:24"
-  status: 'on_time' | 'delayed';
+  status: 'on_time' | 'delayed' | 'unknown';
   delayMins?: number;
   delayEstimated?: boolean;
   vehicleDesc?: string; // e.g. "Autobus 16 • Iveco Crossway"

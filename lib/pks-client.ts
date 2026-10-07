@@ -1,3 +1,7 @@
+import {diagnosticRequest,measuredTransport} from './transport-diagnostics';
+import {createMarcelTimetableApi} from './providers/marcel-timetable';
+import type {MarcelRoute,MarcelCourse,MarcelCourseStopPublic} from './providers/marcel-timetable';
+export type {MarcelRoute,MarcelCourse,MarcelCourseStopPublic} from './providers/marcel-timetable';
 import { routeGeometryKey } from './route-geometry-key';
 import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
 import { getTransportRuntime, transportApiBase } from './transport-runtime';
@@ -196,7 +200,9 @@ function einfoFallbackUrl(pathAndOptionalQuery: string) {
 }
 
 async function requestJson<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
-  return withRequestDeadline((signal) => requestJsonImpl<T>(url, { ...init, signal }), init?.signal || undefined);
+  const diagnostic=diagnosticRequest(url);
+  const load=()=>withRequestDeadline((signal) => requestJsonImpl<T>(url, { ...init, signal }), init?.signal || undefined);
+  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,value=>Array.isArray(value)?value.length:0):load();
 }
 
 async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
@@ -2787,33 +2793,6 @@ export async function fetchMpkRzeszowDeparturesClient(
   return result;
 }
 
-export type MarcelRoute = {
-  idTr: number;
-  nazTr: string;
-  nazMiOd?: string;
-  nazMiDo?: string;
-};
-
-export type MarcelCourse = {
-  idKu: number;
-  nazTr?: string;
-  nazPr?: string;
-  data?: string;
-  godz?: string;
-  godzPr?: string;
-  idTr?: number;
-};
-
-export type MarcelCourseStopPublic = {
-  kol?: number;
-  szGps?: number;
-  dlGps?: number;
-  nazTr?: string;
-  nazMi?: string;
-  nazPr?: string;
-  godz?: string;
-};
-
 export type MarcelLivePosition = { tripId: string; lat: number; lon: number; observedAtMs: number };
 type MarcelPositionSnapshot = { rows: any[]; observedAtMs: number; positions: MarcelLivePosition[] };
 let marcelPositionSnapshotCache: { expiresAt: number; promise: Promise<MarcelPositionSnapshot> } | undefined;
@@ -2873,56 +2852,9 @@ export function estimateMarcelCourseDelay(courseId: number | string, publicStops
   return estimateMarcelDelaySeconds(position.lat, position.lon, stops, position.observedAtMs);
 }
 
-let marcelRoutesPromise: Promise<MarcelRoute[]> | null = null;
-const marcelCoursesByRouteDateCache = new Map<string, Promise<MarcelCourse[]>>();
-const marcelPublicCourseStopsCache = new Map<string, Promise<MarcelCourseStopPublic[]>>();
+export const {fetchMarcelRoutesClient,fetchMarcelCoursesClient,fetchMarcelPublicCourseStopsClient}=createMarcelTimetableApi(requestJson,MARCEL_API_BASE_URL);
 
-export async function fetchMarcelRoutesClient() {
-  if (!marcelRoutesPromise) {
-    marcelRoutesPromise = requestJson<MarcelRoute[]>(`${MARCEL_API_BASE_URL}/client/api/search/trasy?appVersion=v1.67`, {
-      headers: {Accept: 'application/json'},
-    });
-  }
-  return marcelRoutesPromise.catch(error => { marcelRoutesPromise = null; throw error; });
-}
-
-export async function fetchMarcelCoursesClient(routeId: number | string, dateIso: string) {
-  const key = `${routeId}:${dateIso}`;
-  if (!marcelCoursesByRouteDateCache.has(key)) {
-    marcelCoursesByRouteDateCache.set(
-      key,
-      requestJson<MarcelCourse[]>(
-        `${MARCEL_API_BASE_URL}/client/api/search/wariantTrasy/kusy?data=${encodeURIComponent(dateIso)}&idTr=${encodeURIComponent(String(routeId))}&appVersion=v1.67`,
-        {headers: {Accept: 'application/json'}},
-      ).catch(error => { marcelCoursesByRouteDateCache.delete(key); throw error; }),
-    );
-    if (marcelCoursesByRouteDateCache.size > 80) {
-      const firstKey = marcelCoursesByRouteDateCache.keys().next().value;
-      if (firstKey) marcelCoursesByRouteDateCache.delete(firstKey);
-    }
-  }
-  return marcelCoursesByRouteDateCache.get(key)!;
-}
-
-export async function fetchMarcelPublicCourseStopsClient(courseId: number | string) {
-  const key = String(courseId);
-  if (!marcelPublicCourseStopsCache.has(key)) {
-    marcelPublicCourseStopsCache.set(
-      key,
-      requestJson<MarcelCourseStopPublic[]>(
-        `${MARCEL_API_BASE_URL}/client/api/trasy/kurs/${encodeURIComponent(key)}?appVersion=v1.67`,
-        {headers: {Accept: 'application/json'}},
-      ).catch(error => { marcelPublicCourseStopsCache.delete(key); throw error; }),
-    );
-    if (marcelPublicCourseStopsCache.size > 700) {
-      const firstKey = marcelPublicCourseStopsCache.keys().next().value;
-      if (firstKey) marcelPublicCourseStopsCache.delete(firstKey);
-    }
-  }
-  return marcelPublicCourseStopsCache.get(key)!;
-}
-
-export async function fetchRouteGeometryClient(
+async function fetchRouteGeometryClientImpl(
   request: RouteGeometryClientRequest,
   options?: { signal?: AbortSignal },
 ): Promise<RouteGeometryClientResponse> {
@@ -3120,3 +3052,19 @@ export async function fetchRouteShapeClient(
   }
   return [];
 }
+
+/** Public adapter stays stable while diagnostics record the final accepted geometry. */
+export function fetchRouteGeometryClient(request:RouteGeometryClientRequest,options?:{signal?:AbortSignal}):Promise<RouteGeometryClientResponse>{
+  const load=()=>fetchRouteGeometryClientImpl(request,options);
+  const provider=request.carrier==='pks'?'pks':request.carrier==='mpk_rzeszow'?'mpk_rzeszow':request.carrier==='marcel'?'marcel':null;
+  return provider?measuredTransport(provider,'geometry',load,value=>value.geometry?.coordinates?.length??0):load();
+}
+export async function diagnoseBuiltinProviders(){
+  return Promise.allSettled([
+    measuredTransport('pks','vehicles',()=>fetchPksVehiclesSnapshot(),value=>value.length,value=>diagnosticSignalAge(value.map(row=>transitTimestamp(row.position?.position_date||row.lastUpdate)))),
+    measuredTransport('mpk_rzeszow','vehicles',()=>fetchMpkVehicleFeed(),value=>value.length,value=>diagnosticSignalAge(value.map(row=>row.timestamp?mpkSignalTime(row,Date.now()):NaN))),
+    measuredTransport('marcel','vehicles',()=>fetchMarcelPositionSnapshot(),value=>value.rows.length,value=>diagnosticSignalAge(value.rows.map(readMarcelTimestamp))),
+  ]);
+}
+
+function diagnosticSignalAge(times:number[]){const valid=times.filter(time=>Number.isFinite(time)&&time>0&&time<=Date.now()+60_000);return valid.length?Math.max(0,Math.floor((Date.now()-Math.max(...valid))/1000)):undefined;}

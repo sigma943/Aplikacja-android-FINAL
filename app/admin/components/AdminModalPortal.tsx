@@ -1,11 +1,15 @@
 'use client';
 import {useEffect,useRef,useState,type ReactNode,type CSSProperties} from 'react';
 import {createPortal} from 'react-dom';
+import {useDialogFocus} from '@/lib/use-dialog-focus';
+import {appBackStack} from '@/lib/app-back';
 
 /** Escape animated/scrolling admin ancestors while preserving the current theme. */
 export function AdminModalPortal({children}: {children:ReactNode}) {
   const anchor=useRef<HTMLSpanElement>(null);
   const [target,setTarget]=useState<HTMLElement|null>(null);
+  const modal=useRef<HTMLDivElement>(null);
+  useDialogFocus(modal,Boolean(target),()=>{appBackStack.dispatch();});
   const [scope,setScope]=useState({theme:'dark',glass:'off',light:false,variables:{} as CSSProperties});
   useEffect(()=>{
     const source=anchor.current?.closest<HTMLElement>('.pks-panel-scope');
@@ -30,5 +34,5 @@ export function AdminModalPortal({children}: {children:ReactNode}) {
     window.addEventListener('resize',update);
     return ()=>{observer.disconnect();window.visualViewport?.removeEventListener('resize',update);window.visualViewport?.removeEventListener('scroll',update);window.removeEventListener('resize',update);};
   },[]);
-  return <><span ref={anchor} hidden />{target&&createPortal(<div className={`pks-panel-scope ${scope.light?'admin-light':''}`} data-panel-theme={scope.theme} data-glass={scope.glass} style={scope.variables}>{children}</div>,target)}</>;
+  return <><span ref={anchor} hidden />{target&&createPortal(<div ref={modal} className={`pks-panel-scope ${scope.light?'admin-light':''}`} data-panel-theme={scope.theme} data-glass={scope.glass} style={scope.variables}>{children}</div>,target)}</>;
 }

@@ -1,5 +1,8 @@
 'use client';
 
+import {useRef} from 'react';
+import {useDialogFocus} from '@/lib/use-dialog-focus';
+
 import { AnimatePresence, motion } from 'motion/react';
 import CarrierBusIcon from './CarrierBusIcon';
 import { Bus, Check, X } from 'lucide-react';
@@ -110,6 +113,8 @@ export default function TransportSelectorPanel({
   themeMode,
   transparentUI = false,
 }: TransportSelectorPanelProps) {
+  const dialog=useRef<HTMLDivElement>(null);
+  useDialogFocus(dialog,open,onClose);
   const selectedSet = new Set(selectedIds);
   const selectedCount = selectedIds.length;
   const theme = panelTheme(isDark, themeMode, transparentUI);
@@ -131,6 +136,8 @@ export default function TransportSelectorPanel({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 22, scale: 0.985 }}
             transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+            ref={dialog}
+            role="dialog" aria-modal="true" aria-label="Przewoźnicy"
             data-carrier-sheet data-glass={transparentUI ? 'on' : 'off'}
             onClick={(event) => event.stopPropagation()}
             className={`flex max-h-[calc(100dvh-96px-env(safe-area-inset-bottom))] w-full flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:max-h-[min(720px,calc(100dvh-64px))] md:max-w-[600px] ${theme.shell}`}
