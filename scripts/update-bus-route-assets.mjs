@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import {matchCoordinates} from './lib/stop-coordinate-matching.mjs';
 import {unzipSync, strFromU8} from 'fflate';
 
 async function download(url) {
@@ -45,7 +46,9 @@ for(const [provider,url] of [['pks','https://www.mpkrzeszow.pl/gtfs-pks/latest.z
       if(candidates.length===1){const point=candidates[0];canonicalIds.set(stop.stop_id,String(point.stop_point_id));const snapshot=snapshots[point.stop_point_id];snapshot.lat??=Number(stop.stop_lat);snapshot.lon??=Number(stop.stop_lon);}
       else canonicalIds.delete(stop.stop_id);
     }
-    await fs.writeFile('public/data/pks-stop-points.json',JSON.stringify({source:'http://einfo.zgpks.rzeszow.pl/api/stop-point',updatedAt:new Date().toISOString(),stops:snapshots}));
+    const verified=matchCoordinates(pksPoints.map(point=>({id:point.stop_point_id,name:point.stop_area_name||point.name,code:point.stop_point_code,lat:Number(point.location?.lat),lon:Number(point.location?.lon)})),gtfsStops.map(stop=>({id:stop.stop_id,name:stop.stop_name,lat:Number(stop.stop_lat),lon:Number(stop.stop_lon)}))).stops;
+    for(const [id,point] of Object.entries(verified)){Object.assign(snapshots[id],{lat:point.lat,lon:point.lon,coordinateSource:'gtfs',gtfsStopId:point.gtfsStopId});}
+    await fs.writeFile('public/data/pks-stop-points.json',JSON.stringify({coordinateSource:url,source:'http://einfo.zgpks.rzeszow.pl/api/stop-point',updatedAt:new Date().toISOString(),stops:snapshots}));
   }
   const tripStops=new Map(), tripGtfsStops=new Map();
   for(const row of read('stop_times.txt')){const list=tripStops.get(row.trip_id)||[];list.push([Number(row.stop_sequence),canonicalIds.get(row.stop_id)]);tripStops.set(row.trip_id,list);const gtfs=tripGtfsStops.get(row.trip_id)||[];gtfs.push([Number(row.stop_sequence),row.stop_id]);tripGtfsStops.set(row.trip_id,gtfs);}

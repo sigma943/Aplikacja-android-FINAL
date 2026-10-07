@@ -3,7 +3,7 @@ import type { RawStop, MarcelIndexedStop } from '@/components/stops-panel/stop-d
 
 export type MpkCatalogStop = { id: string; name: string; lat?: number; lon?: number; lines: string[] };
 export type CatalogSnapshot = {
-  version: 1;
+  version: 2;
   pks: RawStop[];
   mpk: MpkCatalogStop[];
   marcel: MarcelIndexedStop[];
@@ -17,7 +17,7 @@ let reading: Promise<CatalogSnapshot | null> | null = null;
 export function validCatalogSnapshot(value: unknown): value is CatalogSnapshot {
   const data = value as CatalogSnapshot | null;
   const namedStop = (stop: RawStop | null) => Boolean(stop && typeof stop.id === 'string' && typeof stop.name === 'string');
-  return Boolean(data && data.version === 1 && Array.isArray(data.pks) && Array.isArray(data.mpk)
+  return Boolean(data && data.version === 2 && Array.isArray(data.pks) && Array.isArray(data.mpk)
     && Array.isArray(data.marcel) && data.lines && typeof data.lines === 'object'
     && data.pks.every(namedStop) && data.mpk.every(stop => namedStop(stop) && Array.isArray(stop.lines))
     && data.marcel.every(stop => namedStop(stop) && Array.isArray(stop.routeIds))

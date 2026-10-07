@@ -215,7 +215,7 @@ export default function StopsPanel({
   useEffect(() => {
     if (!cacheReady || !baseUiStops.length || renderedCatalogKey !== mergedStopsCacheKey) return;
     const timer = window.setTimeout(() => {
-      void writeStopsCatalogCache({ version: 1, pks: catalogPksStops, mpk: mpkStops, marcel: marcelStops, lines: pksLinesByStopId, stops: baseUiStops });
+      void writeStopsCatalogCache({ version: 2, pks: catalogPksStops, mpk: mpkStops, marcel: marcelStops, lines: pksLinesByStopId, stops: baseUiStops });
     }, 250);
     return () => window.clearTimeout(timer);
   }, [cacheReady, baseUiStops, catalogPksStops, mpkStops, marcelStops, pksLinesByStopId, renderedCatalogKey, mergedStopsCacheKey]);

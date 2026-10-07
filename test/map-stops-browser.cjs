@@ -8,7 +8,7 @@ try{
  await page.evaluateOnNewDocument(()=>{const Original=Date;window.Date=class extends Original{constructor(...args){super(...(args.length?args:[Original.parse('2026-10-07T11:45:20Z')]));}static now(){return Original.parse('2026-10-07T11:45:20Z');}};if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17}));});
  await page.setRequestInterception(true);
  page.on('request',request=>{const url=request.url();const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'}}});
+  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:''}}});
   if(url.includes('mpkrzeszow.pl/przystanki/stopscache'))return json([{stop_id:900001,stop_name:'Rzeszów TestMap',stop_lat:50.04,stop_lon:22,lines:'2'}]);
   if(url.includes('offline_schedule.php'))return json({schedule:{'2':[{line:'2',trip_headsign:'Centrum',departure_time:'13:55:00',trip_id:'test-map'}]}});
   if(url.includes('mpkrzeszow.pl')||url.includes('api-site.marcel-bus.pl')||url.includes('/pks/get_vehicles.php'))return json([]);
@@ -23,6 +23,7 @@ try{
  assert.equal(await page.$$('.map-catalog-stop').then(rows=>rows.length),0,'stops are disabled initially');
  await option();
  await page.waitForSelector('.map-catalog-stop[title="Rzeszów TestMap"]');
+ await page.waitForFunction(()=>document.querySelectorAll('.map-catalog-stop[title^="Rzeszów TestMap" i]').length===2);
  const color=await page.$eval('.map-catalog-stop[title="Rzeszów TestMap"] .map-stop-ring',el=>getComputedStyle(el).backgroundColor);assert.equal(color,'rgb(255, 122, 0)');
  assert.equal(await page.$eval('.map-catalog-stop[title="Rzeszów TestMap"] svg',el=>getComputedStyle(el).color),'rgb(255, 255, 255)');
  await page.click('.map-catalog-stop[title="Rzeszów TestMap"]');await page.waitForSelector('[data-map-stop-sheet]');

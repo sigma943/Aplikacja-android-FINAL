@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const loadTs=require('./load-ts.cjs');
-const snapshot={version:1,pks:[{id:'1',name:'Stop'}],mpk:[],marcel:[],lines:{'1':['108']},stops:[{id:'pks:1',name:'Stop',lines:['108'],carriers:[{id:'pks'}],providerStopIds:{pks:'1'}}]};
+const snapshot={version:2,pks:[{id:'1',name:'Stop'}],mpk:[],marcel:[],lines:{'1':['108']},stops:[{id:'pks:1',name:'Stop',lines:['108'],carriers:[{id:'pks'}],providerStopIds:{pks:'1'}}]};
 
 test('invalid or old catalog caches are ignored; provider references and badges remain available',async()=>{
   const cache=loadTs('lib/stops-catalog-cache.ts');

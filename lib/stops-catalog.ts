@@ -1,8 +1,9 @@
 import type { Carrier, Stop } from '@/Panel/src/types';
 import { getSimilarity } from '@/lib/rzeszow-stop-consolidation';
 import { RawStop, PKS_CARRIER, MARCEL_CARRIER, MPK_CARRIER, MarcelIndexedStop, InternalStop, MERGED_STOPS_RUNTIME_CACHE, MERGED_STOPS_RUNTIME_CACHE_LIMIT, stopDisplayName, ensureMpkCityPrefix, preferredStopDisplayName, stopBaseNameKey, mergeTokens, numericTokens, nameSimilarityScore, sharedStopTokenCount, hasConflictingCityToken, mergeCsvValues, mergeDebugNames, distanceMeters, geoBucketKeys, normalizeStopMergeName, hasConflictingStopNumbers, mergeStopsByGpsAndName, mergeMpkStopsForList, canExposeStandaloneMarcelStop, isWeakMarcelName, sortedLines } from '@/components/stops-panel/stop-domain';
-export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;name:string;lat?:number;lon?:number;lines:string[]}>,marcelStops:MarcelIndexedStop[],mergedStopsCacheKey:string): Stop[] {
-    const cached = MERGED_STOPS_RUNTIME_CACHE.get(mergedStopsCacheKey);
+export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;name:string;lat?:number;lon?:number;lines:string[]}>,marcelStops:MarcelIndexedStop[],mergedStopsCacheKey:string,physicalPoints=false): Stop[] {
+    const cacheKey = (physicalPoints ? 'physical:' : 'list:') + mergedStopsCacheKey;
+    const cached = MERGED_STOPS_RUNTIME_CACHE.get(cacheKey);
     if (cached) return cached;
 
     const byTechnical = new Map<string, InternalStop>();
@@ -190,6 +191,8 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         const sharedTokens = sharedStopTokenCount(raw.name, candidate.name);
         const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.34 : 0;
         if (hasGeo && distance > 550) continue;
+        // A list may consolidate nearby stops; map pins must represent one physical platform.
+        if (physicalPoints && (!hasGeo || distance > 8)) continue;
         if (!hasGeo && candidate.baseNameKey !== baseNameKey && similarity < 0.92) continue;
         const distanceScore = hasGeo
           ? distance <= 35
@@ -276,7 +279,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       };
       const matched =
         findSafeCrossProviderMatch(raw, new Set(['pks'])) ||
-        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']));
+        (!physicalPoints ? findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow'])) : null);
       const stop = matched ? matched : ensureTechnicalStop(raw);
       if (matched) attachProvider(matched, raw);
       mpkStop.lines.forEach((line) => stop.lineSet.add(line));
@@ -328,10 +331,10 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         };
       });
 
-    const mergedMpkStops = mergeMpkStopsForList(normalizedStops);
-    const mergedStops = mergeStopsByGpsAndName(mergedMpkStops).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
+    const mergedMpkStops = physicalPoints ? normalizedStops : mergeMpkStopsForList(normalizedStops);
+    const mergedStops = (physicalPoints ? mergedMpkStops : mergeStopsByGpsAndName(mergedMpkStops)).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
 
-    MERGED_STOPS_RUNTIME_CACHE.set(mergedStopsCacheKey, mergedStops);
+    MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, mergedStops);
     if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {
       const oldestKey = MERGED_STOPS_RUNTIME_CACHE.keys().next().value;
       if (oldestKey) MERGED_STOPS_RUNTIME_CACHE.delete(oldestKey);

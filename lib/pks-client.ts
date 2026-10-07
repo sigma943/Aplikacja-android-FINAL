@@ -173,7 +173,7 @@ const vehicleSpeedHistory = new Map<string, { lat: number; lon: number; atMs: nu
 const MARCEL_STALE_MS = 7 * 60 * 1000;
 const CLIENT_STOP_CACHE_VERSION = 4;
 const CLIENT_STOP_CACHE_TTL_MS = 15 * 60 * 1000;
-const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v5';
+const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v6';
 const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v4';
 
 type MarcelCourseStop = {
@@ -2493,8 +2493,10 @@ function formatPksStops(data: any, snapshot: any): StopsMap {
   const compressedMap: StopsMap = {};
   for (const stop of data?.items || []) {
     const fallback = snapshot.stops?.[String(stop.stop_point_id)];
-    const lat = Number(stop.location?.lat ?? stop.location?.latitude ?? fallback?.lat);
-    const lon = Number(stop.location?.lon ?? stop.location?.lng ?? stop.location?.long ?? stop.location?.longitude ?? fallback?.lon);
+    // The timetable API contains approximate points; matched GTFS platforms are authoritative.
+    const verified = fallback?.coordinateSource === 'gtfs' && String(fallback.areaId) === String(stop.stop_area_id) && String(fallback.code) === String(stop.stop_point_code);
+    const lat = Number(verified ? fallback.lat : stop.location?.lat ?? stop.location?.latitude ?? fallback?.lat);
+    const lon = Number(verified ? fallback.lon : stop.location?.lon ?? stop.location?.lng ?? stop.location?.long ?? stop.location?.longitude ?? fallback?.lon);
     const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
     const areaName = stop.stop_area_name ? stop.stop_area_name.trim() : '';
     const name = stop.name ? stop.name.trim() : '';
