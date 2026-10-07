@@ -15,7 +15,8 @@ module.exports=function buildAccentFixture(){
     .replaceAll("from 'firebase/firestore'", "from './sdk'")
     .replaceAll("from '@/lib/firebase'", "from './sdk'")
     .replaceAll("from '../types'", "from '@/app/admin/types'")
-    .replaceAll("from './AdminModalPortal'", "from '@/app/admin/components/AdminModalPortal'");
+    .replaceAll("from './AdminModalPortal'", "from '@/app/admin/components/AdminModalPortal'")
+    .replaceAll("from './TransportDiagnosticsPanel'", "from '@/app/admin/components/TransportDiagnosticsPanel'");
   fs.writeFileSync(path.join(fixture,'app/maintenance/Component.tsx'),maintenance);
   fs.copyFileSync(path.join(source,'test/maintenance-ui-stub.ts'),path.join(fixture,'app/maintenance/sdk.ts'));
   fs.writeFileSync(path.join(fixture,'app/maintenance/page.tsx'),`'use client';import {MaintenanceView} from './Component';export default function Page(){return <MaintenanceView onMenuClick={()=>{}} canEdit={true}/>}`);

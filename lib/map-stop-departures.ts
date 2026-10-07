@@ -14,7 +14,7 @@ export function mapStopDepartureRows(rows:Departure[],vehicles:Vehicle[],now:num
     const time=row.realAtMs??row.plannedAtMs!;
     const today=warsawDateIso(0,new Date(time))===warsawDateIso(0,new Date(now));
     return {id:`${row.carrier?.id}:${row.id}`,line:row.line,direction:row.direction,
-      color:row.carrier?.id==='mpk'?'#f97316':row.carrier?.id==='marcel'?'#84cc16':'#00A3A2',
+      color:row.carrier?.id==='mpk'?'#ff7a00':row.carrier?.id==='marcel'?'#68c44a':'#14b8a6',
       time:today?departureCountdown(row,now):row.time,
       day:today?'':new Date(time).toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Warsaw'}),delayMinutes:row.delayMins??0};
   });
