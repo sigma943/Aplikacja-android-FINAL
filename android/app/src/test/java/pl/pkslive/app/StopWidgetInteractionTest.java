@@ -33,6 +33,11 @@ public class StopWidgetInteractionTest {
     }
   }
   @Test public void refreshClickSendsTheWidgetIdAndQueuesExpeditedJobEvenWhenAutomaticRefreshIsOff()throws Exception{
+    // Robolectric records PendingIntent broadcasts but does not deliver all
+    // manifest receivers. Register the real receiver for this interaction test.
+    StopWidgetProvider receiver=new StopWidgetProvider();
+    context.registerReceiver(receiver,new IntentFilter(StopWidgetProvider.REFRESH));
+    try {
     View root=inflate(context,320,180);assertTrue(root.findViewById(R.id.widget_refresh).performClick());
     Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();
     Intent request=Shadows.shadowOf((Application)context).getBroadcastIntents().stream().filter(i->StopWidgetProvider.REFRESH.equals(i.getAction())).findFirst().orElseThrow(()->new AssertionError("refresh click sent no broadcast"));
@@ -43,6 +48,7 @@ public class StopWidgetInteractionTest {
     assertTrue(job.getExtras().getBoolean("manual"));assertEquals(7,job.getExtras().getInt("widgetId"));
     assertTrue(StopWidgetProvider.prefs(context).getLong("refreshing_7",0)>0);
     assertTrue(((TextView)inflate(context,320,180).findViewById(R.id.widget_status)).getText().toString().contains("Odświeżanie"));
+    } finally {context.unregisterReceiver(receiver);}
   }
   @Test public void repeatedTapDoesNotQueueAnotherRequestAndReportsTheCooldown(){
     StopWidgetProvider.refresh(context,7,true);long accepted=StopWidgetProvider.prefs(context).getLong("manual_7",0);
