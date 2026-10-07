@@ -12,11 +12,11 @@ test('a network refresh cannot overwrite verified positions and backend stop ide
   const result=client.formatPksStops({items},snapshot)['11028'];assert.equal(result.lat,49.8418003);assert.equal(result.lon,21.925578);assert.equal(result.code,'08');assert.equal(result.areaId,'1061');
   items[0].stop_area_id=999;assert.equal(client.formatPksStops({items},snapshot)['11028'].lat,49.842648,'a reused technical ID must not borrow a different platform');
 });
-test('map does not move an MPK platform to a nearby PKS/list consolidation point',()=>{
+test('same numbered city platform has one pin at its precise MPK position',()=>{
   const pks=[{id:'10',name:'Rzeszów Testowa 01',lat:50.04,lon:22.00,lines:['108']}];
   const mpk=[{id:'20',name:'Testowa 01',lat:50.04025,lon:22.00,lines:['2']}];
   const list=buildStopsCatalog(pks,mpk,[],'coordinates-shared-key');assert.equal(list.length,1);
-  const map=buildStopsCatalog(pks,mpk,[],'coordinates-shared-key',true);assert.equal(map.length,2);
+  const map=buildStopsCatalog(pks,mpk,[],'coordinates-shared-key',true);assert.equal(map.length,1);
   const city=map.find(s=>s.providerStopIds.mpk_rzeszow==='20');assert.equal(city.lat,50.04025);assert.equal(city.lon,22);
 });
 test('nearby opposite platforms remain separate; a shared physical platform may combine providers',()=>{
@@ -41,4 +41,18 @@ test('locality-only GTFS names match a landmark only with unique codes and a nea
   const api=[{id:1,name:'Boguchwała, SKRZYŻOWANIE',code:'93',lat:49.98,lon:21.94}],gtfs=[{id:4,name:'Boguchwała 93 nż',lat:49.9801,lon:21.9401}];
   assert.equal(matchCoordinates(api,gtfs).stops['1'].gtfsStopId,'4');
   assert.deepEqual(matchCoordinates([...api,{...api[0],id:2}],gtfs).stops,{});
+});
+
+test('physical catalog merges provider aliases and duplicate IDs but retains different platforms and distant namesakes',()=>{
+  const pks=[{id:'p1',name:'Rzeszów Podkarp. Matuszczaka 03',lat:50.01,lon:22,lines:['108']},
+    {id:'p2',name:'Rzeszów Podkarpacka / Matuszczaka 3',lat:50.0101,lon:22,lines:['223']},
+    {id:'p3',name:'Rzeszów Podkarpacka / Matuszczaka 04',lat:50.01015,lon:22,lines:['228']},
+    {id:'p4',name:'Rzeszów Podkarpacka / Matuszczaka 03',lat:50.011,lon:22,lines:['288']}];
+  const mpk=[{id:'m1',name:'Podkarpacka / Matuszczaka 03',lat:50.01025,lon:22,lines:['11']}];
+  const map=buildStopsCatalog(pks,mpk,[],'platform-aliases',true);
+  assert.equal(map.length,3);
+  const shared=map.find(s=>s.providerStopIds.mpk_rzeszow==='m1');
+  assert.equal(shared.providerStopIds.pks,'p1,p2');assert.deepEqual(shared.lines,['11','108','223']);
+  assert.equal(shared.lat,50.01025);assert.equal(shared.pksStopPoints.length,2);
+  assert.ok(map.some(s=>s.id==='p3'));assert.ok(map.some(s=>s.id==='p4'));
 });

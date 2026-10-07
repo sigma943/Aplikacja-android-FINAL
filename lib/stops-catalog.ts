@@ -6,6 +6,14 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     const cached = MERGED_STOPS_RUNTIME_CACHE.get(cacheKey);
     if (cached) return cached;
 
+    // Provider coordinates can differ along the same numbered platform. Match
+    // its full name/code, never just proximity (opposite directions stay apart).
+    const platformKey = (name: string) => normalizeStopMergeName(name).split(' ')
+      .map(token => /^\d+[a-z]?$/.test(token) ? token.replace(/^0+(?=\d)/, '') : token)
+      .filter(Boolean).sort().join(' ');
+    const sameNumberedPlatform = (a: string, b: string) =>
+      /\b\d+[a-z]?\b/.test(platformKey(a)) && platformKey(a) === platformKey(b);
+
     const byTechnical = new Map<string, InternalStop>();
     const baseBuckets = new Map<string, InternalStop[]>();
     const tokenBuckets = new Map<string, Set<InternalStop>>();
@@ -192,7 +200,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.34 : 0;
         if (hasGeo && distance > 550) continue;
         // A list may consolidate nearby stops; map pins must represent one physical platform.
-        if (physicalPoints && (!hasGeo || distance > 8)) continue;
+        if (physicalPoints && (!hasGeo || distance > (sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8))) continue;
         if (!hasGeo && candidate.baseNameKey !== baseNameKey && similarity < 0.92) continue;
         const distanceScore = hasGeo
           ? distance <= 35
@@ -265,7 +273,9 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         provider: 'pks',
         carrier: PKS_CARRIER,
       };
-      const pksStop = ensureTechnicalStop(raw);
+      const matched = physicalPoints ? findSafeCrossProviderMatch(raw, new Set(['pks'])) : null;
+      const pksStop = matched || ensureTechnicalStop(raw);
+      if (matched) attachProvider(matched, raw);
       (stop.lines || []).forEach((line) => pksStop.lineSet.add(line));
     });
 
@@ -279,9 +289,16 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       };
       const matched =
         findSafeCrossProviderMatch(raw, new Set(['pks'])) ||
-        (!physicalPoints ? findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow'])) : null);
+        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']));
       const stop = matched ? matched : ensureTechnicalStop(raw);
-      if (matched) attachProvider(matched, raw);
+      if (matched) {
+        attachProvider(matched, raw);
+        // The MPK point describes the city platform itself; retain that exact
+        // coordinate instead of averaging it with another provider's estimate.
+        if (physicalPoints && Number.isFinite(raw.lat) && Number.isFinite(raw.lon)) {
+          matched.lat = raw.lat; matched.lon = raw.lon;
+        }
+      }
       mpkStop.lines.forEach((line) => stop.lineSet.add(line));
     });
 

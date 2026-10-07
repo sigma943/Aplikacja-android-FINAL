@@ -32,6 +32,19 @@ public class StopWidgetInteractionTest {
       assertEquals(android.R.id.background,root.getId());
     }
   }
+  @Test public void compactHeaderKeepsTheRefreshTargetAndReadableDepartureAtMinimumWidth()throws Exception{
+    View root=inflate(context,140,70);
+    TextView title=root.findViewById(R.id.widget_title);
+    assertEquals("Podkarpacka Matuszczaka 04",title.getText().toString());
+    ImageView refresh=root.findViewById(R.id.widget_refresh);
+    assertNotNull(refresh.getDrawable());assertNotNull(refresh.getBackground());
+    assertTrue(refresh.getLeft()>=title.getRight());
+    TextView time=root.findViewById(R.id.widget_time);
+    assertNotNull(time);assertTrue(time.getMeasuredWidth()>0);
+    android.graphics.Rect bounds=new android.graphics.Rect();time.getDrawingRect(bounds);
+    ((ViewGroup)root).offsetDescendantRectToMyCoords(time,bounds);
+    assertTrue(bounds.right<=root.getWidth());assertTrue(bounds.bottom<=root.getHeight());
+  }
   @Test public void refreshClickSendsTheWidgetIdAndQueuesExpeditedJobEvenWhenAutomaticRefreshIsOff()throws Exception{
     // Robolectric records PendingIntent broadcasts but does not deliver all
     // manifest receivers. Register the real receiver for this interaction test.

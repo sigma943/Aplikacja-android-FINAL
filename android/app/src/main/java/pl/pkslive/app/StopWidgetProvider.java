@@ -69,7 +69,7 @@ public class StopWidgetProvider extends AppWidgetProvider {
     int fg=Color.parseColor(dark?"#f1f5f9":"#0f172a"),muted=Color.parseColor(dark?"#94a3b8":"#64748b");
     WidgetLayoutMetrics layout=new WidgetLayoutMetrics(height);boolean compact=layout.compact,footerVisible=layout.footerVisible;
     RemoteViews view=new RemoteViews(c.getPackageName(),compact?R.layout.stop_widget_compact:R.layout.stop_widget);view.setInt(android.R.id.background,"setBackgroundResource",dark?R.drawable.widget_dark:R.drawable.widget_light);
-    String name=config.optJSONObject("stop")==null?"PKS Live":config.getJSONObject("stop").optString("name","PKS Live");view.setTextViewText(R.id.widget_title,name);view.setTextColor(R.id.widget_title,fg);view.setOnClickPendingIntent(android.R.id.background,open(c,id));
+    String name=config.optJSONObject("stop")==null?"PKS Live":config.getJSONObject("stop").optString("name","PKS Live");String title=name.replaceFirst("(?i)^Rzeszów[, ]+", "");view.setTextViewText(R.id.widget_title,title);view.setTextColor(R.id.widget_title,fg);view.setOnClickPendingIntent(android.R.id.background,open(c,id));
     Intent update=new Intent(c,StopWidgetProvider.class).setAction(REFRESH).putExtra("widgetId",id);view.setOnClickPendingIntent(R.id.widget_refresh,PendingIntent.getBroadcast(c,id,update,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
     view.removeAllViews(R.id.widget_rows);JSONArray rows=new JSONArray(prefs(c).getString("rows_"+id,"[]"));long now=System.currentTimeMillis();int limit=layout.capacity,count=0;
     SimpleDateFormat clock=new SimpleDateFormat("HH:mm",new Locale("pl","PL"));clock.setTimeZone(TimeZone.getTimeZone("Europe/Warsaw"));
@@ -85,7 +85,7 @@ public class StopWidgetProvider extends AppWidgetProvider {
     if(refreshing)footer="Odświeżanie odjazdów…";else if(!notice.isEmpty())footer=notice;
     if(!footerVisible&&(refreshing||!notice.isEmpty()))view.setTextViewText(R.id.widget_title,refreshing?"Odświeżanie…":notice);
     view.setViewVisibility(R.id.widget_status,footerVisible||count==0?View.VISIBLE:View.GONE);
-    if(stale&&count>0&&!footerVisible&&!refreshing&&notice.isEmpty())view.setTextViewText(R.id.widget_title,"Nieaktualne • "+name);
+    if(stale&&count>0&&!footerVisible&&!refreshing&&notice.isEmpty())view.setTextViewText(R.id.widget_title,"Nieaktualne • "+title);
     view.setTextViewText(R.id.widget_status,footer);view.setTextColor(R.id.widget_status,muted);return view;
   }
 }
