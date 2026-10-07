@@ -55,7 +55,11 @@ try{
  assert.equal(await page.$eval('#widget-refresh-interval',el=>el.disabled),true);
  await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Pauza w oszczędzaniu')).click());
  assert.equal(await page.$eval('#widget-refresh-interval',el=>el.disabled),false);
- const pinned=await page.$eval('[aria-labelledby="widget-title"] footer',el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=window.innerHeight;});assert.equal(pinned,true,'generate action stays within viewport');
+ await page.waitForFunction(()=>{const r=document.querySelector('[aria-labelledby="widget-title"] footer')?.getBoundingClientRect();return r&&r.top>=0&&r.bottom<=window.innerHeight+.5;},{timeout:5000});
+ await page.screenshot({path:path.resolve('test/ui-previews/generate-widget-overview.png')});
+ await page.$eval('#widget-refresh-interval',el=>el.scrollIntoView({block:'center'}));
+ const pinned=await page.$eval('[aria-labelledby="widget-title"] footer',el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=window.innerHeight+.5;});assert.equal(pinned,true,'generate action remains visible after scrolling settings');
+ await page.screenshot({path:path.resolve('test/ui-previews/generate-widget-refresh.png')});
  assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>getComputedStyle(el).backgroundColor),'rgb(16, 30, 38)','opaque dark dialog');
  await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Tylko wybrane linie')).click());
  await page.waitForSelector('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),true);await page.click('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),false);
