@@ -75,7 +75,8 @@ const server=http.createServer((req,res)=>{
     await page.click('[aria-label="Przewoźnicy"]');await page.waitForSelector('[data-carrier-grid]');
     assert.equal(await page.$$eval('[data-carrier-grid] img',els=>els.length),0,'bus selection uses no raster artwork');
     assert.equal(await page.$$eval('[data-carrier-bus-svg]',els=>els.length),3);
-    const carrierGeometry=await page.$eval('[data-carrier-grid] button[aria-label="PKS Rzeszów"] svg',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))]));
+    const carrierGeometry=await page.$eval('[data-carrier-grid] button[aria-label="PKS Rzeszów"] svg[data-bus-glyph]',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))]));
+    assert.equal(carrierGeometry.length,6,'the carrier comparison selects the bus rather than the checkmark');
     const pksSelected=await page.$eval('[data-carrier-grid] button[aria-label="PKS Rzeszów"]',el=>el.getAttribute('aria-pressed'));
     await page.click('[data-carrier-grid] button[aria-label="PKS Rzeszów"]');
     assert.notEqual(await page.$eval('[data-carrier-grid] button[aria-label="PKS Rzeszów"]',el=>el.getAttribute('aria-pressed')),pksSelected);
