@@ -13,7 +13,7 @@ export async function getDoc(ref:string){
 }
 let profileWrites=0;
 export async function setDoc(ref:string,data:any,options?:any){if(ref.startsWith('installations/'))profileWrites++;records.set(ref,options?.merge?{...records.get(ref),...data}:data);listeners.forEach(fn=>fn());}
-export const updateDoc=(ref:string,data:any)=>setDoc(ref,data,{merge:true});
+export async function updateDoc(ref:string,data:any){if(!records.has(ref))throw Object.assign(Error('Missing device'),{code:'not-found'});await setDoc(ref,data,{merge:true});}
 export async function deleteDoc(ref:string){records.delete(ref);listeners.forEach(fn=>fn());}
 export async function runTransaction(){throw Object.assign(Error('Old rules'),{code:'permission-denied'});}
 export function onSnapshot(ref:string,callback:any){const send=()=>callback(snapshot(ref));listeners.add(send);setTimeout(send,0);return()=>{listeners.delete(send);};}

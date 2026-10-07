@@ -699,8 +699,7 @@ function themeTextColor(themeMode: string) {
   return '#ffffff';
 }
 
-function themeShell() {
-  const themeMode = getStoredThemeMode();
+function themeShell(themeMode = getStoredThemeMode()) {
   const isWarm = themeMode === 'light-warm';
   const isLight = themeMode === 'light' || isWarm;
   const isOled = themeMode === 'dark-oled';
@@ -784,7 +783,7 @@ function themeShell() {
 }
 
 function LoadingScreen() {
-  const [theme, setTheme] = useState(themeShell);
+  const [theme, setTheme] = useState(()=>themeShell('dark-oled'));
 
   useEffect(() => {
     const next = themeShell();
@@ -849,7 +848,7 @@ function startupFailureMessage(error:unknown) {
 }
 
 function ConnectionTimeoutScreen({ timeout = false,errorMessage }: { timeout?: boolean;errorMessage?:string }) {
-  const [theme] = useState(themeShell);
+  const [theme] = useState(()=>themeShell());
 
   return (
     <div className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
