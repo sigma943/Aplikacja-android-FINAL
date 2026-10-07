@@ -1,7 +1,7 @@
 import {AdminModalPortal} from './AdminModalPortal';
 import {useAppBack} from '@/lib/use-app-back';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { callInitialize, callSaveEndpoint, callTestEndpoint, callSetActive, callDisable, callRollback } from '@/lib/maintenance-spark';
+import { callInitialize, callSaveEndpoint, callTestEndpoint, callSetActive, callDisable, callRollback, callClearHistory } from '@/lib/maintenance-spark';
 import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import {
   Activity,
@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   TestTube2,
+  Trash2,
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -126,6 +127,8 @@ export function MaintenanceView({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [confirmHistoryClear,setConfirmHistoryClear]=useState(false);
+  useAppBack(showHistory&&confirmHistoryClear,()=>{setConfirmHistoryClear(false);return true;},100);
   useAppBack(showHistory, () => {setShowHistory(false);return true;},95);
   const [ready, setReady] = useState(false);
   const [draftTest, setDraftTest] = useState<MaintenanceEndpoint['lastTest']>();
@@ -265,7 +268,7 @@ export function MaintenanceView({
           </div>
           <button
             type="button"
-            onClick={() => setShowHistory(true)}
+            onClick={() => {setConfirmHistoryClear(false);setShowHistory(true);}}
             className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#111623] px-4 text-xs font-black uppercase tracking-widest text-slate-300 transition-colors hover:bg-white/5"
           >
             <History size={15} />
@@ -467,6 +470,16 @@ export function MaintenanceView({
                   <X size={18} />
                 </button>
               </div>
+              {canEdit&&changes.length>0&&<div className="shrink-0 border-b border-white/10 px-4 py-3">
+                {confirmHistoryClear ? <div className="space-y-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3">
+                  <p className="text-sm text-rose-100">Usunąć całą historię konserwacji? Tej operacji nie można cofnąć.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button disabled={Boolean(busy)} onClick={()=>setConfirmHistoryClear(false)} className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white">Anuluj</button>
+                    <button disabled={Boolean(busy)} onClick={()=>void runAction('clear-history',async()=>{await callClearHistory({});setConfirmHistoryClear(false);})} className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{busy==='clear-history'?'Usuwanie…':'Potwierdź usunięcie historii'}</button>
+                  </div>
+                </div> : <button onClick={()=>setConfirmHistoryClear(true)} disabled={Boolean(busy)} className="flex items-center gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-200"><Trash2 size={15}/>Wyczyść historię</button>}
+              </div>}
+              {error&&<p role="alert" className="shrink-0 px-4 py-2 text-sm text-rose-300">{error}</p>}
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
                 {changes.length ? changes.map((change) => (
                   <div key={change.id} className="rounded-2xl border border-white/10 bg-black/15 p-4">

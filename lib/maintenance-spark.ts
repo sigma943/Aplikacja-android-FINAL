@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, writeBatch, Timestamp, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { auth, db } from './firebase';
 import { maintenanceService, probeEndpoint, endpointUrl, type MaintenanceRef, type MaintenanceStore } from '../functions/src/maintenance-core';
@@ -74,4 +74,20 @@ export async function callDisable(input: { endpointId?: string }) {
 export async function callRollback(_: object) {
   const user = await caller(true);
   return { data: await service.rollback(user.uid) };
+}
+
+/** Clear entries that existed at confirmation time; new events remain intact. */
+export async function callClearHistory(_:object) {
+  await caller(true);
+  const cutoff=Timestamp.now();
+  let deletedCount=0;
+  while(true) {
+    const snapshot=await getDocs(query(collection(db,'maintenance_changes'),where('createdAt','<=',cutoff),orderBy('createdAt'),limit(200)));
+    if(snapshot.empty)break;
+    const batch=writeBatch(db);
+    snapshot.docs.forEach(entry=>batch.delete(entry.ref));
+    await batch.commit();
+    deletedCount+=snapshot.size;
+  }
+  return {data:{ok:true,deletedCount}};
 }

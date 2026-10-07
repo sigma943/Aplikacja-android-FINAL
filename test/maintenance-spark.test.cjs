@@ -5,6 +5,9 @@ function fixture(role='owner',native=false,permissions={}) {
   const snap=r=>({exists:()=>records.has(r.path),data:()=>records.get(r.path)});
   const sdk={collection:(_,name)=>({name}),doc:(...args)=>args.length===1?ref(args[0].name):ref(args[1],args[2]),getDoc:async r=>snap(r),serverTimestamp:()=>new Date(),
     runTransaction:(_,fn)=>{const run=queue.then(async()=>{const writes=[];let wrote=false;const result=await fn({get:async r=>{assert.equal(wrote,false);return snap(r);},set:(r,data,options)=>{wrote=true;writes.push([r,data,options?.merge]);},update:(r,data)=>{wrote=true;writes.push([r,data,true]);}});for(const [r,data,merge]of writes)records.set(r.path,merge?{...records.get(r.path),...data}:data);return result;});queue=run.catch(()=>{});return run;}};
+  Object.assign(sdk,{Timestamp:{now:()=>1000},where:(...args)=>args,orderBy:()=>null,limit:n=>({limit:n}),query:(ref,...clauses)=>({name:ref.name,count:clauses.find(c=>c?.limit)?.limit||200}),
+    getDocs:async q=>{const docs=[...records].filter(([key,value])=>key.startsWith(q.name+'/')&&value.createdAt<=1000).slice(0,q.count).map(([key])=>({ref:{path:key}}));return {docs,empty:!docs.length,size:docs.length};},
+    writeBatch:()=>{const deleted=[];return {delete:ref=>deleted.push(ref.path),commit:async()=>deleted.forEach(key=>records.delete(key))};}});
   const auth={currentUser:{uid:'caller'}};
   const client=loadTs('lib/maintenance-spark.ts',{'firebase/firestore':sdk,'./firebase':{db:{},auth},'@capacitor/core':{Capacitor:{isNativePlatform:()=>native},CapacitorHttp:{request:async request=>{nativeCalls.push(request);return {status:200,data:request.url.endsWith('/pks/get_vehicles.php')?[]:{providers:{pks:{state:'ok'}}}};}}}});
   return {client,records,nativeCalls,auth};
@@ -58,4 +61,10 @@ test('legacy default function profile migrates on Spark while custom API profile
   records.get('maintenance_endpoints/default-transport-api').url='https://custom.example/api';
   await client.callInitialize({});
   assert.equal(records.get('admin_settings/transport_runtime').endpointUrl,'https://custom.example/api');
+});
+
+test('history clearing pages past 200 entries, preserves newer events, and requires editing permission',async()=>{
+ const {client,records}=fixture();for(let i=0;i<450;i++)records.set('maintenance_changes/old-'+i,{createdAt:100});records.set('maintenance_changes/new',{createdAt:1001});
+ assert.equal((await client.callClearHistory({})).data.deletedCount,450);assert.equal([...records.keys()].filter(k=>k.startsWith('maintenance_changes/')).length,1);assert.ok(records.has('maintenance_changes/new'));
+ await assert.rejects(fixture('admin',false,{globalSettings:true}).client.callClearHistory({}),e=>e.code==='permission-denied');
 });

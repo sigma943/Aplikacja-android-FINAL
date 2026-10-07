@@ -22,6 +22,18 @@ module.exports=function buildAccentFixture(){
   fs.mkdirSync(path.join(fixture,'app/dialog-fixture'));
   fs.writeFileSync(path.join(fixture,'app/dialog-fixture/page.tsx'),`'use client';import {useState} from 'react';import {RolesModal} from '@/app/admin/components/RolesModal';import {BanModal} from '@/app/admin/components/BanModal';
   export default function Page(){const [open,setOpen]=useState('roles');const device:any={id:'test-device',name:'Windows 19.0.0',deviceInfo:'Windows 19.0.0',rawRole:'admin',role:'Administrator',verified:true,permissions:{monitor:true}};return <div className="pks-theme-root" data-ui-theme="dark-oled"><div className="pks-panel-scope" data-panel-theme="amoled" data-glass="on" style={{transform:'translateX(0)',height:200,overflow:'hidden'}}><button onClick={()=>setOpen('roles')}>Role</button><button onClick={()=>setOpen('ban')}>Ban</button>{open==='roles'&&<RolesModal device={device} onClose={()=>setOpen('')} onUpdateUser={()=>{}} onSave={()=>setOpen('')} canAssignOwner canManageTabAccess canManageVerification/>}{open==='ban'&&<BanModal device={device} onClose={()=>setOpen('')} onConfirm={()=>setOpen('')}/>}</div><nav id="fixture-nav" style={{position:'fixed',bottom:0,height:80,width:'100%',background:'black',zIndex:11000}}>Navigation</nav></div>}`);
+  fs.mkdirSync(path.join(fixture,'app/startup-fixture'));
+  const startup=fs.readFileSync(path.join(source,'components/FirebaseProvider.tsx'),'utf8')
+    .replaceAll("from '@/lib/firebase'","from './sdk'")
+    .replaceAll("from '@/lib/device-registration'","from './device-registration'")
+    .replaceAll("from '@/lib/firebase-session'","from './firebase-session'")
+    .replaceAll("from 'firebase/auth'","from './sdk'")
+    .replaceAll("from 'firebase/functions'","from './sdk'")
+    .replaceAll("from 'firebase/firestore'","from './sdk'");
+  fs.writeFileSync(path.join(fixture,'app/startup-fixture/Provider.tsx'),startup);
+  for(const name of ['device-registration','firebase-session'])fs.writeFileSync(path.join(fixture,'app/startup-fixture/'+name+'.ts'),fs.readFileSync(path.join(source,'lib/'+name+'.ts'),'utf8').replaceAll("from 'firebase/firestore'","from './sdk'").replaceAll("from 'firebase/auth'","from './sdk'").replaceAll("from './admin/rbac'","from '@/lib/admin/rbac'"));
+  fs.copyFileSync(path.join(source,'test/startup-ui-stub.ts'),path.join(fixture,'app/startup-fixture/sdk.ts'));
+  fs.writeFileSync(path.join(fixture,'app/startup-fixture/page.tsx'),`'use client';import {FirebaseProvider,useFirebase} from './Provider';function Result(){const {device}=useFirebase();return <div data-restored-role={device?.role}>Uruchomiono aplikację: {device?.role}</div>;}export default function Page(){return <FirebaseProvider><Result/></FirebaseProvider>}`);
   fs.copyFileSync(path.join(source,'tsconfig.json'),path.join(fixture,'tsconfig.json'));
   fs.copyFileSync(path.join(source,'package.json'),path.join(fixture,'package.json'));
   fs.writeFileSync(path.join(fixture,'app/layout.tsx'),`import UIMotionProvider from '@/components/UIMotionProvider';export default function Layout({children}:{children:React.ReactNode}){return <html lang="pl"><head><link rel="stylesheet" href="/production.css" /></head><body><UIMotionProvider>{children}</UIMotionProvider></body></html>}`);

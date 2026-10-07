@@ -51,3 +51,5 @@ export const callTestEndpoint = httpsCallable({}, 'testMaintenanceEndpoint');
 export const callSetActive = httpsCallable({}, 'setActiveMaintenanceEndpoint');
 export const callDisable = httpsCallable({}, 'disableMaintenanceEndpoint');
 export const callRollback = httpsCallable({}, 'rollbackMaintenanceEndpoint');
+
+export async function callClearHistory(_:object){calls.push({name:'clearMaintenanceHistory',data:{}});const deletedCount=changes.length;changes.splice(0);notify();return {data:{ok:true,deletedCount}};}
