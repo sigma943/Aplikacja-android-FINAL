@@ -1,4 +1,4 @@
-name: Deploy Firebase maintenance
+name: Deploy Firestore rules (Spark)
 
 on:
   workflow_dispatch:
@@ -46,10 +46,10 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as output:
               output.write(f'GOOGLE_APPLICATION_CREDENTIALS={key_path}\n')
           PY
-      - name: Deploy maintenance functions and access rules
+      - name: Deploy Firestore access rules (Spark, no Cloud Functions)
         run: >-
           npx firebase deploy --project aplikacja-b20fa --non-interactive
-          --only functions:initializeMaintenance,functions:saveMaintenanceEndpoint,functions:testMaintenanceEndpoint,functions:setActiveMaintenanceEndpoint,functions:disableMaintenanceEndpoint,functions:rollbackMaintenanceEndpoint,functions:transportGateway,firestore:rules
+          --only firestore:rules
       - name: Remove temporary credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/firebase-maintenance-key.json"

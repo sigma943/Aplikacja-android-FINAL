@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
+import { callInitialize, callSaveEndpoint, callTestEndpoint, callSetActive, callDisable, callRollback } from '@/lib/maintenance-spark';
 import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import {
   Activity,
@@ -25,14 +25,15 @@ import {
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, functions } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
+import { BUILTIN_TRANSPORT_URL, BUILTIN_TRANSPORT_ID } from '@/lib/transport-runtime';
 import type { MaintenanceChange, MaintenanceEndpoint, MaintenanceEndpointRole } from '../types';
 
 const DEFAULT_ENDPOINT: MaintenanceEndpoint = {
-  id: 'default-transport-api',
-  name: 'Główny (PROD)',
-  url: 'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi',
+  id: BUILTIN_TRANSPORT_ID,
+  name: 'Źródła przewoźników',
+  url: BUILTIN_TRANSPORT_URL,
   role: 'production',
   priority: 1,
   region: 'PL',
@@ -73,13 +74,6 @@ const safeDate = (value?: string) => {
 };
 
 const changeDate = (ms: number) => (ms ? new Date(ms).toLocaleString('pl-PL') : '-');
-
-const callInitialize = httpsCallable(functions, 'initializeMaintenance', { timeout: 15000 });
-const callSaveEndpoint = httpsCallable<{ endpoint: MaintenanceEndpoint }, { endpointId: string }>(functions, 'saveMaintenanceEndpoint', { timeout: 15000 });
-const callTestEndpoint = httpsCallable<{ endpointId?: string; url?: string }, { result: NonNullable<MaintenanceEndpoint['lastTest']> }>(functions, 'testMaintenanceEndpoint', { timeout: 15000 });
-const callSetActive = httpsCallable(functions, 'setActiveMaintenanceEndpoint', { timeout: 20000 });
-const callDisable = httpsCallable(functions, 'disableMaintenanceEndpoint', { timeout: 20000 });
-const callRollback = httpsCallable(functions, 'rollbackMaintenanceEndpoint', { timeout: 20000 });
 
 function normalizeEndpoint(id: string, data: Record<string, unknown>): MaintenanceEndpoint {
   const role = String(data.role || 'production') as MaintenanceEndpointRole;
@@ -135,9 +129,8 @@ export function MaintenanceView({
   const actionInFlight = useRef(false);
   const failureMessage = (err: unknown) => {
     const code = (err as { code?: string })?.code || '';
-    if (code === 'functions/not-found' || code === 'functions/unavailable') return 'Funkcje konserwacji Firebase są niedostępne. Wdróż funkcje z aktualnego repozytorium do projektu aplikacja-b20fa.';
-    if (code === 'functions/permission-denied') return 'Nie masz uprawnień do tej operacji.';
-    if (code === 'functions/internal' || code === 'functions/deadline-exceeded') return 'Nie udało się połączyć z funkcjami konserwacji. Sprawdź połączenie i wdrożenie Firebase.';
+    if (code === 'permission-denied' || code === 'firestore/permission-denied') return 'Brak dostępu do konserwacji. Opublikuj aktualne reguły Firestore (bez Cloud Functions i planu Blaze) i sprawdź uprawnienie edycji ustawień globalnych.';
+    if (code === 'unavailable') return 'Nie udało się połączyć z Firestore. Sprawdź połączenie z internetem.';
     return err instanceof Error ? err.message : String(err);
   };
   useEffect(() => {
@@ -284,7 +277,7 @@ export function MaintenanceView({
           </div>
         )}
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatusCard icon={<Globe2 size={22} />} title="Aktywny endpoint" value={activeEndpoint?.url.replace(/^https?:\/\//, '') || 'Nie wybrano'} hint={activeEndpoint?.enabled ? 'Aktywny' : 'Brak aktywnego endpointu'} tone="cyan" />
+          <StatusCard icon={<Globe2 size={22} />} title="Aktywny endpoint" value={(activeEndpoint?.id === BUILTIN_TRANSPORT_ID && activeEndpoint.url === BUILTIN_TRANSPORT_URL ? 'Źródła przewoźników' : activeEndpoint?.url.replace(/^https?:\/\//, '')) || 'Nie wybrano'} hint={activeEndpoint?.enabled ? 'Aktywny' : 'Brak aktywnego endpointu'} tone="cyan" />
           <StatusCard icon={<Database size={22} />} title="Źródło konfiguracji" value={ready ? 'Firestore' : 'Łączenie…'} hint={`${endpoints.length} zapisanych endpointów`} tone="blue" />
           <StatusCard icon={<Activity size={22} />} title="Status infrastruktury" value={!lastGlobalTest ? 'Nie testowano' : endpoints.some((e) => e.lastTest?.ok === false) ? 'Wymaga uwagi' : 'Testy OK'} hint={`${successfulTests}/${endpoints.length} testów OK`} tone="emerald" />
           <StatusCard icon={<Clock3 size={22} />} title="Ostatni test globalny" value={lastGlobalTest ? safeDate(lastGlobalTest) : 'Brak danych'} hint={activeEndpoint?.lastTest?.latencyMs ? `${activeEndpoint.lastTest.latencyMs} ms` : 'uruchom test'} tone="violet" />

@@ -1,6 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
+import CarrierBusIcon from './CarrierBusIcon';
 import { Bus, Check, X } from 'lucide-react';
 import type { TransportProviderId } from '@/lib/pks-client';
 
@@ -36,7 +37,7 @@ function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) 
 
   if (themeMode === 'dark-oled') {
     return {
-      shell: `border-white/10 ${transparentUI ? 'bg-black/76' : 'bg-black/96'} text-white ${glass}`,
+      shell: `border-white/10 ${transparentUI ? 'bg-[#080c10]/84' : 'bg-[#080c10]/98'} text-white ${glass}`,
       header: 'border-white/10',
       sub: 'text-slate-300',
       cardBase: 'bg-white/[0.035]',
@@ -131,19 +132,19 @@ export default function TransportSelectorPanel({
             exit={{ opacity: 0, y: 22, scale: 0.985 }}
             transition={{ type: 'spring', stiffness: 360, damping: 30 }}
             onClick={(event) => event.stopPropagation()}
-            className={`flex max-h-[calc(100dvh-96px-env(safe-area-inset-bottom))] w-full flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:max-h-[min(720px,calc(100dvh-64px))] md:max-w-[846px] ${theme.shell}`}
+            className={`flex max-h-[calc(100dvh-96px-env(safe-area-inset-bottom))] w-full flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:max-h-[min(720px,calc(100dvh-64px))] md:max-w-[600px] ${theme.shell}`}
           >
-            <div className={`flex items-start justify-between gap-4 border-b px-5 py-4 md:px-6 md:py-6 ${theme.header}`}>
+            <div className={`flex items-start justify-between gap-3 px-5 pb-2 pt-5 md:px-6 md:pt-6 ${theme.header}`}>
               <div className="min-w-0">
-                <h2 className="text-2xl font-black tracking-tight md:text-[26px]">Przewoźnicy</h2>
-                <p className={`mt-2 max-w-[520px] text-sm leading-relaxed md:text-base ${theme.sub}`}>
-                  Wybierz przewoźnika którego autobusy mają być na mapie
+                <h2 className="text-xl font-bold tracking-tight md:text-2xl">Przewoźnicy</h2>
+                <p className={`mt-1 max-w-[520px] text-xs leading-relaxed md:text-sm ${theme.sub}`}>
+                  Autobusy widoczne na mapie
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] transition-colors ${theme.close}`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${theme.close}`}
                 aria-label="Zamknij panel przewoźników"
               >
                 <X className="h-5 w-5" />
@@ -151,60 +152,26 @@ export default function TransportSelectorPanel({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3 md:px-6 md:py-6">
-              <h3 className={`mb-3 flex items-center gap-2 text-base font-black tracking-tight md:mb-4 md:text-xl ${theme.section}`}>
-                <span className="flex h-8 w-8 items-center justify-center rounded-2xl ui-accent-soft md:h-9 md:w-9">
-                  <Bus className="h-[18px] w-[18px] md:h-5 md:w-5" />
-                </span>
-                Autobusy
-              </h3>
-              <div className="flex flex-wrap gap-2 sm:grid sm:grid-cols-3 sm:gap-5 md:gap-8">
-                {busOptions.map((option) => {
-                  const isSelected = selectedSet.has(option.id);
-                  const meta = providerMeta[option.id] || { name: option.label, image: '/dodaj/pks.png' };
-
+              <div className="grid grid-cols-3 gap-2.5 py-1 sm:gap-4" data-carrier-grid>
+                {busOptions.map(option => {
+                  const selected = selectedSet.has(option.id);
+                  const name = providerMeta[option.id]?.name || option.label;
+                  const label = option.id === 'mpk_rzeszow' ? 'MPK' : option.id === 'marcel' ? 'M' : 'PKS';
                   return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      disabled={!option.enabled}
-                      onClick={() => option.enabled && onToggle(option.id)}
-                      className={`group w-[calc(25%-0.375rem)] min-w-0 text-center transition-transform active:scale-[0.985] sm:w-auto ${
-                        option.enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
-                      }`}
-                    >
-                      <div
-                        className={`relative aspect-square overflow-hidden rounded-[14px] border transition-all sm:aspect-[1.24] sm:rounded-[22px] ${theme.cardBase} ${
-                          isSelected
-                            ? 'shadow-[0_20px_48px_rgba(0,0,0,0.22)]'
-                            : theme.cardIdle
-                        }`}
-                        style={{
-                          borderColor: isSelected ? 'var(--pks-accent)' : undefined,
-                          boxShadow: isSelected
-                            ? '0 18px 46px var(--pks-accent-soft), inset 0 0 0 1px var(--pks-accent-border)'
-                            : undefined,
-                        }}
-                      >
-                        <img
-                          src={meta.image}
-                          alt=""
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
-                          draggable={false}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/26 via-transparent to-white/4" />
-                        {isSelected && (
-                          <div
-                            className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white shadow-lg sm:right-3 sm:top-3 sm:h-9 sm:w-9"
-                            style={{ backgroundColor: 'var(--pks-accent)', color: 'var(--pks-accent-on)' }}
-                          >
-                            <Check className="h-3 w-3 stroke-[3] sm:h-5 sm:w-5" />
-                          </div>
-                        )}
-                      </div>
-                      <div className={`mt-1.5 truncate text-[11px] font-black tracking-tight sm:mt-4 sm:text-lg md:text-xl ${theme.section}`}>
-                        {meta.name}
-                      </div>
-                    </button>
+                    <motion.button key={option.id} type="button" disabled={!option.enabled}
+                      aria-label={name} aria-pressed={selected} onClick={() => option.enabled && onToggle(option.id)}
+                      whileTap={{ scale: 0.96 }}
+                      className={`relative flex min-w-0 flex-col items-center overflow-hidden rounded-[20px] border px-2 pb-3 pt-3 text-center transition-colors disabled:opacity-40 ${theme.cardBase} ${selected ? 'ui-accent-border' : theme.cardIdle}`}
+                      style={selected ? { backgroundColor: 'var(--pks-accent-soft)' } : undefined}>
+                      <span className={`absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border ${selected ? 'ui-accent-solid border-transparent' : 'border-current opacity-20'}`}>
+                        {selected && <Check size={12} strokeWidth={3}/>}
+                      </span>
+                      <span className="mb-1 mt-2 block h-[68px] w-[48px] sm:h-[82px] sm:w-[58px]">
+                        <CarrierBusIcon color={option.color} label={label}/>
+                      </span>
+                      <span className={`mt-2 min-h-7 text-[12px] font-semibold leading-tight sm:min-h-5 sm:text-sm ${theme.section}`}>{name}</span>
+                      <span className={`mt-1.5 text-[10px] sm:text-xs ${selected ? 'ui-accent-text' : theme.sub}`}>{selected ? 'Na mapie' : 'Ukryty'}</span>
+                    </motion.button>
                   );
                 })}
               </div>
@@ -272,11 +239,12 @@ export default function TransportSelectorPanel({
               )}
             </div>
 
-            <div className={`flex justify-end border-t px-5 py-4 md:px-6 md:py-5 ${theme.footer}`}>
+            <div className={`flex justify-end px-5 pb-5 pt-2 md:px-6 md:pb-6 ${theme.footer}`}>
               <button
                 type="button"
                 onClick={onApply}
-                className="inline-flex h-[52px] w-full items-center justify-center rounded-[18px] ui-accent-solid px-7 text-sm font-semibold shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] md:w-auto md:min-w-44"
+                aria-label="Zastosuj wybór przewoźników"
+                className="inline-flex h-12 w-full items-center justify-center rounded-2xl ui-accent-solid px-7 text-sm font-semibold shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] md:w-auto md:min-w-44"
               >
                 Zastosuj ({selectedCount})
               </button>

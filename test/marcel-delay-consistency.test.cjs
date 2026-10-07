@@ -30,8 +30,8 @@ test('a retained map snapshot never overwrites a fresh stop estimate or operator
 });
 
 for(const gpsTimestamp of [true,false])test(`Marcel map, details and stops share positions and GPS time (${gpsTimestamp?'timestamp':'receipt time'})`,async()=>{
-  const originalFetch=global.fetch,originalNow=Date.now;let now=Date.parse('2026-10-06T13:33:40Z'),positionCalls=0;
-  Date.now=()=>now;
+  const originalFetch=global.fetch,OriginalDate=Date;let now=Date.parse('2026-10-06T13:33:40Z'),positionCalls=0;
+  global.Date=class extends OriginalDate { constructor(...args){super(...(args.length?args:[now]));} static now(){return now;} };
   const stops=[{kol:1,nazPr:'Początek',szGps:50,dlGps:22,godz:'15:30'},{kol:2,nazPr:'Koniec',szGps:50.1,dlGps:22.1,godz:'15:50'}];
   const raw=()=>[{idKu:42,szGps:50.0383333333,dlGps:22.0383333333,nazTr:'Sanok-Rzeszów',...(gpsTimestamp?{lastUpdate:new Date(now-40_000).toISOString()}: {})}];
   global.fetch=async url=>{if(String(url).includes('/kurs/'))return new Response(JSON.stringify(stops));positionCalls++;return new Response(JSON.stringify(raw()));};
@@ -55,7 +55,7 @@ for(const gpsTimestamp of [true,false])test(`Marcel map, details and stops share
     assert.equal(positionCalls,2);
     assert.equal(freshFleet[0].positionObservedAtMs,freshPositions[0].observedAtMs);
     assert.equal(freshFleet[0].delay,api.estimateMarcelCourseDelay(42,stops,'2026-10-06',freshPositions));
-  }finally{global.fetch=originalFetch;Date.now=originalNow;}
+  }finally{global.fetch=originalFetch;global.Date=OriginalDate;}
 });
 
 test('aborting a map consumer leaves the shared Marcel stop request usable; failures retry',async()=>{

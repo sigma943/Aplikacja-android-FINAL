@@ -342,7 +342,7 @@ export default function Home() {
   const [showInactive, setShowInactive] = useState(false);
   // Match the exported HTML first; restore preferences after hydration so React
   // updates theme classes rather than retaining mismatched server attributes.
-  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'>('system');
+  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'>('dark-oled');
   const [systemIsDark, setSystemIsDark] = useState(false);
   const [transparentUI, setTransparentUI] = useState(true);
 
@@ -664,8 +664,9 @@ export default function Home() {
     if (sTheme && sTheme !== themeColor) setTimeout(() => setThemeColor(sTheme), 0);
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
-    const sAppTheme = (localStorage.getItem('mks_app_theme') || 'system').trim().toLowerCase();
+    const sAppTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
     if (['amoled', 'oled', 'dark_oled', 'darkoled'].includes(sAppTheme)) setAppTheme('dark-oled');
+    else if (sAppTheme === 'system') setAppTheme('system');
     else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora') setAppTheme(sAppTheme);
     const sTrans = localStorage.getItem('mks_transparent');
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
