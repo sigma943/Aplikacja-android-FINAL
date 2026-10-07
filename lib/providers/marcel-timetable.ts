@@ -1,4 +1,5 @@
 import {readTimetableCache,writeTimetableCache} from '../timetable-cache';
+import {limitTimetableRequest} from '../stop-timetable-store';
 export type MarcelRoute={idTr:number;nazTr:string;nazMiOd?:string;nazMiDo?:string};
 export type MarcelCourse={idKu:number;nazTr?:string;nazPr?:string;data?:string;godz?:string;godzPr?:string;idTr?:number};
 export type MarcelCourseStopPublic={kol?:number;szGps?:number;dlGps?:number;nazTr?:string;nazMi?:string;nazPr?:string;godz?:string};
@@ -14,7 +15,7 @@ export function createMarcelTimetableApi(request:Request,base:string){
         const entry=memory.get(key);if(entry)entry.until=saved.expiresAt;
         return saved.data as T[];
       }
-      const data=await request<unknown>(base+path,{headers:{Accept:'application/json'}});
+      const data=await limitTimetableRequest(()=>request<unknown>(base+path,{headers:{Accept:'application/json'}}));
       if(!Array.isArray(data)||!data.every(valid))throw new Error('Marcel: nieprawidłowa odpowiedź rozkładu.');
       void writeTimetableCache(key,{savedAt:Date.now(),expiresAt:Date.now()+ttl,data});return data as T[];
     })().catch(error=>{if(memory.get(key)?.promise===promise)memory.delete(key);throw error;});

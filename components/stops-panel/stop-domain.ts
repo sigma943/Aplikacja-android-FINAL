@@ -1100,7 +1100,7 @@ function departureFromMarcelCourseStop(
     status: timing.hasRealtime && timing.delayMins !== 0 ? 'delayed' : 'on_time',
     delayMins: timing.delayMins,
     delayEstimated: estimated || undefined,
-    realtimeSource: timing.hasRealtime ? 'vehicle-feed' : undefined,
+    realtimeSource: estimated ? 'position-estimate' : timing.hasRealtime ? 'vehicle-feed' : undefined,
     carrier: MARCEL_CARRIER,
     type: 'departure',
     plannedAtMs,

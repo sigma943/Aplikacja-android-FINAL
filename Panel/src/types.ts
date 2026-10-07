@@ -43,6 +43,7 @@ export interface Departure {
   plannedAtMs?: number;
   realAtMs?: number;
   realtimeSource?: 'stop-board' | 'vehicle-feed' | 'position-estimate';
+  realtimeObservedAtMs?: number;
   boardIsPast?: boolean;
   boardAtStop?: boolean;
   boardObservedAtMs?: number;

@@ -699,6 +699,7 @@ const BusMarker = memo(function BusMarker({
     prevVehicle.provider === nextVehicle.provider &&
     prevVehicle.iconVariant === nextVehicle.iconVariant &&
     prevVehicle.vehicleNumber === nextVehicle.vehicleNumber &&
+    (prevVehicle.delay === undefined) === (nextVehicle.delay === undefined) &&
     busDelayMinutes(prevVehicle.delay || 0) === busDelayMinutes(nextVehicle.delay || 0) &&
     getMarkerAgeBucket(prevVehicle.dataAgeSec) === getMarkerAgeBucket(nextVehicle.dataAgeSec) &&
     prev.isSelected === next.isSelected &&
@@ -823,7 +824,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
     const bounds = map.getBounds().pad(0.2);
     warmMarcelBadgeCourses(visibleVehicles, [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
     return unsubscribe;
-  }, [map, visibleVehicles]);
+  }, [map, visibleVehicles, viewTick]);
 
   const viewportVehicles = useMemo(() => visibleVehicles.map(vehicle => withCachedMarcelDelay(vehicle)),
     [visibleVehicles, badgeRevision]);

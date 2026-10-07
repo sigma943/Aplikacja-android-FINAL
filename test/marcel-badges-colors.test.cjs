@@ -48,7 +48,7 @@ test('Marcel badges warm visible courses with two requests, return positions imm
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(notifications.length,3);
   const warmed=await api.fetchVehiclesClient(true,['marcel'],options);
-  assert.ok(warmed.slice(0,3).every(v=>v.delay>120));assert.ok(Number.isFinite(warmed[3].delay));
+  assert.ok(warmed.slice(0,3).every(v=>v.delay>120));assert.equal(warmed[3].delay,undefined,'GPS outside the course must not produce a delay badge');
   assert.ok(warmed.every(v=>v.routeStops.length===0));
   const details=await api.fetchVehicleDetailsClient('marcel','marcel_1');assert.equal(details.routeStops.length,2);assert.equal(courseCalls.length,4);
   lat=50.07;currentNow+=11_000;

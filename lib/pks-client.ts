@@ -155,6 +155,8 @@ const PKP_METADATA_LOOKUP_LIMIT = 80;
 const mpkTripStopsByTripCache = new Map<string, Promise<any[]>>();
 const marcelCourseStopsCache = new Map<string, Promise<MarcelCourseStop[]>>();
 const marcelResolvedCourseStops = new Map<string, MarcelCourseStop[]>();
+const marcelPublicCourseStops = new Map<string, MarcelCourseStopPublic[]>();
+let marcelLatestPositions = new Map<string, MarcelLivePosition>();
 const marcelCourseListeners = new Set<(courseId: string) => void>();
 let marcelBadgeQueue: string[] = [];
 let marcelBadgeRequests = 0;
@@ -719,17 +721,17 @@ function getMarcelDestination(routeName: string, fallback = 'W trasie') {
 }
 
 async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop[]> {
-  const id = String(tripId || '').trim();
-  if (!id) return [];
+  const courseId = String(tripId || '').trim();
+  if (!courseId) return [];
+  const id = `${warsawDateIso()}:${courseId}`;
   if (!marcelCourseStopsCache.has(id)) {
     marcelCourseStopsCache.set(
       id,
-      requestJson<unknown>(`${MARCEL_API_BASE_URL}/client/api/trasy/kurs/${encodeURIComponent(id)}?appVersion=v1.67`, {
-        headers: { Accept: 'application/json' },
-      })
+      fetchMarcelPublicCourseStopsClient(courseId)
         .then((payload) => {
           let previousMs: number | null = null;
           return unwrapMarcelCourseStopsPayload(payload)
+            .sort((a, b) => Number(a.kol ?? 0) - Number(b.kol ?? 0))
             .map((stop, index): MarcelCourseStop | null => {
               const source = stop && typeof stop === 'object' ? stop as Record<string, unknown> : {};
               const lat = readMarcelNumber(source, ['szGps', 'lat', 'latitude', 'szerokosc']);
@@ -756,7 +758,7 @@ async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop
         })
         .then(stops => {
           marcelResolvedCourseStops.set(id, stops);
-          for (const listener of marcelCourseListeners) listener(id);
+          for (const listener of marcelCourseListeners) listener(courseId);
           return stops;
         })
         .catch(error => { marcelCourseStopsCache.delete(id); throw error; }),
@@ -778,11 +780,16 @@ export function subscribeMarcelCourseDelays(listener: (courseId: string) => void
 /** Use the latest vehicle position; never replay an old fleet snapshot. */
 export function withCachedMarcelDelay(vehicle: Vehicle, now = Date.now()): Vehicle {
   if (vehicle.provider !== 'marcel') return vehicle;
-  const stops = marcelResolvedCourseStops.get(String(vehicle.tripId || vehicle.journeyId || ''));
-  if (!stops || stops.length < 2) return vehicle;
+  const courseId = String(vehicle.tripId || vehicle.journeyId || '');
+  const points = marcelPublicCourseStops.get(courseId);
+  if (!points) return vehicle;
   const signalMs = vehicle.positionObservedAtMs ?? transitTimestamp(vehicle.lastSignalTime);
-  const delay = estimateMarcelDelaySeconds(vehicle.lat, vehicle.lon, stops, Number.isFinite(signalMs) ? signalMs : now);
-  return delay === undefined || delay === vehicle.delay ? vehicle : { ...vehicle, delay };
+  const latest = marcelLatestPositions.get(courseId);
+  const position = latest && latest.observedAtMs > signalMs ? latest
+    : { tripId: courseId, lat: vehicle.lat, lon: vehicle.lon, observedAtMs: Number.isFinite(signalMs) ? signalMs : now };
+  const delay = estimateMarcelCourseDelay(courseId, points, warsawDateIso(), [position]);
+  return delay === vehicle.delay && position.observedAtMs === vehicle.positionObservedAtMs ? vehicle
+    : { ...vehicle, delay, positionObservedAtMs: position.observedAtMs };
 }
 
 /** Warm only visible courses, two at a time, without holding up position polling. */
@@ -790,11 +797,11 @@ export function warmMarcelBadgeCourses(vehicles: Vehicle[], bbox: [number, numbe
   const [west, south, east, north] = bbox;
   if (!bbox.every(Number.isFinite)) return;
   marcelBadgeQueue = [...new Set(vehicles.filter(v => v.provider === 'marcel' && v.lon >= west && v.lon <= east && v.lat >= south && v.lat <= north)
-    .map(v => String(v.tripId || v.journeyId || '')).filter(id => id && !marcelCourseStopsCache.has(id) && !marcelBadgeInflight.has(id)))];
+    .map(v => String(v.tripId || v.journeyId || '')).filter(id => id && !marcelCourseStopsCache.has(`${warsawDateIso()}:${id}`) && !marcelBadgeInflight.has(id)))];
   const pump = () => {
     while (marcelBadgeRequests < 2 && marcelBadgeQueue.length) {
       const id = marcelBadgeQueue.shift()!;
-      if (marcelCourseStopsCache.has(id) || marcelBadgeInflight.has(id)) continue;
+      if (marcelCourseStopsCache.has(`${warsawDateIso()}:${id}`) || marcelBadgeInflight.has(id)) continue;
       marcelBadgeRequests++; marcelBadgeInflight.add(id);
       void fetchMarcelCourseStops(id).catch(() => { /* Retry on the next fleet refresh. */ }).finally(() => {
         marcelBadgeRequests--; marcelBadgeInflight.delete(id); pump();
@@ -931,9 +938,11 @@ async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: bo
     ? timestampMs
     : getObservedMarcelSignalMs(String(rawVehicleId), lat, lon, now);
   const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
-  const courseStops = includeRoute ? await fetchMarcelCourseStops(tripId) : marcelResolvedCourseStops.get(String(tripId || '')) || [];
+  const courseStops = includeRoute ? await fetchMarcelCourseStops(tripId) : marcelResolvedCourseStops.get(`${warsawDateIso()}:${tripId || ''}`) || [];
   const positionObservedAtMs = Number.isFinite(timestampMs) ? timestampMs : fetchedAtMs;
-  const delay = courseStops.length >= 2 ? estimateMarcelDelaySeconds(lat, lon, courseStops, positionObservedAtMs) : undefined;
+  const publicStops = marcelPublicCourseStops.get(String(tripId || ''));
+  const delay = publicStops ? estimateMarcelCourseDelay(String(tripId || ''), publicStops, warsawDateIso(),
+    [{ tripId: String(tripId || ''), lat, lon, observedAtMs: positionObservedAtMs }]) : undefined;
   const schedule = includeRoute ? buildMarcelSchedule(courseStops, delay ?? 0, now) : [];
   const routeStops = includeRoute ? buildMarcelRouteStops(courseStops, delay ?? 0, now) : [];
   const fullRoutePath = routeStops.map((stop) => stop.id);
@@ -2813,6 +2822,10 @@ function fetchMarcelPositionSnapshot(signal?: AbortSignal): Promise<MarcelPositi
           ? [{ tripId, lat, lon, observedAtMs: at }] : [];
       });
       if (marcelPositionSnapshotCache?.promise === promise) marcelPositionSnapshotCache.expiresAt = observedAtMs + 10_000;
+      marcelLatestPositions = new Map(positions.map(position => [position.tripId, position]));
+      for (const courseId of marcelPublicCourseStops.keys()) {
+        for (const listener of marcelCourseListeners) listener(courseId);
+      }
       return { rows, observedAtMs, positions };
     }).catch(error => {
       if (marcelPositionSnapshotCache?.promise === promise) marcelPositionSnapshotCache = undefined;
@@ -2834,7 +2847,7 @@ export function estimateMarcelCourseDelay(courseId: number | string, publicStops
   const position = positions.find(row => row.tripId === String(courseId));
   if (!position || Math.abs(Date.now() - position.observedAtMs) > 60_000) return undefined;
   let previousMs: number | undefined;
-  const stops = publicStops.flatMap((stop, index) => {
+  const stops = [...publicStops].sort((a, b) => (a.kol ?? 0) - (b.kol ?? 0)).flatMap((stop, index) => {
     let plannedMs = warsawTimeMs(dateIso, stop.godz);
     if (previousMs != null && plannedMs < previousMs - 6 * 3600_000) plannedMs += 24 * 3600_000;
     if (!Number.isFinite(plannedMs) || stop.szGps == null || stop.dlGps == null) return [];
@@ -2852,7 +2865,15 @@ export function estimateMarcelCourseDelay(courseId: number | string, publicStops
   return estimateMarcelDelaySeconds(position.lat, position.lon, stops, position.observedAtMs);
 }
 
-export const {fetchMarcelRoutesClient,fetchMarcelCoursesClient,fetchMarcelPublicCourseStopsClient}=createMarcelTimetableApi(requestJson,MARCEL_API_BASE_URL);
+const marcelTimetable = createMarcelTimetableApi(requestJson,MARCEL_API_BASE_URL);
+export const {fetchMarcelRoutesClient,fetchMarcelCoursesClient} = marcelTimetable;
+/** The stop list, map badges and bus details reuse the same persistent course response. */
+export async function fetchMarcelPublicCourseStopsClient(id: number | string) {
+  const points = await marcelTimetable.fetchMarcelPublicCourseStopsClient(id);
+  marcelPublicCourseStops.set(String(id), points);
+  if (marcelPublicCourseStops.size > 700) marcelPublicCourseStops.delete(marcelPublicCourseStops.keys().next().value!);
+  return points;
+}
 
 async function fetchRouteGeometryClientImpl(
   request: RouteGeometryClientRequest,
