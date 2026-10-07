@@ -1,4 +1,5 @@
-﻿import { X, Lock, Upload, Image as ImageIcon, EyeOff } from 'lucide-react';
+import {AdminModalPortal} from './AdminModalPortal';
+import { X, Lock, Upload, Image as ImageIcon, EyeOff } from 'lucide-react';
 import { Device } from '../types';
 import React, { useState, useRef, ChangeEvent } from 'react';
 import { motion } from 'motion/react';
@@ -51,26 +52,27 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020408]/80 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-sm">
+    <AdminModalPortal>
+    <div role="dialog" aria-modal="true" aria-label="Zablokuj urządzenie" className="admin-modal-overlay bg-[#020408]/80 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative flex max-h-[calc(100dvh-2rem-env(safe-area-inset-bottom))] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 border-t-white/20 bg-[#0F131D] shadow-2xl"
+        className="relative flex max-h-full w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 border-t-white/20 bg-[#0F131D] shadow-2xl"
       >
-        <div className="px-6 py-5 flex items-center justify-between border-b border-white/5">
+        <div className="shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between border-b border-white/5">
           <div>
             <h2 className="text-lg font-bold text-white tracking-tight">Zablokuj urządzenie</h2>
             <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">Konfiguracja blokady dla tego urządzenia</p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-white transition-all p-2 rounded-xl hover:bg-white/5 cursor-pointer"
+            className="shrink-0 text-slate-500 hover:text-white transition-all p-2 rounded-xl hover:bg-white/5 cursor-pointer"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 sm:p-6">
           <div>
             <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest px-1">Data wygaśnięcia blokady</label>
             <input
@@ -269,5 +271,6 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
         </div>
       </motion.div>
     </div>
+    </AdminModalPortal>
   );
 }

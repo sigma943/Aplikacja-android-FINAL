@@ -1,3 +1,4 @@
+import {AdminModalPortal} from './AdminModalPortal';
 import {useAppBack} from '@/lib/use-app-back';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Filter, Plus, Monitor, Shield, Users, Settings, MoreVertical, Activity, Lock, X, Menu, Hammer, Crown, Globe, SlidersHorizontal, UserCog } from 'lucide-react';
@@ -462,29 +463,29 @@ disableStops: false,
   ] as const;
 
   return (
-    <div className="fixed inset-0 bg-[#020408]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <AdminModalPortal><div role="dialog" aria-modal="true" className="admin-modal-overlay bg-[#020408]/80 backdrop-blur-sm">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-lg shadow-2xl relative flex flex-col overflow-hidden"
+        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-lg shadow-2xl relative flex max-h-full flex-col overflow-hidden"
       >
         
-        <div className="p-6 border-b border-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-sky-500/10 flex items-center justify-center border border-sky-500/20">
-              <Shield className="text-sky-400" size={24} />
+        <div className="p-4 sm:p-6 border-b border-white/5 flex min-w-0 shrink-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="w-12 h-12 shrink-0 aspect-square rounded-2xl bg-sky-500/10 flex items-center justify-center border border-sky-500/20">
+              <Shield className="shrink-0 text-sky-400" size={24} />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Edycja uprawnień</h2>
-              <p className="text-sm text-slate-400">Konfiguracja dostępu: <strong className="text-white">{operator.name}</strong></p>
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Edycja uprawnień</h2>
+              <p className="break-words text-xs sm:text-sm text-slate-400">Konfiguracja dostępu: <strong className="text-white">{operator.name}</strong></p>
             </div>
           </div>
-          <button onClick={onClose} className="p-3 text-slate-400 hover:text-white rounded-2xl hover:bg-white/5 transition-all cursor-pointer">
+          <button onClick={onClose} className="shrink-0 p-2 text-slate-400 hover:text-white rounded-2xl hover:bg-white/5 transition-all cursor-pointer">
             <X size={24} />
           </button>
         </div>
 
-        <div className="p-6 space-y-8 overflow-y-auto max-h-[70vh]">
+        <div className="min-h-0 flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto overscroll-contain">
           {isSelf && (
             <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
               To Twoje urządzenie — edycja z poziomu aplikacji jest zablokowana.
@@ -523,7 +524,7 @@ disableStops: false,
                       : "cursor-pointer active:scale-[0.98]"
                   )}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div className={cn(
                       "p-2 rounded-xl transition-all group-hover:scale-110",
                       permissions[p.key] ? "ui-accent-soft" : "bg-white/5 text-slate-500"
@@ -557,7 +558,7 @@ disableStops: false,
 
         </div>
 
-        <div className="p-6 border-t border-white/5 bg-[#0a0f18]/80 backdrop-blur-xl mt-auto">
+        <div className="shrink-0 p-4 sm:p-6 border-t border-white/5 bg-[#0a0f18]/80 backdrop-blur-xl mt-auto">
           <button 
             type="button"
             onClick={async () => {
@@ -582,7 +583,7 @@ disableStops: false,
         </div>
 
       </motion.div>
-    </div>
+    </div></AdminModalPortal>
   );
 }
 
@@ -657,24 +658,24 @@ function GlobalPermissionsModal({
   const dirty = useMemo(() => !sameGlobalSettings(settings, baseline), [settings, baseline]);
 
   return (
-    <div className="fixed inset-0 bg-[#020408]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <AdminModalPortal><div role="dialog" aria-modal="true" className="admin-modal-overlay bg-[#020408]/80 backdrop-blur-sm">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden"
+        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-md shadow-2xl relative flex max-h-full flex-col overflow-hidden"
       >
         
-        <div className="p-6 border-b border-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10">
+        <div className="p-4 sm:p-6 border-b border-white/5 flex min-w-0 shrink-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="w-12 h-12 shrink-0 aspect-square rounded-2xl bg-white/5 flex items-center justify-center border border-white/10">
               <Settings className="text-slate-400" size={24} />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Uprawnienia globalne</h2>
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Uprawnienia globalne</h2>
               <p className="text-sm text-slate-500">Ustawienia systemowe</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-3 text-slate-400 hover:text-white rounded-2xl hover:bg-white/5 transition-all cursor-pointer">
+          <button onClick={onClose} className="shrink-0 p-2 text-slate-400 hover:text-white rounded-2xl hover:bg-white/5 transition-all cursor-pointer">
             <X size={24} />
           </button>
         </div>
@@ -685,7 +686,7 @@ function GlobalPermissionsModal({
           </div>
         )}
 
-        <div className="p-6 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
           <div className="flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
             <div>
               <div className="text-base font-bold text-white mb-0.5">Logowanie do panelu</div>
@@ -766,7 +767,7 @@ function GlobalPermissionsModal({
 
         </div>
 
-        <div className="p-6 border-t border-white/5 bg-[#111623]/50 flex justify-end">
+        <div className="shrink-0 p-4 sm:p-6 border-t border-white/5 bg-[#111623]/50 flex justify-end">
           {readOnly ? (
             <button
               type="button"
@@ -806,6 +807,6 @@ function GlobalPermissionsModal({
         </div>
 
       </motion.div>
-    </div>
+    </div></AdminModalPortal>
   );
 }

@@ -260,6 +260,26 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>window.__maintenanceCalls.some(call=>call.name==='saveMaintenanceEndpoint'&&call.data.endpoint.id==='created-endpoint'&&call.data.endpoint.enabled));
     await screenshot('maintenance-mobile');
     await button('Historia zmian');await page.waitForFunction(()=>document.body.innerText.includes('rollbackMaintenanceEndpoint'));
+    const fitDialog=async()=>{
+      await page.waitForSelector('.admin-modal-overlay');await new Promise(resolve=>setTimeout(resolve,450));
+      const box=await page.evaluate(()=>{const overlay=document.querySelector('.admin-modal-overlay'),card=overlay.firstElementChild,r=card.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:innerHeight,width:innerWidth};});
+      assert.ok(box.top>=10&&box.bottom<=box.height-10,JSON.stringify(box));assert.ok(box.left>=10&&box.right<=box.width-10,JSON.stringify(box));
+    };
+    await fitDialog();
+    assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.admin-modal-overlay div')].some(el=>el.scrollWidth>el.clientWidth+1)),false,'History must fit long endpoint and action names');
+    await screenshot('admin-history-mobile');
+    await page.goto(`${origin}/dialog-fixture/`,{waitUntil:'domcontentloaded'});
+    await fitDialog();
+    const shield=await page.evaluate(()=>{const el=document.querySelector('.admin-modal-overlay .lucide-shield');const r=el.getBoundingClientRect(),parent=el.parentElement.getBoundingClientRect();return {w:r.width,h:r.height,pw:parent.width,ph:parent.height};});
+    assert.equal(shield.w,24);assert.equal(shield.h,24);assert.equal(shield.pw,shield.ph);
+    const checkSave=async()=>{const result=await page.evaluate(()=>{const buttons=[...document.querySelectorAll('.admin-modal-overlay button')];const b=buttons.find(el=>el.textContent.trim()==='Zapisz zmiany'),r=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:innerHeight,covered:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)!==b};});assert.ok(result.top>=0&&result.bottom<=result.height,JSON.stringify(result));assert.equal(result.covered,false);};
+    await checkSave();await screenshot('admin-roles-mobile');
+    await page.setViewport({width:320,height:568,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();
+    await page.setViewport({width:393,height:400,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();await screenshot('admin-roles-keyboard-height');
+    await button('Zapisz zmiany');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));await button('Ban');await fitDialog();
+    await page.evaluate(()=>{const body=document.querySelector('.admin-modal-overlay .overflow-y-auto');body.scrollTop=body.scrollHeight;});
+    await button('ZABLOKUJ URZĄDZENIE');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));
+    console.log('Browser: real role, ban and history dialogs escape transformed parents, fit small phones and keyboard height, stay above navigation and keep the shield square.');
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
     console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');

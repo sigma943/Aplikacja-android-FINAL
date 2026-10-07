@@ -12,6 +12,7 @@ import { OperatorsView } from './components/OperatorsView';
 import { LogsView } from './components/LogsView';
 import { BansView } from './components/BansView';
 import { MaintenanceView } from './components/MaintenanceView';
+import {AdminModalPortal} from './components/AdminModalPortal';
 import { RolesModal } from './components/RolesModal';
 import { BanModal } from './components/BanModal';
 import { BanScreen } from './components/BanScreen';
@@ -1371,8 +1372,8 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
       {/* Modal: edycja własnej nazwy (imię i nazwisko) */}
       {isEditProfileOpen && (
-        <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#0d1117] p-6 shadow-2xl flex flex-col gap-4">
+        <AdminModalPortal><div role="dialog" aria-modal="true" aria-label="Twoja nazwa" className="admin-modal-overlay bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm max-h-full overflow-y-auto rounded-3xl border border-white/10 bg-[#0d1117] p-6 shadow-2xl flex flex-col gap-4">
             <div>
               <h2 className="text-lg font-black text-white">Twoja nazwa</h2>
               <p className="text-xs text-slate-400 mt-1">Wpisz imię i nazwisko, które będzie widoczne w panelu zamiast nazwy urządzenia.</p>
@@ -1404,7 +1405,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
               </button>
             </div>
           </div>
-        </div>
+        </div></AdminModalPortal>
       )}
 
       <Sidebar

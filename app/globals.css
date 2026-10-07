@@ -395,3 +395,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--pks-accent); }
   .pks-theme-root *, .pks-theme-root *::before, .pks-theme-root *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   .pks-theme-root button:active { scale: 1; }
 }
+
+.admin-modal-overlay { position: fixed; inset-inline: 0; top: var(--admin-viewport-top, 0px); height: var(--admin-viewport-height, 100dvh); z-index: 15000; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+.admin-modal-overlay > * { min-width: 0; }

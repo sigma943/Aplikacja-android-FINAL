@@ -179,8 +179,9 @@ service cloud.firestore {
 
     // Clients may mirror their server-authorized device, never grant themselves a role.
     function ownInstallationMirrorAllowed(installationId) {
-      let device = callerDeviceExists() ? callerDeviceData() : {};
-      return callerDeviceExists() && device.get('installationId', '') == installationId &&
+      let path = callerDevicePath();
+      let device = existsAfter(path) ? getAfter(path).data : {};
+      return existsAfter(path) && device.get('installationId', '') == installationId &&
              incoming().role == device.role &&
              incoming().permissions == device.permissions &&
              incoming().status == device.status &&
@@ -260,10 +261,32 @@ service cloud.firestore {
              );
     }
 
+    function previousInstallationDeviceReadable(deviceId) {
+      let instId = existing().get('installationId', '');
+      let path = /databases/$(database)/documents/installations/$(instId);
+      return isValidId(instId) && exists(path) && get(path).data.get('lastUid', '') == deviceId;
+    }
+
+    function deviceReinstallationTransferAllowed(deviceId) {
+      let instId = existing().get('installationId', '');
+      let path = /databases/$(database)/documents/installations/$(instId);
+      let newPath = /databases/$(database)/documents/devices/$(request.auth.uid);
+      let profile = get(path).data;
+      let restored = getAfter(newPath).data;
+      return isValidId(instId) && exists(path) && !exists(newPath) &&
+             profile.get('lastUid', '') == deviceId &&
+             getAfter(path).data.lastUid == request.auth.uid &&
+             restored.installationId == instId &&
+             restored.role == profile.role && restored.permissions == profile.permissions &&
+             restored.status == profile.status && restored.verified == profile.verified &&
+             restored.get('banDetails', null) == profile.get('banDetails', null);
+    }
+
     match /devices/{deviceId} {
       // Single document reads.
       allow get: if isSignedIn() && isValidDeviceDocId(deviceId) && (
-        isOwner(deviceId) || isCallerOwner() || hasAdminPerm('canViewList')
+        isOwner(deviceId) || isCallerOwner() || hasAdminPerm('canViewList') ||
+        !exists(/databases/$(database)/documents/devices/$(deviceId)) || previousInstallationDeviceReadable(deviceId)
       );
 
       // Collection listing.
@@ -271,7 +294,7 @@ service cloud.firestore {
 
       // Free-tier path (without Cloud Functions): owner creates own identity as basic user.
       allow create: if isSignedIn() && isValidDeviceDocId(deviceId) && isOwner(deviceId) &&
-                    (isValidDeviceCreate(incoming()) || canCreateDeviceFromInstallationProfile(incoming())) &&
+                    ((isValidDeviceCreate(incoming()) && userPermissionsAreSafe(incoming())) || canCreateDeviceFromInstallationProfile(incoming())) &&
                     incoming().permissions is map;
 
       allow update: if isSignedIn() && isValidDeviceDocId(deviceId) && (
@@ -375,6 +398,7 @@ service cloud.firestore {
                     isValidDeviceDocId(deviceId) &&
                     request.auth.uid != deviceId &&
                     (
+                      deviceReinstallationTransferAllowed(deviceId) ||
                       isCallerOwner() ||
                       (
                         hasAdminPerm('users') &&

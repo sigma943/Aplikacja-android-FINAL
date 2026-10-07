@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { auth, db, functions } from '@/lib/firebase';
+import { registerRestoredDevice,stableAndroidInstallationId } from '@/lib/device-registration';
 import { ensureFirebaseUser, registerDeviceOnce } from '@/lib/firebase-session';
 import { setTransportRuntime } from '@/lib/transport-runtime';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -275,30 +276,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     const isWeb = typeof window !== 'undefined' && !Capacitor.isNativePlatform();
 
     if (Capacitor.isNativePlatform()) {
-      try {
-        const id = await StableDeviceId.getId();
-        const stableNativeId = String(id.identifier || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
-        if (stableNativeId) {
-          const value = `android_${stableNativeId}`;
-          try { localStorage.setItem(key, value); } catch {}
-          return value;
-        }
-      } catch (err) {
-        console.warn('Stable Android device id unavailable', err);
-      }
-
-      try {
-        const { Device } = await import('@capacitor/device');
-        const id = await Device.getId();
-        const nativeId = String(id.identifier || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
-        if (nativeId) {
-          const value = `android_${nativeId}`;
-          try { localStorage.setItem(key, value); } catch {}
-          return value;
-        }
-      } catch (err) {
-        console.warn('Native installation id unavailable', err);
-      }
+      let cached:string|null=null;
+      try {cached=localStorage.getItem(key);}catch {}
+      const value=await stableAndroidInstallationId(
+        async()=>String((await StableDeviceId.getId()).identifier||''),
+        async()=>{const {Device}=await import('@capacitor/device');return String((await Device.getId()).identifier||'');},cached);
+      try {localStorage.setItem(key,value);}catch {}
+      return value;
     }
 
     const readCookie = () => {
@@ -375,67 +359,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const installationRef = doc(db, 'installations', instId);
         const existing = await getDoc(deviceRef);
         if (!existing.exists()) {
-          const installationSnap = await getDoc(installationRef);
-          const installationProfile = (installationSnap.exists()
-            ? installationSnap.data()
-            : {}) as InstallationProfile;
-          const roleFromProfile: DeviceRole =
-            installationProfile.role === 'owner' || installationProfile.role === 'admin'
-              ? installationProfile.role
-              : 'user';
-          const verifiedFromProfile =
-            roleFromProfile === 'owner' || roleFromProfile === 'admin' || installationProfile.verified === true;
-          const permissionsFromProfile =
-            installationProfile.permissions && typeof installationProfile.permissions === 'object'
-              ? installationProfile.permissions
-              : buildDevicePermissions(roleFromProfile);
-          const displayNameFromProfile =
-            typeof installationProfile.displayName === 'string' && installationProfile.displayName.trim()
-              ? installationProfile.displayName.trim().slice(0, 120)
-              : undefined;
-          const securitySnap = await getDoc(doc(db, 'admin_settings', 'security')).catch(() => null);
-          const autoBanEnabled = Boolean(securitySnap?.exists() ? securitySnap.data()?.autoBan : false);
-          const shouldAutoBan =
-            roleFromProfile === 'user' &&
-            !verifiedFromProfile &&
-            (installationProfile.status === 'banned' || autoBanEnabled);
-
-          const createPayload: Record<string, unknown> = {
-            installationId: instId,
-            identityVersion: 2,
-            deviceInfo,
-            role: roleFromProfile,
-            firstLogin: new Date().toISOString(),
-            status: shouldAutoBan ? 'banned' : (installationProfile.status === 'banned' ? 'banned' : 'active'),
-            verified: verifiedFromProfile,
-            permissions: permissionsFromProfile,
-            lastSeenAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          };
-          if (shouldAutoBan || installationProfile.status === 'banned') {
-            createPayload.banDetails = installationProfile.banDetails || buildAutoBanDetails();
-          }
-          if (displayNameFromProfile) createPayload.displayName = displayNameFromProfile;
-          await setDoc(deviceRef, createPayload, { merge: true });
-          // Ensure installation profile exists even for first-time user.
-          await setDoc(
-            installationRef,
-            {
-              installationId: instId,
-              role: roleFromProfile,
-              permissions: permissionsFromProfile,
-              status: shouldAutoBan ? 'banned' : (installationProfile.status === 'banned' ? 'banned' : 'active'),
-              verified: verifiedFromProfile,
-              ...(shouldAutoBan || installationProfile.status === 'banned'
-                ? { banDetails: installationProfile.banDetails || buildAutoBanDetails() }
-                : {}),
-              ...(displayNameFromProfile ? { displayName: displayNameFromProfile } : {}),
-              updatedAt: serverTimestamp(),
-              updatedBy: user.uid,
-              lastUid: user.uid,
-            },
-            { merge: true },
-          );
+          const securitySnap=await getDoc(doc(db,'admin_settings','security')).catch(()=>null);
+          await registerRestoredDevice(db,user.uid,instId,deviceInfo,
+            Boolean(securitySnap?.exists()?securitySnap.data()?.autoBan:false),buildAutoBanDetails());
         } else {
           // Existing device docs can only update allowed heartbeat fields from client rules.
           await updateDoc(deviceRef, { lastSeenAt: serverTimestamp(), deviceInfo }).catch(async () => {

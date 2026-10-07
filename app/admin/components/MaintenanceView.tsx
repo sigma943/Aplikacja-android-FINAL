@@ -1,3 +1,4 @@
+import {AdminModalPortal} from './AdminModalPortal';
 import {useAppBack} from '@/lib/use-app-back';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { callInitialize, callSaveEndpoint, callTestEndpoint, callSetActive, callDisable, callRollback } from '@/lib/maintenance-spark';
@@ -454,25 +455,26 @@ export function MaintenanceView({
 
       <AnimatePresence>
         {showHistory && (
-          <motion.div className="fixed inset-0 z-[12000] flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }} className="max-h-[85dvh] w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-[#111623] shadow-2xl">
-              <div className="flex items-center justify-between border-b border-white/10 p-5">
+          <AdminModalPortal>
+          <motion.div role="dialog" aria-modal="true" aria-label="Historia zmian" className="admin-modal-overlay bg-black/60 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }} className="flex max-h-full min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#111623] shadow-2xl">
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 p-5">
                 <div>
                   <h2 className="text-lg font-black text-white">Historia zmian</h2>
                   <p className="text-xs text-slate-500">Ostatnie operacje infrastruktury API</p>
                 </div>
-                <button type="button" onClick={() => setShowHistory(false)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-white">
+                <button type="button" onClick={() => setShowHistory(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-white">
                   <X size={18} />
                 </button>
               </div>
-              <div className="max-h-[65dvh] space-y-2 overflow-y-auto p-4">
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
                 {changes.length ? changes.map((change) => (
                   <div key={change.id} className="rounded-2xl border border-white/10 bg-black/15 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-black text-white">{change.summary}</span>
-                      <Badge>{change.action}</Badge>
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0 break-all text-sm font-black text-white">{change.summary}</span>
+                      <Badge className="max-w-full break-all whitespace-normal">{change.action}</Badge>
                     </div>
-                    <div className="mt-2 text-xs text-slate-500">{change.endpointId} · {changeDate(change.createdAtMs)}</div>
+                    <div className="mt-2 break-all text-xs text-slate-500">{change.endpointId} · {changeDate(change.createdAtMs)}</div>
                   </div>
                 )) : (
                   <div className="py-10 text-center text-sm text-slate-500">Brak historii zmian.</div>
@@ -480,6 +482,7 @@ export function MaintenanceView({
               </div>
             </motion.div>
           </motion.div>
+          </AdminModalPortal>
         )}
       </AnimatePresence>
     </div>
