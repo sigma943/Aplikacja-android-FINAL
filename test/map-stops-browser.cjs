@@ -42,8 +42,8 @@ try{
  await button('Przystanki');
  await page.waitForSelector('input[placeholder*="Babica"]');
  await page.type('input[placeholder*="Babica"]','Rzeszów TestMap');
- await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent==='Rzeszów TestMap'));
- await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent==='Rzeszów TestMap').click());
+ await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent.toLowerCase()==='rzeszów testmap'));
+ await page.evaluate(()=>[...document.querySelectorAll('h3')].find(el=>el.textContent.toLowerCase()==='rzeszów testmap').click());
  await page.waitForSelector('[aria-label="Generuj widżet przystanku"]');await page.click('[aria-label="Generuj widżet przystanku"]');
  await page.waitForSelector('[aria-labelledby="widget-title"]');
  assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>el.parentElement.parentElement.tagName),'BODY','widget dialog uses a portal above transformed panels');
