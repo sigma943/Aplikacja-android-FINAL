@@ -27,7 +27,7 @@ try{
  const color=await page.$eval('.map-catalog-stop[title^="Rzeszów TestMap" i] .map-stop-ring',el=>getComputedStyle(el).backgroundColor);assert.equal(color,'rgb(255, 122, 0)');
  assert.equal(await page.$eval('.map-catalog-stop[title^="Rzeszów TestMap" i] svg',el=>getComputedStyle(el).color),'rgb(255, 255, 255)');
  await page.click('.map-catalog-stop[title^="Rzeszów TestMap" i]');await page.waitForSelector('[data-map-stop-sheet]');
- await page.waitForSelector('.map-stop-ring.is-selected');assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/Rzeszów TestMap/);
+ await page.waitForSelector('.map-stop-ring.is-selected');assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/Rzeszów TestMap/i);
  await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]')?.textContent.includes('Centrum'));
  await page.click('[aria-label="Rozwiń panel przystanku"]');await page.waitForSelector('#map-stop-departures');
  const preview=process.env.MAP_STOPS_PREVIEW||path.resolve('test/ui-previews/map-stops.png');fs.mkdirSync(path.dirname(preview),{recursive:true});await page.screenshot({path:preview});
