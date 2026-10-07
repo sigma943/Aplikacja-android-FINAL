@@ -102,10 +102,10 @@ const server=http.createServer((req,res)=>{
       const bounds=card.getBoundingClientRect();const next=cards[index+1]?.getBoundingClientRect();
       return bounds.height>=70&&(!next||bounds.bottom<=next.top+1);
     })),true,'full stop cards retain their height and never overlap');
-    await assertCards();assert.equal(await page.$$eval('[data-stop-card-id]',els=>els.length),40);
+    await page.waitForSelector('[data-virtual-stop-cards]');await assertCards();assert.equal(await page.$eval('[data-virtual-stop-cards]',el=>Number(el.dataset.totalStops)),40);assert.ok(await page.$$eval('[data-stop-card-id]',els=>els.length)<25,'full list renders only nearby cards');
     await screenshot('stops-full-glass');
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim().startsWith('Pokaż więcej (')).click());
-    await page.waitForFunction(()=>document.querySelectorAll('[data-stop-card-id]').length===80);await assertCards();
+    await page.waitForFunction(()=>document.querySelector('[data-virtual-stop-cards]').dataset.totalStops==='80');await assertCards();assert.ok(await page.$$eval('[data-stop-card-id]',els=>els.length)<25,'loading more stops does not inflate DOM');
     await page.$eval('[data-stop-list-scroll]',el=>{el.scrollTop=500;});
     assert.ok(await page.$eval('[data-stop-list-scroll]',el=>el.scrollTop)>=499,'full list scrolls independently');
     await page.click('[aria-label="Zamknij pełną listę przystanków"]');
@@ -188,7 +188,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'true','panning map retains the expanded sheet');
     await screenshot('map-stop-glass-expanded');
     const handle=await page.$('[aria-label="Zwiń panel przystanku"]');const bounds=await handle.boundingBox();
-    await page.mouse.move(bounds.x+bounds.width/2,bounds.y+12);await page.mouse.down();await page.mouse.move(bounds.x+bounds.width/2,bounds.y+65,{steps:10});await page.mouse.up();
+    await page.mouse.move(bounds.x+bounds.width/2,bounds.y+12);await page.mouse.down();const stopExpandedHeight=await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height);await page.mouse.move(bounds.x+bounds.width/2,bounds.y+65,{steps:10});assert.ok(await page.$eval('[data-map-stop-sheet]',el=>el.getBoundingClientRect().height)<stopExpandedHeight-20,'stop sheet follows the finger before release');await page.mouse.up();
     await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]').dataset.expanded==='false');
     await page.evaluate(()=>{localStorage.setItem('mks_transparent','false');localStorage.setItem('mks_app_theme','dark-oled');});
     await page.reload({waitUntil:'domcontentloaded'});await openStops();await showStopOnMap();
@@ -233,13 +233,13 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[data-map-bus-sheet]');
     assert.equal(await page.$eval('[data-map-bus-sheet]',el=>el.dataset.expanded),'false','a bus selection opens its compact panel');
     await page.click('[aria-label="Rozwiń panel autobusu"]');
-    await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='true');
+    await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='true');await new Promise(resolve=>setTimeout(resolve,450));const busHandle=await page.$('[aria-label="Zwiń panel autobusu"]');const busBounds=await busHandle.boundingBox();const busHeight=await page.$eval('[data-map-bus-sheet]',el=>el.getBoundingClientRect().height);await page.mouse.move(busBounds.x+30,busBounds.y+12);await page.mouse.down();await page.mouse.move(busBounds.x+30,busBounds.y+62,{steps:8});assert.ok(await page.$eval('[data-map-bus-sheet]',el=>el.getBoundingClientRect().height)<busHeight-20,'bus sheet follows finger');await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='false');await page.click('[aria-label="Rozwiń panel autobusu"]');
     await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
     await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='false');
     await screenshot('bus-compact');
     await page.waitForFunction(()=>history.state?.pksBackGuard===true);
     await page.evaluate(()=>history.back());await page.waitForSelector('[data-map-bus-sheet]',{hidden:true});
-    await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});
+    await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-transport-diagnostics]');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
     await button('Dodaj');
     await page.waitForFunction(()=>document.querySelector('[aria-label="Adres API"]').value==='');

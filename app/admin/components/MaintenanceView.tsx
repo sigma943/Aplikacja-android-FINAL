@@ -1,8 +1,10 @@
+import {TransportDiagnosticsPanel} from './TransportDiagnosticsPanel';
+import {maintenanceChange,mergeMaintenanceHistory,exportMaintenanceHistory} from '@/lib/maintenance-history';
 import {AdminModalPortal} from './AdminModalPortal';
 import {useAppBack} from '@/lib/use-app-back';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { callInitialize, callSaveEndpoint, callTestEndpoint, callSetActive, callDisable, callRollback, callClearHistory } from '@/lib/maintenance-spark';
-import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, orderBy, query, getDocs, startAfter, type QueryDocumentSnapshot } from 'firebase/firestore';
 import {
   Activity,
   CheckCircle2,
@@ -117,7 +119,14 @@ export function MaintenanceView({
   canEdit: boolean;
 }) {
   const [endpoints, setEndpoints] = useState<MaintenanceEndpoint[]>([]);
-  const [changes, setChanges] = useState<MaintenanceChange[]>([]);
+  const [recentChanges,setChanges]=useState<MaintenanceChange[]>([]);
+  const [olderChanges,setOlderChanges]=useState<MaintenanceChange[]>([]);
+  const changes=useMemo(()=>mergeMaintenanceHistory(recentChanges,olderChanges),[recentChanges,olderChanges]);
+  const historyCursor=useRef<QueryDocumentSnapshot|null>(null);
+  const historyPaged=useRef(false);
+  const [hasOlder,setHasOlder]=useState(false);
+  const [historyLoading,setHistoryLoading]=useState(false);
+
   const [settings, setSettings] = useState<{ activeEndpointId?: string; previousEndpointId?: string }>({});
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'enabled' | 'disabled'>('all');
@@ -163,21 +172,24 @@ export function MaintenanceView({
   useEffect(() => {
     const q = query(collection(db, 'maintenance_changes'), orderBy('createdAt', 'desc'), limit(40));
     const unsub = onSnapshot(q, (snap) => {
-      setChanges(snap.docs.map((entry) => {
-        const data = entry.data() as any;
-        const createdAtMs = data.createdAt?.toDate?.()?.getTime?.() || 0;
-        return {
-          id: entry.id,
-          action: String(data.action || ''),
-          endpointId: String(data.endpointId || ''),
-          actorId: String(data.actorId || ''),
-          summary: String(data.summary || ''),
-          createdAtMs,
-        };
-      }));
+      setChanges(snap.docs.map(entry=>maintenanceChange(entry.id,entry.data())));
+      if(!historyPaged.current){historyCursor.current=snap.docs.at(-1)||null;setHasOlder(snap.docs.length===40);}
+
     }, err => setError(failureMessage(err)));
     return () => unsub();
   }, []);
+
+  const loadOlderHistory=async()=>{
+    if(historyLoading||!historyCursor.current)return;
+    setHistoryLoading(true);
+    try{
+      const snap=await getDocs(query(collection(db,'maintenance_changes'),orderBy('createdAt','desc'),startAfter(historyCursor.current),limit(40)));
+      historyPaged.current=true;
+      if(snap.docs.length)historyCursor.current=snap.docs.at(-1)!;
+      setOlderChanges(previous=>mergeMaintenanceHistory(previous,snap.docs.map(entry=>maintenanceChange(entry.id,entry.data()))));
+      setHasOlder(snap.docs.length===40);
+    }catch(error){setError(failureMessage(error));}finally{setHistoryLoading(false);}
+  };
 
   const configuredEndpoints = useMemo(() => endpoints.map(endpoint => ({ ...endpoint, active: endpoint.id === settings.activeEndpointId })), [endpoints, settings.activeEndpointId]);
   const visibleEndpoints = useMemo(() => {
@@ -282,6 +294,7 @@ export function MaintenanceView({
             {!ready && <button type="button" disabled={Boolean(busy)} onClick={() => runAction('initialize', async () => { await callInitialize({}); setReady(true); })} className="mt-3 block rounded-xl border px-3 py-2 text-xs ui-accent-soft">Połącz ponownie</button>}
           </div>
         )}
+        <TransportDiagnosticsPanel/>
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatusCard icon={<Globe2 size={22} />} title="Aktywny endpoint" value={(activeEndpoint?.id === BUILTIN_TRANSPORT_ID && activeEndpoint.url === BUILTIN_TRANSPORT_URL ? 'Źródła przewoźników' : activeEndpoint?.url.replace(/^https?:\/\//, '')) || 'Nie wybrano'} hint={activeEndpoint?.enabled ? 'Aktywny' : 'Brak aktywnego endpointu'} tone="cyan" />
           <StatusCard icon={<Database size={22} />} title="Źródło konfiguracji" value={ready ? 'Firestore' : 'Łączenie…'} hint={`${endpoints.length} zapisanych endpointów`} tone="blue" />
@@ -470,12 +483,13 @@ export function MaintenanceView({
                   <X size={18} />
                 </button>
               </div>
+              {changes.length>0&&<div className="shrink-0 px-4 py-2"><button onClick={()=>exportMaintenanceHistory(changes)} className="ui-accent-soft rounded-xl border px-3 py-2 text-xs">Eksportuj wczytane wpisy ({changes.length})</button></div>}
               {canEdit&&changes.length>0&&<div className="shrink-0 border-b border-white/10 px-4 py-3">
                 {confirmHistoryClear ? <div className="space-y-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3">
                   <p className="text-sm text-rose-100">Usunąć całą historię konserwacji? Tej operacji nie można cofnąć.</p>
                   <div className="flex flex-wrap gap-2">
                     <button disabled={Boolean(busy)} onClick={()=>setConfirmHistoryClear(false)} className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white">Anuluj</button>
-                    <button disabled={Boolean(busy)} onClick={()=>void runAction('clear-history',async()=>{await callClearHistory({});setConfirmHistoryClear(false);})} className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{busy==='clear-history'?'Usuwanie…':'Potwierdź usunięcie historii'}</button>
+                    <button disabled={Boolean(busy)} onClick={()=>void runAction('clear-history',async()=>{await callClearHistory({});setOlderChanges([]);historyPaged.current=false;setHasOlder(false);setConfirmHistoryClear(false);})} className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{busy==='clear-history'?'Usuwanie…':'Potwierdź usunięcie historii'}</button>
                   </div>
                 </div> : <button onClick={()=>setConfirmHistoryClear(true)} disabled={Boolean(busy)} className="flex items-center gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-200"><Trash2 size={15}/>Wyczyść historię</button>}
               </div>}
@@ -492,6 +506,7 @@ export function MaintenanceView({
                 )) : (
                   <div className="py-10 text-center text-sm text-slate-500">Brak historii zmian.</div>
                 )}
+                {hasOlder&&<button disabled={historyLoading||Boolean(busy)} onClick={()=>void loadOlderHistory()} className="ui-accent-soft w-full rounded-xl border px-3 py-2 text-xs disabled:opacity-50">{historyLoading?'Wczytywanie…':'Wczytaj starsze zdarzenia'}</button>}
               </div>
             </motion.div>
           </motion.div>

@@ -1,3 +1,4 @@
+import {useForegroundRefresh} from '../../../lib/use-foreground-refresh';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, MapPin, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
@@ -17,6 +18,7 @@ interface BusStopDetailProps {
   vehicles?: Vehicle[];
   onShowOnMap?: (stop: Stop) => void;
   isDarkTheme?: boolean;
+  active?: boolean;
 }
 
 function getDynamicDays() {
@@ -52,7 +54,7 @@ function getDynamicDays() {
   return days;
 }
 
-export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, vehicles = [], onShowOnMap, isDarkTheme = true }: BusStopDetailProps) {
+export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, vehicles = [], onShowOnMap, isDarkTheme = true, active = true }: BusStopDetailProps) {
   const todayKey = warsawDateIso();
   const days = useMemo(getDynamicDays,[todayKey]);
   const [selectedLine, setSelectedLine] = useState<string>('all');
@@ -62,21 +64,14 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const selectedDayIndex = Math.max(0,days.findIndex(d=>d.key===selectedDay));
   const selectedDateKey = warsawDateIso(selectedDayIndex);
-  const {departures: scheduledDepartures,warnings,isLoading} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures);
+  const {departures: scheduledDepartures,warnings,isLoading} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures,active);
   const departures = useMemo(() => scheduledDepartures
     .map(departure => marcelDepartureFromVehicle(departure, vehicles))
     .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
   const reduceMotion = useReducedMotion();
   const animateDepartures = !reduceMotion && !showAllDepartures;
 
-  useEffect(() => {
-    const updateTime = () => {
-      setCurrentTimeMs(Date.now());
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  useForegroundRefresh(stop.id+':clock',async()=>{setCurrentTimeMs(Date.now());},1000,active);
 
   useEffect(() => {
     if (scrollContainerRef.current) {

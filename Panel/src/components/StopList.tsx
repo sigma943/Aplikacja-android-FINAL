@@ -4,6 +4,7 @@ import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
 import { motion, useReducedMotion } from 'motion/react';
+import VirtualStopCards from './VirtualStopCards';
 
 interface StopListProps {
   backEnabled?: boolean;
@@ -157,7 +158,7 @@ export default function StopList({
   const visibleKey = visibleStops.map(stop=>stop.id).join('|');
   const visibleRef = React.useRef(visibleStops);
   visibleRef.current = visibleStops;
-  useEffect(() => { onVisibleStopsChange?.(visibleRef.current); }, [visibleKey,onVisibleStopsChange]);
+  useEffect(() => { if(!isFullListOpen)onVisibleStopsChange?.(visibleRef.current); }, [visibleKey,onVisibleStopsChange,isFullListOpen]);
   const shellClass = isDarkTheme ? 'text-slate-200' : 'text-slate-800';
   const headerClass = 'transit-surface';
   const searchInputClass = isDarkTheme
@@ -236,7 +237,7 @@ export default function StopList({
     return (
       <motion.div
         key={`${full ? 'full' : 'list'}-${stop.id}`}
-        layout="position"
+        layout={full ? false : 'position'}
         data-stop-card-id={stop.id}
         transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 230, damping: 30}}}
         role="button"
@@ -467,7 +468,7 @@ export default function StopList({
           </div>
 
           <motion.div ref={listScrollRef} data-stop-list-scroll layoutScroll style={{overflowAnchor: 'none'}} className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
-            {slicedFullStops.map((stop, index) => renderStopCard(stop, index, true))}
+            <VirtualStopCards stops={slicedFullStops} scroll={listScrollRef} render={(stop,index)=>renderStopCard(stop,index,true)} onVisible={onVisibleStopsChange}/>
 
             {fullFilteredStops.length > visibleFullCount && (
               <div className="mb-6 mt-4 flex justify-center">

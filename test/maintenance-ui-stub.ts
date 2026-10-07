@@ -53,3 +53,7 @@ export const callDisable = httpsCallable({}, 'disableMaintenanceEndpoint');
 export const callRollback = httpsCallable({}, 'rollbackMaintenanceEndpoint');
 
 export async function callClearHistory(_:object){calls.push({name:'clearMaintenanceHistory',data:{}});const deletedCount=changes.length;changes.splice(0);notify();return {data:{ok:true,deletedCount}};}
+
+export const startAfter=(..._:any[])=>null;
+export const getDocs=async(ref:any)=>({docs:changes.map((value,i)=>({id:String(i),data:()=>value}))});
+export type QueryDocumentSnapshot=any;

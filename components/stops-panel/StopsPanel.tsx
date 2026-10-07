@@ -283,6 +283,7 @@ export default function StopsPanel({
       <motion.div key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}} className="h-full w-full">
         {currentSelectedStop ? (
           <BusStopDetail
+            active={active}
             stop={currentSelectedStop}
             onBack={() => setSelectedStop(null)}
             toggleFavorite={toggleFavorite}

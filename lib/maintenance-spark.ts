@@ -81,6 +81,7 @@ export async function callClearHistory(_:object) {
   await caller(true);
   const cutoff=Timestamp.now();
   let deletedCount=0;
+  try {
   while(true) {
     const snapshot=await getDocs(query(collection(db,'maintenance_changes'),where('createdAt','<=',cutoff),orderBy('createdAt'),limit(200)));
     if(snapshot.empty)break;
@@ -89,5 +90,6 @@ export async function callClearHistory(_:object) {
     await batch.commit();
     deletedCount+=snapshot.size;
   }
+  }catch(error){throw Object.assign(new Error(`Usunięto ${deletedCount} wpisów. Pozostała historia nie została usunięta; ponów operację.`,{cause:error}),{deletedCount});}
   return {data:{ok:true,deletedCount}};
 }

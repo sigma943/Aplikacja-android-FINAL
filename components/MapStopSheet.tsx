@@ -2,6 +2,8 @@
 
 import { Clock, ChevronUp } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
+import {useEffect,useState} from 'react';
+import {useSheetGesture,SHEET_SPRING} from '@/lib/use-sheet-gesture';
 
 export interface MapStopDeparture {
   id: string;
@@ -27,6 +29,9 @@ interface Props {
 export default function MapStopSheet({ name, expanded, onExpandedChange, transparent, dark, loading, error, departures }: Props) {
   const reduceMotion = useReducedMotion();
   const next = departures[0];
+  const [full,setFull]=useState(320);
+  useEffect(()=>{const measure=()=>setFull(Math.max(84,Math.min(innerHeight*.42,380)));measure();window.addEventListener('resize',measure);return()=>window.removeEventListener('resize',measure);},[]);
+  const drag=useSheetGesture(expanded,onExpandedChange,84,full);
   return (
     <motion.section
       aria-label="Przystanek na mapie"
@@ -37,23 +42,16 @@ export default function MapStopSheet({ name, expanded, onExpandedChange, transpa
       initial={reduceMotion ? false : { y: '100%', opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: '100%', opacity: 0 }}
-      transition={reduceMotion ? {duration: 0} : { type: 'spring', stiffness: 360, damping: 34 }}
+      transition={reduceMotion ? {duration: 0} : SHEET_SPRING}
       className="map-stop-sheet map-detail-shell absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-2 right-2 z-40 flex min-h-0 flex-col overflow-hidden rounded-[24px] border md:bottom-4 md:left-4 md:right-auto md:w-[380px]"
-      style={{ height: expanded ? 'min(42dvh, 380px)' : '84px', transition: reduceMotion ? 'none' : 'height 280ms cubic-bezier(.22,1,.36,1)' }}
+      style={{height:drag.height}}
     >
       <motion.button
         type="button"
         aria-label={expanded ? 'Zwiń panel przystanku' : 'Rozwiń panel przystanku'}
         aria-expanded={expanded}
         aria-controls="map-stop-departures"
-        onClick={() => onExpandedChange(!expanded)}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={0}
-        onDragEnd={(_, info) => {
-          if (info.offset.y < -25 || info.velocity.y < -250) onExpandedChange(true);
-          else if (info.offset.y > 25 || info.velocity.y > 250) onExpandedChange(false);
-        }}
+        {...drag.handle}
         className="map-stop-handle relative w-full shrink-0 px-4 pb-3 pt-3 text-left touch-none"
       >
         <span className="flex items-center gap-3">
@@ -66,7 +64,7 @@ export default function MapStopSheet({ name, expanded, onExpandedChange, transpa
           <ChevronUp size={18} className={`map-detail-muted shrink-0 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
         </span>
       </motion.button>
-      {expanded && (
+      {(expanded || drag.dragging) && (
         <div id="map-stop-departures" className="map-stop-departures min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 touch-pan-y custom-scrollbar">
           <div className="map-detail-muted flex items-center gap-2 px-1 py-2 text-[10px] font-bold uppercase tracking-[0.15em]"><Clock size={13} /> Najbliższe odjazdy</div>
           {error && <p role="alert" className="mb-2 rounded-xl bg-amber-500/10 p-2 text-xs text-amber-500">{error}</p>}

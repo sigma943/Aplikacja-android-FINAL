@@ -1,8 +1,9 @@
-import type { Stop, Departure } from '@/Panel/src/types';
-import { fetchDeparturesClient,fetchMpkRzeszowDeparturesClient,fetchMarcelRoutesClient,fetchMarcelCoursesClient,fetchMarcelPublicCourseStopsClient,fetchMarcelLivePositionsClient,estimateMarcelCourseDelay } from '@/lib/pks-client';
+import {loadMarcelStopDepartures} from './providers/marcel-departures';
+import type { Stop, Departure, DepartureResult } from '@/Panel/src/types';
+import { fetchDeparturesClient,fetchMpkRzeszowDeparturesClient } from '@/lib/pks-client';
 import { stopTimetableStore,limitTimetableRequest,type DepartureSource } from '@/lib/stop-timetable-store';
-import { selectedDateIso,splitCsvValues,mapJourneyToDeparture,departureFromMpkSchedule,mergeCsvValues,stopPreciseNameKey,marcelCourseStopIndexKey,marcelCourseStopMatchKey,departureFromMarcelCourseStop } from '@/components/stops-panel/stop-domain';
-export async function loadStopDepartures (stop: Stop, dayIndex = 0) {
+import { selectedDateIso,splitCsvValues,mapJourneyToDeparture,departureFromMpkSchedule } from '@/components/stops-panel/stop-domain';
+export async function loadStopDepartures (stop: Stop, dayIndex = 0,partial?: (result:DepartureResult)=>void) {
     const dateIso = selectedDateIso(dayIndex);
     const sources: DepartureSource[] = [];
     if (stop.sourceProviderIds?.includes('pks') || !stop.sourceProviderIds?.length) {
@@ -21,32 +22,7 @@ export async function loadStopDepartures (stop: Stop, dayIndex = 0) {
       },
     });
     if (stop.sourceProviderIds?.includes('marcel')) {
-      const routeIds = splitCsvValues(stop.providerStopIds?.marcelRouteIds);
-      const matchKeys = splitCsvValues(mergeCsvValues(stop.providerStopIds?.marcelMatchKeys,stop.providerStopIds?.marcelMatchKey));
-      const names = new Set(matchKeys.length ? matchKeys : [stopPreciseNameKey(stop.name)]);
-      const cities = new Set(splitCsvValues(stop.providerStopIds?.marcelCityMatchKeys));
-      sources.push({key:JSON.stringify(['marcel',routeIds,[...names],[...cities],dateIso]),label:'Marcel',load:async()=> {
-        const positionsPromise = dayIndex === 0
-          ? limitTimetableRequest(fetchMarcelLivePositionsClient).catch(() => [])
-          : Promise.resolve([]);
-        const routes = routeIds.length ? routeIds : (await limitTimetableRequest(()=>fetchMarcelRoutesClient())).map(route=>String(route.idTr));
-        const results = await Promise.allSettled(routes.map(async routeId => {
-          const courses = await limitTimetableRequest(()=>fetchMarcelCoursesClient(routeId,dateIso));
-          const results = await Promise.allSettled(courses.map(async course => {
-            const stops = await limitTimetableRequest(()=>fetchMarcelPublicCourseStopsClient(course.idKu));
-            const estimatedDelay = estimateMarcelCourseDelay(course.idKu, stops, dateIso, await positionsPromise);
-            return stops.flatMap((point,index)=> {
-              const matches = cities.size ? cities.has(marcelCourseStopIndexKey(point)) : names.has(marcelCourseStopMatchKey(point));
-              const row = matches && index<stops.length-1 ? departureFromMarcelCourseStop(course,point,dateIso,index,estimatedDelay) : null;
-              return row ? [row] : [];
-            });
-          }));
-          if(results.some(r=>r.status==='rejected')) throw new Error('Niepełny rozkład Marcel');
-          return results.flatMap(r=>r.status==='fulfilled'?r.value:[]);
-        }));
-        if(results.some(r=>r.status==='rejected')) throw new Error('Niepełny rozkład Marcel');
-        return {departures:results.flatMap(r=>r.status==='fulfilled'?r.value:[])};
-      }});
+      sources.push({key:JSON.stringify(['marcel',stop.id,stop.providerStopIds,dateIso]),label:'Marcel',load:partial=>loadMarcelStopDepartures(stop,dateIso,dayIndex===0,partial)});
     }
-    return stopTimetableStore.load(sources);
+    return stopTimetableStore.load(sources,partial);
 }
