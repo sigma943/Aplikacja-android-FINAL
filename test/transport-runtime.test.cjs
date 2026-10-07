@@ -46,3 +46,10 @@ test('invalid or credential-bearing runtime URLs cannot replace the default API'
     runtime.setTransportRuntime({ endpointUrl }); assert.equal(runtime.getTransportRuntime(), null);
   }
 });
+
+test('built-in Spark profile uses provider adapters instead of a Firebase function or raw transport API',()=>{
+  const runtime=loadTs('lib/transport-runtime.ts');
+  runtime.setTransportRuntime({endpointId:runtime.BUILTIN_TRANSPORT_ID,endpointUrl:runtime.BUILTIN_TRANSPORT_URL,fallbackEnabled:true});
+  assert.equal(runtime.getTransportRuntime(),null);
+  assert.equal(runtime.transportApiBase('https://default.example'),'https://default.example');
+});

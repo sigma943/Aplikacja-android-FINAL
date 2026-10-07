@@ -134,17 +134,17 @@ export default function TransportSelectorPanel({
             onClick={(event) => event.stopPropagation()}
             className={`flex max-h-[calc(100dvh-96px-env(safe-area-inset-bottom))] w-full flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:max-h-[min(720px,calc(100dvh-64px))] md:max-w-[600px] ${theme.shell}`}
           >
-            <div className={`flex items-start justify-between gap-4 border-b px-5 py-4 md:px-6 md:py-6 ${theme.header}`}>
+            <div className={`flex items-start justify-between gap-3 px-5 pb-2 pt-5 md:px-6 md:pt-6 ${theme.header}`}>
               <div className="min-w-0">
                 <h2 className="text-xl font-bold tracking-tight md:text-2xl">Przewoźnicy</h2>
-                <p className={`mt-2 max-w-[520px] text-sm leading-relaxed md:text-base ${theme.sub}`}>
-                  Wybierz autobusy widoczne na Twojej mapie
+                <p className={`mt-1 max-w-[520px] text-xs leading-relaxed md:text-sm ${theme.sub}`}>
+                  Autobusy widoczne na mapie
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] transition-colors ${theme.close}`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${theme.close}`}
                 aria-label="Zamknij panel przewoźników"
               >
                 <X className="h-5 w-5" />
@@ -156,20 +156,20 @@ export default function TransportSelectorPanel({
                 {busOptions.map(option => {
                   const selected = selectedSet.has(option.id);
                   const name = providerMeta[option.id]?.name || option.label;
-                  const label = option.id === 'mpk_rzeszow' ? 'MPK' : option.id === 'marcel' ? 'MARCEL' : 'PKS';
+                  const label = option.id === 'mpk_rzeszow' ? 'MPK' : option.id === 'marcel' ? 'M' : 'PKS';
                   return (
                     <motion.button key={option.id} type="button" disabled={!option.enabled}
                       aria-label={name} aria-pressed={selected} onClick={() => option.enabled && onToggle(option.id)}
                       whileTap={{ scale: 0.96 }}
-                      className={`relative flex min-w-0 flex-col items-center overflow-hidden rounded-[22px] border px-2 pb-3 pt-4 text-center transition-colors disabled:opacity-40 ${theme.cardBase} ${selected ? 'ui-accent-border' : theme.cardIdle}`}
+                      className={`relative flex min-w-0 flex-col items-center overflow-hidden rounded-[20px] border px-2 pb-3 pt-3 text-center transition-colors disabled:opacity-40 ${theme.cardBase} ${selected ? 'ui-accent-border' : theme.cardIdle}`}
                       style={selected ? { backgroundColor: 'var(--pks-accent-soft)' } : undefined}>
                       <span className={`absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border ${selected ? 'ui-accent-solid border-transparent' : 'border-current opacity-20'}`}>
                         {selected && <Check size={12} strokeWidth={3}/>}
                       </span>
-                      <span className="mt-1 block h-[92px] w-full max-w-[104px] sm:h-[120px] sm:max-w-[128px]">
-                        <CarrierBusIcon color={option.color} label={label} city={option.id === 'mpk_rzeszow'}/>
+                      <span className="mb-1 mt-2 block h-[68px] w-[48px] sm:h-[82px] sm:w-[58px]">
+                        <CarrierBusIcon color={option.color} label={label}/>
                       </span>
-                      <span className={`mt-2 text-[11px] font-bold leading-tight sm:text-sm ${theme.section}`}>{name}</span>
+                      <span className={`mt-2 min-h-7 text-[12px] font-semibold leading-tight sm:min-h-5 sm:text-sm ${theme.section}`}>{name}</span>
                       <span className={`mt-1.5 text-[10px] sm:text-xs ${selected ? 'ui-accent-text' : theme.sub}`}>{selected ? 'Na mapie' : 'Ukryty'}</span>
                     </motion.button>
                   );
@@ -239,11 +239,12 @@ export default function TransportSelectorPanel({
               )}
             </div>
 
-            <div className={`flex justify-end border-t px-5 py-4 md:px-6 md:py-5 ${theme.footer}`}>
+            <div className={`flex justify-end px-5 pb-5 pt-2 md:px-6 md:pb-6 ${theme.footer}`}>
               <button
                 type="button"
                 onClick={onApply}
-                className="inline-flex h-[52px] w-full items-center justify-center rounded-[18px] ui-accent-solid px-7 text-sm font-semibold shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] md:w-auto md:min-w-44"
+                aria-label="Zastosuj wybór przewoźników"
+                className="inline-flex h-12 w-full items-center justify-center rounded-2xl ui-accent-solid px-7 text-sm font-semibold shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] md:w-auto md:min-w-44"
               >
                 Zastosuj ({selectedCount})
               </button>

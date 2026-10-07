@@ -79,6 +79,9 @@ export default function StopList({
   const [localInputValue, setLocalInputValue] = useState('');
   const reduceMotion = useReducedMotion();
   const [isFullListOpen, setIsFullListOpen] = useState(false);
+  const listScrollRef = React.useRef<HTMLDivElement>(null);
+  const previewScrollRef = React.useRef(0);
+  useEffect(() => { if (listScrollRef.current) listScrollRef.current.scrollTop = isFullListOpen ? 0 : previewScrollRef.current; }, [isFullListOpen]);
   const [localFullInputValue, setLocalFullInputValue] = useState('');
   const [localCarrierFilter, setLocalCarrierFilter] = useState<CarrierFilterId>('all');
   const [localVisibleFullCount, setLocalVisibleFullCount] = useState(40);
@@ -229,7 +232,7 @@ export default function StopList({
           if (full) handleCloseFullList();
           onStopSelect(stop);
         }}
-        className={`ui-accent-focus group flex w-full max-w-full min-w-0 cursor-pointer items-center border transition-colors duration-150 ${cardClass} ${
+        className={`ui-accent-focus group flex w-full max-w-full min-w-0 shrink-0 cursor-pointer items-center border transition-colors duration-150 ${cardClass} ${
           full ? 'rounded-[20px] p-3.5' : 'rounded-[20px] p-3.5 lg:p-4'
         }`}
         onClick={() => {
@@ -289,7 +292,8 @@ export default function StopList({
   };
 
   return (
-    <div data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view flex h-full min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
+    <div data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
+      {!isFullListOpen && <>
       <div className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>
         <div className="mb-3.5 flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -332,6 +336,7 @@ export default function StopList({
       <motion.div
         layoutScroll
         data-stop-list-scroll
+        ref={listScrollRef}
         style={{overflowAnchor: 'none'}}
         className={`min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] pt-3 custom-scrollbar lg:px-6 ${
           isFullScreen
@@ -359,6 +364,7 @@ export default function StopList({
                 <button
                   type="button"
                   onClick={() => {
+                    previewScrollRef.current = listScrollRef.current?.scrollTop || 0;
                     setFullInputValue(inputValue);
                     setVisibleFullCountValue(40);
                     setIsFullListOpen(true);
@@ -381,10 +387,12 @@ export default function StopList({
           </>
         )}
       </motion.div>
+      </>}
 
       {isFullListOpen && (
         <div
-          className={`absolute inset-0 z-50 flex min-w-0 max-w-full flex-col overflow-x-hidden backdrop-blur-2xl backdrop-saturate-150 ${
+          data-full-stop-list
+          className={`flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden backdrop-blur-2xl backdrop-saturate-150 ${
             isDarkTheme ? 'bg-[#050b12]/96' : 'bg-white/96'
           }`}
         >
@@ -396,6 +404,7 @@ export default function StopList({
             <button
               type="button"
               onClick={handleCloseFullList}
+              aria-label="Zamknij pełną listę przystanków"
               className={`cursor-pointer rounded-full p-2.5 transition-all ${
                 isDarkTheme ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
               }`}
@@ -440,7 +449,7 @@ export default function StopList({
             {renderCarrierFilters(true)}
           </div>
 
-          <motion.div layoutScroll style={{overflowAnchor: 'none'}} className="flex min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
+          <motion.div ref={listScrollRef} data-stop-list-scroll layoutScroll style={{overflowAnchor: 'none'}} className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
             {slicedFullStops.map((stop, index) => renderStopCard(stop, index, true))}
 
             {fullFilteredStops.length > visibleFullCount && (

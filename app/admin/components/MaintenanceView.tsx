@@ -27,12 +27,13 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
+import { BUILTIN_TRANSPORT_URL, BUILTIN_TRANSPORT_ID } from '@/lib/transport-runtime';
 import type { MaintenanceChange, MaintenanceEndpoint, MaintenanceEndpointRole } from '../types';
 
 const DEFAULT_ENDPOINT: MaintenanceEndpoint = {
-  id: 'default-transport-api',
-  name: 'Główny (PROD)',
-  url: 'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi',
+  id: BUILTIN_TRANSPORT_ID,
+  name: 'Źródła przewoźników',
+  url: BUILTIN_TRANSPORT_URL,
   role: 'production',
   priority: 1,
   region: 'PL',
@@ -276,7 +277,7 @@ export function MaintenanceView({
           </div>
         )}
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatusCard icon={<Globe2 size={22} />} title="Aktywny endpoint" value={activeEndpoint?.url.replace(/^https?:\/\//, '') || 'Nie wybrano'} hint={activeEndpoint?.enabled ? 'Aktywny' : 'Brak aktywnego endpointu'} tone="cyan" />
+          <StatusCard icon={<Globe2 size={22} />} title="Aktywny endpoint" value={(activeEndpoint?.id === BUILTIN_TRANSPORT_ID && activeEndpoint.url === BUILTIN_TRANSPORT_URL ? 'Źródła przewoźników' : activeEndpoint?.url.replace(/^https?:\/\//, '')) || 'Nie wybrano'} hint={activeEndpoint?.enabled ? 'Aktywny' : 'Brak aktywnego endpointu'} tone="cyan" />
           <StatusCard icon={<Database size={22} />} title="Źródło konfiguracji" value={ready ? 'Firestore' : 'Łączenie…'} hint={`${endpoints.length} zapisanych endpointów`} tone="blue" />
           <StatusCard icon={<Activity size={22} />} title="Status infrastruktury" value={!lastGlobalTest ? 'Nie testowano' : endpoints.some((e) => e.lastTest?.ok === false) ? 'Wymaga uwagi' : 'Testy OK'} hint={`${successfulTests}/${endpoints.length} testów OK`} tone="emerald" />
           <StatusCard icon={<Clock3 size={22} />} title="Ostatni test globalny" value={lastGlobalTest ? safeDate(lastGlobalTest) : 'Brak danych'} hint={activeEndpoint?.lastTest?.latencyMs ? `${activeEndpoint.lastTest.latencyMs} ms` : 'uruchom test'} tone="violet" />

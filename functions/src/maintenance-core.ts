@@ -61,7 +61,7 @@ export async function probeEndpoint(url: string, fetcher: typeof fetch = fetch) 
   } finally { clearTimeout(timeout); }
 }
 
-export function maintenanceService(db: MaintenanceStore, fetcher: typeof fetch = fetch, timestamp: () => unknown = () => new Date()) {
+export function maintenanceService(db: MaintenanceStore, fetcher: typeof fetch = fetch, timestamp: () => unknown = () => new Date(), defaults?: { url: string; name: string }) {
   const endpointRef = (id: string) => db.collection('maintenance_endpoints').doc(id);
   const settingsRef = db.collection('admin_settings').doc('maintenance');
   const runtimeRef = db.collection('admin_settings').doc('transport_runtime');
@@ -81,12 +81,14 @@ export function maintenanceService(db: MaintenanceStore, fetcher: typeof fetch =
   async function initialize(uid = 'system') {
     await db.runTransaction(async tx => {
       const [settings, prod, current] = await Promise.all([tx.get(settingsRef), tx.get(endpointRef(DEFAULT_ENDPOINT_ID)), tx.get(runtimeRef)]);
-      const defaultData = { name: 'Główny (PROD)', url: DEFAULT_API_URL, role: 'production', priority: 1, region: 'PL', source: 'Firestore', fallbackEnabled: true, enabled: true };
+      const defaultData = { name: defaults?.name || 'Główny (PROD)', url: defaults?.url || DEFAULT_API_URL, role: 'production', priority: 1, region: 'PL', source: 'Firestore', fallbackEnabled: true, enabled: true };
+      const migrateDefault = Boolean(defaults && prod.exists && prod.data()?.url === DEFAULT_API_URL);
+      const effectiveDefault = migrateDefault ? { ...prod.data(), ...defaultData, lastTest: null } : prod.data() || defaultData;
       const activeId = String(settings.data()?.activeEndpointId || DEFAULT_ENDPOINT_ID);
       const active = activeId === DEFAULT_ENDPOINT_ID ? prod : await tx.get(endpointRef(activeId));
       const effectiveId = active.exists && active.data()?.enabled !== false ? activeId : DEFAULT_ENDPOINT_ID;
-      const activeData = effectiveId === DEFAULT_ENDPOINT_ID ? prod.data() || defaultData : active.data()!;
-      if (!prod.exists) tx.set(endpointRef(DEFAULT_ENDPOINT_ID), { ...defaultData, active: effectiveId === DEFAULT_ENDPOINT_ID, createdAt: timestamp(), updatedAt: timestamp(), updatedBy: uid });
+      const activeData = effectiveId === DEFAULT_ENDPOINT_ID ? effectiveDefault : active.data()!;
+      if (!prod.exists || migrateDefault) tx.set(endpointRef(DEFAULT_ENDPOINT_ID), { ...effectiveDefault, active: effectiveId === DEFAULT_ENDPOINT_ID, createdAt: prod.data()?.createdAt || timestamp(), updatedAt: timestamp(), updatedBy: uid });
       if (!settings.data()?.activeEndpointId || effectiveId !== activeId) tx.set(settingsRef, { activeEndpointId: effectiveId, previousEndpointId: '', updatedAt: timestamp(), updatedBy: uid }, { merge: true });
       if (!current.exists || current.data()?.endpointId !== effectiveId || current.data()?.endpointUrl !== activeData.url || current.data()?.fallbackEnabled !== Boolean(activeData.fallbackEnabled)) tx.set(runtimeRef, runtime(effectiveId, activeData, uid));
     });

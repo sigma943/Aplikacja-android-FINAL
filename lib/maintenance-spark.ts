@@ -2,6 +2,7 @@ import { collection, doc, getDoc, runTransaction, serverTimestamp } from 'fireba
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { auth, db } from './firebase';
 import { maintenanceService, probeEndpoint, endpointUrl, type MaintenanceRef, type MaintenanceStore } from '../functions/src/maintenance-core';
+import { BUILTIN_TRANSPORT_URL } from './transport-runtime';
 import type { MaintenanceEndpoint } from '@/app/admin/types';
 
 type ClientRef = MaintenanceRef & { native: ReturnType<typeof doc> };
@@ -15,7 +16,7 @@ const store: MaintenanceStore = {
     update: (ref, data) => { tx.update((ref as ClientRef).native, data); },
   })),
 };
-const clientFetch: typeof fetch = async (input, init) => {
+const httpFetch: typeof fetch = async (input, init) => {
   if (!Capacitor.isNativePlatform()) {
     try { return await fetch(input, init); }
     catch (error) {
@@ -26,7 +27,16 @@ const clientFetch: typeof fetch = async (input, init) => {
   const response = await CapacitorHttp.request({ url: String(input), method: 'GET', headers: { Accept: 'application/json' }, connectTimeout: 9000, readTimeout: 9000 });
   return new Response(typeof response.data === 'string' ? response.data : JSON.stringify(response.data), { status: response.status, headers: { 'Content-Type': 'application/json' } });
 };
-const service = maintenanceService(store, clientFetch, serverTimestamp);
+// The built-in profile uses the existing provider adapters, not a hosted function.
+// Its health check reads the real PKS feed; an empty array is a valid idle fleet.
+const clientFetch: typeof fetch = async (input, init) => {
+  if (String(input) !== `${BUILTIN_TRANSPORT_URL}/health/providers`) return httpFetch(input, init);
+  const response = await httpFetch(`${BUILTIN_TRANSPORT_URL}/get_vehicles.php`, init);
+  const body: unknown = await response.json();
+  const valid = response.ok && Array.isArray(body);
+  return new Response(JSON.stringify(valid ? { providers: { pks: { state: 'ok', vehicleCount: body.length } } } : { error: 'Nieprawidłowa odpowiedź źródła PKS.' }), { status: valid ? 200 : 502 });
+};
+const service = maintenanceService(store, clientFetch, serverTimestamp, { url: BUILTIN_TRANSPORT_URL, name: 'Źródła przewoźników' });
 async function caller(write: boolean) {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Zaloguj się ponownie.');

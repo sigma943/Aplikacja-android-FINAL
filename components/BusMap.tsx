@@ -9,6 +9,7 @@ import { roadRouteMatchesStops, simplifyRoadRoute } from '@/lib/bus-road-geometr
 import { upcomingVehicleStops } from '@/lib/vehicle-upcoming-stops';
 import { runFrameBatch } from '@/lib/map-frame-batch';
 import { loadRouteWithRetry } from '@/lib/route-load-retry';
+import { busFrontSvg } from '@/lib/bus-icon-svg';
 import { busDelayMinutes } from '@/lib/bus-punctuality';
 import { fetchRouteGeometryClient, subscribeMarcelCourseDelays, warmMarcelBadgeCourses, withCachedMarcelDelay, type RouteGeometryStop } from '@/lib/pks-client';
 
@@ -388,32 +389,8 @@ const createBusIcon = (
   const html = `
     <div class="mks-marker-inner relative flex flex-col items-center justify-start ${isSelClass}" style="width: 48px; height: 68px; ${filterStyle}">
       
-      <!-- Sleek App-Icon Style Bus Front -->
-      <div class="relative w-[34px] bg-white border-2 border-white rounded-[8px] z-10 flex flex-col overflow-hidden ${isHighVolume?'':'shadow-sm'}" style="background-color: ${markerColor};">
-        
-        <!-- Large Route Number -->
-        <span class="text-white font-black text-[13px] pt-1 pb-0.5 text-center leading-none drop-shadow-sm">
-          ${display}
-        </span>
-        
-        <!-- Minimal Windshield Container -->
-        <div class="px-[4px] pb-[3px] w-full">
-          <div class="w-full h-[8px] rounded-[2px]" style="background-color: rgba(15, 23, 42, 0.65); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2)"></div>
-        </div>
-
-        <!-- Minimal Headlights -->
-        <div class="flex justify-between px-1.5 pb-1 w-full">
-          <div class="w-1 h-1 rounded-full" style="background-color: rgba(255,255,255,0.9)"></div>
-          <div class="w-1 h-1 rounded-full" style="background-color: rgba(255,255,255,0.9)"></div>
-        </div>
-
-        ${isSelected ? `<div class="absolute inset-0 bg-white/20 pointer-events-none"></div>` : ''}
-      </div>
-
-      <!-- Tiny Tires -->
-      <div class="flex justify-between w-[24px] -mt-0.5 z-0">
-        <div class="w-1.5 h-1.5 rounded-b-sm" style="background-color: #1e293b"></div>
-        <div class="w-1.5 h-1.5 rounded-b-sm" style="background-color: #1e293b"></div>
+      <div class="relative z-10 h-[48px] w-[34px] ${isHighVolume ? '' : 'drop-shadow-sm'}">
+        ${busFrontSvg(display, markerColor, Boolean(isSelected))}
       </div>
 
       ${numberLabel ? `

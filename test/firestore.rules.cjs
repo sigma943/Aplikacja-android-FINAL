@@ -124,19 +124,27 @@ test('ban and unban still synchronize a missing legacy installation profile', as
 const firebaseSdk = require('firebase/firestore');
 const sparkClient = (uid, firestore) => loadTs('lib/maintenance-spark.ts', {
   './firebase': { db: firestore, auth: { currentUser: { uid } } },
-  '@capacitor/core': { Capacitor: { isNativePlatform: () => true }, CapacitorHttp: { request: async () => ({ status: 200, data: { providers: { pks: { state: 'ok' } } } }) } },
+  '@capacitor/core': { Capacitor: { isNativePlatform: () => true }, CapacitorHttp: { request: async ({ url }) => ({ status: 200, data: url.endsWith('/pks/get_vehicles.php') ? [] : { providers: { pks: { state: 'ok' } } } }) } },
   'firebase/firestore': firebaseSdk,
 });
 const endpointDraft = { id: '', name: 'Spark backup', url: 'https://backup.example/api', role: 'backup', priority: 2, region: 'PL', source: 'Firestore', enabled: true, active: false, fallbackEnabled: true };
 
-test('Spark client persists, tests, activates, rolls back and disables with real Firestore rules', async () => {
+test('Spark client migrates the legacy profile, persists, tests, activates, rolls back and disables with real Firestore rules', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    const legacyUrl = 'https://us-central1-aplikacja-b20fa.cloudfunctions.net/transportApi';
+    await setDoc(doc(db, 'maintenance_endpoints', 'default-transport-api'), { name: 'Główny (PROD)', role: 'production', priority: 1, region: 'PL', source: 'Firestore', enabled: true, fallbackEnabled: true, url: legacyUrl, active: true, createdAt: firebaseSdk.serverTimestamp(), updatedAt: firebaseSdk.serverTimestamp(), updatedBy: 'system' });
+    await setDoc(doc(db, 'admin_settings', 'maintenance'), { activeEndpointId: 'default-transport-api', previousEndpointId: '', updatedAt: firebaseSdk.serverTimestamp(), updatedBy: 'system' });
+    await setDoc(doc(db, 'admin_settings', 'transport_runtime'), { endpointId: 'default-transport-api', endpointUrl: legacyUrl, fallbackEnabled: true, updatedAt: firebaseSdk.serverTimestamp(), updatedBy: 'system' });
+  });
   try {
     const db = env.authenticatedContext('owner').firestore();
     const client = sparkClient('owner', db);
     await client.callInitialize({});
     const initial = (await getDoc(doc(db, 'admin_settings', 'transport_runtime'))).data();
     assert.equal(initial.endpointId, 'default-transport-api');
-    assert.equal((await getDoc(doc(db, 'maintenance_endpoints', initial.endpointId))).data().lastTest, undefined);
+    assert.equal(initial.endpointUrl, 'https://www.mpkrzeszow.pl/pks');
+    assert.equal((await getDoc(doc(db, 'maintenance_endpoints', initial.endpointId))).data().lastTest, null);
     const { data: { endpointId } } = await client.callSaveEndpoint({ endpoint: endpointDraft });
     assert.ok(endpointId);
     assert.equal((await getDocs(collection(db, 'maintenance_endpoints'))).size, 2);
