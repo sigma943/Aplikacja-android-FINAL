@@ -16,7 +16,9 @@ module.exports = function loadTs(relativePath, overrides = {}, extraExports = ''
     if (name.startsWith('.') || name.startsWith('@/')) {
       const resolved = name.startsWith('@/') ? name.slice(2) : path.relative(root, path.resolve(path.dirname(filename), name));
       if(resolved.endsWith('.json')) return require(path.resolve(root,resolved));
-      return loadTs(`${resolved}.ts`, overrides);
+      const dependency = ['.ts', '.tsx'].map(extension => `${resolved}${extension}`).find(file => fs.existsSync(path.resolve(root, file)));
+      if (!dependency) throw new Error(`Missing local TypeScript module: ${resolved}`);
+      return loadTs(dependency, overrides);
     }
     return require(name);
   };
