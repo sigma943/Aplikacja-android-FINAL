@@ -1,5 +1,5 @@
 
-import {diagnosticRequest, measuredTransport} from '../transport-diagnostics';
+import {diagnosticRequest, diagnosticSource, measuredTransport} from '../transport-diagnostics';
 
 import {transportApiBase} from '../transport-runtime';
 
@@ -23,7 +23,7 @@ function einfoFallbackUrl(pathAndOptionalQuery: string) {
 async function requestJson<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
   const diagnostic=diagnosticRequest(url);
   const load=()=>withRequestDeadline((signal) => requestJsonImpl<T>(url, { ...init, signal }), init?.signal || undefined);
-  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,value=>Array.isArray(value)?value.length:0,undefined,'request'):load();
+  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,value=>diagnosticCount(url,value),undefined,'request',diagnosticSource(url)):load();
 }
 
 async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
@@ -46,7 +46,7 @@ async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: R
     });
 
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(`Request failed: ${response.status}`);
+      throw transportHttpError(response.status, response.data);
     }
 
     if (typeof response.data === 'string') {
@@ -67,8 +67,7 @@ async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: R
 
   const text = await response.text();
   if (!response.ok) {
-    const hint = text ? ` - ${text.slice(0, 240)}` : '';
-    throw new Error(`Request failed: ${response.status}${hint}`);
+    throw transportHttpError(response.status, text);
   }
 
   try {
@@ -85,7 +84,7 @@ async function requestEinfoJson<T>(pathAndOptionalQuery: string, init?: RequestI
 async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
   const load=()=>withRequestDeadline((signal) => requestTextImpl(url, { ...init, signal }), init?.signal || undefined);
   const diagnostic=diagnosticRequest(url);
-  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,undefined,undefined,'request'):load();
+  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,undefined,undefined,'request',diagnosticSource(url)):load();
 }
 
 async function requestTextImpl(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
@@ -99,7 +98,7 @@ async function requestTextImpl(url: string, init?: RequestInit & {headers?: Reco
     });
 
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(`Request failed: ${response.status}`);
+      throw transportHttpError(response.status, response.data);
     }
 
     return typeof response.data === 'string' ? response.data : String(response.data || '');
@@ -111,8 +110,7 @@ async function requestTextImpl(url: string, init?: RequestInit & {headers?: Reco
   });
   const text = await response.text();
   if (!response.ok) {
-    const hint = text ? ` - ${text.slice(0, 240)}` : '';
-    throw new Error(`Request failed: ${response.status}${hint}`);
+    throw transportHttpError(response.status, text);
   }
   return text;
 }
@@ -133,3 +131,18 @@ export {requestEinfoJson};
 export {requestText};
 export {requestTextImpl};
 export {transportApiUrl};
+
+function transportHttpError(status:number,body:unknown){
+  const raw=typeof body==='string'?body:body&&typeof body==='object'?JSON.stringify(body):'';
+  const hint=raw.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,240);
+  const reason=status===403?'Odmowa dostępu (nie dowodzi blokady urządzenia)':status===429?'Limit zapytań':status===404?'Nie znaleziono adresu API':status>=500?'Błąd serwera przewoźnika':'Błąd odpowiedzi API';
+  return new Error(`HTTP ${status}: ${reason}${hint?' — '+hint:''}`);
+}
+
+function diagnosticCount(url:string,value:unknown){
+  if(Array.isArray(value))return value.length;
+  if(/[?&]type=mpk(?:&|$)/.test(url)&&value&&typeof value==='object'){
+    return Object.values(value).filter(row=>row&&typeof row==='object'&&'x' in row&&'y' in row).length;
+  }
+  return undefined;
+}
