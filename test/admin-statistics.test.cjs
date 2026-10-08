@@ -79,3 +79,11 @@ test('nested route operations contribute exactly one real HTTP measurement',asyn
     assert.equal(api.getApiStatistics().days[0].providers.marcel.requests,1);
   }finally{api.saveApiStatistics();unsubscribe();global.window=previous;}
 });
+
+test('request classification distinguishes PKS hosted by MPK and MPK trip and XML endpoints',()=>{
+  const {diagnosticRequest}=loadTs('lib/transport-diagnostics.ts');
+  assert.equal(diagnosticRequest('https://www.mpkrzeszow.pl/pks/get_vehicles.php').provider,'pks');
+  for(const url of ['https://www.mpkrzeszow.pl/brygady/get_trip_stops_advanced.php','https://www.mpkrzeszow.pl/mpk/vehicles_proxy.php','https://example.com/vehicles?providers=mpk_rzeszow'])assert.equal(diagnosticRequest(url).provider,'mpk_rzeszow');
+  assert.equal(diagnosticRequest('https://api-site.marcel-bus.pl/client/api/trasy/kurs/12').provider,'marcel');
+  assert.equal(diagnosticRequest('https://router.project-osrm.org/route/v1/driving/21,50;22,51'),null);
+});

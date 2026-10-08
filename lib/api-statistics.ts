@@ -40,8 +40,8 @@ export function saveApiStatistics(){
 /** Observe completed requests only; no polling, network calls, URLs or individual events. */
 export function collectApiMeasurement(measurement:TransportMeasurement){
   if(measurement.scope!=='request'||typeof window==='undefined'||(window as Window & {NativeWidget?:unknown}).NativeWidget)return;
-  load();const now=Date.now(),date=warsawDateIso(0,new Date(now));
-  const days=snapshot.days.filter(day=>day.date>=warsawDateIso(-89,new Date(now))).map(day=>({...day,providers:{...day.providers}}));
+  load();const now=Date.now(),date=warsawDateIso(0,new Date(now)),cutoff=warsawDateIso(-89,new Date(now));
+  const days=snapshot.days.filter(day=>day.date>=cutoff).map(day=>({...day,providers:{...day.providers}}));
   let day=days.find(day=>day.date===date);
   if(!day){day={date,providers:{}};days.push(day);}
   const bucket=day.providers[measurement.provider]||{requests:0,errors:0,latencyMs:0};

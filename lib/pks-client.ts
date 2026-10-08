@@ -346,7 +346,9 @@ function bestPksStopName(areaName: string, stopName: string) {
 }
 
 async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
-  return withRequestDeadline((signal) => requestTextImpl(url, { ...init, signal }), init?.signal || undefined);
+  const load=()=>withRequestDeadline((signal) => requestTextImpl(url, { ...init, signal }), init?.signal || undefined);
+  const diagnostic=diagnosticRequest(url);
+  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,undefined,undefined,'request'):load();
 }
 
 async function requestTextImpl(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {

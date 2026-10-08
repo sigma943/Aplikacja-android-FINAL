@@ -358,7 +358,8 @@ const server=http.createServer((req,res)=>{
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.evaluate(()=>localStorage.setItem('pks-live:api-statistics:v1',JSON.stringify({version:1,startedAt:Date.now(),days:[{date:'2026-10-06',providers:{pks:{requests:80,errors:2,latencyMs:16000},mpk_rzeszow:{requests:15,errors:1,latencyMs:3000},marcel:{requests:5,errors:0,latencyMs:1000}}}]})));
     await page.goto(`${origin}/statistics-fixture/`,{waitUntil:'domcontentloaded'});
-    await button('Otwórz menu testowe');await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
+    await page.waitForSelector('[data-statistics-fixture-ready="true"]');
+    await button('Otwórz menu testowe');await page.waitForFunction(()=>{const r=document.querySelector('nav button:nth-child(2)').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;});await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
     await page.waitForFunction(()=>document.querySelector('[data-statistic="Zapytania API"]').textContent==='100');
     assert.equal(await page.$eval('[data-statistic="Nowe urządzenia"]',el=>el.textContent),'2');
     assert.equal(await page.$eval('[data-statistic="Aktywne urządzenia"]',el=>el.textContent),'2');

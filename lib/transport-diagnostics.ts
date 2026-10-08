@@ -19,7 +19,7 @@ export function recordTransportDiagnostic(provider:DiagnosticProvider,kind:Diagn
   records.set(key,next);snapshot=[...records.values()];listeners.forEach(listener=>listener());
 }
 export function diagnosticRequest(url:string){
-  const provider:DiagnosticProvider|null=/marcel/i.test(url)?'marcel':/mpk\/|type=mpk|przystanki|stop_schedule|stop_id=/i.test(url)?'mpk_rzeszow':/pks|einfo/i.test(url)?'pks':null;
+  const provider:DiagnosticProvider|null=/marcel/i.test(url)?'marcel':/pks|einfo/i.test(url)?'pks':/mpk\/|mpk_rzeszow|mpkrzeszow\.pl|type=mpk|przystanki|stop_schedule|stop_id=/i.test(url)?'mpk_rzeszow':null;
   const kind:DiagnosticKind=/get_vehicles|vehicles|lokalizacjaBusow|type=mpk/.test(url)?'vehicles':/departures|timetable|schedule|wariantTrasy\/kusy/.test(url)?'departures':'catalog';
   return provider?{provider,kind}:null;
 }
