@@ -340,7 +340,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.disabled),true);
     assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.getAttribute('aria-pressed')),'true');
     assert.ok(await page.$eval('[data-permission="statistics"]',el=>Number(getComputedStyle(el).opacity)<1));
-    await button('ADMIN');await page.$eval('[data-permission="statistics"]',el=>el.click());
+    await button('ADMIN');
+    await page.waitForFunction(()=>{const el=document.querySelector('[data-permission="statistics"]');return !el.disabled&&el.getAttribute('aria-pressed')==='true';});
+    await page.$eval('[data-permission="statistics"]',el=>el.click());
+    await page.waitForFunction(()=>document.querySelector('[data-permission="statistics"]').getAttribute('aria-pressed')==='false');
 
     await page.setViewport({width:320,height:568,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();
     await page.setViewport({width:393,height:400,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();await screenshot('admin-roles-keyboard-height');
