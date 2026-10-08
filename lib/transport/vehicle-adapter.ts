@@ -29,6 +29,7 @@ function mapTransportVehicleToClient(vehicle: TransportApiVehicle): Vehicle {
     direction: vehicle.direction,
     delay,
     dataAgeSec: vehicle.dataAgeSec,
+    scheduleSource: vehicle.scheduleSource,
     schedule: vehicle.schedule?.map((stop) => ({
       ...stop,
       lon: stop.lon ?? stop.lng,

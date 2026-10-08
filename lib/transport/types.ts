@@ -80,6 +80,7 @@ type TransportApiVehicle = {
   delaySeconds?: number;
   delayMinutes?: number;
   dataAgeSec?: number;
+  scheduleSource?: 'mybus';
   schedule?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean; platform?: string; track?: string; stopDelayMinutes?: number; timeType?: 'arrival' | 'departure' }>;
   routeStops?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean; platform?: string; track?: string; stopDelayMinutes?: number; timeType?: 'arrival' | 'departure' }>;
   routePath?: number[];

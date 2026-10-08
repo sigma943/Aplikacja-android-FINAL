@@ -1,9 +1,11 @@
+import {parseMybusTimetable} from './mpk-mybus-timetable';
 import { warsawDateIso, warsawTimeMs } from './transit-time';
 import { busOperatingState } from './bus-operating-state';
 import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
 import { getCachedValue } from './cache';
 import type { GetVehiclesOptions, ProviderVehiclesResult, TransportProvider, TransportStopSchedule, TransportVehicle } from './types';
 
+const MYBUS_TIMETABLE_URL = 'http://84.38.160.220/myBusServices/SchedulesService.svc/GetVehicleTimeTable';
 const MYBUS_VEHICLES_URL = 'http://84.38.160.220/myBusServices/SchedulesService.svc/GetVehicles?cNbLst=&cTrackLst=&cDirLst=&cIdLst=&cKrsLst=&cRouteLst=';
 const VEHICLES_XML_URL = process.env.MPK_RZESZOW_VEHICLES_XML_URL || 'https://www.mpkrzeszow.pl/mpk/vehicles_proxy.php';
 const VEHICLES_JSON_URL = process.env.MPK_RZESZOW_VEHICLES_JSON_URL || 'https://www.mpkrzeszow.pl/ztm/new/api.php?type=mpk';
@@ -512,11 +514,23 @@ export const mpkRzeszowProvider: TransportProvider = {
     if (!rawVehicle) return null;
     const detail: any = vehicleDetails.find((candidate: any) => normalizeVehicleId(candidate?.nb) === lookupVehicleId) || {};
     const statusCode = String(rawVehicle.s || detail?.status || '');
-    const tripSchedule = await fetchMpkTripSchedule(
+    let tripSchedule = await fetchMpkTripSchedule(
       detail?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik,
       getEffectiveMpkDelay(Number(rawVehicle.o ?? detail?.delay ?? 0), statusCode),
-    );
+    ).catch(() => ({schedule: [], routeStops: [], routePath: []} as MpkTripSchedule));
+    let scheduleSource: TransportVehicle['scheduleSource'];
+    if (!tripSchedule.schedule.some(stop => stop.planned || stop.real)) {
+      try {
+        const xml = await fetchTextWithRetry(`${MYBUS_TIMETABLE_URL}?${new URLSearchParams({nNb: lookupVehicleId})}`, {headers: {Accept: 'application/xml'}});
+        const schedule = parseMybusTimetable(xml, Date.now(), String(rawVehicle.nr || rawVehicle.nnr || '').trim());
+        if (schedule.length) {
+          tripSchedule = {schedule, routeStops: [], routePath: []};
+          scheduleSource = 'mybus';
+        }
+      } catch { /* An unavailable backup timetable must not hide the vehicle. */ }
+    }
 
-    return toTransportVehicle(rawVehicle, Date.now(), options?.includeInactive ?? true, stopsDictionary, detail, tripSchedule);
+    const vehicle = toTransportVehicle(rawVehicle, Date.now(), options?.includeInactive ?? true, stopsDictionary, detail, tripSchedule);
+    return vehicle ? {...vehicle, scheduleSource} : null;
   },
 };

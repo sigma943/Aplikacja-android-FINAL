@@ -30,6 +30,7 @@ export interface Vehicle {
   delay?: number;
   positionObservedAtMs?: number;
   dataAgeSec?: number;
+  scheduleSource?: 'mybus';
   schedule?: StopSchedule[];
   routeStops?: StopSchedule[];
   routePath?: number[];

@@ -435,7 +435,7 @@ export async function fetchVehicleDetailsClient(provider: TransportProviderId, v
       console.warn('MPK Rzeszów direct details unavailable, using backend:', error);
       return null;
     });
-    if (directVehicle && (directVehicle.schedule?.length || 0) > 1) return directVehicle;
+    if (directVehicle && ((directVehicle.schedule?.length || 0) > 1 || directVehicle.scheduleSource === 'mybus')) return directVehicle;
 
     try {
       const searchParams = new URLSearchParams();

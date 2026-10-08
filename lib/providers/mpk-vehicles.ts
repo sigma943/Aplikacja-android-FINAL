@@ -1,5 +1,7 @@
 
 
+import {parseMybusTimetable} from '../mpk-mybus-timetable';
+
 import {mpkFeedVehicles, mpkSignalTime} from '../mpk-vehicle-feed';
 
 import {busOperatingState} from '../bus-operating-state';
@@ -7,7 +9,7 @@ import {busOperatingState} from '../bus-operating-state';
 import type {Vehicle} from '@/lib/transport/vehicle';
 import {warsawDateIso, warsawTimeMs} from '../transit-time';
 
-import {MPK_RZESZOW_MYBUS_VEHICLES_URL, MPK_RZESZOW_VEHICLES_JSON_URL, MPK_RZESZOW_VEHICLES_XML_URL, MPK_RZESZOW_VEHICLES_DETAILS_URL, MPK_RZESZOW_TRIP_STOPS_URL} from '../transport/endpoints';
+import {MPK_RZESZOW_MYBUS_TIMETABLE_URL, MPK_RZESZOW_MYBUS_VEHICLES_URL, MPK_RZESZOW_VEHICLES_JSON_URL, MPK_RZESZOW_VEHICLES_XML_URL, MPK_RZESZOW_VEHICLES_DETAILS_URL, MPK_RZESZOW_TRIP_STOPS_URL} from '../transport/endpoints';
 import {requestJson, requestText} from '../transport/http';
 import {computeObservedSpeedKmh} from '../transport/vehicle-speed';
 import {isAbortLikeError} from '../providers/pkp-client';
@@ -86,7 +88,11 @@ async function fetchMpkTripStops(tripId: string) {
     mpkTripStopsByTripCache.set(
       tripId,
       requestJson<{ stops?: any[] }>(`${MPK_RZESZOW_TRIP_STOPS_URL}?${searchParams.toString()}`)
-        .then((data) => (Array.isArray(data?.stops) ? data.stops : []))
+        .then((data) => {
+          const stops = Array.isArray(data?.stops) ? data.stops : [];
+          if (!stops.length) mpkTripStopsByTripCache.delete(tripId);
+          return stops;
+        })
         .catch(error => {mpkTripStopsByTripCache.delete(tripId);throw error;}),
     );
     if (mpkTripStopsByTripCache.size > 300) {
@@ -284,9 +290,24 @@ async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeIna
   const vehicleDetails = detailsByVehicle.get(lookupVehicleId);
   const statusCode = String(rawVehicle.s || vehicleDetails?.status || '');
   const delaySeconds = getEffectiveMpkDelay(Number(rawVehicle.o ?? vehicleDetails?.delay ?? 0), statusCode);
-  const tripSchedule = await fetchMpkTripSchedule(vehicleDetails?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik, delaySeconds);
+  let tripSchedule = await fetchMpkTripSchedule(vehicleDetails?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik, delaySeconds)
+    .catch(() => ({schedule: [], routeStops: [], routePath: []}));
+  let scheduleSource: Vehicle['scheduleSource'];
+  if (!tripSchedule.schedule?.some(stop => stop.planned || stop.real)) {
+    const xml = await requestText(`${MPK_RZESZOW_MYBUS_TIMETABLE_URL}?${new URLSearchParams({nNb: lookupVehicleId})}`).catch(() => null);
+    if (xml) {
+      try {
+        const schedule = parseMybusTimetable(xml, Date.now(), String(rawVehicle.nr || rawVehicle.nnr || '').trim());
+        if (schedule.length) {
+          tripSchedule = {schedule, routeStops: [], routePath: []};
+          scheduleSource = 'mybus';
+        }
+      } catch { /* Keep the existing vehicle when the backup timetable is unavailable. */ }
+    }
+  }
 
-  return mapMpkDirectVehicle(rawVehicle, detailsByVehicle, Date.now(), includeInactive, tripSchedule);
+  const vehicle = mapMpkDirectVehicle(rawVehicle, detailsByVehicle, Date.now(), includeInactive, tripSchedule);
+  return vehicle ? {...vehicle, scheduleSource} : null;
 }
 
 export {mpkTripStopsByTripCache};
