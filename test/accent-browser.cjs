@@ -332,6 +332,9 @@ const server=http.createServer((req,res)=>{
     assert.equal(shield.w,24);assert.equal(shield.h,24);assert.equal(shield.pw,shield.ph);
     const checkSave=async()=>{const result=await page.evaluate(()=>{const buttons=[...document.querySelectorAll('.admin-modal-overlay button')];const b=buttons.find(el=>el.textContent.trim()==='Zapisz zmiany'),r=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:innerHeight,covered:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)!==b};});assert.ok(result.top>=0&&result.bottom<=result.height,JSON.stringify(result));assert.equal(result.covered,false);};
     await checkSave();await screenshot('admin-roles-mobile');
+
+    await page.setViewport({width:320,height:568,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();
+    await page.setViewport({width:393,height:400,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();await screenshot('admin-roles-keyboard-height');
     await page.waitForSelector('[data-permission="statistics"]');
     assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.disabled),false);
     await page.$eval('[data-permission="statistics"]',el=>el.click());
@@ -345,8 +348,6 @@ const server=http.createServer((req,res)=>{
     await page.$eval('[data-permission="statistics"]',el=>el.click());
     await page.waitForFunction(()=>document.querySelector('[data-permission="statistics"]').getAttribute('aria-pressed')==='false');
 
-    await page.setViewport({width:320,height:568,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();
-    await page.setViewport({width:393,height:400,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();await screenshot('admin-roles-keyboard-height');
     await button('Zapisz zmiany');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));assert.equal(await page.evaluate(()=>window.__savedRole.permissions.statistics),false);await button('Ban');await fitDialog();
     await page.evaluate(()=>{const body=document.querySelector('.admin-modal-overlay .overflow-y-auto');body.scrollTop=body.scrollHeight;});
     await button('ZABLOKUJ URZĄDZENIE');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));
