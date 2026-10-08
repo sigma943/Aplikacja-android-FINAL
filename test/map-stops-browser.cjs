@@ -8,11 +8,11 @@ try{
  await page.evaluateOnNewDocument(()=>{const Original=Date;window.Date=class extends Original{constructor(...args){super(...(args.length?args:[Original.parse('2026-10-07T11:45:20Z')]));}static now(){return Original.parse('2026-10-07T11:45:20Z');}};if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17}));});
  await page.setRequestInterception(true);
  page.on('request',request=>{const url=request.url();const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:'03'},'3795':{n:'RZESZÓW, PODKARP.MATUSZCZAKA',lat:50.01679,lon:21.9753,areaId:'1945',code:'03'},...Object.fromEntries(['1365','9026'].map(id=>[id,require('../public/data/pks-stop-points.json').stops[id]]))}});
+  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:'03'},'3795':{n:'RZESZÓW, PODKARP.MATUSZCZAKA',lat:50.01679,lon:21.9753,areaId:'1945',code:'03'},...Object.fromEntries(['1365','9026','11462'].map(id=>[id,require('../public/data/pks-stop-points.json').stops[id]]))}});
   if(url.includes('api-site.marcel-bus.pl/client/api/search/trasy?'))return json([{idTr:18,nazTr:'Jasło-Rzeszów'},{idTr:3,nazTr:'Rzeszów-Jasło'}]);
   if(url.includes('api-site.marcel-bus.pl/client/api/search/wariantTrasy/kusy?'))return json([{idKu:new URL(url).searchParams.get('idTr')==='18'?1181798:1182201}]);
   if(url.includes('api-site.marcel-bus.pl/client/api/trasy/kurs/'))return json([require('./fixtures/babica-dps-providers.json').marcel[url.includes('/1181798?')?0:1],{nazMi:'Babica',nazPr:'(81) za torami',szGps:null,dlGps:null,kol:69,godz:'16:01'}]);
-  if(url.includes('mpkrzeszow.pl/przystanki/stopscache'))return json([{stop_id:900001,stop_name:'Rzeszów TestMap 03',stop_lat:50.04,stop_lon:22,lines:'2'},{stop_id:256,stop_name:'Podkarpacka / Matuszczaka 03',stop_lat:50.0168019697084,stop_lon:21.9754108786583,lines:'11'}]);
+  if(url.includes('mpkrzeszow.pl/przystanki/stopscache'))return json([{stop_id:186,stop_name:'Lisa-Kuli / Moniuszki 02',stop_lat:50.0365064452402,stop_lon:21.9974981993437,lines:'8'},{stop_id:900001,stop_name:'Rzeszów TestMap 03',stop_lat:50.04,stop_lon:22,lines:'2'},{stop_id:256,stop_name:'Podkarpacka / Matuszczaka 03',stop_lat:50.0168019697084,stop_lon:21.9754108786583,lines:'11'}]);
   if(url.includes('offline_schedule.php'))return json({schedule:{'2':[{line:'2',trip_headsign:'Centrum',departure_time:'13:55:00',trip_id:'test-map'}]}});
   if(url.includes('mpkrzeszow.pl')||url.includes('api-site.marcel-bus.pl')||url.includes('/pks/get_vehicles.php'))return json([]);
   if(url.includes('nearest-departures'))return json({journeys:[]});
@@ -55,6 +55,17 @@ try{
  await page.click('.map-catalog-stop[title*="Matuszczaka" i]');await page.waitForSelector('.map-stop-ring.is-selected');
  assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/matuszczaka/i);
  await page.screenshot({path:path.resolve('test/ui-previews/map-real-platform-merged.png')});
+ await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.03651,lng:21.99752},zoom:19})));
+ await page.reload({waitUntil:'domcontentloaded'});
+ await page.waitForSelector('.map-catalog-stop[title*="Lisa" i]');
+ await page.waitForFunction(()=>document.querySelectorAll('.map-catalog-stop[title*="Lisa" i]').length===1);
+ await page.screenshot({path:path.resolve('test/ui-previews/map-lisa-kuli-provider-alias.png')});
+ await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
+ await page.type('input[placeholder*="Babica"]','Lisa');
+ await page.waitForFunction(()=>{const rows=[...document.querySelectorAll('[data-stop-card-id]')].filter(el=>/lisa/i.test(el.textContent));return rows.length===1&&rows[0].textContent.includes('PKS')&&rows[0].textContent.includes('MPK');});
+ await page.screenshot({path:path.resolve('test/ui-previews/list-lisa-kuli-provider-alias.png')});
+ await page.$eval('input[placeholder*="Babica"]',el=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(el,'');el.dispatchEvent(new Event('input',{bubbles:true}));});
+ await button('Mapa');
  // Load the Marcel timetable catalog, then render the actual differently numbered Babica platform.
  await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
  await page.type('input[placeholder*="Babica"]','Babica');

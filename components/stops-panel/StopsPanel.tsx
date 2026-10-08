@@ -74,7 +74,10 @@ export default function StopsPanel({
         setMpkStops(snapshot.mpk);
         setMarcelStops(snapshot.marcel);
         setPksLinesByStopId(snapshot.lines);
-        setMergedStopsBase(snapshot.stops);
+        // Rebuild identities from cached raw catalogs after a matching upgrade.
+        // Preserve offline data instead of displaying obsolete saved groups.
+        setMergedStopsBase(buildStopsCatalog(snapshot.pks,snapshot.mpk,snapshot.marcel,
+          [stopCollectionSignature(snapshot.pks),stopCollectionSignature(snapshot.mpk),stopCollectionSignature(snapshot.marcel)].join('|')));
         setRenderedCatalogKey([stopCollectionSignature(snapshot.pks), stopCollectionSignature(snapshot.mpk), stopCollectionSignature(snapshot.marcel)].join('|'));
       }
       setCacheReady(true);

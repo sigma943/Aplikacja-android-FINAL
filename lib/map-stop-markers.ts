@@ -1,6 +1,14 @@
 import {readBusCoordinates} from './bus-coordinates';
 import type {Stop} from '@/Panel/src/types';
 export const MAP_STOPS_MIN_ZOOM=16;
+export function canonicalMapStopId(stops:Stop[],id?:string|null,provider?:string){
+  if(!id)return id;
+  const namespace=/^(pks|mpk_rzeszow|marcel):(.+)$/.exec(id);
+  const source=namespace?.[1]||provider||'pks',rawId=namespace?.[2]||id;
+  if(!namespace&&(!provider||provider==='pks')&&stops.some(s=>s.id===id))return id;
+  const matches=stops.filter(s=>String(s.providerStopIds?.[source]||'').split(',').map(v=>v.trim()).includes(rawId));
+  return matches.length===1?matches[0].id:id;
+}
 export function mapStopColor(stop:Pick<Stop,'name'>){
   const name=stop.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   if(/^rzeszow\b/.test(name)&&(/\bd\s*\.?\s*a\s*\.?\s*(?:st\b|stanow|$)/.test(name)||/\b(?:dworzec|dworz\.)\s*(?:autobusowy|pks)\b/.test(name)))return '#14b8a6';

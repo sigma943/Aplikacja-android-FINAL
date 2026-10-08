@@ -8,7 +8,7 @@ import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomCo
 import L from 'leaflet';
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
 import type {Stop} from '@/Panel/src/types';
-import {mapStopColor,mapStopIconHtml,visibleMapStops} from '@/lib/map-stop-markers';
+import {mapStopColor,mapStopIconHtml,visibleMapStops,canonicalMapStopId} from '@/lib/map-stop-markers';
 import 'leaflet/dist/leaflet.css';
 import { routeGeometryKey } from '@/lib/route-geometry-key';
 import { officialBusRoute } from '@/lib/official-bus-routes';
@@ -947,13 +947,13 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
   );
 });
 
-function SelectedStopPin({id,point,stops,color,rail=false}:{id?:string|null;point?:StopData;stops:Stop[];color:string;rail?:boolean}) {
+function SelectedStopPin({id,catalogId,point,stops,color,rail=false}:{id?:string|null;catalogId?:string|null;point?:StopData;stops:Stop[];color:string;rail?:boolean}) {
   const map=useMap();const [revision,setRevision]=useState(0);
   useMapEvents({zoomend:()=>setRevision(v=>v+1),moveend:()=>setRevision(v=>v+1)});
   if(!id||!point||(!rail && !readBusCoordinates(point.lat,point.lon)))return null;
   if(!rail)point={...point,...platformPosition(point)};
   const b=map.getBounds();
-  if(visibleMapStops(stops,[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],map.getZoom(),id).some(stop=>stop.id===id))return null;
+  if(visibleMapStops(stops,[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],map.getZoom(),catalogId||id).some(stop=>stop.id===(catalogId||id)))return null;
   return <Marker position={[point.lat,point.lon]} zIndexOffset={5000} icon={L.divIcon({className:'stop-highlight-pin',html:`<svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" style="color:${color};filter:drop-shadow(0 3px 4px #0005)"><path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/><circle cx="19" cy="18" r="6.5" fill="white"/></svg>`,iconSize:[38,48],iconAnchor:[19,46]})}/>;
 }
 
@@ -1073,6 +1073,7 @@ export default function BusMap({
   }, []);
 
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
+  const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider);
   const [,setPlatformRevision]=useState(0);
   const needsPlatforms=mapStops.length>0||Boolean((selectedVehicle||highlightedStopId)&&selectedVehicle?.provider!=='pkp_intercity');
   useEffect(()=>{
@@ -1364,8 +1365,8 @@ export default function BusMap({
           maxZoom={19}
         />
 
-        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} point={highlightedStopId?routeStopsData[highlightedStopId]:undefined} stops={mapStops} color={themeColor}/>
-        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={highlightedStopId} onSelect={onMapStopClick}/>}
+        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStopId?routeStopsData[highlightedStopId]:undefined} stops={mapStops} color={themeColor}/>
+        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={selectedCatalogStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
