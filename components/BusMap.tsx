@@ -965,7 +965,7 @@ function CatalogStopsLayer({stops,selected,onSelect}:{stops:Stop[];selected?:str
   const icons=useMemo(()=>new Map(visible.map(stop=>[stop.id,L.divIcon({className:'map-catalog-stop',html:mapStopIconHtml(mapStopColor(stop),stop.id===selected),iconSize:[40,40],iconAnchor:[20,20]})])),[visible,selected]);
   return <>{visible.map(stop=><Marker key={stop.id} position={[platformPosition(stop)!.lat,platformPosition(stop)!.lon]} title={displayStopLabel(stop.name)} alt={displayStopLabel(stop.name)}
     icon={icons.get(stop.id)!} zIndexOffset={stop.id===selected?4500:-500}
-    eventHandlers={{click:event=>{L.DomEvent.stopPropagation(event.originalEvent);onSelect?.(stop);}}}/>)}</>;
+    eventHandlers={{click:event=>{L.DomEvent.stopPropagation(event.originalEvent);onSelect?.({...stop,...platformPosition(stop)});}}}/>)}</>;
 }
 
 function RouteStopsLayer({
@@ -1074,7 +1074,7 @@ export default function BusMap({
 
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
   const [,setPlatformRevision]=useState(0);
-  const needsPlatforms=mapStops.length>0||Boolean(selectedVehicle&&selectedVehicle.provider!=='pkp_intercity');
+  const needsPlatforms=mapStops.length>0||Boolean((selectedVehicle||highlightedStopId)&&selectedVehicle?.provider!=='pkp_intercity');
   useEffect(()=>{
     if(!needsPlatforms)return;
     let active=true;
