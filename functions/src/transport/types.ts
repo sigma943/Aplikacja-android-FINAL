@@ -44,6 +44,7 @@ export interface TransportVehicle {
   schedule?: TransportStopSchedule[];
   routeStops?: TransportStopSchedule[];
   routePath?: number[];
+  routeGeometry?: [number, number][];
   model?: string;
   lastStopDistance?: number;
   lastStopId?: number;

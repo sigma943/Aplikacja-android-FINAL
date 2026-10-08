@@ -443,8 +443,9 @@ export default function Home() {
       lastSignalTime: base.lastSignalTime,
       scheduleSource: hasLiveSchedule || !detailsSchedule.length ? base.scheduleSource : details.scheduleSource,
       schedule: hasLiveSchedule ? baseSchedule : (detailsSchedule.length > 0 ? detailsSchedule : baseSchedule),
-      routeStops: details.scheduleSource === 'mybus' ? [] : hasLiveRouteStops ? baseRouteStops : (detailsRouteStops.length > 0 ? detailsRouteStops : baseRouteStops),
-      routePath: hasLiveRoutePath ? baseRoutePath : (detailsRoutePath.length > 0 ? detailsRoutePath : baseRoutePath),
+      routeStops: details.scheduleSource === 'mybus' ? detailsRouteStops : hasLiveRouteStops ? baseRouteStops : (detailsRouteStops.length > 0 ? detailsRouteStops : baseRouteStops),
+      routeGeometry: details.scheduleSource === 'mybus' ? details.routeGeometry : (details.routeGeometry?.length ? details.routeGeometry : base.routeGeometry),
+      routePath: details.scheduleSource === 'mybus' ? detailsRoutePath : hasLiveRoutePath ? baseRoutePath : (detailsRoutePath.length > 0 ? detailsRoutePath : baseRoutePath),
       // Preserve details-only metadata if polling payload does not carry it.
       model: base.model || details.model,
       journeyId: base.journeyId ?? details.journeyId,

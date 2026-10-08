@@ -1,3 +1,4 @@
+import {enrichMybusRoute} from './mpk-mybus-route';
 import {parseMybusTimetable} from './mpk-mybus-timetable';
 import { warsawDateIso, warsawTimeMs } from './transit-time';
 import { busOperatingState } from './bus-operating-state';
@@ -518,19 +519,22 @@ export const mpkRzeszowProvider: TransportProvider = {
       detail?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik,
       getEffectiveMpkDelay(Number(rawVehicle.o ?? detail?.delay ?? 0), statusCode),
     ).catch(() => ({schedule: [], routeStops: [], routePath: []} as MpkTripSchedule));
+    let routeGeometry: [number, number][] | undefined;
     let scheduleSource: TransportVehicle['scheduleSource'];
     if (!tripSchedule.schedule.some(stop => stop.planned || stop.real)) {
       try {
         const xml = await fetchTextWithRetry(`${MYBUS_TIMETABLE_URL}?${new URLSearchParams({nNb: lookupVehicleId})}`, {headers: {Accept: 'application/xml'}});
         const schedule = parseMybusTimetable(xml, Date.now(), String(rawVehicle.nr || rawVehicle.nnr || '').trim());
         if (schedule.length) {
-          tripSchedule = {schedule, routeStops: [], routePath: []};
+          const enriched = await enrichMybusRoute(xml, schedule, url => fetchTextWithRetry(url, {headers: {Accept: 'application/xml'}}));
+          tripSchedule = enriched;
+          routeGeometry = enriched.routeGeometry;
           scheduleSource = 'mybus';
         }
       } catch { /* An unavailable backup timetable must not hide the vehicle. */ }
     }
 
     const vehicle = toTransportVehicle(rawVehicle, Date.now(), options?.includeInactive ?? true, stopsDictionary, detail, tripSchedule);
-    return vehicle ? {...vehicle, scheduleSource} : null;
+    return vehicle ? {...vehicle, scheduleSource, routeGeometry} : null;
   },
 };

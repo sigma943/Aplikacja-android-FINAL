@@ -39,6 +39,7 @@ function mapTransportVehicleToClient(vehicle: TransportApiVehicle): Vehicle {
       lon: stop.lon ?? stop.lng,
     })),
     routePath: vehicle.routePath,
+    routeGeometry: vehicle.routeGeometry,
     model: vehicle.model,
     lastStopDistance: vehicle.lastStopDistance,
     lastStopId: vehicle.lastStopId,

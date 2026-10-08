@@ -292,6 +292,7 @@ async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeIna
   const delaySeconds = getEffectiveMpkDelay(Number(rawVehicle.o ?? vehicleDetails?.delay ?? 0), statusCode);
   let tripSchedule = await fetchMpkTripSchedule(vehicleDetails?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik, delaySeconds)
     .catch(() => ({schedule: [], routeStops: [], routePath: []}));
+  let routeGeometry: [number, number][] | undefined;
   let scheduleSource: Vehicle['scheduleSource'];
   if (!tripSchedule.schedule?.some(stop => stop.planned || stop.real)) {
     const xml = await requestText(`${MPK_RZESZOW_MYBUS_TIMETABLE_URL}?${new URLSearchParams({nNb: lookupVehicleId})}`).catch(() => null);
@@ -299,7 +300,10 @@ async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeIna
       try {
         const schedule = parseMybusTimetable(xml, Date.now(), String(rawVehicle.nr || rawVehicle.nnr || '').trim());
         if (schedule.length) {
-          tripSchedule = {schedule, routeStops: [], routePath: []};
+          const {enrichMybusRoute} = await import('../mpk-mybus-route');
+          const enriched = await enrichMybusRoute(xml, schedule, requestText);
+          tripSchedule = enriched;
+          routeGeometry = enriched.routeGeometry;
           scheduleSource = 'mybus';
         }
       } catch { /* Keep the existing vehicle when the backup timetable is unavailable. */ }
@@ -307,7 +311,7 @@ async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeIna
   }
 
   const vehicle = mapMpkDirectVehicle(rawVehicle, detailsByVehicle, Date.now(), includeInactive, tripSchedule);
-  return vehicle ? {...vehicle, scheduleSource} : null;
+  return vehicle ? {...vehicle, scheduleSource, routeGeometry} : null;
 }
 
 export {mpkTripStopsByTripCache};

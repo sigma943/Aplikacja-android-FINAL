@@ -84,6 +84,7 @@ type TransportApiVehicle = {
   schedule?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean; platform?: string; track?: string; stopDelayMinutes?: number; timeType?: 'arrival' | 'departure' }>;
   routeStops?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean; platform?: string; track?: string; stopDelayMinutes?: number; timeType?: 'arrival' | 'departure' }>;
   routePath?: number[];
+  routeGeometry?: [number, number][];
   model?: string;
   lastStopDistance?: number;
   lastStopId?: number;
