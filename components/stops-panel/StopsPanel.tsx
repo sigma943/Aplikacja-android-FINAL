@@ -3,6 +3,7 @@ import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {useAppBack} from '@/lib/use-app-back';
 import { motion, useReducedMotion } from 'motion/react';
 import { buildStopsCatalog } from '@/lib/stops-catalog';
+import {stopIdentityIds} from '@/lib/stop-identity';
 import { loadStopDepartures } from '@/lib/stop-departures';
 import { peekStopsCatalogCache, readStopsCatalogCache, writeStopsCatalogCache, type MpkCatalogStop } from '@/lib/stops-catalog-cache';
 
@@ -235,15 +236,16 @@ export default function StopsPanel({
     }
     const favoriteSet = new Set(favorites);
     return baseUiStops.map((stop) => {
-      const isFavorite = favoriteSet.has(stop.id);
+      const isFavorite = stopIdentityIds(stop).some(id=>favoriteSet.has(id));
       return stop.isFavorite === isFavorite ? stop : { ...stop, isFavorite };
     });
   }, [baseUiStops, favorites]);
 
   const toggleFavorite = useCallback((stopId: string) => {
-    onToggleFavorite(stopId);
+    const stop=baseUiStops.find(s=>s.id===stopId);
+    onToggleFavorite(stopId,stop?stopIdentityIds(stop):[stopId]);
     setSelectedStop((current) => (current?.id === stopId ? { ...current, isFavorite: !current.isFavorite } : current));
-  }, [onToggleFavorite]);
+  }, [onToggleFavorite,baseUiStops]);
 
   const reduceMotion = useReducedMotion();
   const handleSelectStop = useCallback((stop: Stop) => {

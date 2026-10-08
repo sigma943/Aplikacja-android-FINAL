@@ -1,5 +1,6 @@
 'use client';
 import {displayStopLabel} from '@/lib/stop-label';
+import {toggleStopFavoriteIds} from '@/lib/stop-identity';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {onWidgetOpen} from '@/lib/stop-widget';
 
@@ -483,10 +484,9 @@ export default function Home() {
     };
   }, []);
 
-  const toggleFavoriteStop = useCallback((stopId: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
+  const toggleFavoriteStop = useCallback((stopId: string, aliases: string[] = []) => {
     setFavsState((current) => {
-      const next = current.includes(stopId) ? current.filter((id) => id !== stopId) : [...current, stopId];
+      const next = toggleStopFavoriteIds(current,stopId,aliases);
       const persist = () => {
         try {
           localStorage.setItem('mks_fav_stops', JSON.stringify(next));

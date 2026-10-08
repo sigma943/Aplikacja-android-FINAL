@@ -1,6 +1,13 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const load=require('./load-ts.cjs');
 const {buildStopsCatalog}=load('lib/stops-catalog.ts',{'@/lib/pks-client':{}});
 const pksAsset=require('../public/data/pks-stop-points.json').stops,mpkAsset=require('../public/data/bus-routes/mpk_rzeszow.json').stops;
+test('merged aliases preserve old favorites and can be toggled off without touching other stops',()=>{
+  const {stopIdentityIds,toggleStopFavoriteIds}=load('lib/stop-identity.ts');
+  const aliases=stopIdentityIds({id:'11462',providerStopIds:{pks:'11462',mpk_rzeszow:'186'}});
+  assert.deepEqual(aliases,['11462','mpk_rzeszow:186']);
+  assert.deepEqual(toggleStopFavoriteIds(['mpk_rzeszow:186','other'],'11462',aliases),['other']);
+  assert.deepEqual(toggleStopFavoriteIds(['other'],'11462',aliases),['other','11462']);
+});
 test('map selection resolves provider aliases without numeric ID collisions or a second pin',()=>{
   const {canonicalMapStopId}=load('lib/map-stop-markers.ts');
   const stops=[{id:'11462',providerStopIds:{pks:'11462',mpk_rzeszow:'186'}},{id:'186',providerStopIds:{pks:'186'}}];

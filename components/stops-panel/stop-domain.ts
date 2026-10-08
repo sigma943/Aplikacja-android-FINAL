@@ -31,7 +31,7 @@ interface StopsPanelProps {
   isDarkTheme: boolean;
   onRetry: () => void;
   onClose: () => void;
-  onToggleFavorite: (stopId: string) => void;
+  onToggleFavorite: (stopId: string, aliases?: string[]) => void;
   onShowOnMap: (stop: Stop) => void;
 }
 
