@@ -1,4 +1,5 @@
 import {readBusCoordinates} from '../bus-coordinates';
+import {correctPksStop} from '../pks-stop-corrections';
 
 import {type StopsMap, type FullStopRecord, type StopPointIndex} from '../transport/types';
 import {requestEinfoJson} from '../transport/http';
@@ -170,13 +171,13 @@ function formatPksStops(data: any, snapshot: any): StopsMap {
       }
     }
 
-    compressedMap[String(stop.stop_point_id)] = {
+    compressedMap[String(stop.stop_point_id)] = correctPksStop({
       n: formattedName,
       lat: hasCoords ? lat : undefined,
       lon: hasCoords ? lon : undefined,
       areaId: String(stop.stop_area_id),
       code: stop.stop_point_code ? String(stop.stop_point_code).trim() : '',
-    };
+    }, String(stop.stop_point_id));
   }
 
   return compressedMap;
@@ -187,6 +188,12 @@ function formatPksStops(data: any, snapshot: any): StopsMap {
 function verifiedCachedPksStops(stops: StopsMap, snapshot: any): StopsMap {
   let result = stops;
   for (const [id, stop] of Object.entries(stops)) {
+    const corrected = correctPksStop(stop, id);
+    if (corrected !== stop) {
+      if (result === stops) result = {...stops};
+      result[id] = corrected;
+      continue;
+    }
     const verified = snapshot.stops?.[id];
     if (verified?.coordinateSource !== 'gtfs' || String(verified.areaId) !== stop.areaId || String(verified.code) !== stop.code) continue;
     const point = readBusCoordinates(verified.lat, verified.lon);
@@ -227,7 +234,7 @@ export async function fetchStopsClient(options?: { forceRefresh?: boolean }): Pr
     }
   }
   try { return await refreshPksStops(); }
-  catch (error) { if (cached) return cached.data; throw error; }
+  catch (error) { if (cached) return verifiedCachedPksStops(cached.data, await readBundledPksStops()); throw error; }
 }
 
 export {stopsDictionaryPromise};
