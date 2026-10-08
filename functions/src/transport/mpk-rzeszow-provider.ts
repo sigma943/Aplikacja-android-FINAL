@@ -4,6 +4,7 @@ import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
 import { getCachedValue } from './cache';
 import type { GetVehiclesOptions, ProviderVehiclesResult, TransportProvider, TransportStopSchedule, TransportVehicle } from './types';
 
+const MYBUS_VEHICLES_URL = 'http://84.38.160.220/myBusServices/SchedulesService.svc/GetVehicles?cNbLst=&cTrackLst=&cDirLst=&cIdLst=&cKrsLst=&cRouteLst=';
 const VEHICLES_XML_URL = process.env.MPK_RZESZOW_VEHICLES_XML_URL || 'https://www.mpkrzeszow.pl/mpk/vehicles_proxy.php';
 const VEHICLES_JSON_URL = process.env.MPK_RZESZOW_VEHICLES_JSON_URL || 'https://www.mpkrzeszow.pl/ztm/new/api.php?type=mpk';
 const VEHICLES_DETAILS_URL = process.env.MPK_RZESZOW_VEHICLES_DETAILS_URL || 'https://www.mpkrzeszow.pl/mpk/get_vehicles.php';
@@ -157,11 +158,22 @@ async function loadRawVehicles() {
     ttlMs: 10_000,
     staleMs: 50_000,
     loader: async () => {
-      try {
-        return mpkFeedVehicles(await fetchJsonWithRetry<unknown>(VEHICLES_JSON_URL, { headers: REQUEST_HEADERS }));
-      } catch {
-        return parseVehicleXml(await fetchTextWithRetry(VEHICLES_XML_URL, { headers: REQUEST_HEADERS }));
+      let emptyResponse = false;
+      let lastError: unknown;
+      const loaders = [
+        async () => mpkFeedVehicles(await fetchJsonWithRetry<unknown>(VEHICLES_JSON_URL, { headers: REQUEST_HEADERS })),
+        async () => parseVehicleXml(await fetchTextWithRetry(VEHICLES_XML_URL, { headers: REQUEST_HEADERS })),
+        async () => parseVehicleXml(await fetchTextWithRetry(MYBUS_VEHICLES_URL, { headers: {Accept: 'application/xml'} })),
+      ];
+      for (const load of loaders) {
+        try {
+          const rows = await load();
+          if (rows.length > 0) return rows;
+          emptyResponse = true;
+        } catch (error) { lastError = error; }
       }
+      if (emptyResponse) return [];
+      throw lastError instanceof Error ? lastError : new Error('MPK vehicle sources unavailable');
     },
   });
 }

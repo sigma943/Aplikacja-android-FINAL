@@ -84,7 +84,7 @@ async function requestEinfoJson<T>(pathAndOptionalQuery: string, init?: RequestI
 async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
   const load=()=>withRequestDeadline((signal) => requestTextImpl(url, { ...init, signal }), init?.signal || undefined);
   const diagnostic=diagnosticRequest(url);
-  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,undefined,undefined,'request',diagnosticSource(url)):load();
+  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,text=>/GetVehicles|vehicles_proxy/.test(url)?(text.match(/<V\s/g)||[]).length:undefined,undefined,'request',diagnosticSource(url)):load();
 }
 
 async function requestTextImpl(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242]
+    branches: [main, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242, fix/mpk-diagnostics-242]
   workflow_dispatch:
 
 jobs:

@@ -7,7 +7,7 @@ import {busOperatingState} from '../bus-operating-state';
 import type {Vehicle} from '@/lib/transport/vehicle';
 import {warsawDateIso, warsawTimeMs} from '../transit-time';
 
-import {MPK_RZESZOW_VEHICLES_JSON_URL, MPK_RZESZOW_VEHICLES_XML_URL, MPK_RZESZOW_VEHICLES_DETAILS_URL, MPK_RZESZOW_TRIP_STOPS_URL} from '../transport/endpoints';
+import {MPK_RZESZOW_MYBUS_VEHICLES_URL, MPK_RZESZOW_VEHICLES_JSON_URL, MPK_RZESZOW_VEHICLES_XML_URL, MPK_RZESZOW_VEHICLES_DETAILS_URL, MPK_RZESZOW_TRIP_STOPS_URL} from '../transport/endpoints';
 import {requestJson, requestText} from '../transport/http';
 import {computeObservedSpeedKmh} from '../transport/vehicle-speed';
 import {isAbortLikeError} from '../providers/pkp-client';
@@ -229,12 +229,27 @@ function mapMpkDirectVehicle(
 }
 
 async function fetchMpkVehicleFeed(signal?: AbortSignal) {
-  try {
-    return mpkFeedVehicles(await requestJson<unknown>(MPK_RZESZOW_VEHICLES_JSON_URL, {signal}));
-  } catch (error) {
-    if (isAbortLikeError(error)) throw error;
-    return parseMpkVehiclesXml(await requestText(MPK_RZESZOW_VEHICLES_XML_URL, {signal}));
+  let emptyResponse = false;
+  let lastError: unknown;
+  const loaders = [
+    async () => mpkFeedVehicles(await requestJson<unknown>(MPK_RZESZOW_VEHICLES_JSON_URL, {signal})),
+    async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_VEHICLES_XML_URL, {signal})),
+    async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_MYBUS_VEHICLES_URL, {signal})),
+  ];
+  for (const load of loaders) {
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+    try {
+      const rows = await load();
+      if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+      if (rows.length > 0) return rows;
+      emptyResponse = true;
+    } catch (error) {
+      if (signal?.aborted || isAbortLikeError(error)) throw error;
+      lastError = error;
+    }
   }
+  if (emptyResponse) return [];
+  throw lastError instanceof Error ? lastError : new Error('MPK vehicle sources unavailable');
 }
 
 async function fetchMpkRzeszowVehiclesDirect(includeInactive: boolean, signal?: AbortSignal) {
