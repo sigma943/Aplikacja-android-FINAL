@@ -2576,6 +2576,20 @@ function formatPksStops(data: any, snapshot: any): StopsMap {
   return compressedMap;
 }
 
+// Apply packaged, identity-checked corrections to older offline records as well.
+function verifiedCachedPksStops(stops: StopsMap, snapshot: any): StopsMap {
+  let result = stops;
+  for (const [id, stop] of Object.entries(stops)) {
+    const verified = snapshot.stops?.[id];
+    if (verified?.coordinateSource !== 'gtfs' || String(verified.areaId) !== stop.areaId || String(verified.code) !== stop.code) continue;
+    const point = readBusCoordinates(verified.lat, verified.lon);
+    if (!point || (stop.lat === point.lat && stop.lon === point.lon)) continue;
+    if (result === stops) result = {...stops};
+    result[id] = {...stop, ...point};
+  }
+  return result;
+}
+
 let refreshingPksStops: Promise<StopsMap> | null = null;
 function refreshPksStops() {
   if (!refreshingPksStops) refreshingPksStops = fetchStopsFromNetwork().then(fresh => {
@@ -2592,7 +2606,7 @@ export async function fetchStopsClient(options?: { forceRefresh?: boolean }): Pr
   const isFresh = cached && Date.now() - cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
   if (cached && !options?.forceRefresh) {
     if (!isFresh) void refreshPksStops().catch(() => undefined);
-    return cached.data;
+    return verifiedCachedPksStops(cached.data, await readBundledPksStops());
   }
   if (!options?.forceRefresh) {
     const snapshot = await readBundledPksStops();

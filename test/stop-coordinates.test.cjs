@@ -160,3 +160,15 @@ test('Lisa Kuli/Mochn. 03 resolves to the official outgoing platform and survive
     stop_area_name:api.name,location:{lat:api.lat,lon:api.lon}}]},snapshot)['11461'];
   assert.deepEqual([result.lat,result.lon,result.code,result.areaId],[gtfs.lat,gtfs.lon,'03','4299']);
 });
+
+test('installed offline caches receive verified platform corrections without losing IDs or mutating records',()=>{
+  const client=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}},'\nexport {verifiedCachedPksStops};');
+  const old={n:'Rzeszów, Lisa Kuli/Mochn. 03',lat:50.034968,lon:21.998124,areaId:'4299',code:'03'};
+  const cached={'11461':old,'other':{...old,areaId:'999'}};
+  const fixed=client.verifiedCachedPksStops(cached,snapshot);
+  assert.deepEqual(fixed['11461'],{...old,lat:50.035944,lon:21.99708});
+  assert.equal(cached['11461'].lat,50.034968);
+  assert.equal(fixed.other,cached.other);
+  assert.equal(client.verifiedCachedPksStops({'11461':{...old,areaId:'999'}},snapshot)['11461'].lat,old.lat);
+  assert.equal(client.verifiedCachedPksStops(cached,{stops:{}}),cached);
+});
