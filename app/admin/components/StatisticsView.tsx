@@ -1,5 +1,6 @@
 'use client';
 import {useMemo,useState,useSyncExternalStore} from 'react';
+import {saveStatisticsCsv} from '@/lib/admin/statistics-export';
 import {Activity,BarChart3,CheckCircle2,Clock3,Download,Menu,Server,Smartphone,UserPlus,Users,ShieldCheck,AlertTriangle} from 'lucide-react';
 import {getApiStatistics,getServerApiStatistics,subscribeApiStatistics} from '@/lib/api-statistics';
 import {apiStatistics,deviceStatistics,type StatisticsDevice,type StatisticsRange} from '@/lib/admin/statistics';
@@ -38,6 +39,7 @@ function TimeChart({points,color,bars=false,title,dark}:{points:Point[];color:st
 }
 
 export function StatisticsView({devices,devicesError,devicesReady=true,onMenuClick,accentColor='#00A3A2',isDarkTheme=true}:{devices:StatisticsDevice[];devicesError?:string|null;devicesReady?:boolean;onMenuClick:()=>void;accentColor?:string;isDarkTheme?:boolean}){
+  const [exporting,setExporting]=useState(false),[exportError,setExportError]=useState<string|null>(null);
   const [range,setRange]=useState<StatisticsRange>(7);
   const history=useSyncExternalStore(subscribeApiStatistics,getApiStatistics,getServerApiStatistics);
   const now=Date.now();
@@ -48,9 +50,12 @@ export function StatisticsView({devices,devicesError,devicesReady=true,onMenuCli
   const card=isDarkTheme?'border-white/[0.08] bg-[#0d151f]/75':'border-slate-200 bg-white/85';
   const soft=isDarkTheme?'bg-white/[0.035]':'bg-slate-50';
   const period=range===1?'dzisiaj':`w ostatnich ${range} dniach`;
-  const exportCsv=()=>{
+  const exportCsv=async()=>{
+    setExporting(true);setExportError(null);
     const rows=[['Dzień','Nowe urządzenia','Zapytania API (to urządzenie)','Błędy API (to urządzenie)'],...device.series.map((point,i)=>[point.date,loaded?String(point.value):'',api.series[i]?.value===null?'':String(api.series[i]?.value??''),api.series[i]?.errors===null?'':String(api.series[i]?.errors??'')])];
-    const blob=new Blob(['\uFEFF'+rows.map(row=>row.join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`pks-live-statystyki-${range}-dni.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    try{await saveStatisticsCsv('\uFEFF'+rows.map(row=>row.join(';')).join('\r\n'),`pks-live-statystyki-${range}-dni.csv`);}
+    catch{setExportError('Nie udało się zapisać statystyk. Spróbuj ponownie.');}
+    finally{setExporting(false);}
   };
   const tiles=[
     {title:'Nowe urządzenia',value:loaded?number(device.newDevices):'—',icon:UserPlus,detail:loaded?(device.previousNew?`${device.newDevices>=device.previousNew?'+':''}${device.newDevices-device.previousNew} względem poprzedniego okresu`:'Pierwsze uruchomienia aplikacji'):'Oczekiwanie na dane urządzeń',scope:'Wszystkie urządzenia'},
@@ -61,10 +66,11 @@ export function StatisticsView({devices,devicesError,devicesReady=true,onMenuCli
   return <div data-statistics-view className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain ${isDarkTheme?'text-slate-100':'text-slate-900'}`}>
     <header className={`admin-topbar sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 backdrop-blur-xl sm:px-6 ${isDarkTheme?'border-white/5 bg-[#080d14]/90':'border-slate-200 bg-white/90'}`}>
       <div className="flex min-w-0 items-center gap-3"><button onClick={onMenuClick} aria-label="Otwórz menu statystyk" className={`rounded-xl p-2 lg:hidden ${muted}`}><Menu size={22}/></button><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border" style={{color:accentColor,backgroundColor:accentColor+'12',borderColor:accentColor+'30'}}><BarChart3 size={23}/></div><div><h1 className="text-xl font-bold tracking-tight">Statystyki</h1><p className={`mt-0.5 text-xs ${muted}`}>Aktywność aplikacji i kondycja API</p></div></div>
-      <button onClick={exportCsv} disabled={!loaded&&!history.startedAt} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold disabled:opacity-40 ${isDarkTheme?'border-white/10 hover:bg-white/5':'border-slate-200 hover:bg-slate-50'}`}><Download size={15}/>Eksport CSV</button>
+      <button onClick={exportCsv} disabled={exporting||(!loaded&&!history.startedAt)} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold disabled:opacity-40 ${isDarkTheme?'border-white/10 hover:bg-white/5':'border-slate-200 hover:bg-slate-50'}`}><Download size={15}/>{exporting?'Zapisywanie…':'Eksport CSV'}</button>
     </header>
     <main className="mx-auto w-full max-w-[1400px] space-y-5 p-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:p-6 sm:pb-10">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Przegląd</h2><p className={`mt-1 text-xs ${muted}`}>{new Date(now).toLocaleDateString('pl-PL',{timeZone:'Europe/Warsaw',day:'numeric',month:'long',year:'numeric'})} · czas polski</p></div><div role="group" aria-label="Zakres statystyk" className={`flex gap-1 rounded-2xl border p-1 ${card}`}>{ranges.map(([value,label])=><button key={value} onClick={()=>setRange(value)} aria-pressed={range===value} className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${range===value?'ui-accent-soft ui-accent-text':muted}`} style={range===value?{color:accentColor,backgroundColor:accentColor+'18'}:undefined}>{label}</button>)}</div></div>
+      {exportError&&<div role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-500">{exportError}</div>}
       {devicesError&&<div role="alert" className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-500">{devicesError} Statystyki API z tego urządzenia są nadal dostępne.</div>}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{tiles.map(tile=><section key={tile.title} className={`min-w-0 rounded-3xl border p-4 sm:p-5 ${card}`}><div className="flex items-center justify-between gap-2"><span className={`text-[10px] ${muted}`}>{tile.scope}</span><tile.icon size={17} style={{color:accentColor}} className="shrink-0 opacity-80"/></div><p className={`mt-4 text-xs font-medium ${muted}`}>{tile.title}</p><p className="mt-1.5 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl" data-statistic={tile.title}>{tile.value}</p><p className={`mt-3 text-[10px] leading-relaxed sm:text-xs ${muted}`}>{tile.detail}</p></section>)}</div>
       <div className="grid gap-4 xl:grid-cols-2">

@@ -87,3 +87,11 @@ test('request classification distinguishes PKS hosted by MPK and MPK trip and XM
   assert.equal(diagnosticRequest('https://api-site.marcel-bus.pl/client/api/trasy/kurs/12').provider,'marcel');
   assert.equal(diagnosticRequest('https://router.project-osrm.org/route/v1/driving/21,50;22,51'),null);
 });
+
+test('Android statistics export uses the native picker and propagates save errors',async()=>{
+  const calls=[],plugin={save:async options=>{calls.push(options);return {saved:false};}};
+  const helper=loadTs('lib/admin/statistics-export.ts',{'@capacitor/core':{Capacitor:{getPlatform:()=> 'android'},registerPlugin:name=>{assert.equal(name,'AdminStatisticsExport');return plugin;}}});
+  assert.deepEqual(await helper.saveStatisticsCsv('date;count','pks-live-statystyki-7-dni.csv'),{saved:false});
+  assert.deepEqual(calls,[{content:'date;count',filename:'pks-live-statystyki-7-dni.csv'}]);
+  plugin.save=async()=>{throw Error('Save failed');};await assert.rejects(helper.saveStatisticsCsv('csv','pks-live-statystyki-7-dni.csv'),/Save failed/);
+});
