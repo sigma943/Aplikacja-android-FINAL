@@ -28,7 +28,7 @@ import type {Vehicle} from '@/components/BusMap';
 import MapStopSheet from '@/components/MapStopSheet';
 import OptionsSheet from '@/components/OptionsSheet';
 import OptionsContent from '@/components/OptionsContent';
-import {type TransportOption} from '@/components/TransportSelectorPanel';
+import TransportSelectorPanel, {type TransportOption} from '@/components/TransportSelectorPanel';
 import TrainDetailsPanel from '@/components/TrainDetailsPanel';
 import {warsawDateIso} from '@/lib/transit-time';
 import type {Stop as StopsPanelStop} from '@/Panel/src/types';
