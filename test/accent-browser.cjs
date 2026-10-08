@@ -27,7 +27,7 @@ const server=http.createServer((req,res)=>{
     });
     await page.setRequestInterception(true);
     let showFixtureBus=false;
-    const fixtureBus=structuredClone(require('./fixtures/pks-vehicle.json'));
+    let fixtureBus=structuredClone(require('./fixtures/pks-vehicle.json'));
     fixtureBus.trip_id=987654321; // A live ID absent from the packaged GTFS index.
     fixtureBus.position.position_date='2026-10-06 14:18:30';
     fixtureBus.journey.vehicle_journey_date='2026-10-06';fixtureBus.journey.departure_time='14:25:00';
@@ -256,6 +256,20 @@ const server=http.createServer((req,res)=>{
     await screenshot('bus-compact');
     await page.waitForFunction(()=>history.state?.pksBackGuard===true);
     await page.evaluate(()=>history.back());await page.waitForSelector('[data-map-bus-sheet]',{hidden:true});
+    fixtureBus=structuredClone(require('./fixtures/pks-251-107-2026-10-08.json'));
+    fixtureBus.position.position_date='2026-10-06 14:18:30';fixtureBus.journey.vehicle_journey_date='2026-10-06';
+    fixtureBus.journey.departure_time='14:15:00';
+    fixtureBus.next_stop_points=fixtureBus.next_stop_points.map((stop,index)=>({...stop,planned_departure_time:`2026-10-06 14:${String(25+index).padStart(2,'0')}:00`,real_departure_time:`2026-10-06 14:${String(25+index).padStart(2,'0')}:00`}));
+    await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.925,lng:21.963},zoom:12})));
+    await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
+    await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());await page.waitForSelector('[data-map-bus-sheet]');
+    assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/251/);
+    await page.waitForFunction(()=>{
+      const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas?.width||!canvas?.height)return false;
+      const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+      let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100&&++painted>100)return true;return false;
+    },{timeout:20000});
+    await screenshot('pks-251-107-route');
     await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-transport-diagnostics]');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
     await button('Dodaj');

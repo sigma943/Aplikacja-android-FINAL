@@ -346,6 +346,7 @@ function preferredStopDisplayName(displayNamesByProvider: Record<string, string>
 
 function stopBaseNameKey(value: unknown) {
   return normalizeMergeName(value)
+    .replace(/\bdps\b/g, 'dom pomocy spolecznej')
     .replace(/\bpodkarp(?:acka)?\b/g, 'podkarpacka')
     .replace(/\bpodkar\b/g, 'podkarpacka')
     .replace(/\bmatuszczka\b/g, 'matuszczaka')

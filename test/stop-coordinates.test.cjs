@@ -106,3 +106,41 @@ test('complete bundled PKS/MPK catalogs have identical provider groups on the ma
   const map=buildStopsCatalog(pks,mpk,[],'complete-shared-identities',true);
   assert.deepEqual(map.map(s=>[s.id,s.providerStopIds]),list.map(s=>[s.id,s.providerStopIds]));
 });
+
+test('actual Babica DPS 45/Marcel 53 share one platform and the opposite DPS 02 stays separate',()=>{
+  const raw=require('./fixtures/babica-dps-providers.json');
+  const pks=raw.pks.map(s=>({id:String(s.stop_point_id),name:s.stop_area_name+' '+s.stop_point_code,
+    ...snapshot.stops[s.stop_point_id],lines:['251']}));
+  const domain=loadTs('components/stops-panel/stop-domain.ts',{'@/lib/pks-client':{}});
+  const marcel=raw.marcel.map((s,i)=>({id:'marcel-dps-'+i,name:s.nazMi+' - '+s.nazPr.replace(/\s*\([^)]*\)/g,''),
+    matchName:s.nazPr,matchKey:domain.marcelCourseStopMatchKey(s),cityMatchKey:domain.marcelCourseStopIndexKey(s),
+    lat:s.szGps,lon:s.dlGps,routeIds:[String(i+1)]}));
+  const list=buildStopsCatalog(pks,[],marcel,'real-babica-dps');
+  const map=buildStopsCatalog(pks,[],marcel,'real-babica-dps',true);
+  assert.equal(map.length,2);assert.deepEqual(map.map(s=>s.providerStopIds),list.map(s=>s.providerStopIds));
+  for(const [id,alias] of [['9026','marcel-dps-0'],['1365','marcel-dps-1']]){
+    const stop=map.find(s=>s.providerStopIds.pks===id);
+    assert.equal(stop.providerStopIds.marcel,alias);assert.deepEqual(stop.lines,['251','M']);
+    assert.deepEqual(stop.sourceProviderIds,['pks','marcel']);
+  }
+});
+test('different platform numbers only merge for a unique close Marcel alias with a full landmark identity',()=>{
+  const pks=[{id:'1',name:'Babica, DPS 45',lat:49.933608,lon:21.86101,lines:[]}];
+  const marcel={id:'M53',name:'Babica - Dom Pomocy Społecznej 53',matchName:'Dom Pomocy Społecznej 53',
+    lat:49.933698,lon:21.860982,routeIds:['18']};
+  const ambiguous=[...pks,{...pks[0],id:'2',name:'Babica, DPS 02',lat:49.933708}];
+  assert.equal(buildStopsCatalog(ambiguous,[],[marcel],'ambiguous-marcel-alias',true).length,3);
+  assert.equal(buildStopsCatalog(pks,[],[{...marcel,lat:49.9342}],'distant-marcel-alias',true).length,2);
+  const weak=buildStopsCatalog([{...pks[0],name:'Babica 45'}],[],[{...marcel,name:'Babica 53',matchName:'53'}],'weak-marcel-alias',true);
+  assert.equal(weak.find(s=>s.id==='1').providerStopIds.marcel,undefined,'a locality without a landmark cannot override platform numbers');
+});
+test('locality-only EINFO coordinates match unique GTFS landmark platforms on rural routes',async()=>{
+  const {matchCoordinates}=await import('../scripts/lib/stop-coordinate-matching.mjs');
+  const api=[{id:1946,name:'SOŁONKA',code:'02',lat:49.894206,lon:21.940075}],gtfs=[{id:339,name:'Sołonka pętla 02',lat:49.898904,lon:21.953101}];
+  assert.equal(matchCoordinates(api,gtfs).stops['1946'].gtfsStopId,'339');
+  assert.deepEqual(matchCoordinates(api,[...gtfs,{...gtfs[0],id:999,name:'Sołonka szkoła 02'}]).stops,{});
+  assert.deepEqual(matchCoordinates([...api,{...api[0],id:999}],gtfs).stops,{});
+  assert.deepEqual(matchCoordinates(api,[{...gtfs[0],name:'Sołonkowa pętla 02'}]).stops,{});
+  assert.deepEqual(matchCoordinates(api,[{...gtfs[0],name:'Sołonka pętla 03'}]).stops,{});
+  assert.deepEqual(matchCoordinates(api,[{...gtfs[0],lat:50.04}]).stops,{});
+});

@@ -126,3 +126,19 @@ test('coordinate pattern fallback rejects ambiguous shapes and preserves return-
     assert.deepEqual(await officialBusRoute('pks','new',[90,91,90],[a,b,a]),[]);
   }finally{global.fetch=original;}
 });
+
+test('actual PKS 251/bus 107 renders the entire road route including the Sołonka return leg',async()=>{
+  const raw=require('./fixtures/pks-251-107-2026-10-08.json'),snapshot=require('../public/data/pks-stop-points.json').stops;
+  const ids=raw.journey.route.stop_points,coords=ids.map(id=>[snapshot[id].lat,snapshot[id].lon]);
+  const oldFetch=global.fetch;global.fetch=async url=>new Response(fs.readFileSync('public'+url));
+  try{
+    const {officialBusRoute}=loadTs('lib/official-bus-routes.ts'),{roadRouteMatchesStops}=loadTs('lib/bus-road-geometry.ts');
+    const route=await officialBusRoute('pks',raw.trip_id,ids,coords);
+    assert.ok(route.length>1000);assert.ok(roadRouteMatchesStops(route,coords,180));
+    const approximate=structuredClone(coords);approximate[ids.indexOf(1946)]=[49.894206,21.940075];
+    assert.equal(roadRouteMatchesStops(route,approximate,180),false,'old approximate Sołonka point rejected this complete route');
+    assert.deepEqual(await officialBusRoute('pks',raw.trip_id,[...ids].reverse(),[...coords].reverse()),[]);
+    assert.deepEqual(await officialBusRoute('pks',raw.trip_id,ids.slice(1),coords.slice(1)),[]);
+    assert.ok((await officialBusRoute('pks','new-251-course',ids,coords)).length>1000);
+  }finally{global.fetch=oldFetch;}
+});

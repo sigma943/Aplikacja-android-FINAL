@@ -332,6 +332,23 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       mpkStop.lines.forEach((line) => stop.lineSet.add(line));
     });
 
+    // Marcel and PKS sometimes number the same platform differently. Only a
+    // unique surveyed neighbour with the full locality/landmark identity may
+    // override a number conflict; city platforms and opposite sides stay apart.
+    const findMarcelPlatformAlias = (raw: MarcelIndexedStop, name: string) => {
+      const key = stopBaseNameKey(name);
+      if (mergeTokens(name).length < 2) return null;
+      const candidates = (baseBuckets.get(key) || []).filter(candidate =>
+        candidate.sourceProviderIds?.some(provider => provider === 'pks' || provider === 'mpk_rzeszow') &&
+        !hasConflictingCityToken(name, candidate.name) &&
+        hasConflictingStopNumbers(name, candidate.name),
+      ).map(stop => ({stop, distance: distanceMeters(raw.lat, raw.lon, stop.lat, stop.lon)}))
+        .filter(candidate => candidate.distance <= 60).sort((a, b) => a.distance - b.distance);
+      if (!candidates.length || candidates[0].distance > 25) return null;
+      if (candidates[1] && candidates[1].distance - candidates[0].distance < 20) return null;
+      return candidates[0].stop;
+    };
+
     marcelStops.forEach((marcelStop) => {
       const displayName = stopDisplayName(marcelStop.name);
       const baseName = stopBaseNameKey(displayName);
@@ -340,7 +357,8 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         findSafeCrossProviderMatch({ name: displayName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['pks'])) ||
         findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['pks'])) ||
         findSafeCrossProviderMatch({ name: displayName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel'])) ||
-        findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel']));
+        findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel'])) ||
+        findMarcelPlatformAlias(marcelStop, displayName);
       if (matched) {
         attachProvider(matched, {
           ...marcelStop,

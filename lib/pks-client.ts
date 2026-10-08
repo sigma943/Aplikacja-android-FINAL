@@ -173,7 +173,7 @@ const vehicleSpeedHistory = new Map<string, { lat: number; lon: number; atMs: nu
 const MARCEL_STALE_MS = 7 * 60 * 1000;
 const CLIENT_STOP_CACHE_VERSION = 4;
 const CLIENT_STOP_CACHE_TTL_MS = 15 * 60 * 1000;
-const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v6';
+const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v7';
 const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v4';
 
 type MarcelCourseStop = {
