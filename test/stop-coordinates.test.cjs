@@ -144,3 +144,19 @@ test('locality-only EINFO coordinates match unique GTFS landmark platforms on ru
   assert.deepEqual(matchCoordinates(api,[{...gtfs[0],name:'Sołonka pętla 03'}]).stops,{});
   assert.deepEqual(matchCoordinates(api,[{...gtfs[0],lat:50.04}]).stops,{});
 });
+
+
+test('Lisa Kuli/Mochn. 03 resolves to the official outgoing platform and survives API refresh',async()=>{
+  const {matchCoordinates}=await import('../scripts/lib/stop-coordinate-matching.mjs');
+  const api={id:'11461',name:'RZESZÓW, LISA KULI/MOCHN.',code:'03',lat:50.034968,lon:21.998124};
+  const gtfs={id:'1789',name:'Rzeszów, Lisa-Kuli / Mochnackiego 03',lat:50.035944,lon:21.99708};
+  assert.equal(matchCoordinates([api],[gtfs]).stops['11461'].gtfsStopId,'1789');
+  assert.deepEqual(matchCoordinates([api],[{...gtfs,name:'Rzeszów, Lisa-Kuli / Moniuszki 03'}]).stops,{});
+  assert.deepEqual(matchCoordinates([api],[{...gtfs,name:'Rzeszów, Lisa-Kuli / Mochnackiego 04'}]).stops,{});
+  const point=snapshot.stops['11461'];
+  assert.deepEqual([point.lat,point.lon,point.coordinateSource,point.gtfsStopId],[gtfs.lat,gtfs.lon,'gtfs','1789']);
+  const client=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}},'\nexport {formatPksStops};');
+  const result=client.formatPksStops({items:[{stop_point_id:11461,stop_point_code:'03',stop_area_id:4299,
+    stop_area_name:api.name,location:{lat:api.lat,lon:api.lon}}]},snapshot)['11461'];
+  assert.deepEqual([result.lat,result.lon,result.code,result.areaId],[gtfs.lat,gtfs.lon,'03','4299']);
+});

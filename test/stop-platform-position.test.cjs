@@ -26,3 +26,11 @@ test('the packaged catalog contains only named validated passenger platforms',()
   assert.ok(catalog.points.length>1000);
   for(const p of catalog.points){assert.ok(p.name&&p.id);assert.ok(p.lat>=48&&p.lat<=56&&p.lon>=14&&p.lon<=25);}
 });
+
+test('named Mochnackiego platforms accept the provider abbreviation but never the opposite code',()=>{
+  const point={id:'platform/03',name:'Lisa-Kuli / Mochnackiego 03',lat:50.035944,lon:21.99708};
+  const resolve=createPlatformResolver([point]);
+  const stop={name:'Rzeszów, Lisa Kuli/Mochn. 03',lat:50.0359,lon:21.9971};
+  assert.deepEqual(resolve(stop),{lat:point.lat,lon:point.lon});
+  assert.equal(resolve({...stop,name:'Rzeszów, Lisa Kuli/Mochn. 04'}),null);
+});

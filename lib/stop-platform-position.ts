@@ -2,7 +2,7 @@ import {readBusCoordinates} from './bus-coordinates';
 
 export type PlatformPoint={id:string;name:string;code?:string;lat:number;lon:number};
 type StopPoint={name?:string;n?:string;code?:string;lat?:number;lon?:number};
-const aliases:Record<string,string>={szk:'szkola',szkole:'szkola',kosc:'kosciol',kos:'kosciol',skrz:'skrzyzowanie',skr:'skrzyzowanie',przych:'przychodnia',cment:'cmentarz',cm:'cmentarz',osr:'osrodek',dw:'dworzec',szp:'szpital'};
+const aliases:Record<string,string>={szk:'szkola',szkole:'szkola',kosc:'kosciol',kos:'kosciol',skrz:'skrzyzowanie',skr:'skrzyzowanie',przych:'przychodnia',cment:'cmentarz',cm:'cmentarz',osr:'osrodek',dw:'dworzec',szp:'szpital',mochn:'mochnackiego'};
 function identity(name:string,code?:string){
   const clean=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l').replace(/\s+nz\.?$/,'').trim();
   const suffix=/\s(\d+[a-z]?)$/.exec(clean);
