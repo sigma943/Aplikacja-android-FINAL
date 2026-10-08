@@ -1,3 +1,4 @@
+import {displayStopLabel} from '@/lib/stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
 import React, { useEffect, useDeferredValue, useMemo, useState } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
@@ -244,7 +245,7 @@ export default function StopList({
         transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 230, damping: 30}}}
         role="button"
         tabIndex={0}
-        aria-label={`Rozkład: ${stop.name}`}
+        aria-label={`Rozkład: ${displayStopLabel(stop.name)}`}
         onKeyDown={event => {
           if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
           event.preventDefault();
@@ -271,7 +272,7 @@ export default function StopList({
 
         <div className="min-w-0 flex-1 pr-2">
           <h3 className={`truncate text-[15px] font-semibold transition-colors lg:text-[17px] ${cardTitleClass}`}>
-            {stop.name}
+            {displayStopLabel(stop.name)}
           </h3>
           <div className="mt-1 flex flex-col gap-1">
             <div className={`flex min-w-0 flex-wrap items-center text-[12px] font-semibold ${secondaryTextClass}`}>

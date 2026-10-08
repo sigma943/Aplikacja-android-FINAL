@@ -332,9 +332,19 @@ const server=http.createServer((req,res)=>{
     assert.equal(shield.w,24);assert.equal(shield.h,24);assert.equal(shield.pw,shield.ph);
     const checkSave=async()=>{const result=await page.evaluate(()=>{const buttons=[...document.querySelectorAll('.admin-modal-overlay button')];const b=buttons.find(el=>el.textContent.trim()==='Zapisz zmiany'),r=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:innerHeight,covered:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)!==b};});assert.ok(result.top>=0&&result.bottom<=result.height,JSON.stringify(result));assert.equal(result.covered,false);};
     await checkSave();await screenshot('admin-roles-mobile');
+    await page.waitForSelector('[data-permission="statistics"]');
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.disabled),false);
+    await page.$eval('[data-permission="statistics"]',el=>el.click());
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.getAttribute('aria-pressed')),'false');
+    await button('WŁAŚCICIEL');
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.disabled),true);
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.getAttribute('aria-pressed')),'true');
+    assert.ok(await page.$eval('[data-permission="statistics"]',el=>Number(getComputedStyle(el).opacity)<1));
+    await button('ADMIN');await page.$eval('[data-permission="statistics"]',el=>el.click());
+
     await page.setViewport({width:320,height:568,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();
     await page.setViewport({width:393,height:400,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();await screenshot('admin-roles-keyboard-height');
-    await button('Zapisz zmiany');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));await button('Ban');await fitDialog();
+    await button('Zapisz zmiany');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));assert.equal(await page.evaluate(()=>window.__savedRole.permissions.statistics),false);await button('Ban');await fitDialog();
     await page.evaluate(()=>{const body=document.querySelector('.admin-modal-overlay .overflow-y-auto');body.scrollTop=body.scrollHeight;});
     await button('ZABLOKUJ URZĄDZENIE');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));
     console.log('Browser: real role, ban and history dialogs escape transformed parents, fit small phones and keyboard height, stay above navigation and keep the shield square.');
@@ -366,6 +376,12 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[data-statistic="Skuteczność API"]',el=>el.textContent),'97%');
     const statisticsFits=async()=>assert.equal(await page.$eval('[data-statistics-view]',el=>el.scrollWidth>el.clientWidth+1),false,'Statistics must fit without horizontal overflow');
     await statisticsFits();await screenshot('statistics-dark-mobile');
+    const headerStyle=await page.$eval('[data-statistics-view] header',el=>({position:getComputedStyle(el).position,background:getComputedStyle(el).backgroundColor}));
+    assert.ok(!['fixed','sticky'].includes(headerStyle.position));assert.equal(headerStyle.background,'rgba(0, 0, 0, 0)');
+    await page.$eval('[data-statistics-view]',el=>el.scrollTop=400);
+    await page.waitForFunction(()=>document.querySelector('[data-statistics-view] header').getBoundingClientRect().bottom<document.querySelector('[data-statistics-view]').getBoundingClientRect().top);
+    await screenshot('statistics-header-scrolled-away');await page.$eval('[data-statistics-view]',el=>el.scrollTop=0);
+
     await button('90 dni');assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect[role="button"]',nodes=>nodes.length),90);
     await button('Dzisiaj');assert.equal(await page.$$eval('[data-statistics-chart="installations"] rect[role="button"]',nodes=>nodes.length),1);
     await button('7 dni');

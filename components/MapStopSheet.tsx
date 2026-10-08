@@ -1,5 +1,6 @@
 'use client';
 
+import {displayStopLabel} from '@/lib/stop-label';
 import { Clock, ChevronUp } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import {useEffect,useState} from 'react';
@@ -56,7 +57,7 @@ export default function MapStopSheet({ name, expanded, onExpandedChange, transpa
       >
         <span className="flex items-center gap-3">
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-base font-bold tracking-tight">{name}</span>
+            <span className="block truncate text-base font-bold tracking-tight">{displayStopLabel(name)}</span>
             <span className="map-detail-muted mt-1 block truncate text-xs">
               {loading ? 'Pobieranie odjazdów…' : next ? `${next.line} · ${next.direction} · ${next.time}` : 'Odjazdy z tego przystanku'}
             </span>

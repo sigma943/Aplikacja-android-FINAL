@@ -1,3 +1,4 @@
+import {displayStopLabel} from '@/lib/stop-label';
 import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
@@ -197,7 +198,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Stop Info */}
           <div className="relative z-10">
-            <h1 className={`text-xl sm:text-2xl lg:text-3xl font-semibold mb-2 tracking-tight leading-tight break-words ${headingTextClass}`}>{stop.name}</h1>
+            <h1 className={`text-xl sm:text-2xl lg:text-3xl font-semibold mb-2 tracking-tight leading-tight break-words ${headingTextClass}`}>{displayStopLabel(stop.name)}</h1>
             
             <div className="flex flex-wrap gap-1">
               {[...stop.carriers].sort((a, b) => {

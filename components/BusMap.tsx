@@ -1,4 +1,5 @@
 'use client';
+import {displayStopLabel} from '@/lib/stop-label';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 
 import { memo, startTransition, useEffect, useState, useRef, useCallback, useMemo } from 'react';
@@ -960,7 +961,7 @@ function CatalogStopsLayer({stops,selected,onSelect}:{stops:Stop[];selected?:str
   useMapEvents({moveend:()=>setRevision(value=>value+1),zoomend:()=>setRevision(value=>value+1)});
   const visible=useMemo(()=>{const bounds=map.getBounds();return visibleMapStops(stops,[bounds.getWest(),bounds.getSouth(),bounds.getEast(),bounds.getNorth()],map.getZoom(),selected);},[map,stops,selected,revision]);
   const icons=useMemo(()=>new Map(visible.map(stop=>[stop.id,L.divIcon({className:'map-catalog-stop',html:mapStopIconHtml(mapStopColor(stop),stop.id===selected),iconSize:[40,40],iconAnchor:[20,20]})])),[visible,selected]);
-  return <>{visible.map(stop=><Marker key={stop.id} position={[stop.lat!,stop.lon!]} title={stop.name} alt={stop.name}
+  return <>{visible.map(stop=><Marker key={stop.id} position={[stop.lat!,stop.lon!]} title={displayStopLabel(stop.name)} alt={displayStopLabel(stop.name)}
     icon={icons.get(stop.id)!} zIndexOffset={stop.id===selected?4500:-500}
     eventHandlers={{click:event=>{L.DomEvent.stopPropagation(event.originalEvent);onSelect?.(stop);}}}/>)}</>;
 }

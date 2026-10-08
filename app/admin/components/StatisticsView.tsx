@@ -47,7 +47,7 @@ export function StatisticsView({devices,devicesError,devicesReady=true,onMenuCli
   const api=useMemo(()=>apiStatistics(history.days,range,history.startedAt,now),[history,range,now]);
   const loaded=devicesReady&&!devicesError;
   const muted=isDarkTheme?'text-slate-400':'text-slate-500';
-  const card=isDarkTheme?'border-white/[0.08] bg-[#0d151f]/75':'border-slate-200 bg-white/85';
+  const card=isDarkTheme?'border-white/[0.08] bg-[#111623]':'border-slate-200 bg-white/85';
   const soft=isDarkTheme?'bg-white/[0.035]':'bg-slate-50';
   const period=range===1?'dzisiaj':`w ostatnich ${range} dniach`;
   const exportCsv=async()=>{
@@ -64,11 +64,11 @@ export function StatisticsView({devices,devicesError,devicesReady=true,onMenuCli
     {title:'Skuteczność API',value:api.successRate===null?'—':api.successRate.toLocaleString('pl-PL',{maximumFractionDigits:1})+'%',icon:CheckCircle2,detail:api.requests?`${number(api.requests-api.errors)} poprawnych odpowiedzi`:'Brak zapytań w tym okresie',scope:'To urządzenie'},
   ];
   return <div data-statistics-view className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain ${isDarkTheme?'text-slate-100':'text-slate-900'}`}>
-    <header className={`admin-topbar sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 backdrop-blur-xl sm:px-6 ${isDarkTheme?'border-white/5 bg-[#080d14]/90':'border-slate-200 bg-white/90'}`}>
-      <div className="flex min-w-0 items-center gap-3"><button onClick={onMenuClick} aria-label="Otwórz menu statystyk" className={`rounded-xl p-2 lg:hidden ${muted}`}><Menu size={22}/></button><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border" style={{color:accentColor,backgroundColor:accentColor+'12',borderColor:accentColor+'30'}}><BarChart3 size={23}/></div><div><h1 className="text-xl font-bold tracking-tight">Statystyki</h1><p className={`mt-0.5 text-xs ${muted}`}>Aktywność aplikacji i kondycja API</p></div></div>
+    <header className="flex shrink-0 flex-col gap-4 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:pt-8">
+      <div className="flex items-center gap-4"><button onClick={onMenuClick} aria-label="Otwórz menu statystyk" className="lg:hidden w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"><Menu size={20}/></button><div><h1 className="text-lg font-bold uppercase tracking-wider">Statystyki</h1><p className={`mt-0.5 text-[10px] font-medium uppercase tracking-widest ${muted}`}>Aktywność aplikacji i kondycja API</p></div></div>
       <button onClick={exportCsv} disabled={exporting||(!loaded&&!history.startedAt)} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold disabled:opacity-40 ${isDarkTheme?'border-white/10 hover:bg-white/5':'border-slate-200 hover:bg-slate-50'}`}><Download size={15}/>{exporting?'Zapisywanie…':'Eksport CSV'}</button>
     </header>
-    <main className="mx-auto w-full max-w-[1400px] space-y-5 p-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:p-6 sm:pb-10">
+    <main className="mx-auto w-full max-w-4xl space-y-5 p-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:p-8 sm:pb-10">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Przegląd</h2><p className={`mt-1 text-xs ${muted}`}>{new Date(now).toLocaleDateString('pl-PL',{timeZone:'Europe/Warsaw',day:'numeric',month:'long',year:'numeric'})} · czas polski</p></div><div role="group" aria-label="Zakres statystyk" className={`flex gap-1 rounded-2xl border p-1 ${card}`}>{ranges.map(([value,label])=><button key={value} onClick={()=>setRange(value)} aria-pressed={range===value} className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${range===value?'ui-accent-soft ui-accent-text':muted}`} style={range===value?{color:accentColor,backgroundColor:accentColor+'18'}:undefined}>{label}</button>)}</div></div>
       {exportError&&<div role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-500">{exportError}</div>}
       {devicesError&&<div role="alert" className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-500">{devicesError} Statystyki API z tego urządzenia są nadal dostępne.</div>}

@@ -1,4 +1,5 @@
 'use client';
+import {displayStopLabel} from '@/lib/stop-label';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {onWidgetOpen} from '@/lib/stop-widget';
 
@@ -1740,7 +1741,7 @@ export default function Home() {
                                   >
                                      <div className={`w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm leading-none transition-colors ${isHighlighted ? 'border-red-500' : (isDark ? 'border-slate-800/80' : 'border-white/85')}`} style={{ backgroundColor: isHighlighted ? selectedVehicleColor : (isPastStop ? '#94a3b8' : selectedVehicleColor) }}></div>
                                      <div className={`flex flex-col flex-1 pb-2 border-b ${mapDetailDivider} ${isHighlighted ? 'border-transparent' : ''}`}>
-                                        <span className={`text-[13px] font-semibold leading-tight pr-2 ${textMain}`}>{formatScheduleStopName(sch.name)}</span>
+                                        <span className={`text-[13px] font-semibold leading-tight pr-2 ${textMain}`}>{displayStopLabel(formatScheduleStopName(sch.name))}</span>
                                         {timeStr && (
                                           <div className="flex items-center gap-2 mt-1">
                                              <span className={`text-xs font-bold font-mono ${timeClass}`}>{timeStr}</span>

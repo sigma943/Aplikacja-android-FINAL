@@ -1,7 +1,7 @@
 import {AdminModalPortal} from './AdminModalPortal';
 import {useAppBack} from '@/lib/use-app-back';
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Filter, Plus, Monitor, Shield, Users, Settings, MoreVertical, Activity, Lock, X, Menu, Hammer, Crown, Globe, SlidersHorizontal, UserCog } from 'lucide-react';
+import { Search, Filter, Plus, Monitor, Shield, Users, Settings, MoreVertical, Activity, Lock, X, Menu, Hammer, Crown, Globe, SlidersHorizontal, UserCog, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from './Badge';
 import { Operator, OperatorRole } from '../types';
@@ -290,6 +290,7 @@ function OperatorCard({
           </div>
 
           <div className="flex gap-2 mt-3.5 flex-wrap">
+             <PermissionIcon active={operator.permissions.statistics} icon={<BarChart3 size={14} />} title="Statystyki" />
              <PermissionIcon active={operator.permissions.monitor} icon={<Monitor size={14} />} title="Urządzenia" />
              <PermissionIcon active={operator.permissions.shield} icon={<Shield size={14} />} title="Role i operatorzy" />
              <PermissionIcon active={operator.permissions.users} icon={<Users size={14} />} title="Zarządzanie użytkownikami" />
@@ -382,7 +383,7 @@ function EditRoleModal({
     setRole(operator.role);
     setPermissions(
       operator.role === 'ADMIN' || operator.role === 'WŁAŚCICIEL'
-        ? { ...operator.permissions, monitor: true }
+        ? { ...operator.permissions, statistics: operator.role==='WŁAŚCICIEL'||operator.permissions.statistics!==false, monitor: true }
         : operator.permissions,
     );
   }, [operator.id, operator.role, operator.permissions]);
@@ -391,6 +392,7 @@ function EditRoleModal({
     setRole(newRole);
     if (newRole === 'WŁAŚCICIEL') {
       setPermissions({
+        statistics: true,
         monitor: true,
         shield: true,
         users: true,
@@ -405,6 +407,7 @@ disableStops: false,
       });
     } else if (newRole === 'UŻYTKOWNIK') {
       setPermissions({
+        statistics: false,
         monitor: false,
         shield: false,
         users: false,
@@ -420,6 +423,7 @@ disableStops: false,
     } else {
       // Default for Admin when manually switched
       setPermissions({
+        statistics: true,
         monitor: true,
         shield: false,
         users: false,
@@ -438,7 +442,7 @@ disableStops: false,
   const isDisabled = role === 'UŻYTKOWNIK' || role === 'WŁAŚCICIEL';
 
   const togglePermission = (key: keyof Operator['permissions']) => {
-    if (isDisabled || isSelf) return;
+    if (isDisabled || isSelf || (key==='statistics'&&!canAssignOwner)) return;
     if (key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL')) return;
     setPermissions((prev) => {
       const next = { ...prev, [key]: !prev[key] };
@@ -451,6 +455,7 @@ disableStops: false,
   const ownerPickDisabled = !canAssignOwner && operator.role !== 'WŁAŚCICIEL';
 
   const permsList = [
+    {key:'statistics',label:'Statystyki',desc:'Dostęp do wykresów i statystyk aplikacji',icon:<BarChart3 size={16}/>},
     { key: 'monitor', label: 'Urządzenia', desc: 'Sekcja do zarządzania urządzeniami', icon: <Monitor size={16} /> },
     { key: 'shield', label: 'Role i operatorzy', desc: 'Tworzenie i podgląd operatorów', icon: <Shield size={16} /> },
     { key: 'canChangeRoles', label: 'Nadawanie rang', desc: 'Pozwala zmieniac role uzytkownikow', icon: <UserCog size={16} /> },
@@ -512,14 +517,16 @@ disableStops: false,
               {permsList.map(p => (
                 <button 
                   key={p.key}
-                  disabled={isDisabled || isSelf || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))}
+                  data-permission={p.key}
+                  aria-pressed={Boolean(permissions[p.key])}
+                  disabled={isDisabled || isSelf || (p.key === 'statistics' && !canAssignOwner) || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))}
                   onClick={() => togglePermission(p.key)}
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left group",
                     permissions[p.key] 
                       ? "ui-accent-soft"
                       : "bg-[#111623] border-white/5",
-                    isDisabled || isSelf || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))
+                    isDisabled || isSelf || (p.key === 'statistics' && !canAssignOwner) || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))
                       ? "opacity-60 cursor-not-allowed grayscale-[0.4] brightness-[0.85]"
                       : "cursor-pointer active:scale-[0.98]"
                   )}
@@ -570,7 +577,7 @@ disableStops: false,
                 ...operator,
                 role,
                 permissions: role.includes('CICIEL')
-                  ? { ...permissions, monitor: true, canChangeRoles: true }
+                  ? { ...permissions, statistics: true, monitor: true, canChangeRoles: true }
                   : role === 'ADMIN'
                     ? { ...permissions, monitor: true }
                     : { ...permissions, canChangeRoles: false },

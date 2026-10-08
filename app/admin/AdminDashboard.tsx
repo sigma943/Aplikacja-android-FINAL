@@ -1,5 +1,6 @@
 'use client';
 import { motion, useReducedMotion } from 'motion/react';
+import {readStatisticsAccess,statisticsPermission,statisticsAccessChange,type StatisticsAccess} from '@/lib/admin/statistics-access';
 import { uiAccentVariables } from '@/lib/ui-accent';
 
 import type { CSSProperties } from 'react';
@@ -280,6 +281,8 @@ export interface AdminDashboardProps {
 export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
   const { device: currentDevice, loading, user, localLastSeenMs } = useFirebase();
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
+  const [statisticsAccess,setStatisticsAccess]=useState<StatisticsAccess>({});
+  const [statisticsAccessReady,setStatisticsAccessReady]=useState(false);
   const [statisticsDevicesReady, setStatisticsDevicesReady] = useState(false);
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [adminLogRaws, setAdminLogRaws] = useState<AdminLogRaw[]>([]);
@@ -411,13 +414,14 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   useEffect(() => {
     if (loading || !currentDevice) return;
     const caps = effectiveAdminPermissionsForDisplay(currentDevice.role, currentDevice.permissions);
-    if (!caps.globalSettings && !caps.globalSettingsEdit) return;
-
+    if (!canAccessAdminDashboard(currentDevice.role,currentDevice.permissions)) return;
+    setStatisticsAccessReady(false);
     const unsub = onSnapshot(doc(db, 'admin_settings', 'security'), (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.data() as Record<string, unknown>;
+      const data = (snap.data()||{}) as Record<string, unknown>;
+      setStatisticsAccess(readStatisticsAccess(data.statisticsAccess));setStatisticsAccessReady(true);
+      if (!snap.exists() || (!caps.globalSettings && !caps.globalSettingsEdit)) return;
       setGlobalSettings({
-        loginEnabled: Boolean(data.loginEnabled),
+        loginEnabled: Boolean(data.loginEnabled ?? true),
         maintenanceMode: Boolean(data.maintenanceMode),
         autoBan: Boolean(data.autoBan),
         hiddenProviderIds: Array.isArray(data.hiddenProviderIds)
@@ -425,9 +429,9 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
               .filter((providerId) => providerId !== 'pkp_intercity')
           : [],
       });
-    });
+    },()=>{setStatisticsAccess({});setStatisticsAccessReady(false);});
     return () => unsub();
-  }, [currentDevice, loading]);
+  }, [loading,user?.uid,currentDevice?.role,currentDevice?.installationId,currentDevice?.permissions?.globalSettings,currentDevice?.permissions?.globalSettingsEdit]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -473,11 +477,12 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   useEffect(() => {
     if (loading || !currentDevice) return;
     const caps = effectiveAdminPermissionsForDisplay(currentDevice.role, currentDevice.permissions);
+    if (activeView==='statistics' && !statisticsPermission({id:user?.uid||'',role:currentDevice.role,installationId:currentDevice.installationId},statisticsAccess,statisticsAccessReady))setActiveView('devices');
     if (activeView === 'logs' && !caps.logs) setActiveView('devices');
     if (activeView === 'operators' && !caps.shield) setActiveView('devices');
     if (activeView === 'bans' && currentDevice.role !== 'owner' && !caps.group) setActiveView('devices');
     if (activeView === 'maintenance' && currentDevice.role !== 'owner' && !caps.globalSettings && !caps.globalSettingsEdit) setActiveView('devices');
-  }, [activeView, currentDevice, loading]);
+  }, [activeView, currentDevice, loading,statisticsAccess,statisticsAccessReady,user?.uid]);
 
   const logsData = useMemo(() => enrichAdminLogsForUi(adminLogRaws, devicesData), [adminLogRaws, devicesData]);
 
@@ -503,7 +508,9 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   const globalSettingsSectionVisible =
     currentDevice.role === 'owner' || myCaps.globalSettings || myCaps.globalSettingsEdit;
   const globalSettingsCanSave = currentDevice.role === 'owner' || myCaps.globalSettingsEdit;
-  const allowedNavIds: string[] = ['devices', 'statistics'];
+  const statisticsAllowed=statisticsPermission({id:uid,role:currentDevice.role,installationId:currentDevice.installationId},statisticsAccess,statisticsAccessReady);
+  const allowedNavIds: string[] = ['devices'];
+  if(statisticsAllowed)allowedNavIds.push('statistics');
   if (currentDevice.role === 'owner' || myCaps.shield) allowedNavIds.push('operators');
   if (currentDevice.role === 'owner' || myCaps.group) allowedNavIds.push('bans');
   if (currentDevice.role === 'owner' || myCaps.logs) allowedNavIds.push('logs');
@@ -546,7 +553,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     iconType: determineIconType(d.deviceInfo),
     lastSeenLabel: lastSeenInfoFor(d).label,
     lastSeenOnline: lastSeenInfoFor(d).online,
-    permissions: effectiveAdminPermissionsForDisplay(d.role, d.permissions),
+    permissions: {...effectiveAdminPermissionsForDisplay(d.role, d.permissions),statistics:statisticsPermission(d,statisticsAccess)},
   }));
 
   const operators: Operator[] = devicesData
@@ -555,7 +562,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       const role = (
         d.role === 'owner' ? 'WŁAŚCICIEL' : d.role === 'admin' ? 'ADMIN' : 'UŻYTKOWNIK'
       ) as OperatorRole;
-      const permissions = effectiveAdminPermissionsForDisplay(d.role, d.permissions);
+      const permissions = {...effectiveAdminPermissionsForDisplay(d.role, d.permissions),statistics:statisticsPermission(d,statisticsAccess)};
       const lastSeenInfo = lastSeenInfoFor(d);
       return {
         id: d.id,
@@ -928,6 +935,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       }
 
       const roleBatch = writeBatch(db);
+      stageStatisticsAccess(roleBatch,targetRow,fbRole,permissions.statistics);
       roleBatch.update(doc(db, 'devices', selectedDeviceForRole.id), patch);
       await syncInstallationProfile(
         targetRow?.installationId,
@@ -1103,6 +1111,14 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     }
   };
 
+  const stageStatisticsAccess=(batch:WriteBatch,target:{id:string;installationId?:string}|undefined,role:DeviceRole,requested:boolean|undefined)=>{
+    if(!target)return;
+    const change=statisticsAccessChange(target,role,requested,statisticsAccess);
+    if(!change)return;
+    if(currentDevice.role!=='owner')throw new Error('Tylko właściciel może zmieniać dostęp do statystyk.');
+    batch.set(doc(db,'admin_settings','security'),{statisticsAccess:{[change.key]:change.enabled}},{merge:true});
+  };
+
   const saveOperatorPatch = async (operatorId: string, role: OperatorRole, permissions: Operator['permissions']) => {
     if (!assertNotSelf(operatorId)) return;
     if (!canChangeRolesUi) {
@@ -1129,6 +1145,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       if (fbRole === 'owner' || fbRole === 'admin') normalized.monitor = true;
       const verified = fbRole === 'owner' || fbRole === 'admin' || target?.verified === true;
       const roleBatch = writeBatch(db);
+      stageStatisticsAccess(roleBatch,target,fbRole,permissions.statistics);
       roleBatch.update(doc(db, 'devices', operatorId), {
         role: fbRole,
         verified,
@@ -1536,7 +1553,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         />
         )}
 
-        {activeView === 'statistics' && (
+        {activeView === 'statistics' && statisticsAllowed && (
           <StatisticsView devices={devicesData} devicesError={devicesError} devicesReady={statisticsDevicesReady} onMenuClick={() => setIsSidebarOpen(true)} accentColor={themeColor} isDarkTheme={isDarkTheme} />
         )}
 
