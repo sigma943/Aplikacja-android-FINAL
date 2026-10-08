@@ -4,13 +4,15 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 
-module.exports = function loadTs(relativePath, overrides = {}, extraExports = '') {
+module.exports = function loadTs(relativePath, overrides = {}, extraExports = '', moduleCache = new Map()) {
   const filename = path.resolve(root, relativePath);
+  if (moduleCache.has(filename)) return moduleCache.get(filename).exports;
   const source = fs.readFileSync(filename, 'utf8') + extraExports;
   const output = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
   }}).outputText;
   const module = { exports: {} };
+  moduleCache.set(filename, module);
   const localRequire = (name) => {
     if (Object.hasOwn(overrides, name)) return overrides[name];
     if (name.startsWith('.') || name.startsWith('@/')) {
@@ -18,7 +20,7 @@ module.exports = function loadTs(relativePath, overrides = {}, extraExports = ''
       if(resolved.endsWith('.json')) return require(path.resolve(root,resolved));
       const dependency = ['.ts', '.tsx'].map(extension => `${resolved}${extension}`).find(file => fs.existsSync(path.resolve(root, file)));
       if (!dependency) throw new Error(`Missing local TypeScript module: ${resolved}`);
-      return loadTs(dependency, overrides);
+      return loadTs(dependency, overrides, '', moduleCache);
     }
     return require(name);
   };
