@@ -87,3 +87,22 @@ test('map and list share cross-provider proximity rules for differently abbrevia
   assert.equal(buildStopsCatalog(pks,mpk,[],'rural-abbreviations-map',true).length,1);
   assert.equal(buildStopsCatalog(pks,mpk,[],'rural-abbreviations-list').length,1);
 });
+
+test('map uses exactly the list identities when provider coordinates differ beyond the former marker threshold',()=>{
+  const mpk=[{id:'a',name:'Podkarpacka / Matuszczaka 03',lat:50.01,lon:22,lines:['11']},
+    {id:'b',name:'Podkarpacka / Matuszczaka 03',lat:50.01055,lon:22,lines:['23']},
+    {id:'c',name:'Podkarpacka / Matuszczaka 04',lat:50.01056,lon:22,lines:['30']}];
+  const list=buildStopsCatalog([],mpk,[],'shared-canonical-threshold');
+  const map=buildStopsCatalog([],mpk,[],'shared-canonical-threshold',true);
+  assert.equal(list.length,2);assert.equal(map.length,2);
+  assert.deepEqual(map.map(s=>s.providerStopIds),list.map(s=>s.providerStopIds));
+  assert.equal(map.find(s=>s.providerStopIds.mpk_rzeszow.includes('a')).lat,50.01);
+});
+test('complete bundled PKS/MPK catalogs have identical provider groups on the map and list',()=>{
+  const pks=Object.entries(snapshot.stops).map(([id,s])=>({id,name:s.n+(s.code?' '+s.code:''),lat:s.lat,lon:s.lon,areaId:s.areaId,code:s.code,lines:[]}));
+  const gtfs=JSON.parse(fs.readFileSync('public/data/bus-routes/mpk_rzeszow.json')).stops;
+  const mpk=Object.entries(gtfs).map(([id,s])=>({id,...s,lines:[]}));
+  const list=buildStopsCatalog(pks,mpk,[],'complete-shared-identities');
+  const map=buildStopsCatalog(pks,mpk,[],'complete-shared-identities',true);
+  assert.deepEqual(map.map(s=>[s.id,s.providerStopIds]),list.map(s=>[s.id,s.providerStopIds]));
+});

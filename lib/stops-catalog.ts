@@ -6,6 +6,24 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     const cached = MERGED_STOPS_RUNTIME_CACHE.get(cacheKey);
     if (cached) return cached;
 
+    // Both surfaces use one canonical identity pipeline. The map only chooses
+    // the surveyed platform coordinate; it must never rebuild separate groups.
+    if (physicalPoints) {
+      const mpkById = new Map(mpkStops.map(stop => [stop.id, stop]));
+      const canonical = buildStopsCatalog(stops, mpkStops, marcelStops, mergedStopsCacheKey);
+      const points = canonical.map(stop => {
+        const precise = String(stop.providerStopIds?.mpk_rzeszow || '').split(',')
+          .map(id => mpkById.get(id.trim())).find(point => Number.isFinite(point?.lat) && Number.isFinite(point?.lon));
+        return precise ? {...stop, lat: precise.lat, lon: precise.lon} : stop;
+      });
+      MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, points);
+      if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {
+        const oldest = MERGED_STOPS_RUNTIME_CACHE.keys().next().value;
+        if (oldest) MERGED_STOPS_RUNTIME_CACHE.delete(oldest);
+      }
+      return points;
+    }
+
     // Provider coordinates can differ along the same numbered platform. Match
     // its full name/code, never just proximity (opposite directions stay apart).
     const platformKey = (name: string) => normalizeStopMergeName(name).split(' ')
@@ -210,15 +228,14 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         if (exactIdentity && platformKey(raw.name) !== platformKey(candidate.name)) continue;
         const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
         const hasGeo = Number.isFinite(distance);
+        // Reject a geographically impossible match before costly text scoring.
+        if (hasGeo && distance > 550) continue;
         if (hasConflictingCityToken(raw.name, candidate.name)) continue;
         if (hasConflictingStopNumbers(raw.name, candidate.name)) continue;
         if (weakName && hasGeo && distance > 120) continue;
         const similarity = Math.max(nameSimilarityScore(raw.name, candidate.name), getSimilarity(raw.name, candidate.name));
         const sharedTokens = sharedStopTokenCount(raw.name, candidate.name);
         const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.34 : 0;
-        if (hasGeo && distance > 550) continue;
-        // A list may consolidate nearby stops; map pins must represent one physical platform.
-        if (physicalPoints && (!hasGeo || distance > (exactIdentity ? (sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8) : 140))) continue;
         if (!hasGeo && candidate.baseNameKey !== baseNameKey && similarity < 0.92) continue;
         const distanceScore = hasGeo
           ? distance <= 35
@@ -291,7 +308,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         provider: 'pks',
         carrier: PKS_CARRIER,
       };
-      const matched = physicalPoints ? findSafeCrossProviderMatch(raw, new Set(['pks']), true) : null;
+      const matched = findSafeCrossProviderMatch(raw, new Set(['pks']), true);
       const pksStop = matched || ensureTechnicalStop(raw);
       if (matched) attachProvider(matched, raw);
       (stop.lines || []).forEach((line) => pksStop.lineSet.add(line));
@@ -307,15 +324,10 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       };
       const matched =
         findSafeCrossProviderMatch(raw, new Set(['pks'])) ||
-        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']), physicalPoints);
+        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']));
       const stop = matched ? matched : ensureTechnicalStop(raw);
       if (matched) {
         attachProvider(matched, raw);
-        // The MPK point describes the city platform itself; retain that exact
-        // coordinate instead of averaging it with another provider's estimate.
-        if (physicalPoints && Number.isFinite(raw.lat) && Number.isFinite(raw.lon)) {
-          matched.lat = raw.lat; matched.lon = raw.lon;
-        }
       }
       mpkStop.lines.forEach((line) => stop.lineSet.add(line));
     });
@@ -366,8 +378,8 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         };
       });
 
-    const mergedMpkStops = physicalPoints ? normalizedStops : mergeMpkStopsForList(normalizedStops);
-    const mergedStops = (physicalPoints ? mergedMpkStops : mergeStopsByGpsAndName(mergedMpkStops)).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
+    const mergedMpkStops = mergeMpkStopsForList(normalizedStops);
+    const mergedStops = mergeStopsByGpsAndName(mergedMpkStops).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
 
     MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, mergedStops);
     if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {

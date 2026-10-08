@@ -28,6 +28,7 @@ const server=http.createServer((req,res)=>{
     await page.setRequestInterception(true);
     let showFixtureBus=false;
     const fixtureBus=structuredClone(require('./fixtures/pks-vehicle.json'));
+    fixtureBus.trip_id=987654321; // A live ID absent from the packaged GTFS index.
     fixtureBus.position.position_date='2026-10-06 14:18:30';
     fixtureBus.journey.vehicle_journey_date='2026-10-06';fixtureBus.journey.departure_time='14:25:00';
     fixtureBus.next_stop_points=fixtureBus.next_stop_points.map((stop,index)=>({...stop,planned_departure_time:`2026-10-06 14:${String(25+index*2).padStart(2,'0')}:00`,real_departure_time:`2026-10-06 14:${String(25+index*2).padStart(2,'0')}:00`}));

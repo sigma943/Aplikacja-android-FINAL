@@ -104,3 +104,25 @@ test('MPK trip coordinates use MPK stop namespace and exact advanced trip data',
     assert.equal(result.routeStops[0].lat,50.042346);assert.equal(result.routeStops[0].lon,22.006614);
   }finally{global.fetch=original;}
 });
+
+test('a new live course ID reuses the unique complete bundled stop pattern without a routing server',async()=>{
+  const original=global.fetch,raw=require('./fixtures/pks-vehicle.json'),snapshot=require('../public/data/pks-stop-points.json').stops;
+  const ids=raw.journey.route.stop_points,coordinates=ids.map(id=>[snapshot[id].lat,snapshot[id].lon]);
+  global.fetch=async url=>new Response(fs.readFileSync('public'+url));
+  try{
+    const {officialBusRoute}=loadTs('lib/official-bus-routes.ts');
+    const points=await officialBusRoute('pks','live-new-course-id',ids,coordinates);
+    assert.ok(points.length>100);
+    assert.deepEqual(await officialBusRoute('pks','live-new-course-id',ids.slice(1),coordinates.slice(1)),[]);
+    assert.deepEqual(await officialBusRoute('pks','live-new-course-id',ids,coordinates.map(([lat,lon])=>[lat+1,lon])),[]);
+  }finally{global.fetch=original;}
+});
+test('coordinate pattern fallback rejects ambiguous shapes and preserves return-leg order',async()=>{
+  const original=global.fetch,a=[50,22],b=[50.01,22.01];
+  global.fetch=async url=>new Response(JSON.stringify(String(url).endsWith('/pks.json')?{tripShapes:{},tripPatterns:{},stopShapes:{'1-2':'one','3-4':'two'},patterns:[['1','2'],['3','4']],stops:{'1':{lat:a[0],lon:a[1]},'2':{lat:b[0],lon:b[1]},'3':{lat:a[0],lon:a[1]},'4':{lat:b[0],lon:b[1]}}}:[a,b]));
+  try{const {officialBusRoute}=loadTs('lib/official-bus-routes.ts');
+    assert.deepEqual(await officialBusRoute('pks','new',[90,91],[a,b]),[]);
+    assert.deepEqual(await officialBusRoute('pks','new',[90,91],[b,a]),[]);
+    assert.deepEqual(await officialBusRoute('pks','new',[90,91,90],[a,b,a]),[]);
+  }finally{global.fetch=original;}
+});

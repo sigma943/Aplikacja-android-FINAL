@@ -330,7 +330,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
     const register = async () => {
       try {
-        const instId = await getOrCreateInstallationId();
+        // Independent native reads run together; registration still waits for
+        // both and retains all identity and permission checks.
+        const useIdentityFunction = process.env.NEXT_PUBLIC_USE_IDENTITY_FUNCTION === 'true';
+        const [instId, deviceInfo, initialDevice] = await Promise.all([
+          getOrCreateInstallationId(), getClientDeviceInfo(),
+          useIdentityFunction ? Promise.resolve(null) : getDoc(deviceRef),
+        ]);
         // #region agent log
         agentLog(
           'FirebaseProvider.tsx:registerIdentity:before',
@@ -342,7 +348,6 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           'H5',
         );
         // #endregion
-        const deviceInfo = await getClientDeviceInfo();
         if (process.env.NEXT_PUBLIC_USE_IDENTITY_FUNCTION === 'true') try {
           await registerDeviceIdentityFn({ installationId: instId, deviceInfo });
           agentLog(
@@ -360,7 +365,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         }
 
         const installationRef = doc(db, 'installations', instId);
-        const existing = await getDoc(deviceRef);
+        const existing = initialDevice || await getDoc(deviceRef);
         if (!existing.exists()) {
           const securitySnap=await getDoc(doc(db,'admin_settings','security')).catch(()=>null);
           await registerRestoredDevice(db,user.uid,instId,deviceInfo,
