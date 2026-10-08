@@ -1,4 +1,10 @@
 export type DiagnosticProvider='pks'|'mpk_rzeszow'|'marcel';
+export type TransportMeasurement={provider:DiagnosticProvider;kind:DiagnosticKind;latencyMs:number;failed:boolean;scope:'request'|'operation'};
+const measurementListeners=new Set<(measurement:TransportMeasurement)=>void>();
+export const subscribeTransportMeasurements=(listener:(measurement:TransportMeasurement)=>void)=>{measurementListeners.add(listener);return()=>{measurementListeners.delete(listener);};};
+function publishMeasurement(measurement:TransportMeasurement){
+  for(const listener of measurementListeners){try{listener(measurement);}catch{ /* Statistics must never change a transport result. */ }}
+}
 export type DiagnosticKind='vehicles'|'departures'|'geometry'|'catalog';
 export type TransportDiagnostic={provider:DiagnosticProvider;kind:DiagnosticKind;lastSuccess?:number;lastError?:number;latencyMs:number;count?:number;dataAgeSec?:number;error?:string};
 const records=new Map<string,TransportDiagnostic>(),listeners=new Set<()=>void>();
@@ -17,8 +23,8 @@ export function diagnosticRequest(url:string){
   const kind:DiagnosticKind=/get_vehicles|vehicles|lokalizacjaBusow|type=mpk/.test(url)?'vehicles':/departures|timetable|schedule|wariantTrasy\/kusy/.test(url)?'departures':'catalog';
   return provider?{provider,kind}:null;
 }
-export async function measuredTransport<T>(provider:DiagnosticProvider,kind:DiagnosticKind,run:()=>Promise<T>,count?:(value:T)=>number,age?:(value:T)=>number|undefined){
+export async function measuredTransport<T>(provider:DiagnosticProvider,kind:DiagnosticKind,run:()=>Promise<T>,count?:(value:T)=>number,age?:(value:T)=>number|undefined,scope:TransportMeasurement['scope']='operation'){
   const start=Date.now();
-  try{const value=await run();recordTransportDiagnostic(provider,kind,Date.now()-start,count?.(value),undefined,age?.(value));return value;}
-  catch(error){if((error as {name?:string})?.name!=='AbortError')recordTransportDiagnostic(provider,kind,Date.now()-start,undefined,error);throw error;}
+  try{const value=await run();recordTransportDiagnostic(provider,kind,Date.now()-start,count?.(value),undefined,age?.(value));publishMeasurement({provider,kind,latencyMs:Date.now()-start,failed:false,scope});return value;}
+  catch(error){if((error as {name?:string})?.name!=='AbortError'){recordTransportDiagnostic(provider,kind,Date.now()-start,undefined,error);publishMeasurement({provider,kind,latencyMs:Date.now()-start,failed:true,scope});}throw error;}
 }

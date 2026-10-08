@@ -11,6 +11,7 @@ import { DeviceTable } from './components/DeviceTable';
 import { OperatorsView } from './components/OperatorsView';
 import { LogsView } from './components/LogsView';
 import { BansView } from './components/BansView';
+import { StatisticsView } from './components/StatisticsView';
 import { MaintenanceView } from './components/MaintenanceView';
 import {AdminModalPortal} from './components/AdminModalPortal';
 import { RolesModal } from './components/RolesModal';
@@ -279,6 +280,7 @@ export interface AdminDashboardProps {
 export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
   const { device: currentDevice, loading, user, localLastSeenMs } = useFirebase();
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
+  const [statisticsDevicesReady, setStatisticsDevicesReady] = useState(false);
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [adminLogRaws, setAdminLogRaws] = useState<AdminLogRaw[]>([]);
   const [logsError, setLogsError] = useState<string | null>(null);
@@ -354,6 +356,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         return { id: d.id, ...(raw as DeviceData) };
       });
       setDevicesError(null);
+      setStatisticsDevicesReady(true);
       setDevicesData(dedupeDevicesByInstallation(data));
     }, (e: unknown) => {
       console.error('[AdminDashboard] Firestore list devices failed', e);
@@ -500,7 +503,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   const globalSettingsSectionVisible =
     currentDevice.role === 'owner' || myCaps.globalSettings || myCaps.globalSettingsEdit;
   const globalSettingsCanSave = currentDevice.role === 'owner' || myCaps.globalSettingsEdit;
-  const allowedNavIds: string[] = ['devices'];
+  const allowedNavIds: string[] = ['devices', 'statistics'];
   if (currentDevice.role === 'owner' || myCaps.shield) allowedNavIds.push('operators');
   if (currentDevice.role === 'owner' || myCaps.group) allowedNavIds.push('bans');
   if (currentDevice.role === 'owner' || myCaps.logs) allowedNavIds.push('logs');
@@ -1531,6 +1534,10 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
             });
           }}
         />
+        )}
+
+        {activeView === 'statistics' && (
+          <StatisticsView devices={devicesData} devicesError={devicesError} devicesReady={statisticsDevicesReady} onMenuClick={() => setIsSidebarOpen(true)} accentColor={themeColor} isDarkTheme={isDarkTheme} />
         )}
 
         {activeView === 'maintenance' && (

@@ -1,9 +1,10 @@
 ﻿import type { CSSProperties } from 'react';
-import { Bus, Monitor, Users, Activity, Lock, X, Pencil, Wrench, type LucideIcon } from 'lucide-react';
+import { Bus, Monitor, Users, Activity, Lock, X, Pencil, Wrench, BarChart3, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SIDEBAR_NAV_DEF: { id: string; label: string; icon: LucideIcon }[] = [
   { icon: Monitor, label: 'Urządzenia', id: 'devices' },
+  { icon: BarChart3, label: 'Statystyki', id: 'statistics' },
   { icon: Users, label: 'Administratorzy', id: 'operators' },
   { icon: Lock, label: 'Bany / Blokady', id: 'bans' },
   { icon: Activity, label: 'Logi aktywności', id: 'logs' },

@@ -206,7 +206,7 @@ function einfoFallbackUrl(pathAndOptionalQuery: string) {
 async function requestJson<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
   const diagnostic=diagnosticRequest(url);
   const load=()=>withRequestDeadline((signal) => requestJsonImpl<T>(url, { ...init, signal }), init?.signal || undefined);
-  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,value=>Array.isArray(value)?value.length:0):load();
+  return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,value=>Array.isArray(value)?value.length:0,undefined,'request'):load();
 }
 
 async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {

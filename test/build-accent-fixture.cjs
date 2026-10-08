@@ -35,6 +35,8 @@ module.exports=function buildAccentFixture(){
   for(const name of ['device-registration','firebase-session'])fs.writeFileSync(path.join(fixture,'app/startup-fixture/'+name+'.ts'),fs.readFileSync(path.join(source,'lib/'+name+'.ts'),'utf8').replaceAll("from 'firebase/firestore'","from './sdk'").replaceAll("from 'firebase/auth'","from './sdk'").replaceAll("from './admin/rbac'","from '@/lib/admin/rbac'"));
   fs.copyFileSync(path.join(source,'test/startup-ui-stub.ts'),path.join(fixture,'app/startup-fixture/sdk.ts'));
   fs.writeFileSync(path.join(fixture,'app/startup-fixture/page.tsx'),`'use client';import {FirebaseProvider,useFirebase} from './Provider';function Result(){const {device}=useFirebase();return <div data-restored-role={device?.role}>Uruchomiono aplikację: {device?.role}</div>;}export default function Page(){return <FirebaseProvider><Result/></FirebaseProvider>}`);
+  fs.mkdirSync(path.join(fixture,'app/statistics-fixture'));
+  fs.copyFileSync(path.join(source,'test/statistics-ui-fixture.tsx'),path.join(fixture,'app/statistics-fixture/page.tsx'));
   fs.copyFileSync(path.join(source,'tsconfig.json'),path.join(fixture,'tsconfig.json'));
   fs.copyFileSync(path.join(source,'package.json'),path.join(fixture,'package.json'));
   fs.writeFileSync(path.join(fixture,'app/layout.tsx'),`import UIMotionProvider from '@/components/UIMotionProvider';export default function Layout({children}:{children:React.ReactNode}){return <html lang="pl"><head><link rel="stylesheet" href="/production.css" /></head><body><UIMotionProvider>{children}</UIMotionProvider></body></html>}`);
