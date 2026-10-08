@@ -4,7 +4,7 @@ const server=http.createServer((req,res)=>{const pathname=decodeURIComponent(new
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`,browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']}),page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let geometryRequests=0;
 try{
  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
- await page.evaluateOnNewDocument(()=>{localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.025,lng:21.995},zoom:14}));});
+ await page.evaluateOnNewDocument(()=>{localStorage.setItem('mks_transport_providers',JSON.stringify(['mpk_rzeszow']));localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.025,lng:21.995},zoom:14}));});
  await page.setRequestInterception(true);page.on('request',request=>{const url=request.url(),reply=(body,type='application/json',status=200)=>request.respond({status,contentType:type,headers:{'access-control-allow-origin':'*'},body});
  if(url.includes('GetVehicles?'))return reply('<Vehicles><V nb="102" nr="0A" op="Dworzec Główny PKP" x="21.985" y="50.021" ik="2500" s="1" is="0" lp="8" o="-120"/></Vehicles>','application/xml');
  if(url.includes('GetVehicleTimeTable?'))return reply(fs.readFileSync('test/fixtures/mpk-mybus-0a-timetable.xml','utf8'),'application/xml');

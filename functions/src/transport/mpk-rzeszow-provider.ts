@@ -166,7 +166,7 @@ async function loadRawVehicles() {
       const loaders = [
         async () => mpkFeedVehicles(await fetchJsonWithRetry<unknown>(VEHICLES_JSON_URL, { headers: REQUEST_HEADERS })),
         async () => parseVehicleXml(await fetchTextWithRetry(VEHICLES_XML_URL, { headers: REQUEST_HEADERS })),
-        async () => parseVehicleXml(await fetchTextWithRetry(MYBUS_VEHICLES_URL, { headers: {Accept: 'application/xml'} })).map(vehicle => ({...vehicle, feedSource: 'mybus'})),
+        async () => parseVehicleXml(await fetchTextWithRetry(MYBUS_VEHICLES_URL, { headers: {Accept: 'application/xml'} })).map((vehicle): Record<string, string> => ({...vehicle, feedSource: 'mybus'})),
       ];
       for (const load of loaders) {
         try {
