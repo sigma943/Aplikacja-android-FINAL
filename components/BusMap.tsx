@@ -1,4 +1,5 @@
 'use client';
+import {bundledMarcelRoute} from '@/lib/marcel-route-assets';
 import {displayStopLabel} from '@/lib/stop-label';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {loadStopPlatforms,platformPosition} from '@/lib/stop-platform-position';
@@ -1205,7 +1206,9 @@ export default function BusMap({
       }
 
       const officialRoute = routeMode === 'road'
-        ? await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon])).catch(()=>[])
+        ? selectedVehicle.provider==='marcel'
+          ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon]))
+          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon])).catch(()=>[])
         : [];
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (officialRoute.length > 1) {

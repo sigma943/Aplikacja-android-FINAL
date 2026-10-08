@@ -288,7 +288,7 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());await page.waitForSelector('[data-map-bus-sheet]');
     assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/Rzeszów/);
     await page.waitForFunction(()=>{const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas?.width||!canvas?.height)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100&&++painted>100)return true;return false;},{timeout:20000});
-    assert.equal(marcelSecondary,marcelRoad.chunks.length,'disconnected real Marcel chunks must be rebuilt before painting');
+    assert.equal(marcelSecondary,0,'the complete known Marcel course paints from local road assets without an external router');
     await screenshot('marcel-jaslo-rzeszow-route');
     await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-transport-diagnostics]');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
