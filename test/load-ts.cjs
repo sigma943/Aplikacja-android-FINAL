@@ -6,6 +6,15 @@ const root = path.resolve(__dirname, '..');
 
 module.exports = function loadTs(relativePath, overrides = {}, extraExports = '', moduleCache = new Map()) {
   const filename = path.resolve(root, relativePath);
+  // Resolve local overrides once, so a mock also reaches relocated dependencies.
+  if (moduleCache.size === 0) {
+    for (const [name, value] of Object.entries(overrides)) {
+      if (!name.startsWith('.') && !name.startsWith('@/')) continue;
+      const base = name.startsWith('@/') ? path.resolve(root, name.slice(2)) : path.resolve(path.dirname(filename), name);
+      const dependency = ['.ts', '.tsx'].map(extension => base + extension).find(file => fs.existsSync(file));
+      if (dependency) moduleCache.set(dependency, {exports: value});
+    }
+  }
   if (moduleCache.has(filename)) return moduleCache.get(filename).exports;
   const source = fs.readFileSync(filename, 'utf8') + extraExports;
   const output = ts.transpileModule(source, { compilerOptions: {
