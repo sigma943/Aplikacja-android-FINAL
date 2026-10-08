@@ -29,3 +29,15 @@ for(const prefix of ['lib','functions/src/transport']) {
   assert.throws(()=>parseMybusRoute('<R r="0A" t="0"><T i1="1" i2="2"/></R>','0A','0'),/Missing/);
  });
 }
+test('backup vehicle resolves its route end to end without querying a GTFS trip using a SIP course ID',async()=>{
+ const calls=[],raw='<VL><V nb="102" nr="0A" op="Dworzec Główny PKP" x="21.985" y="50.021" ik="2500" s="1" is="0"/></VL>';
+ const api=load('lib/providers/mpk-vehicles.ts',{'../transport/http':{
+ requestJson:async url=>{calls.push(url);if(url.includes('api.php'))return {};if(url.includes('get_trip_stops'))throw Error('SIP course must not be queried as GTFS');return [];},
+ requestText:async url=>{calls.push(url);if(url.includes('vehicles_proxy'))throw Error('404');return url.includes('GetVehicles?')?raw:url.includes('GetVehicleTimeTable?')?board:geometry;}
+ }});
+ const vehicle=await api.fetchMpkRzeszowVehicleDetailsDirect('mpk_rzeszow_102',true);
+ assert.equal(vehicle.routeStops.length,21);assert.equal(vehicle.schedule[0].id,122);assert.ok(vehicle.routeGeometry.length>100);
+ assert.ok(!calls.some(url=>url.includes('get_trip_stops')));
+ const adapted=load('lib/transport/vehicle-adapter.ts').mapTransportVehicleToClient({...vehicle,line:'0A',lng:vehicle.lon});
+ assert.deepEqual(adapted.routeGeometry,vehicle.routeGeometry);assert.equal(adapted.routeStops.length,21);
+});

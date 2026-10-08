@@ -166,7 +166,7 @@ async function loadRawVehicles() {
       const loaders = [
         async () => mpkFeedVehicles(await fetchJsonWithRetry<unknown>(VEHICLES_JSON_URL, { headers: REQUEST_HEADERS })),
         async () => parseVehicleXml(await fetchTextWithRetry(VEHICLES_XML_URL, { headers: REQUEST_HEADERS })),
-        async () => parseVehicleXml(await fetchTextWithRetry(MYBUS_VEHICLES_URL, { headers: {Accept: 'application/xml'} })),
+        async () => parseVehicleXml(await fetchTextWithRetry(MYBUS_VEHICLES_URL, { headers: {Accept: 'application/xml'} })).map(vehicle => ({...vehicle, feedSource: 'mybus'})),
       ];
       for (const load of loaders) {
         try {
@@ -516,7 +516,7 @@ export const mpkRzeszowProvider: TransportProvider = {
     const detail: any = vehicleDetails.find((candidate: any) => normalizeVehicleId(candidate?.nb) === lookupVehicleId) || {};
     const statusCode = String(rawVehicle.s || detail?.status || '');
     let tripSchedule = await fetchMpkTripSchedule(
-      detail?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik,
+      detail?.trip_id ?? rawVehicle.tripid ?? (rawVehicle.feedSource === 'mybus' ? undefined : rawVehicle.ik),
       getEffectiveMpkDelay(Number(rawVehicle.o ?? detail?.delay ?? 0), statusCode),
     ).catch(() => ({schedule: [], routeStops: [], routePath: []} as MpkTripSchedule));
     let routeGeometry: [number, number][] | undefined;

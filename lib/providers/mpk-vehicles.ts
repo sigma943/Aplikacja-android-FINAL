@@ -240,7 +240,7 @@ async function fetchMpkVehicleFeed(signal?: AbortSignal) {
   const loaders = [
     async () => mpkFeedVehicles(await requestJson<unknown>(MPK_RZESZOW_VEHICLES_JSON_URL, {signal})),
     async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_VEHICLES_XML_URL, {signal})),
-    async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_MYBUS_VEHICLES_URL, {signal})),
+    async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_MYBUS_VEHICLES_URL, {signal})).map(vehicle => ({...vehicle, feedSource: 'mybus'})),
   ];
   for (const load of loaders) {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
@@ -290,7 +290,7 @@ async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeIna
   const vehicleDetails = detailsByVehicle.get(lookupVehicleId);
   const statusCode = String(rawVehicle.s || vehicleDetails?.status || '');
   const delaySeconds = getEffectiveMpkDelay(Number(rawVehicle.o ?? vehicleDetails?.delay ?? 0), statusCode);
-  let tripSchedule = await fetchMpkTripSchedule(vehicleDetails?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik, delaySeconds)
+  let tripSchedule = await fetchMpkTripSchedule(vehicleDetails?.trip_id ?? rawVehicle.tripid ?? (rawVehicle.feedSource === 'mybus' ? undefined : rawVehicle.ik), delaySeconds)
     .catch(() => ({schedule: [], routeStops: [], routePath: []}));
   let routeGeometry: [number, number][] | undefined;
   let scheduleSource: Vehicle['scheduleSource'];
