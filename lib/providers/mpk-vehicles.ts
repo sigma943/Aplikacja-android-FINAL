@@ -240,7 +240,7 @@ async function fetchMpkVehicleFeed(signal?: AbortSignal) {
   const loaders = [
     async () => mpkFeedVehicles(await requestJson<unknown>(MPK_RZESZOW_VEHICLES_JSON_URL, {signal})),
     async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_VEHICLES_XML_URL, {signal})),
-    async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_MYBUS_VEHICLES_URL, {signal})).map(vehicle => ({...vehicle, feedSource: 'mybus'})),
+    async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_MYBUS_VEHICLES_URL, {signal})).map((vehicle): Record<string, string> => ({...vehicle, feedSource: 'mybus'})),
   ];
   for (const load of loaders) {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
