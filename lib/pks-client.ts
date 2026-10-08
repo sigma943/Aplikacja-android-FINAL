@@ -150,7 +150,7 @@ async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: 
 
   try {
     const direct = await fetchMpkRzeszowVehiclesDirect(includeInactive, signal);
-    if (direct.length > 0) return direct;
+    if (direct.length > 0 || !getTransportRuntime()) return direct;
   } catch (error) {
     if (signal?.aborted) throw error;
   }
