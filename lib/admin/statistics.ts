@@ -44,7 +44,7 @@ export function deviceStatistics(devices:StatisticsDevice[],range:StatisticsRang
     else platforms['Nieznany system']++;
   }
   return {total:unique.length,newDevices:series.reduce((sum,day)=>sum+day.value,0),active,previousNew,unknownFirst,series,platforms,
-    verified:unique.filter(device=>device.verified===true).length,banned:unique.filter(device=>device.status==='banned').length};
+    verified:unique.filter(device=>device.role==='owner'||device.role==='admin'||device.verified===true).length,banned:unique.filter(device=>device.status==='banned').length};
 }
 export function apiStatistics(days:ApiStatisticsDay[],range:StatisticsRange,startedAt:number|null,now=Date.now()) {
   const selected=statisticsDays(range,now),records=new Map(days.map(day=>[day.date,day]));

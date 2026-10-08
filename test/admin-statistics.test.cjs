@@ -4,6 +4,14 @@ const loadTs=require('./load-ts.cjs');
 const stats=loadTs('lib/admin/statistics.ts');
 const now=Date.parse('2026-10-08T12:00:00Z');
 
+test('verified statistics match the device list for owners, admins and verified users',()=>{
+  const devices=[{id:'owner',role:'owner',verified:false},{id:'admin',role:'admin'},
+    {id:'verified',role:'user',verified:true},{id:'ordinary',role:'user',verified:false}];
+  for(const range of [1,7,30,90])assert.equal(stats.deviceStatistics(devices,range,now).verified,3);
+  assert.equal(stats.deviceStatistics([{id:'old',installationId:'one',role:'admin',lastSeenAt:'2026-10-07T10:00:00Z'},
+    {id:'current',installationId:'one',role:'user',verified:false,lastSeenAt:'2026-10-08T10:00:00Z'}],7,now).verified,0);
+});
+
 test('statistics deduplicate installations, preserve first login and ignore future and banned activity',()=>{
   const devices=[
     {id:'a',installationId:'one',firstLogin:'2026-10-02T10:00:00Z',lastSeenAt:'2026-10-04T10:00:00Z',deviceInfo:'Android',verified:false},
