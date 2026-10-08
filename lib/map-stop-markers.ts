@@ -1,3 +1,4 @@
+import {readBusCoordinates} from './bus-coordinates';
 import type {Stop} from '@/Panel/src/types';
 export const MAP_STOPS_MIN_ZOOM=16;
 export function mapStopColor(stop:Pick<Stop,'name'>){
@@ -8,7 +9,7 @@ export function mapStopColor(stop:Pick<Stop,'name'>){
 export function visibleMapStops(stops:Stop[],bbox:[number,number,number,number],zoom:number,selected?:string|null){
   if(zoom<MAP_STOPS_MIN_ZOOM)return [];
   const [west,south,east,north]=bbox;
-  return stops.filter(stop=>stop.type!=='train'&&Number.isFinite(stop.lat)&&Number.isFinite(stop.lon)&&stop.lat!>=south&&stop.lat!<=north&&stop.lon!>=west&&stop.lon!<=east)
+  return stops.filter(stop=>stop.type!=='train'&&readBusCoordinates(stop.lat,stop.lon)&&stop.lat!>=south&&stop.lat!<=north&&stop.lon!>=west&&stop.lon!<=east)
     .sort((a,b)=>a.id===selected?-1:b.id===selected?1:Math.hypot(a.lat!-(south+north)/2,a.lon!-(west+east)/2)-Math.hypot(b.lat!-(south+north)/2,b.lon!-(west+east)/2)).slice(0,300);
 }
 export function mapStopIconHtml(color:string,selected:boolean){

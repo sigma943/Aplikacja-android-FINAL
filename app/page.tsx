@@ -1,4 +1,5 @@
 'use client';
+import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {onWidgetOpen} from '@/lib/stop-widget';
 
 import {useMapStops} from '@/lib/use-map-stops';
@@ -1806,6 +1807,7 @@ export default function Home() {
                onClose={() => { if (!isMapTabDisabled) setActiveTab('map'); }}
                onToggleFavorite={toggleFavoriteStop}
                onShowOnMap={(stop) => {
+                  if (stop.type !== 'train' && !readBusCoordinates(stop.lat,stop.lon)) return;
                   mapStopReturnTab.current = 'stops';
                   if (isMapTabDisabled) return;
                   if (stop.lat !== undefined && stop.lon !== undefined) {

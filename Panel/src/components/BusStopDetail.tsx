@@ -1,3 +1,4 @@
+import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
 import {useForegroundRefresh} from '../../../lib/use-foreground-refresh';
@@ -176,7 +177,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
               <button
                 aria-label="Pokaż przystanek na mapie"
                 onClick={() => onShowOnMap?.(stop)}
-                disabled={!onShowOnMap}
+                disabled={!onShowOnMap || (stop.type !== 'train' && !readBusCoordinates(stop.lat,stop.lon))}
+                title={stop.type !== 'train' && !readBusCoordinates(stop.lat,stop.lon) ? 'Brak potwierdzonej lokalizacji GPS przystanku' : undefined}
                 className={`flex flex-shrink-0 items-center justify-center gap-1.5 h-10 px-3 rounded-xl border text-[11px] font-semibold transition-colors cursor-pointer active:scale-95 leading-none ui-accent-focus font-sans backdrop-blur-xl disabled:cursor-not-allowed disabled:opacity-40 ${mapButtonClass}`}
               >
                 <MapPin size={13} className="ui-accent-text" />

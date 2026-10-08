@@ -24,8 +24,8 @@ test('a 20-stop Marcel course respects the real Valhalla 10-location limit witho
     assert.deepEqual(requests.map(q=>q.locations.length),[10,10,2]);
     assert.ok(requests.every(q=>q.costing==='bus'));
     assert.equal(requests[0].locations[0].radius,35);
-    assert.equal(requests[0].locations.at(-1).radius,150,'chunk boundaries are intermediate stops, not termini');
-    assert.equal(requests[1].locations[0].radius,150);
+    assert.equal(requests[0].locations.at(-1).radius,35,'shared chunk boundaries use a consistent nearby snap');
+    assert.equal(requests[1].locations[0].radius,35);
     assert.equal(requests[2].locations.at(-1).radius,35);
     assert.deepEqual(response.geometry.coordinates, points.map(([lat,lon])=>[lon,lat]));
     assert.equal(response.isSynthetic,false);
@@ -64,4 +64,27 @@ test('Marcel stop in a side road permits a return without an artificial circuit 
     assert.deepEqual(response.geometry.coordinates,intended.map(([lat,lon])=>[lon,lat]));
     assert.equal(response.isSynthetic,false);
   } finally {global.fetch=original;}
+});
+
+test('actual Jasło–Rzeszów Marcel course rebuilds disconnected primary chunks on one road network',async()=>{
+ const raw=require('./fixtures/marcel-jaslo-rzeszow-1181798.json');
+ const {decodePolyline,joinRouteChunks,roadRouteMatchesStops}=loadTs('lib/bus-road-geometry.ts');
+ const primary=raw.chunks.map(c=>joinRouteChunks(c.primary.map(l=>decodePolyline(l.shape))));
+ assert.throws(()=>joinRouteChunks(primary),/Disconnected/,'real primary responses reproduced the invisible route');
+ const original=global.fetch;let secondaryCalls=0;
+ global.fetch=async url=>{
+  url=String(url);let points;
+  if(url.includes('valhalla')) points=JSON.parse(new URL(url).searchParams.get('json')).locations.map(p=>[p.lat,p.lon]);
+  else {secondaryCalls++;points=new URL(url).pathname.split('/driving/')[1].split(';').map(p=>p.split(',').map(Number).reverse());}
+  const chunk=raw.chunks.find(c=>JSON.stringify(c.stops)===JSON.stringify(points));assert.ok(chunk,'every request follows the full actual course');
+  return new Response(JSON.stringify(url.includes('valhalla')?{trip:{legs:chunk.primary}}:{code:'Ok',routes:[{geometry:{coordinates:decodePolyline(chunk.secondary).map(([a,b])=>[b,a])}}]}));
+ };
+ try {
+  const client=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}});
+  const request={carrier:'marcel',line:'M',direction:'Rzeszów',mode:'road',stops:raw.course.map((s,id)=>({id,lat:s.szGps,lon:s.dlGps}))};
+  const response=await client.fetchRouteGeometryClient(request);
+  const route=response.geometry.coordinates.map(([b,a])=>[a,b]);
+  assert.ok(route.length>2000);assert.ok(roadRouteMatchesStops(route,request.stops.map(s=>[s.lat,s.lon]),150));
+  assert.equal(secondaryCalls,raw.chunks.length);await client.fetchRouteGeometryClient(request);assert.equal(secondaryCalls,raw.chunks.length,'successful route is reused');
+ }finally{global.fetch=original;}
 });

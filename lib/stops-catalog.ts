@@ -1,7 +1,11 @@
+import {sanitizeBusStop,readBusCoordinates} from './bus-coordinates';
 import type { Carrier, Stop } from '@/Panel/src/types';
 import { getSimilarity } from '@/lib/rzeszow-stop-consolidation';
 import { RawStop, PKS_CARRIER, MARCEL_CARRIER, MPK_CARRIER, MarcelIndexedStop, InternalStop, MERGED_STOPS_RUNTIME_CACHE, MERGED_STOPS_RUNTIME_CACHE_LIMIT, stopDisplayName, ensureMpkCityPrefix, preferredStopDisplayName, stopBaseNameKey, mergeTokens, numericTokens, nameSimilarityScore, sharedStopTokenCount, hasConflictingCityToken, mergeCsvValues, mergeDebugNames, distanceMeters, geoBucketKeys, normalizeStopMergeName, hasConflictingStopNumbers, mergeStopsByGpsAndName, mergeMpkStopsForList, canExposeStandaloneMarcelStop, isWeakMarcelName, sortedLines } from '@/components/stops-panel/stop-domain';
 export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;name:string;lat?:number;lon?:number;lines:string[]}>,marcelStops:MarcelIndexedStop[],mergedStopsCacheKey:string,physicalPoints=false): Stop[] {
+    stops = stops.map(sanitizeBusStop);
+    mpkStops = mpkStops.map(sanitizeBusStop);
+    marcelStops = marcelStops.map(sanitizeBusStop);
     const cacheKey = (physicalPoints ? 'physical:' : 'list:') + mergedStopsCacheKey;
     const cached = MERGED_STOPS_RUNTIME_CACHE.get(cacheKey);
     if (cached) return cached;
@@ -13,7 +17,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       const canonical = buildStopsCatalog(stops, mpkStops, marcelStops, mergedStopsCacheKey);
       const points = canonical.map(stop => {
         const precise = String(stop.providerStopIds?.mpk_rzeszow || '').split(',')
-          .map(id => mpkById.get(id.trim())).find(point => Number.isFinite(point?.lat) && Number.isFinite(point?.lon));
+          .map(id => mpkById.get(id.trim())).find(point => readBusCoordinates(point?.lat, point?.lon));
         return precise ? {...stop, lat: precise.lat, lon: precise.lon} : stop;
       });
       MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, points);

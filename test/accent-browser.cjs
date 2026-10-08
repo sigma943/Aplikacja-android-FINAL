@@ -26,7 +26,10 @@ const server=http.createServer((req,res)=>{
       window.Date=class extends Original {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
     });
     await page.setRequestInterception(true);
-    let showFixtureBus=false;
+    let showFixtureBus=false, showMarcel=false;
+    const marcelRoad=require('./fixtures/marcel-jaslo-rzeszow-1181798.json');
+    const {decodePolyline}=require('./load-ts.cjs')('lib/bus-road-geometry.ts');
+    let marcelSecondary=0;
     let fixtureBus=structuredClone(require('./fixtures/pks-vehicle.json'));
     fixtureBus.trip_id=987654321; // A live ID absent from the packaged GTFS index.
     fixtureBus.position.position_date='2026-10-06 14:18:30';
@@ -39,6 +42,15 @@ const server=http.createServer((req,res)=>{
       if(url.includes('/pks/get_vehicles.php'))return json(showFixtureBus?[fixtureBus]:[]);
       if(url.endsWith('/api/pks/vehicles'))return json({items:[]});
       if(url.includes('/api/pks/einfo/stop-point'))return json({items:[]});
+      if(showMarcel && url.includes('/trasy/lokalizacjaBusow'))return json([{idKu:1181798,idPo:42,szGps:49.95,dlGps:21.88,nazTr:'Jasło-Rzeszów',timestamp:'2026-10-06T12:18:30Z'}]);
+      if(showMarcel && url.includes('/trasy/kurs/1181798'))return json(marcelRoad.course);
+      if(showMarcel && (url.includes('valhalla')||url.includes('router.project-osrm.org'))) {
+        const points=url.includes('valhalla')?JSON.parse(new URL(url).searchParams.get('json')).locations.map(p=>[p.lat,p.lon]):new URL(url).pathname.split('/driving/')[1].split(';').map(p=>p.split(',').map(Number).reverse());
+        const chunk=marcelRoad.chunks.find(c=>JSON.stringify(c.stops)===JSON.stringify(points));
+        if(!chunk)return json({error:'Unexpected route pattern'});
+        if(url.includes('valhalla'))return json({trip:{legs:chunk.primary}});
+        marcelSecondary++;return json({code:'Ok',routes:[{geometry:{coordinates:decodePolyline(chunk.secondary).map(([a,b])=>[b,a])}}]});
+      }
       if(url.includes('mpkrzeszow.pl')||url.includes('api-site.marcel-bus.pl'))return json([]);
       if(url.startsWith(origin))return request.continue();
       return request.abort();
@@ -270,6 +282,14 @@ const server=http.createServer((req,res)=>{
       let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100&&++painted>100)return true;return false;
     },{timeout:20000});
     await screenshot('pks-251-107-route');
+    showFixtureBus=false;showMarcel=true;
+    await page.evaluate(()=>{localStorage.setItem('mks_transport_providers',JSON.stringify(['marcel']));localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.95,lng:21.88},zoom:12}));});
+    await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
+    await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());await page.waitForSelector('[data-map-bus-sheet]');
+    assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/Rzeszów/);
+    await page.waitForFunction(()=>{const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas?.width||!canvas?.height)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100&&++painted>100)return true;return false;},{timeout:20000});
+    assert.equal(marcelSecondary,marcelRoad.chunks.length,'disconnected real Marcel chunks must be rebuilt before painting');
+    await screenshot('marcel-jaslo-rzeszow-route');
     await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-transport-diagnostics]');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
     await button('Dodaj');

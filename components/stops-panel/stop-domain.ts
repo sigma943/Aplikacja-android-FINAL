@@ -1,4 +1,5 @@
 'use client';
+import {readBusCoordinates} from '@/lib/bus-coordinates';
 
 import type { Carrier, Departure, Stop } from '@/Panel/src/types';
 import { fetchMarcelCoursesClient, fetchMarcelPublicCourseStopsClient, fetchMarcelRoutesClient, fetchVehicleDetailsClient, type MarcelCourse, type MarcelCourseStopPublic, type TransportProviderId } from '@/lib/pks-client';
@@ -93,7 +94,7 @@ const TOKEN_CACHE = new Map<string, string[]>();
 const NUM_TOKEN_CACHE = new Map<string, Set<string>>();
 const MARCEL_STOPS_INDEX_CACHE = new Map<string, Promise<MarcelIndexedStop[]>>();
 
-const STOP_CACHE_VERSION = 10;
+const STOP_CACHE_VERSION = 11;
 const STOP_CACHE_TTL_MS = 15 * 60 * 1000;
 const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v10:';
 const MERGED_STOPS_RUNTIME_CACHE = new Map<string, Stop[]>();
@@ -900,11 +901,11 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
           const key = marcelCourseStopIndexKey(courseStop);
           if (!displayName || !matchName || !matchKey || !key) return;
 
+          const point = readBusCoordinates(courseStop.szGps, courseStop.dlGps);
           const current = indexedStops.get(key);
           if (current) {
             current.routeIdSet.add(routeId);
-            if (current.lat === undefined && Number.isFinite(Number(courseStop.szGps))) current.lat = Number(courseStop.szGps);
-            if (current.lon === undefined && Number.isFinite(Number(courseStop.dlGps))) current.lon = Number(courseStop.dlGps);
+            if (!readBusCoordinates(current.lat, current.lon) && point) Object.assign(current, point);
             return;
           }
 
@@ -914,8 +915,8 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
             matchName: stopDisplayName(matchName),
             matchKey,
             cityMatchKey: key,
-            lat: Number.isFinite(Number(courseStop.szGps)) ? Number(courseStop.szGps) : undefined,
-            lon: Number.isFinite(Number(courseStop.dlGps)) ? Number(courseStop.dlGps) : undefined,
+            lat: point?.lat,
+            lon: point?.lon,
             routeIds: [],
             routeIdSet: new Set([routeId]),
           });

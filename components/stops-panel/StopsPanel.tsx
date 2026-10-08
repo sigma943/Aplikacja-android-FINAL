@@ -1,4 +1,5 @@
 'use client';
+import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {useAppBack} from '@/lib/use-app-back';
 import { motion, useReducedMotion } from 'motion/react';
 import { buildStopsCatalog } from '@/lib/stops-catalog';
@@ -89,8 +90,8 @@ export default function StopsPanel({
     const mapMpkStops = (data: Awaited<ReturnType<typeof fetchMpkRzeszowStopsClient>>) =>
       data
         .map((stop) => {
-          const lat = Number.isFinite(Number(stop.stop_lat)) ? Number(stop.stop_lat) : undefined;
-          const lon = Number.isFinite(Number(stop.stop_lon)) ? Number(stop.stop_lon) : undefined;
+          const point = readBusCoordinates(stop.stop_lat, stop.stop_lon);
+          const lat = point?.lat, lon = point?.lon;
           return {
             id: String(stop.stop_id),
             name: ensureMpkCityPrefix(stop.stop_name || '', lat, lon),

@@ -1,3 +1,4 @@
+import {sanitizeBusStop} from './bus-coordinates';
 import type { Stop } from '@/Panel/src/types';
 import type { RawStop, MarcelIndexedStop } from '@/components/stops-panel/stop-domain';
 
@@ -10,6 +11,11 @@ export type CatalogSnapshot = {
   lines: Record<string, string[]>;
   stops: Stop[];
 };
+
+function sanitizeSnapshot(snapshot: CatalogSnapshot): CatalogSnapshot {
+  return {...snapshot, pks: snapshot.pks.map(sanitizeBusStop), mpk: snapshot.mpk.map(sanitizeBusStop),
+    marcel: snapshot.marcel.map(sanitizeBusStop), stops: snapshot.stops.map(stop => stop.type === 'train' ? stop : sanitizeBusStop(stop))};
+}
 
 let memory: CatalogSnapshot | null = null;
 let reading: Promise<CatalogSnapshot | null> | null = null;
@@ -68,7 +74,7 @@ function catalogStorage<T>(action: (store: IDBObjectStore) => IDBRequest<T>): Pr
 export function readStopsCatalogCache(): Promise<CatalogSnapshot | null> {
   if (memory) return Promise.resolve(memory);
   if (!reading) reading = catalogStorage(store => store.get('latest')).then(value => {
-    if (validCatalogSnapshot(value)) memory = value;
+    if (validCatalogSnapshot(value)) memory = sanitizeSnapshot(value);
     return memory;
   }).finally(() => { reading = null; });
   return reading;
@@ -76,7 +82,7 @@ export function readStopsCatalogCache(): Promise<CatalogSnapshot | null> {
 
 export async function writeStopsCatalogCache(snapshot: CatalogSnapshot) {
   if (!validCatalogSnapshot(snapshot)) return;
-  memory = snapshot;
+  memory = sanitizeSnapshot(snapshot);
   if(typeof window!=='undefined')window.dispatchEvent(new Event('pks-live:catalog-updated'));
-  await catalogStorage(store => store.put(snapshot, 'latest'));
+  await catalogStorage(store => store.put(memory!, 'latest'));
 }

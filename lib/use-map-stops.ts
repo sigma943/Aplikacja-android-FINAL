@@ -1,4 +1,5 @@
 'use client';
+import {readBusCoordinates} from './bus-coordinates';
 import {useEffect,useState} from 'react';
 import type {Stop} from '@/Panel/src/types';
 import {buildStopsCatalog} from './stops-catalog';
@@ -29,7 +30,7 @@ export function useMapStops(enabled:boolean,pks:RawStop[]){
       const initialPks=pks.length?pks:cached?.pks||[];
       if(active&&initialPks.length)apply(initialPks,cached?.mpk||[],cached?.marcel||[]);
       const mpk=await fetchMpkRzeszowStopsClient({signal:controller.signal}).then(rows=>rows.map(stop=>({id:String(stop.stop_id),
-        name:ensureMpkCityPrefix(stop.stop_name,Number(stop.stop_lat),Number(stop.stop_lon)),lat:Number(stop.stop_lat),lon:Number(stop.stop_lon),
+        name:ensureMpkCityPrefix(stop.stop_name,Number(stop.stop_lat),Number(stop.stop_lon)),lat:readBusCoordinates(stop.stop_lat,stop.stop_lon)?.lat,lon:readBusCoordinates(stop.stop_lat,stop.stop_lon)?.lon,
         lines:String(stop.lines||'').split(',').map(line=>line.trim()).filter(Boolean)}))).catch(()=>cached?.mpk||[]);
       if(!active)return;
       const snapshot=peekStopsCatalogCache()||cached;

@@ -1,4 +1,5 @@
 'use client';
+import {readBusCoordinates} from '@/lib/bus-coordinates';
 
 import { memo, startTransition, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, Polyline, CircleMarker, ZoomControl, useMapEvents, Pane } from 'react-leaflet';
@@ -22,7 +23,7 @@ const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 const ROUTE_POINT_LIMIT = 5000;
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v11-offset-stop-corridors';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v12-contiguous-stop-waypoints';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 const ROUTE_GEOMETRY_LOCAL_PREFIX = 'routeGeometry:';
 const ROUTE_GEOMETRY_DB_NAME = 'pks-live-route-geometry';
@@ -944,10 +945,10 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
   );
 });
 
-function SelectedStopPin({id,point,stops,color}:{id?:string|null;point?:StopData;stops:Stop[];color:string}) {
+function SelectedStopPin({id,point,stops,color,rail=false}:{id?:string|null;point?:StopData;stops:Stop[];color:string;rail?:boolean}) {
   const map=useMap();const [revision,setRevision]=useState(0);
   useMapEvents({zoomend:()=>setRevision(v=>v+1),moveend:()=>setRevision(v=>v+1)});
-  if(!id||!point)return null;
+  if(!id||!point||(!rail && !readBusCoordinates(point.lat,point.lon)))return null;
   const b=map.getBounds();
   if(visibleMapStops(stops,[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],map.getZoom(),id).some(stop=>stop.id===id))return null;
   return <Marker position={[point.lat,point.lon]} zIndexOffset={5000} icon={L.divIcon({className:'stop-highlight-pin',html:`<svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" style="color:${color};filter:drop-shadow(0 3px 4px #0005)"><path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/><circle cx="19" cy="18" r="6.5" fill="white"/></svg>`,iconSize:[38,48],iconAnchor:[19,46]})}/>;
@@ -1082,7 +1083,7 @@ export default function BusMap({
       ? {}
       : { ...(stopsData || {}) };
     for (const stop of routeStopsSource) {
-      if (Number.isFinite(stop.lat) && Number.isFinite(stop.lon)) {
+      if (selectedVehicle?.provider === 'pkp_intercity' ? Number.isFinite(stop.lat) && Number.isFinite(stop.lon) : readBusCoordinates(stop.lat,stop.lon)) {
         next[String(stop.id)] = {
           n: stop.name,
           lat: Number(stop.lat),
@@ -1108,7 +1109,7 @@ export default function BusMap({
     for (let index = 0; index < routeStopIds.length; index += 1) {
       const stopId = routeStopIds[index];
       const stop = routeStopsData[String(stopId)];
-      if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon)) continue;
+      if (!stop || (selectedVehicle?.provider === 'pkp_intercity' ? !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon) : !readBusCoordinates(stop.lat,stop.lon))) continue;
       next.push({
         id: stopId,
         name: stop.n,
@@ -1351,7 +1352,7 @@ export default function BusMap({
           maxZoom={19}
         />
 
-        <SelectedStopPin id={highlightedStopId} point={highlightedStopId?routeStopsData[highlightedStopId]:undefined} stops={mapStops} color={themeColor}/>
+        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} point={highlightedStopId?routeStopsData[highlightedStopId]:undefined} stops={mapStops} color={themeColor}/>
         {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={highlightedStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}

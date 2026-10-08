@@ -1,3 +1,4 @@
+import {readBusCoordinates} from './bus-coordinates';
 import {diagnosticRequest,measuredTransport} from './transport-diagnostics';
 import {createMarcelTimetableApi} from './providers/marcel-timetable';
 import type {MarcelRoute,MarcelCourse,MarcelCourseStopPublic} from './providers/marcel-timetable';
@@ -173,7 +174,7 @@ const vehicleSpeedHistory = new Map<string, { lat: number; lon: number; atMs: nu
 const MARCEL_STALE_MS = 7 * 60 * 1000;
 const CLIENT_STOP_CACHE_VERSION = 4;
 const CLIENT_STOP_CACHE_TTL_MS = 15 * 60 * 1000;
-const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v7';
+const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v8';
 const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v4';
 
 type MarcelCourseStop = {
@@ -738,7 +739,7 @@ async function fetchMarcelCourseStops(tripId: unknown): Promise<MarcelCourseStop
               const lat = readMarcelNumber(source, ['szGps', 'lat', 'latitude', 'szerokosc']);
               const lon = readMarcelNumber(source, ['dlGps', 'lon', 'lng', 'longitude', 'dlugosc']);
               const plannedMs = buildMarcelPlannedMs(source.godz || source.godzPr || source.godzina, previousMs);
-              if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(plannedMs)) return null;
+              if (!readBusCoordinates(lat,lon) || !Number.isFinite(plannedMs)) return null;
               previousMs = plannedMs;
               const idRaw = Number(source.idPr ?? source.id ?? source.kol ?? index + 1);
               const city = String(source.nazMi || source.nazwaMi || '').trim();
@@ -922,7 +923,7 @@ function buildMarcelRouteStops(stops: MarcelCourseStop[], delaySeconds: number, 
 async function mapMarcelDirectVehicle(raw: any, now: number, includeInactive: boolean, includeRoute = false, fetchedAtMs = now): Promise<Vehicle | null> {
   const lat = readMarcelNumber(raw, ['lat', 'latitude', 'szGps', 'szerokosc', 'szerokoscGeo', 'position.lat', 'position.latitude']);
   const lon = readMarcelNumber(raw, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (!readBusCoordinates(lat,lon)) return null;
 
   const tripId = readMarcelString(raw, ['journeyId', 'journey_id', 'idKu', 'kursId', 'idKursu']) || undefined;
   const rawVehicleId = readMarcelString(raw, ['vehicle_id', 'vehicle.id', 'idPojazdu', 'pojazdId', 'idPo'])
@@ -1502,7 +1503,7 @@ function collapseLocalLoops(points: ShapePoint[], options?: { strict?: boolean }
 }
 
 async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal;stopWaypoints?:boolean;onResolved?:(points:ShapePoint[])=>void}) {
-  const points=coords.filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));
+  const points=coords.filter(([lat,lon])=>readBusCoordinates(lat,lon));
   if(points.length<2)return [];
   if(roadRouteCache.has(cacheKey)) {
     const route = roadRouteCache.get(cacheKey)!; options?.onResolved?.(route); return route;
@@ -1512,6 +1513,18 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
   promise=(async()=> {
     const chunks=routeChunks(points);
     const results: ShapePoint[][]=new Array(chunks.length);
+    const secondary: ShapePoint[][] = new Array(chunks.length);
+    const fetchSecondary = async (index: number) => {
+      if (secondary[index]) return secondary[index];
+      const chunk = chunks[index];
+      const coordinates=chunk.map(([lat,lon])=>lon+','+lat).join(';');
+      const data=await requestJson<{code?:string;routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
+        'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false');
+      const route: ShapePoint[] = (data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
+      if (!roadRouteMatchesStops(route,chunk,150)) throw new Error('Incomplete secondary road route');
+      secondary[index] = route;
+      return route;
+    };
     let cursor=0;
     await Promise.all(Array.from({length:Math.min(3,chunks.length)},async()=> {
       while(cursor<chunks.length) {
@@ -1522,15 +1535,12 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
           // Stop coordinates can sit in a bay or side road. A through point
           // forbids turning there and can force a loop around nearby streets.
           const query={locations:roadRoutingLocations(chunk,Boolean(options?.stopWaypoints),boundaries),costing:'bus',directions_options:{units:'kilometers'}};
-          const data=await withRequestDeadline(signal => requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal}), undefined, 4000);
+          const data=await withRequestDeadline(signal => requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal}), undefined, 8000);
           route=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
           if (!roadRouteMatchesStops(route,chunk,150)) route=[];
         }catch {}
         if(route.length<2) {
-          const coordinates=chunk.map(([lat,lon])=>lon+','+lat).join(';');
-          const data=await requestJson<{code?:string;routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
-            'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false');
-          route=(data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
+          route = await fetchSecondary(index);
         }
         if(options?.stopWaypoints&&chunk.length>2&&hasLocalRoadExcursion(route)) {
           try {
@@ -1544,7 +1554,25 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
         results[index]=route;
       }
     }));
-    return joinRouteChunks(results);
+    try {
+      const route = joinRouteChunks(results);
+      if (!roadRouteMatchesStops(route,points,150)) throw new Error('Incomplete joined road route');
+      return route;
+    } catch {
+      // Routers may snap a shared stop onto different roads or opposite ends of
+      // its search radius. Never bridge that gap with a straight line. Rebuild
+      // the whole pattern with one router, reusing already validated responses.
+      cursor = 0;
+      await Promise.all(Array.from({length:Math.min(3,chunks.length)},async()=> {
+        while(cursor<chunks.length) {
+          const index=cursor++;
+          results[index]=await fetchSecondary(index);
+        }
+      }));
+      const route = joinRouteChunks(results);
+      if (!roadRouteMatchesStops(route,points,150)) throw new Error('Incomplete joined road route');
+      return route;
+    }
   })();
   // The geometry belongs to the stop pattern, not the selected marker. Let the
   // bounded request finish/cache even if the user closes the panel meanwhile.
@@ -2495,9 +2523,12 @@ function formatPksStops(data: any, snapshot: any): StopsMap {
     const fallback = snapshot.stops?.[String(stop.stop_point_id)];
     // The timetable API contains approximate points; matched GTFS platforms are authoritative.
     const verified = fallback?.coordinateSource === 'gtfs' && String(fallback.areaId) === String(stop.stop_area_id) && String(fallback.code) === String(stop.stop_point_code);
-    const lat = Number(verified ? fallback.lat : stop.location?.lat ?? stop.location?.latitude ?? fallback?.lat);
-    const lon = Number(verified ? fallback.lon : stop.location?.lon ?? stop.location?.lng ?? stop.location?.long ?? stop.location?.longitude ?? fallback?.lon);
-    const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+    const snapshotPoint = readBusCoordinates(fallback?.lat,fallback?.lon);
+    const apiPoint = readBusCoordinates(stop.location?.lat ?? stop.location?.latitude,
+      stop.location?.lon ?? stop.location?.lng ?? stop.location?.long ?? stop.location?.longitude);
+    const point = verified ? snapshotPoint : apiPoint || snapshotPoint;
+    const lat = point?.lat, lon = point?.lon;
+    const hasCoords = Boolean(point);
     const areaName = stop.stop_area_name ? stop.stop_area_name.trim() : '';
     const name = stop.name ? stop.name.trim() : '';
     const finalNameRaw = bestPksStopName(areaName, name);
@@ -2831,7 +2862,7 @@ function fetchMarcelPositionSnapshot(signal?: AbortSignal): Promise<MarcelPositi
         const lon = readMarcelNumber(row, ['lon', 'lng', 'long', 'longitude', 'dlGps', 'dlugosc', 'dlugoscGeo', 'position.lon', 'position.lng', 'position.long', 'position.longitude']);
         const timestamp = readMarcelTimestamp(row);
         const at = Number.isFinite(timestamp) ? timestamp : observedAtMs;
-        return tripId && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(observedAtMs - at) < 60_000
+        return tripId && readBusCoordinates(lat,lon) && Math.abs(observedAtMs - at) < 60_000
           ? [{ tripId, lat, lon, observedAtMs: at }] : [];
       });
       if (marcelPositionSnapshotCache?.promise === promise) marcelPositionSnapshotCache.expiresAt = observedAtMs + 10_000;
@@ -2864,7 +2895,9 @@ export function estimateMarcelCourseDelay(courseId: number | string, publicStops
     let plannedMs = warsawTimeMs(dateIso, stop.godz);
     if (previousMs != null && plannedMs < previousMs - 6 * 3600_000) plannedMs += 24 * 3600_000;
     if (!Number.isFinite(plannedMs) || stop.szGps == null || stop.dlGps == null) return [];
-    const lat = Number(stop.szGps), lon = Number(stop.dlGps);
+    const point = readBusCoordinates(stop.szGps,stop.dlGps);
+    if (!point) return [];
+    const {lat,lon} = point;
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return [];
     previousMs = plannedMs;
     return [{ id: stop.kol || index + 1, name: '', lat, lon, plannedMs,
@@ -2915,7 +2948,7 @@ async function fetchRouteGeometryClientImpl(
     }
 
     const stopCoords = request.stops
-      .filter((stop) => Number.isFinite(stop.lat) && Number.isFinite(stop.lon))
+      .filter((stop) => readBusCoordinates(stop.lat,stop.lon))
       .map((stop) => [Number(stop.lat), Number(stop.lon)] as ShapePoint);
     const persist = (points: ShapePoint[]) => {
     if (points.length > 1 && typeof window !== 'undefined') {
