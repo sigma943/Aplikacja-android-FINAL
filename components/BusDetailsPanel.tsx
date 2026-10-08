@@ -27,7 +27,7 @@ interface BusDetailsPanelProps {
   selectedBusHeaderStyle: CSSProperties;
   selectedVehicleIsTrain: boolean;
   selectedBusStatusLabel: string | null;
-  selectedBusGpsSignalClock: string;
+  selectedBusGpsSignalClock: string | null;
   breakCountdownLabel: string | null;
   selectedBusIsWaitingForDeparture: boolean;
   selectedBusScheduleLoading: boolean;
