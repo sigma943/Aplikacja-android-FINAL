@@ -296,7 +296,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[data-map-bus-sheet] [data-route-stop-id]');
     await page.evaluate(()=>document.querySelector('[data-map-bus-sheet] [data-route-stop-id]').click());
     await page.waitForSelector('.stop-highlight-pin .map-stop-pin');
-    assert.equal(await style('.stop-highlight-pin .map-stop-pin','color'),'rgb(104, 196, 74)','Marcel route stop pin matches its green route');
+    assert.equal(await page.$eval('.stop-highlight-pin .map-stop-pin',el=>getComputedStyle(el).color),'rgb(104, 196, 74)','Marcel route stop pin matches its green route');
     await screenshot('marcel-route-green-pin');
     await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-transport-diagnostics]');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
