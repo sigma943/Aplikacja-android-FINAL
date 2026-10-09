@@ -100,8 +100,8 @@ try{
  assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>el.parentElement.parentElement.tagName),'BODY','widget dialog uses a portal above transformed panels');
  assert.match(await page.$eval('[aria-labelledby="widget-title"]',el=>el.textContent),/Generuj widżet/);
  assert.equal(await page.$eval('[aria-label="Zamknij okno widżetu"]',el=>el.querySelector('svg')===null),true,'text cancellation replaces the handle and X');
- assert.equal(await page.$eval('[aria-label="Efekt szkła widżetu"]',el=>el.checked),true);
- await page.click('[aria-label="Efekt szkła widżetu"]');assert.equal(await page.$eval('[aria-label="Efekt szkła widżetu"]',el=>el.checked),false);
+ assert.equal(await page.$('[aria-label="Efekt szkła widżetu"]'),null,'redundant glass toggle is removed');
+ assert.match(await page.$eval('[data-widget-preview]',el=>el.style.background),/linear-gradient/,'the existing preview retains its default appearance');
  assert.equal(await page.$eval('#widget-refresh-interval',el=>el.value),'30');
  assert.equal(await page.$eval('input[name="widget-refresh-mode"]:checked',el=>el.parentElement.textContent.includes('Pauza')),true);
  await page.select('#widget-refresh-interval','120');
