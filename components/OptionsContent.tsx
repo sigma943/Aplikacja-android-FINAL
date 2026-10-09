@@ -1,8 +1,8 @@
 'use client';
 import {Monitor,Sun,Moon,Sparkles,Check,Settings,Bus,MapPin} from 'lucide-react';
 import type {CSSProperties} from 'react';
-type Props={showMapStops?:boolean;saveMapStops?:(value:boolean)=>void;themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
-export default function OptionsContent({themeColor, textSub, optionsCard, isDark, isWarm, appTheme, optionsButton, isOptionsExpanded, saveAppTheme, saveThemeColor, transparentUI, saveTransparentUI, showInactive, saveInactive, lightEffects, saveLightEffects,showMapStops=false,saveMapStops}:Props){return <>
+type Props={panelGlow:boolean;glowStrength:number;savePanelGlow:(value:boolean)=>void;saveGlowStrength:(value:number)=>void;showMapStops?:boolean;saveMapStops?:(value:boolean)=>void;themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
+export default function OptionsContent({panelGlow,glowStrength,savePanelGlow,saveGlowStrength,themeColor, textSub, optionsCard, isDark, isWarm, appTheme, optionsButton, isOptionsExpanded, saveAppTheme, saveThemeColor, transparentUI, saveTransparentUI, showInactive, saveInactive, lightEffects, saveLightEffects,showMapStops=false,saveMapStops}:Props){return <>
                <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
                      <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${themeColor}18`, color: themeColor }}><Settings className="h-[18px] w-[18px]" /></span>
@@ -84,6 +84,23 @@ export default function OptionsContent({themeColor, textSub, optionsCard, isDark
                         <input type="checkbox" className="sr-only" checked={transparentUI} onChange={(e) => saveTransparentUI(e.target.checked)} />
                      </label>
                      
+                     <section className={`overflow-hidden rounded-2xl border ${optionsCard}`}>
+                       <label className="group flex min-h-20 cursor-pointer items-center justify-between gap-3 p-3 md:p-4">
+                         <div className="flex min-w-0 items-center gap-3">
+                           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{color:themeColor,backgroundColor:`${themeColor}14`}}><Sun size={20}/></span>
+                           <div><span className="text-sm font-semibold">Poświata paneli</span><p className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Delikatne światło w kolorze akcentu</p></div>
+                         </div>
+                         <input aria-label="Poświata paneli" role="switch" type="checkbox" className="peer sr-only" checked={panelGlow} onChange={event=>savePanelGlow(event.target.checked)}/>
+                         <span aria-hidden="true" className={`relative h-7 w-12 shrink-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 ${panelGlow?'':isDark?'bg-white/12':'bg-slate-300'}`} style={{backgroundColor:panelGlow?themeColor:undefined,outlineColor:themeColor}}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${panelGlow?'translate-x-5':''}`}/></span>
+                       </label>
+                       {panelGlow&&<div className={`border-t px-4 pb-4 pt-3 ${isDark?'border-white/8':'border-slate-900/8'}`}>
+                         <label htmlFor="panel-glow-strength" className="flex items-center justify-between text-xs font-medium"><span>Siła poświaty</span><output className="ui-accent-soft rounded-lg px-2 py-1 tabular-nums">{glowStrength}%</output></label>
+                         <input id="panel-glow-strength" type="range" min="0" max="100" step="5" value={glowStrength} onChange={event=>saveGlowStrength(Number(event.target.value))} className="ui-accent-focus mt-2 h-8 w-full cursor-pointer" style={{accentColor:themeColor}}/>
+                         <div className={`flex justify-between text-[10px] ${textSub}`}><span>Subtelna</span><span>Wyraźna</span></div>
+                         {lightEffects&&<p className={`mt-2 text-[11px] ${textSub}`}>Lżejsze efekty ograniczają siłę poświaty.</p>}
+                       </div>}
+                     </section>
+
                      <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
                         <div className="flex min-w-0 items-center gap-3 pr-3">
                            <Bus className={`h-5 w-5 shrink-0 ${isDark ? 'text-white/90' : 'text-slate-700'}`} />

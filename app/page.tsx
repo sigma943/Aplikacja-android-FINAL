@@ -15,6 +15,7 @@ import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {uiAccentVariables} from '@/lib/ui-accent';
+import {panelGlowStrength,panelGlowVariables} from '@/lib/panel-glow';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
@@ -149,6 +150,8 @@ export default function Home() {
   const [systemIsDark, setSystemIsDark] = useState(false);
   const [transparentUI, setTransparentUI] = useState(true);
   const [lightEffects,setLightEffects]=useState(false);
+  const [panelGlow,setPanelGlow]=useState(false);
+  const [glowStrength,setGlowStrength]=useState(40);
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
@@ -313,6 +316,8 @@ export default function Home() {
     else if (sAppTheme === 'system') setAppTheme('system');
     else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora') setAppTheme(sAppTheme);
     const sTrans = localStorage.getItem('mks_transparent');
+    setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');
+    setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
     setTimeout(()=>setLightEffects(localStorage.getItem('mks_light_effects')==='true'),0);
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
     const favs = localStorage.getItem('mks_fav_stops');
@@ -356,6 +361,8 @@ export default function Home() {
     document.body.style.backgroundColor = bg;
   };
   const saveLightEffects=(value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));};
+  const savePanelGlow=(value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));};
+  const saveGlowStrength=(value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));};
   const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val)); };
 
   const deferredFilterRoute = useDeferredValue(filterRoute);
@@ -919,6 +926,12 @@ export default function Home() {
       document.documentElement.style.setProperty(key, value);
     }
   }, [themeColor, isDark]);
+  useEffect(()=>{
+    const root=document.documentElement;
+    root.dataset.panelGlow=panelGlow&&glowStrength>0?'on':'off';
+    for(const [key,value] of Object.entries(panelGlowVariables(themeColor,glowStrength,isDark,lightEffects)))root.style.setProperty(key,value);
+    return ()=>{delete root.dataset.panelGlow;for(const key of Object.keys(panelGlowVariables(themeColor,glowStrength,isDark,lightEffects)))root.style.removeProperty(key);};
+  },[panelGlow,glowStrength,themeColor,isDark,lightEffects]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1503,7 +1516,7 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <OptionsContent showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
+            <OptionsContent panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
         )}
       </AnimatePresence>
