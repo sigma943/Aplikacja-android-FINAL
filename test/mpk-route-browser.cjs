@@ -8,7 +8,18 @@ try{
  await page.setRequestInterception(true);page.on('request',request=>{const url=request.url(),reply=(body,type='application/json',status=200)=>request.respond({status,contentType:type,headers:{'access-control-allow-origin':'*'},body});
  if(url.includes('GetVehicles?')&&waiting)return reply('<Vehicles><V nb="770" nr="   " nnr="51   " op=" " nop="Bardowskiego p. Dworzec Lokalny" x="22.02432" y="50.11553" px="22.02432" py="50.11553" ik="0" nk="3293" s="6" is="1572" o="1572"/></Vehicles>','application/xml');
  if(url.includes('GetVehicles?'))return reply('<Vehicles><V nb="102" nr="0A" op="Dworzec Główny PKP" x="21.985" y="50.021" ik="2500" s="1" is="0" lp="8" o="-120"/></Vehicles>','application/xml');
- if(url.includes('GetVehicleTimeTable?'))return reply(fs.readFileSync(waiting?'test/fixtures/mpk-mybus-51-waiting.xml':'test/fixtures/mpk-mybus-0a-timetable.xml','utf8'),'application/xml');
+ if(url.includes('GetVehicleTimeTable?')){
+  const xml=fs.readFileSync(waiting?'test/fixtures/mpk-mybus-51-waiting.xml':'test/fixtures/mpk-mybus-0a-timetable.xml','utf8');
+  // Recorded scheduled clocks expire as CI advances through the day. Keep the
+  // fixture's order/countdowns, but move its scheduled stops relative to now.
+  const fresh=xml.replace(/<Stop\b[^>]*\/>/g,tag=>{
+   if(!/m="3"/.test(tag))return tag;
+   const seconds=Number(/s="(\d+)"/.exec(tag)?.[1]);
+   const clock=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(Date.now()+seconds*1000)).split(':');
+   return tag.replace(/th="[^"]*"/,`th="${clock[0]}"`).replace(/tm="[^"]*"/,`tm="${clock[1]}"`);
+  });
+  return reply(fresh,'application/xml');
+ }
  if(url.includes('GetRouteVariantWithTransitPoints?')){geometryRequests++;return reply(fs.readFileSync(waiting?'test/fixtures/mpk-mybus-51-route.xml':'test/fixtures/mpk-mybus-0a-route.xml','utf8'),'application/xml');}
  if(url.includes('stopscache'))return reply(JSON.stringify([...JSON.parse(fs.readFileSync('test/fixtures/mpk-mybus-canonical-stops.json','utf8')),{stop_id:256,stop_name:'Podkarpacka / Matuszczaka 03',stop_lat:'50.0168',stop_lon:'21.97541',lines:'15,28'}]));
  if(url.includes('GetTimeTableReal?')){assert.equal(new URL(url).searchParams.get('nBusStopId'),'100');return reply(stopBoard,'application/xml');}

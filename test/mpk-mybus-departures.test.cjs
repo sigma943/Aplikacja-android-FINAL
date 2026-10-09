@@ -57,7 +57,7 @@ test('forecast-only recovery works when both old sources fail; both live sources
   await assert.rejects(api(Error('primary down'),Error('schedule down'),Error('myBus down')).client.fetchMpkRzeszowDeparturesClient('256',date));
  }finally{Date.now=original;}
 });
-test('healthy primary, future dates, cancellation and unmapped stops do not query an unrelated SIP stop',async()=>{
+test('healthy primary, cancellation and unmapped stops do not query an unrelated SIP stop',async()=>{
  const original=Date.now;Date.now=()=>now;
  try{
   const healthy=api([{linia:'15',kierunek:'Olbrachta p. Jarową',czas_odjazdu:'05:33',czas_odjazdu_real:'05:39',trip_id:234592}],planned,Error('must not run'));
