@@ -20,7 +20,7 @@ export function mpkBoardEntries(payload: unknown, observedAtMs = Date.now()) {
   return payload.filter((row) => row && !row.is_last_stop && row.linia && row.czas_odjazdu).map((row) => ({
     line: String(row.linia), trip_headsign: row.kierunek || row.przystanek_koncowy,
     departure_time: String(row.czas_odjazdu), real_departure_time: row.czas_odjazdu_real || undefined,
-    trip_id: row.trip_id, vehicle: row.nb, realtime_source: 'stop-board' as const,
+    trip_id: row.trip_id, vehicle: row.nb, realtime_source: row.czas_odjazdu_real ? 'stop-board' as const : undefined,
     board_is_past: row.is_past === true,
     board_at_stop: row.at_stop === true,
     board_observed_at_ms: observedAtMs,

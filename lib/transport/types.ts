@@ -144,6 +144,7 @@ export type MpkRzeszowScheduleEntry = {
   trip_headsign?: string;
   departure_time: string;
   real_departure_time?: string;
+  real_departure_at_ms?: number;
   realtime_source?: 'stop-board';
   block_id?: string | number;
   private_code?: string;

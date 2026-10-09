@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path'),puppeteer=require('puppeteer');
 const fixture=require('./build-accent-fixture.cjs')(),root=fixture.root,production=path.resolve('out');
 const server=http.createServer((req,res)=>{const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);let file=path.resolve(root,'.'+(pathname.endsWith('/')?pathname+'index.html':pathname));if(!file.startsWith(root+path.sep)){res.writeHead(404);return res.end();}if(!fs.existsSync(file))file=path.resolve(production,'.'+pathname);if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);return res.end();}res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');fs.createReadStream(file).pipe(res);});
-(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`,browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']}),page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let geometryRequests=0,waiting=false;
+(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`,browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']}),page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let geometryRequests=0,waiting=false,stopPlan='',stopLater='',stopBoard='';
 try{
  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
  await page.evaluateOnNewDocument(()=>{const arc=CanvasRenderingContext2D.prototype.arc;CanvasRenderingContext2D.prototype.arc=function(...args){this.canvas.dataset.testCircleCount=String(Number(this.canvas.dataset.testCircleCount||0)+1);return arc.apply(this,args);};localStorage.setItem('mks_transport_providers',JSON.stringify(['mpk_rzeszow']));if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.025,lng:21.995},zoom:14}));});
@@ -10,7 +10,11 @@ try{
  if(url.includes('GetVehicles?'))return reply('<Vehicles><V nb="102" nr="0A" op="Dworzec Główny PKP" x="21.985" y="50.021" ik="2500" s="1" is="0" lp="8" o="-120"/></Vehicles>','application/xml');
  if(url.includes('GetVehicleTimeTable?'))return reply(fs.readFileSync(waiting?'test/fixtures/mpk-mybus-51-waiting.xml':'test/fixtures/mpk-mybus-0a-timetable.xml','utf8'),'application/xml');
  if(url.includes('GetRouteVariantWithTransitPoints?')){geometryRequests++;return reply(fs.readFileSync(waiting?'test/fixtures/mpk-mybus-51-route.xml':'test/fixtures/mpk-mybus-0a-route.xml','utf8'),'application/xml');}
- if(url.includes('stopscache'))return reply(fs.readFileSync('test/fixtures/mpk-mybus-canonical-stops.json','utf8'));
+ if(url.includes('stopscache'))return reply(JSON.stringify([...JSON.parse(fs.readFileSync('test/fixtures/mpk-mybus-canonical-stops.json','utf8')),{stop_id:256,stop_name:'Podkarpacka / Matuszczaka 03',stop_lat:'50.0168',stop_lon:'21.97541',lines:'15,28'}]));
+ if(url.includes('GetTimeTableReal?')){assert.equal(new URL(url).searchParams.get('nBusStopId'),'100');return reply(stopBoard,'application/xml');}
+ if(url.includes('get_current_service'))return reply(JSON.stringify({service_ids:[2],date_used:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Warsaw'}).format(new Date()).replaceAll('-','')}));
+ if(url.includes('offline_schedule.php'))return reply(JSON.stringify({schedule:{15:[{line:'15',trip_headsign:'Olbrachta p. Jarową',departure_time:stopPlan,trip_id:234592}],28:[{line:'28',trip_headsign:'Lubelska MPK',departure_time:stopLater,trip_id:251617}]}}));
+ if(url.includes('/przystanki/departures.php'))return reply(JSON.stringify([{linia:'15',kierunek:'Olbrachta p. Jarową',czas_odjazdu:stopPlan,trip_id:234592,czas_odjazdu_real:null}]));
  if(url.includes('get_trip_stops'))return reply('{"stops":[]}');
  if(url.includes('vehicles_proxy'))return reply('missing','text/plain',404);
  if(url.includes('api.php?type=mpk'))return reply('{}');
@@ -45,5 +49,18 @@ try{
  await page.waitForFunction(()=>Number(document.querySelector('.leaflet-routeStops-pane canvas')?.dataset.testCircleCount)>=2);
  assert.equal(geometryRequests,2);assert.deepEqual(errors,[]);
  await page.screenshot({path:'test/ui-previews/mpk-mybus-51-break.png'});
- console.log('MPK backup: routes, next-stop circles, exact models and ticking break countdown rendered.');
+ // An HTTP-200 primary with scheduled rows must recover actual MPK stop predictions.
+ const seconds=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date()).split(':').reduce((sum,value)=>sum*60+Number(value),0));
+ const clock=value=>`${Math.floor(value/3600)}:${String(Math.floor(value%3600/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;
+ stopPlan=clock(seconds+300);stopLater=clock(seconds+2400);
+ stopBoard=`<Departures i="100"><D i="8212" iks="6462467" r="15" d="Olbrachta p. Jarową" n="815" t="${seconds+660}" vr="660" m="2"/></Departures>`;
+ await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()==='Przystanki').click());
+ await page.waitForSelector('input[placeholder*="Babica"]');await page.type('input[placeholder*="Babica"]','Matuszczaka');
+ await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>el.textContent.includes('Matuszczaka')));
+ await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id]')].find(el=>el.textContent.includes('Matuszczaka')).click());
+ await page.waitForFunction(()=>document.body.textContent.includes('+6 min')&&document.body.textContent.includes('Rozkład'));
+ const rendered=await page.evaluate(()=>{const title=[...document.querySelectorAll('h4')].find(el=>el.textContent==='Olbrachta p. Jarową');return title?.parentElement.parentElement.parentElement.parentElement.textContent;});
+ assert.match(rendered,/1[01] min/);assert.match(rendered,/\+6 min/);assert.doesNotMatch(rendered,/Rozkład/);assert.deepEqual(errors,[]);
+ await page.screenshot({path:'test/ui-previews/mpk-mybus-stop-live.png'});
+ console.log('MPK backup: routes, next-stop circles, models, break countdown and actual stop predictions rendered.');
 }finally{await browser.close();await new Promise(r=>server.close(r));fixture.cleanup();}})().catch(e=>{console.error(e);process.exitCode=1;});
