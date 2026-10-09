@@ -30,9 +30,11 @@ export interface Vehicle {
   delay?: number;
   positionObservedAtMs?: number;
   dataAgeSec?: number;
+  scheduleSource?: 'mybus';
   schedule?: StopSchedule[];
   routeStops?: StopSchedule[];
   routePath?: number[];
+  routeGeometry?: [number, number][];
   model?: string;
   // Test fields
   lastStopDistance?: number;

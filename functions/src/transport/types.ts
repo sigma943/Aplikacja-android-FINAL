@@ -40,9 +40,11 @@ export interface TransportVehicle {
   delaySeconds?: number;
   delayMinutes?: number;
   dataAgeSec?: number;
+  scheduleSource?: 'mybus';
   schedule?: TransportStopSchedule[];
   routeStops?: TransportStopSchedule[];
   routePath?: number[];
+  routeGeometry?: [number, number][];
   model?: string;
   lastStopDistance?: number;
   lastStopId?: number;

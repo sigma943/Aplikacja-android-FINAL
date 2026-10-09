@@ -56,3 +56,5 @@ export {PKP_DEFAULT_CENTER};
 export {PKP_MAX_DISTANCE_KM};
 export {PKP_METADATA_CACHE_TTL_MS};
 export {PKP_METADATA_LOOKUP_LIMIT};
+
+export const MPK_RZESZOW_MYBUS_TIMETABLE_URL = 'http://84.38.160.220/myBusServices/SchedulesService.svc/GetVehicleTimeTable';

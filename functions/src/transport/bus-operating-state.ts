@@ -28,10 +28,10 @@ export function busOperatingState(input:BusOperatingInput) {
   const stopped=(input.speed??0)<=3;
   const atFirst=input.atFirstStop===true||near(input,first);
   const atLast=input.atLastStop===true||near(input,last);
-  const waiting=Number.isFinite(firstMs)&&firstMs>input.nowMs+15000;
+  const waiting=Number.isFinite(firstMs)&&firstMs>input.nowMs+(input.reportedBreak?0:15000);
   const lastMs=transitTimestamp(last?.real||last?.planned);
   const ended=Number.isFinite(lastMs)&&lastMs<=input.nowMs+60000;
-  if(stopped && waiting && (atFirst||input.reportedBreak))return {
+  if(waiting && ((stopped&&atFirst)||input.reportedBreak))return {
     status:'break' as const,
     statusText:`Przerwa do ${new Date(firstMs).toLocaleTimeString('pl-PL',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'})}`,
     nextTripStartAtMs:firstMs,
