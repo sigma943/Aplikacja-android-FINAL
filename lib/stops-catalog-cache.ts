@@ -1,3 +1,4 @@
+import {mpkPassengerStop} from './mpk-passenger-lines';
 import {sanitizeBusStop} from './bus-coordinates';
 import type { Stop } from '@/Panel/src/types';
 import type { RawStop, MarcelIndexedStop } from '@/components/stops-panel/stop-domain';
@@ -13,7 +14,7 @@ export type CatalogSnapshot = {
 };
 
 function sanitizeSnapshot(snapshot: CatalogSnapshot): CatalogSnapshot {
-  return {...snapshot, pks: snapshot.pks.map(sanitizeBusStop), mpk: snapshot.mpk.map(sanitizeBusStop),
+  return {...snapshot, pks: snapshot.pks.map(sanitizeBusStop), mpk: snapshot.mpk.map(mpkPassengerStop).map(sanitizeBusStop),
     marcel: snapshot.marcel.map(sanitizeBusStop), stops: snapshot.stops.map(stop => stop.type === 'train' ? stop : sanitizeBusStop(stop))};
 }
 

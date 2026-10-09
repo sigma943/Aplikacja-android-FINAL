@@ -1,3 +1,4 @@
+import {isMpkPassengerLine} from '../mpk-passenger-lines';
 
 
 import {warsawDateIso, warsawTimeMs} from '../transit-time';
@@ -83,7 +84,7 @@ export async function fetchMpkRzeszowDeparturesClient(
       { signal: options?.signal, headers: { Accept: 'application/json' } },
     );
     if (!data.schedule || typeof data.schedule !== 'object') throw new Error('Invalid MPK schedule response');
-    return Object.values(data.schedule).flat().filter((entry) => !entry.is_last_stop);
+    return Object.values(data.schedule).flat().filter((entry) => !entry.is_last_stop && isMpkPassengerLine(entry.line));
   })();
   const [board, schedule] = await Promise.allSettled([boardPromise, schedulePromise]);
   if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
