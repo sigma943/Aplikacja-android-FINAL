@@ -1,7 +1,9 @@
 'use client';
+import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {useAppBack} from '@/lib/use-app-back';
 import { motion, useReducedMotion } from 'motion/react';
 import { buildStopsCatalog } from '@/lib/stops-catalog';
+import {stopIdentityIds} from '@/lib/stop-identity';
 import { loadStopDepartures } from '@/lib/stop-departures';
 import { peekStopsCatalogCache, readStopsCatalogCache, writeStopsCatalogCache, type MpkCatalogStop } from '@/lib/stops-catalog-cache';
 
@@ -73,7 +75,10 @@ export default function StopsPanel({
         setMpkStops(snapshot.mpk);
         setMarcelStops(snapshot.marcel);
         setPksLinesByStopId(snapshot.lines);
-        setMergedStopsBase(snapshot.stops);
+        // Rebuild identities from cached raw catalogs after a matching upgrade.
+        // Preserve offline data instead of displaying obsolete saved groups.
+        setMergedStopsBase(buildStopsCatalog(snapshot.pks,snapshot.mpk,snapshot.marcel,
+          [stopCollectionSignature(snapshot.pks),stopCollectionSignature(snapshot.mpk),stopCollectionSignature(snapshot.marcel)].join('|')));
         setRenderedCatalogKey([stopCollectionSignature(snapshot.pks), stopCollectionSignature(snapshot.mpk), stopCollectionSignature(snapshot.marcel)].join('|'));
       }
       setCacheReady(true);
@@ -89,8 +94,8 @@ export default function StopsPanel({
     const mapMpkStops = (data: Awaited<ReturnType<typeof fetchMpkRzeszowStopsClient>>) =>
       data
         .map((stop) => {
-          const lat = Number.isFinite(Number(stop.stop_lat)) ? Number(stop.stop_lat) : undefined;
-          const lon = Number.isFinite(Number(stop.stop_lon)) ? Number(stop.stop_lon) : undefined;
+          const point = readBusCoordinates(stop.stop_lat, stop.stop_lon);
+          const lat = point?.lat, lon = point?.lon;
           return {
             id: String(stop.stop_id),
             name: ensureMpkCityPrefix(stop.stop_name || '', lat, lon),
@@ -108,6 +113,7 @@ export default function StopsPanel({
         if (!cachedStops.length) throw new Error('Empty MPK stop catalog');
         if (!active) return;
         setMpkStops((current) => (mpkSignature(current) === mpkSignature(cachedStops) ? current : cachedStops));
+        setCatalogErrors(({ MPK, ...remaining }) => remaining);
       } catch (error) {
         if ((error as { name?: string })?.name !== 'AbortError') {
           console.warn('[StopsPanel] MPK stops unavailable', error);
@@ -118,10 +124,12 @@ export default function StopsPanel({
 
     const loadMarcelStopsSnapshot = async () => {
       try {
-        const cachedStops = await getMarcelStopsIndex(dateIso);
-        if (!cachedStops.length) throw new Error('Empty Marcel stop catalog');
+        const cachedStops = await getMarcelStopsIndex(dateIso, {onPartial: partial => {
+          if (active && partial.length) setMarcelStops(current => stopCollectionSignature(current) === stopCollectionSignature(partial) ? current : partial);
+        }});
         if (!active) return;
         setMarcelStops((current) => (stopCollectionSignature(current) === stopCollectionSignature(cachedStops) ? current : cachedStops));
+        setCatalogErrors(({ Marcel, ...remaining }) => remaining);
       } catch (error) {
         console.warn('[StopsPanel] Marcel stops unavailable', error);
         if(active) setCatalogErrors(current=>({...current,Marcel:true}));
@@ -228,15 +236,16 @@ export default function StopsPanel({
     }
     const favoriteSet = new Set(favorites);
     return baseUiStops.map((stop) => {
-      const isFavorite = favoriteSet.has(stop.id);
+      const isFavorite = stopIdentityIds(stop).some(id=>favoriteSet.has(id));
       return stop.isFavorite === isFavorite ? stop : { ...stop, isFavorite };
     });
   }, [baseUiStops, favorites]);
 
   const toggleFavorite = useCallback((stopId: string) => {
-    onToggleFavorite(stopId);
+    const stop=baseUiStops.find(s=>s.id===stopId);
+    onToggleFavorite(stopId,stop?stopIdentityIds(stop):[stopId]);
     setSelectedStop((current) => (current?.id === stopId ? { ...current, isFavorite: !current.isFavorite } : current));
-  }, [onToggleFavorite]);
+  }, [onToggleFavorite,baseUiStops]);
 
   const reduceMotion = useReducedMotion();
   const handleSelectStop = useCallback((stop: Stop) => {
@@ -278,10 +287,6 @@ export default function StopsPanel({
       data-glass={transparentUI ? 'on' : 'off'}
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >
-      {Object.keys(catalogErrors).length>0 && <div role="status" className="absolute bottom-3 left-3 right-3 z-50 rounded-xl border border-amber-500/30 bg-slate-900 p-3 text-sm text-amber-200">
-        {Object.keys(catalogErrors).join(', ')}: nie udało się pobrać pełnej listy przystanków.
-        <button onClick={()=>{setCatalogErrors({});setCatalogAttempt(value=>value+1);}} className="ml-3 underline">Ponów</button>
-      </div>}
       <motion.div key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}} className="h-full w-full">
         {currentSelectedStop ? (
           <BusStopDetail
@@ -296,6 +301,10 @@ export default function StopsPanel({
           />
         ) : (
           <StopList
+            notice={Object.keys(catalogErrors).length>0 && <div role="status" className="col-span-full rounded-xl border border-amber-500/30 bg-slate-900 p-3 text-sm text-amber-200">
+        {Object.keys(catalogErrors).join(', ')}: nie udało się pobrać pełnej listy przystanków.
+        <button onClick={()=>{setCatalogErrors({});setCatalogAttempt(value=>value+1);}} className="ml-3 underline">Ponów</button>
+      </div>}
             backEnabled={active}
             stops={uiStops}
             onVisibleStopsChange={refreshVisibleLines}

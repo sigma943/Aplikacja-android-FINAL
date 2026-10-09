@@ -2,6 +2,10 @@
 
 Okno tworzenia ma nieprzezroczyste tło, podgląd rozmiaru i motywu oraz stale widoczny przycisk dodawania. Nie ma górnego uchwytu ani X. Anuluj, przycisk Wstecz i dotknięcie tła zamykają okno z animacją; ograniczenie animacji w ustawieniach systemowych jest respektowane. Usuwanie widżetu z ekranu głównego i jego animację obsługuje launcher Androida. Aplikacja usuwa konfigurację i anuluje zadania, gdy ostatni widżet zostanie usunięty.
 
+Nagłówek ma osobne miejsce na wektorową ikonę odświeżania; ikona nie może wystawać nad godziny odjazdów. Ręczne kliknięcie korzysta z zadania pilnego Androida 12+, a po wyczerpaniu jego limitu przechodzi na zwykłe zadanie z terminem uruchomienia. Odświeżanie automatyczne zachowuje ustawiony interwał i zasady oszczędzania baterii. Ręczne ponowienia mają minutowy odstęp, a widżet pokazuje stan operacji lub informację o odstępie. Kliknięcie podczas pracy zadania okresowego czeka na zakończenie obecnego zadania zamiast przepadać.
+
+Tło ma systemowy identyfikator `android.R.id.background`, co pozwala launcherowi prawidłowo rozpoznać powierzchnię widżetu. Nie istnieje publiczny interfejs Androida wymuszający konkretną animację rozprysku HyperOS. Efekt usunięcia zależy od launchera, wersji systemu i ustawień animacji telefonu.
+
 Mały widżet ma osobny układ: mniejszy nagłówek, pełny wiersz odjazdu i brak stopki, jeśli zabrakłoby miejsca. Większe rozmiary pokazują kierunki i czas aktualizacji. Liczba pełnych wierszy wynika z faktycznej wysokości przekazanej przez launcher. Godziny HH:mm nie stają się nieprawidłowym odliczaniem między pobraniami.
 
 Każdy widżet zapisuje częstotliwość 15, 30, 60 lub 120 minut (domyślnie 30) oraz tryb: pauza w oszczędzaniu baterii (domyślnie), włączone również w oszczędzaniu baterii albo wyłączone — tylko ręczne odświeżanie. Starsze konfiguracje otrzymują wartości domyślne. Pierwsze pobranie po utworzeniu jest dozwolone również w trybie ręcznym, aby od razu wyświetlić odjazdy.
@@ -11,3 +15,8 @@ Jedno wspólne zadanie JobScheduler używa najkrótszego aktywnego interwału. K
 Widżety pobierają rozkład konkretnego przystanku, bez całej floty. Kilka widżetów tego samego przystanku współdzieli odpowiedź w danym zadaniu; filtrowanie linii odbywa się przy renderowaniu. Zadanie trwa najwyżej dwie minuty, pojedynczy przystanek 75 sekund, a aktywne są najwyżej dwa połączenia HTTP. Zatrzymanie zamyka WebView i połączenia, bez natychmiastowego ponowienia. Najdawniej próbowane przystanki mają pierwszeństwo w następnym zadaniu.
 
 Przycisk ↻ dotyczy jednego widżetu i ma limit jednej próby na minutę. Otwarta aplikacja może przekazać pobrane już odjazdy, respektując interwał i tryb automatycznego odświeżania. Zmiana rozmiaru lub motywu odczytuje zapisane lokalnie dane i nie pobiera rozkładu. Instalacja nowszego APK anuluje stary alarm minutowy i aktualizuje harmonogram.
+
+
+Tło widżetu domyślnie ma efekt szkła: półprzezroczysty gradient i jasny obrys. Tekst zachowuje pełną nieprzezroczystość. W generatorze można wyłączyć szkło; starsze widżety otrzymują je automatycznie po aktualizacji. To statyczny wygląd bez dodatkowych odświeżeń i bez pobierania tapety. RemoteViews nie rozmywa tapety launchera.
+
+Na Androidzie 12+ powierzchnia używa systemowego promienia narożników i przycinania obrysu. Nie deklarujemy widżetu jako zastrzeżonego Xiaomi Widget: jego specyfikacja wymaga osobnego procesu i innych ograniczeń, a opisany przełącznik animacji dotyczy przejścia do Activity, nie usuwania. Efekt rozprysku po usunięciu pozostaje decyzją HyperOS.

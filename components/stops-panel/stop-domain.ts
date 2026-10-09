@@ -1,4 +1,5 @@
 'use client';
+import {readBusCoordinates} from '@/lib/bus-coordinates';
 
 import type { Carrier, Departure, Stop } from '@/Panel/src/types';
 import { fetchMarcelCoursesClient, fetchMarcelPublicCourseStopsClient, fetchMarcelRoutesClient, fetchVehicleDetailsClient, type MarcelCourse, type MarcelCourseStopPublic, type TransportProviderId } from '@/lib/pks-client';
@@ -30,7 +31,7 @@ interface StopsPanelProps {
   isDarkTheme: boolean;
   onRetry: () => void;
   onClose: () => void;
-  onToggleFavorite: (stopId: string) => void;
+  onToggleFavorite: (stopId: string, aliases?: string[]) => void;
   onShowOnMap: (stop: Stop) => void;
 }
 
@@ -93,7 +94,7 @@ const TOKEN_CACHE = new Map<string, string[]>();
 const NUM_TOKEN_CACHE = new Map<string, Set<string>>();
 const MARCEL_STOPS_INDEX_CACHE = new Map<string, Promise<MarcelIndexedStop[]>>();
 
-const STOP_CACHE_VERSION = 10;
+const STOP_CACHE_VERSION = 11;
 const STOP_CACHE_TTL_MS = 15 * 60 * 1000;
 const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v10:';
 const MERGED_STOPS_RUNTIME_CACHE = new Map<string, Stop[]>();
@@ -346,6 +347,7 @@ function preferredStopDisplayName(displayNamesByProvider: Record<string, string>
 
 function stopBaseNameKey(value: unknown) {
   return normalizeMergeName(value)
+    .replace(/\bdps\b/g, 'dom pomocy spolecznej')
     .replace(/\bpodkarp(?:acka)?\b/g, 'podkarpacka')
     .replace(/\bpodkar\b/g, 'podkarpacka')
     .replace(/\bmatuszczka\b/g, 'matuszczaka')
@@ -553,7 +555,7 @@ function geoBucketKeys(lat?: number, lon?: number) {
 }
 
 function normalizeStopMergeName(value: unknown) {
-  return normalizeStopName(stopDisplayName(value))
+  return normalizeStopName(stopDisplayName(value).replace(/[.,/]+/g, ' '))
     .replace(/\bpodkarp\.\b/g, 'podkarpacka')
     .replace(/\bpodkarp(?:acka)?\b/g, 'podkarpacka')
     .replace(/\bpodkarp\b/g, 'podkarpacka')
@@ -855,28 +857,42 @@ function marcelCourseStopIndexKey(stop: MarcelCourseStopPublic) {
   return [normalizeStopName(stop.nazMi), marcelCourseStopMatchKey(stop)].filter(Boolean).join('|');
 }
 
-function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean }) {
+const marcelIndexListeners = new Map<string, Set<(stops: MarcelIndexedStop[]) => void>>();
+function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean; onPartial?: (stops: MarcelIndexedStop[]) => void }) {
   const cacheKey = `${MARCEL_STOPS_PERSISTENT_PREFIX}${dateIso}`;
   const cached = readStopCache<MarcelIndexedStop[]>(cacheKey);
   const isFresh = cached && Date.now() - cached.savedAt < STOP_CACHE_TTL_MS;
   if (cached && isFresh && !options?.forceRefresh) return Promise.resolve(cached.data);
 
+  const listener = options?.onPartial;
+  if (listener) {
+    if (!marcelIndexListeners.has(dateIso)) marcelIndexListeners.set(dateIso, new Set());
+    marcelIndexListeners.get(dateIso)!.add(listener);
+    if (cached?.data.length) listener(cached.data);
+  }
   if (options?.forceRefresh) MARCEL_STOPS_INDEX_CACHE.delete(dateIso);
   if (!MARCEL_STOPS_INDEX_CACHE.has(dateIso)) {
     MARCEL_STOPS_INDEX_CACHE.set(dateIso, (async () => {
       const routes = await fetchMarcelRoutesClient();
-      const routeDays = routes.flatMap(route=>Array.from({length:7},(_,offset)=>({route,date:warsawDateIso(offset,new Date(dateIso+'T12:00:00Z'))})));
-      const routeCourses = await mapWithConcurrency(routeDays, 6, async ({route,date}) => ({
-        routeId: String(route.idTr),
-        courses: await fetchMarcelCoursesClient(route.idTr, date),
-      }));
-      const courseRefs = routeCourses.flatMap(({ routeId, courses }) =>
-        courses.map((course) => ({ routeId, courseId: course.idKu })),
-      );
-      const uniqueCourseRefs = [...new Map(courseRefs.map((ref) => [String(ref.courseId), ref])).values()];
       const indexedStops = new Map<string, MarcelIndexedStop & { routeIdSet: Set<string> }>();
 
-      await mapWithConcurrency(uniqueCourseRefs, 10, async ({ routeId, courseId }) => {
+      let lastPublished = 0;
+      const snapshot = () => [...indexedStops.values()].map(({ routeIdSet, ...stop }) => ({ ...stop, routeIds: [...routeIdSet] }));
+      const publish = (final = false) => {
+        if (!final && Date.now() - lastPublished < 500) return;
+        lastPublished = Date.now();
+        const partial = snapshot();
+        marcelIndexListeners.get(dateIso)?.forEach(callback => callback(partial));
+      };
+      await mapWithConcurrency(routes, 4, async route => {
+        const routeId = String(route.idTr);
+        let courses = await fetchMarcelCoursesClient(route.idTr, dateIso);
+        // Look ahead only for routes without service today; do not download seven full timetables.
+        for (let offset = 1; !courses.length && offset < 7; offset++) {
+          courses = await fetchMarcelCoursesClient(route.idTr, warsawDateIso(offset, new Date(dateIso + 'T12:00:00Z')));
+        }
+        const courseIds = [...new Set(courses.map(course => course.idKu))];
+        await mapWithConcurrency(courseIds, 2, async courseId => {
         const stopsForCourse = await fetchMarcelPublicCourseStopsClient(courseId);
         stopsForCourse.forEach((courseStop) => {
           const matchName = stripMarcelStopName(courseStop.nazPr);
@@ -885,11 +901,11 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
           const key = marcelCourseStopIndexKey(courseStop);
           if (!displayName || !matchName || !matchKey || !key) return;
 
+          const point = readBusCoordinates(courseStop.szGps, courseStop.dlGps);
           const current = indexedStops.get(key);
           if (current) {
             current.routeIdSet.add(routeId);
-            if (current.lat === undefined && Number.isFinite(Number(courseStop.szGps))) current.lat = Number(courseStop.szGps);
-            if (current.lon === undefined && Number.isFinite(Number(courseStop.dlGps))) current.lon = Number(courseStop.dlGps);
+            if (!readBusCoordinates(current.lat, current.lon) && point) Object.assign(current, point);
             return;
           }
 
@@ -899,18 +915,18 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
             matchName: stopDisplayName(matchName),
             matchKey,
             cityMatchKey: key,
-            lat: Number.isFinite(Number(courseStop.szGps)) ? Number(courseStop.szGps) : undefined,
-            lon: Number.isFinite(Number(courseStop.dlGps)) ? Number(courseStop.dlGps) : undefined,
+            lat: point?.lat,
+            lon: point?.lon,
             routeIds: [],
             routeIdSet: new Set([routeId]),
           });
         });
+        publish();
+        });
       });
 
-      const stops = [...indexedStops.values()].map(({ routeIdSet, ...stop }) => ({
-        ...stop,
-        routeIds: [...routeIdSet],
-      }));
+      publish(true);
+      const stops = snapshot();
       writeStopCache(cacheKey, stops);
       return stops;
     })());
@@ -919,6 +935,9 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
     MARCEL_STOPS_INDEX_CACHE.delete(dateIso);
     if (cached) return cached.data;
     throw error;
+  }).finally(() => {
+    if (listener) marcelIndexListeners.get(dateIso)?.delete(listener);
+    if (!marcelIndexListeners.get(dateIso)?.size) marcelIndexListeners.delete(dateIso);
   });
 }
 
@@ -1036,8 +1055,8 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
   const line = cleanLine(entry.line);
   if (!line) return null;
   const plannedAtMs = parseTimeOnDate(dateIso, entry.departure_time);
-  let realAtMs = parseTimeOnDate(dateIso, entry.real_departure_time) ?? plannedAtMs;
-  if (realAtMs != null && plannedAtMs != null && realAtMs < plannedAtMs - 12 * 3600_000) {
+  let realAtMs = typeof entry.real_departure_at_ms === 'number' && Number.isFinite(entry.real_departure_at_ms) ? entry.real_departure_at_ms : parseTimeOnDate(dateIso, entry.real_departure_time) ?? plannedAtMs;
+  if (entry.real_departure_at_ms == null && realAtMs != null && plannedAtMs != null && realAtMs < plannedAtMs - 12 * 3600_000) {
     realAtMs = parseTimeOnDate(warsawDateIso(1, new Date(`${dateIso}T12:00:00Z`)), entry.real_departure_time);
   }
   const delayMins = plannedAtMs != null && realAtMs != null ? busDelayMinutes((realAtMs - plannedAtMs) / 1000) : 0;
@@ -1057,7 +1076,7 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
     line,
     direction,
     time: formatWarsawTime(realAtMs, entry.departure_time),
-    status: delayMins !== 0 ? 'delayed' : 'on_time',
+    status: plannedAtMs == null ? 'unknown' : delayMins !== 0 ? 'delayed' : 'on_time',
     delayMins,
     carrier: MPK_CARRIER,
     type: 'departure',

@@ -1,0 +1,573 @@
+{
+  "bearing": 180,
+  "delay": 0,
+  "journey": {
+    "departure_time": "05:15:00",
+    "journey_id": 23226,
+    "line": {
+      "line_id": 642,
+      "line_name": "251"
+    },
+    "route": {
+      "description": "Rzeszów D.A.",
+      "direction": "inbound",
+      "is_default": false,
+      "is_technical": false,
+      "name": "Straszydle - Rzeszów D.A. przez Sołonka, Zarzecze, Boguchwała D.A.",
+      "route_id": 10586,
+      "route_links": [
+        {
+          "distance": 1000,
+          "from": 1949,
+          "index": 1,
+          "to": 1950
+        },
+        {
+          "distance": 1100,
+          "from": 1950,
+          "index": 2,
+          "to": 6148
+        },
+        {
+          "distance": 900,
+          "from": 6148,
+          "index": 3,
+          "to": 1960
+        },
+        {
+          "distance": 800,
+          "from": 1960,
+          "index": 4,
+          "to": 8270
+        },
+        {
+          "distance": 500,
+          "from": 8270,
+          "index": 5,
+          "to": 1954
+        },
+        {
+          "distance": 900,
+          "from": 1954,
+          "index": 6,
+          "to": 1953
+        },
+        {
+          "distance": 600,
+          "from": 1953,
+          "index": 7,
+          "to": 8268
+        },
+        {
+          "distance": 900,
+          "from": 8268,
+          "index": 8,
+          "to": 9561
+        },
+        {
+          "distance": 1100,
+          "from": 9561,
+          "index": 9,
+          "to": 1946
+        },
+        {
+          "distance": 1100,
+          "from": 1946,
+          "index": 10,
+          "to": 10033
+        },
+        {
+          "distance": 800,
+          "from": 10033,
+          "index": 11,
+          "to": 8265
+        },
+        {
+          "distance": 600,
+          "from": 8265,
+          "index": 12,
+          "to": 1929
+        },
+        {
+          "distance": 900,
+          "from": 1929,
+          "index": 13,
+          "to": 1931
+        },
+        {
+          "distance": 1000,
+          "from": 1931,
+          "index": 14,
+          "to": 1928
+        },
+        {
+          "distance": 1000,
+          "from": 1928,
+          "index": 15,
+          "to": 1936
+        },
+        {
+          "distance": 600,
+          "from": 1936,
+          "index": 16,
+          "to": 1925
+        },
+        {
+          "distance": 400,
+          "from": 1925,
+          "index": 17,
+          "to": 1934
+        },
+        {
+          "distance": 900,
+          "from": 1934,
+          "index": 18,
+          "to": 1938
+        },
+        {
+          "distance": 1100,
+          "from": 1938,
+          "index": 19,
+          "to": 1942
+        },
+        {
+          "distance": 500,
+          "from": 1942,
+          "index": 20,
+          "to": 7110
+        },
+        {
+          "distance": 500,
+          "from": 7110,
+          "index": 21,
+          "to": 5960
+        },
+        {
+          "distance": 500,
+          "from": 5960,
+          "index": 22,
+          "to": 5958
+        },
+        {
+          "distance": 800,
+          "from": 5958,
+          "index": 23,
+          "to": 1142
+        },
+        {
+          "distance": 600,
+          "from": 1142,
+          "index": 24,
+          "to": 6155
+        },
+        {
+          "distance": 1000,
+          "from": 6155,
+          "index": 25,
+          "to": 1035
+        },
+        {
+          "distance": 1100,
+          "from": 1035,
+          "index": 26,
+          "to": 5835
+        },
+        {
+          "distance": 400,
+          "from": 5835,
+          "index": 27,
+          "to": 5833
+        },
+        {
+          "distance": 1100,
+          "from": 5833,
+          "index": 28,
+          "to": 5810
+        },
+        {
+          "distance": 700,
+          "from": 5810,
+          "index": 29,
+          "to": 1018
+        },
+        {
+          "distance": 500,
+          "from": 1018,
+          "index": 30,
+          "to": 5334
+        },
+        {
+          "distance": 500,
+          "from": 5334,
+          "index": 31,
+          "to": 7008
+        },
+        {
+          "distance": 1000,
+          "from": 7008,
+          "index": 32,
+          "to": 5324
+        },
+        {
+          "distance": 800,
+          "from": 5324,
+          "index": 33,
+          "to": 3908
+        },
+        {
+          "distance": 600,
+          "from": 3908,
+          "index": 34,
+          "to": 5320
+        },
+        {
+          "distance": 700,
+          "from": 5320,
+          "index": 35,
+          "to": 3795
+        },
+        {
+          "distance": 700,
+          "from": 3795,
+          "index": 36,
+          "to": 4765
+        },
+        {
+          "distance": 700,
+          "from": 4765,
+          "index": 37,
+          "to": 4698
+        },
+        {
+          "distance": 1000,
+          "from": 4698,
+          "index": 38,
+          "to": 4989
+        },
+        {
+          "distance": 900,
+          "from": 4989,
+          "index": 39,
+          "to": 11462
+        },
+        {
+          "distance": 900,
+          "from": 11462,
+          "index": 40,
+          "to": 3731
+        }
+      ],
+      "route_variant": "V",
+      "stop_points": [
+        1949,
+        1950,
+        6148,
+        1960,
+        8270,
+        1954,
+        1953,
+        8268,
+        9561,
+        1946,
+        10033,
+        8265,
+        1929,
+        1931,
+        1928,
+        1936,
+        1925,
+        1934,
+        1938,
+        1942,
+        7110,
+        5960,
+        5958,
+        1142,
+        6155,
+        1035,
+        5835,
+        5833,
+        5810,
+        1018,
+        5334,
+        7008,
+        5324,
+        3908,
+        5320,
+        3795,
+        4765,
+        4698,
+        4989,
+        11462,
+        3731
+      ]
+    },
+    "service": {
+      "day_type": "PS",
+      "service_code": "250/3",
+      "service_id": 28888,
+      "service_number": "3",
+      "start_time": "04:55:00",
+      "timetable_id": 112
+    },
+    "vehicle_journey_date": "2026-10-08"
+  },
+  "last_updated": "2026-10-08 05:16:00",
+  "next_stop_points": [
+    {
+      "index": 1,
+      "planned_departure_time": "2026-10-08 05:17:00",
+      "real_departure_time": "2026-10-08 05:17:00",
+      "stop_point_id": 1950
+    },
+    {
+      "index": 2,
+      "planned_departure_time": "2026-10-08 05:19:00",
+      "real_departure_time": "2026-10-08 05:19:00",
+      "stop_point_id": 6148
+    },
+    {
+      "index": 3,
+      "planned_departure_time": "2026-10-08 05:20:00",
+      "real_departure_time": "2026-10-08 05:20:00",
+      "stop_point_id": 1960
+    },
+    {
+      "index": 4,
+      "planned_departure_time": "2026-10-08 05:21:00",
+      "real_departure_time": "2026-10-08 05:21:00",
+      "stop_point_id": 8270
+    },
+    {
+      "index": 5,
+      "planned_departure_time": "2026-10-08 05:22:00",
+      "real_departure_time": "2026-10-08 05:22:00",
+      "stop_point_id": 1954
+    },
+    {
+      "index": 6,
+      "planned_departure_time": "2026-10-08 05:24:00",
+      "real_departure_time": "2026-10-08 05:24:00",
+      "stop_point_id": 1953
+    },
+    {
+      "index": 7,
+      "planned_departure_time": "2026-10-08 05:25:00",
+      "real_departure_time": "2026-10-08 05:25:00",
+      "stop_point_id": 8268
+    },
+    {
+      "index": 8,
+      "planned_departure_time": "2026-10-08 05:27:00",
+      "real_departure_time": "2026-10-08 05:27:00",
+      "stop_point_id": 9561
+    },
+    {
+      "index": 9,
+      "planned_departure_time": "2026-10-08 05:29:00",
+      "real_departure_time": "2026-10-08 05:29:00",
+      "stop_point_id": 1946
+    },
+    {
+      "index": 10,
+      "planned_departure_time": "2026-10-08 05:31:00",
+      "real_departure_time": "2026-10-08 05:31:00",
+      "stop_point_id": 10033
+    },
+    {
+      "index": 11,
+      "planned_departure_time": "2026-10-08 05:32:00",
+      "real_departure_time": "2026-10-08 05:32:00",
+      "stop_point_id": 8265
+    },
+    {
+      "index": 12,
+      "planned_departure_time": "2026-10-08 05:33:00",
+      "real_departure_time": "2026-10-08 05:33:00",
+      "stop_point_id": 1929
+    },
+    {
+      "index": 13,
+      "planned_departure_time": "2026-10-08 05:35:00",
+      "real_departure_time": "2026-10-08 05:35:00",
+      "stop_point_id": 1931
+    },
+    {
+      "index": 14,
+      "planned_departure_time": "2026-10-08 05:37:00",
+      "real_departure_time": "2026-10-08 05:37:00",
+      "stop_point_id": 1928
+    },
+    {
+      "index": 15,
+      "planned_departure_time": "2026-10-08 05:39:00",
+      "real_departure_time": "2026-10-08 05:39:00",
+      "stop_point_id": 1936
+    },
+    {
+      "index": 16,
+      "planned_departure_time": "2026-10-08 05:40:00",
+      "real_departure_time": "2026-10-08 05:40:00",
+      "stop_point_id": 1925
+    },
+    {
+      "index": 17,
+      "planned_departure_time": "2026-10-08 05:41:00",
+      "real_departure_time": "2026-10-08 05:41:00",
+      "stop_point_id": 1934
+    },
+    {
+      "index": 18,
+      "planned_departure_time": "2026-10-08 05:43:00",
+      "real_departure_time": "2026-10-08 05:43:00",
+      "stop_point_id": 1938
+    },
+    {
+      "index": 19,
+      "planned_departure_time": "2026-10-08 05:45:00",
+      "real_departure_time": "2026-10-08 05:45:00",
+      "stop_point_id": 1942
+    },
+    {
+      "index": 20,
+      "planned_departure_time": "2026-10-08 05:46:00",
+      "real_departure_time": "2026-10-08 05:46:00",
+      "stop_point_id": 7110
+    },
+    {
+      "index": 21,
+      "planned_departure_time": "2026-10-08 05:47:00",
+      "real_departure_time": "2026-10-08 05:47:00",
+      "stop_point_id": 5960
+    },
+    {
+      "index": 22,
+      "planned_departure_time": "2026-10-08 05:48:00",
+      "real_departure_time": "2026-10-08 05:48:00",
+      "stop_point_id": 5958
+    },
+    {
+      "index": 23,
+      "planned_departure_time": "2026-10-08 05:49:00",
+      "real_departure_time": "2026-10-08 05:49:00",
+      "stop_point_id": 1142
+    },
+    {
+      "index": 24,
+      "planned_departure_time": "2026-10-08 05:50:00",
+      "real_departure_time": "2026-10-08 05:50:00",
+      "stop_point_id": 6155
+    },
+    {
+      "index": 25,
+      "planned_departure_time": "2026-10-08 05:52:00",
+      "real_departure_time": "2026-10-08 05:52:00",
+      "stop_point_id": 1035
+    },
+    {
+      "index": 26,
+      "planned_departure_time": "2026-10-08 05:54:00",
+      "real_departure_time": "2026-10-08 05:54:00",
+      "stop_point_id": 5835
+    },
+    {
+      "index": 27,
+      "planned_departure_time": "2026-10-08 05:55:00",
+      "real_departure_time": "2026-10-08 05:55:00",
+      "stop_point_id": 5833
+    },
+    {
+      "index": 28,
+      "planned_departure_time": "2026-10-08 05:57:00",
+      "real_departure_time": "2026-10-08 05:57:00",
+      "stop_point_id": 5810
+    },
+    {
+      "index": 29,
+      "planned_departure_time": "2026-10-08 05:58:00",
+      "real_departure_time": "2026-10-08 05:58:00",
+      "stop_point_id": 1018
+    },
+    {
+      "index": 30,
+      "planned_departure_time": "2026-10-08 06:00:00",
+      "real_departure_time": "2026-10-08 06:00:00",
+      "stop_point_id": 5334
+    },
+    {
+      "index": 31,
+      "planned_departure_time": "2026-10-08 06:01:00",
+      "real_departure_time": "2026-10-08 06:01:00",
+      "stop_point_id": 7008
+    },
+    {
+      "index": 32,
+      "planned_departure_time": "2026-10-08 06:03:00",
+      "real_departure_time": "2026-10-08 06:03:00",
+      "stop_point_id": 5324
+    },
+    {
+      "index": 33,
+      "planned_departure_time": "2026-10-08 06:04:00",
+      "real_departure_time": "2026-10-08 06:04:00",
+      "stop_point_id": 3908
+    },
+    {
+      "index": 34,
+      "planned_departure_time": "2026-10-08 06:05:00",
+      "real_departure_time": "2026-10-08 06:05:00",
+      "stop_point_id": 5320
+    },
+    {
+      "index": 35,
+      "planned_departure_time": "2026-10-08 06:06:00",
+      "real_departure_time": "2026-10-08 06:06:00",
+      "stop_point_id": 3795
+    },
+    {
+      "index": 36,
+      "planned_departure_time": "2026-10-08 06:08:00",
+      "real_departure_time": "2026-10-08 06:08:00",
+      "stop_point_id": 4765
+    },
+    {
+      "index": 37,
+      "planned_departure_time": "2026-10-08 06:10:00",
+      "real_departure_time": "2026-10-08 06:10:00",
+      "stop_point_id": 4698
+    },
+    {
+      "index": 38,
+      "planned_departure_time": "2026-10-08 06:12:00",
+      "real_departure_time": "2026-10-08 06:12:00",
+      "stop_point_id": 4989
+    },
+    {
+      "index": 39,
+      "planned_departure_time": "2026-10-08 06:14:00",
+      "real_departure_time": "2026-10-08 06:14:00",
+      "stop_point_id": 11462
+    },
+    {
+      "index": 40,
+      "planned_departure_time": "2026-10-08 06:17:00",
+      "real_departure_time": "2026-10-08 06:17:00",
+      "stop_point_id": 3731
+    }
+  ],
+  "position": {
+    "last_stop_point_distance": 24,
+    "last_stop_point_number": 1,
+    "lat": 49.88181,
+    "long": 21.98742,
+    "position_date": "2026-10-08 05:16:00",
+    "speed": 0
+  },
+  "vehicle_id": 107,
+  "model": "MAN NL320 Lion's City 12G",
+  "trip_id": 5353,
+  "final_stop_id": 31,
+  "brigade_name": "250/3",
+  "day_type_code": "PS",
+  "brigade_type": "BIS"
+}

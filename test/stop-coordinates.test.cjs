@@ -12,11 +12,11 @@ test('a network refresh cannot overwrite verified positions and backend stop ide
   const result=client.formatPksStops({items},snapshot)['11028'];assert.equal(result.lat,49.8418003);assert.equal(result.lon,21.925578);assert.equal(result.code,'08');assert.equal(result.areaId,'1061');
   items[0].stop_area_id=999;assert.equal(client.formatPksStops({items},snapshot)['11028'].lat,49.842648,'a reused technical ID must not borrow a different platform');
 });
-test('map does not move an MPK platform to a nearby PKS/list consolidation point',()=>{
+test('same numbered city platform has one pin at its precise MPK position',()=>{
   const pks=[{id:'10',name:'Rzeszów Testowa 01',lat:50.04,lon:22.00,lines:['108']}];
   const mpk=[{id:'20',name:'Testowa 01',lat:50.04025,lon:22.00,lines:['2']}];
   const list=buildStopsCatalog(pks,mpk,[],'coordinates-shared-key');assert.equal(list.length,1);
-  const map=buildStopsCatalog(pks,mpk,[],'coordinates-shared-key',true);assert.equal(map.length,2);
+  const map=buildStopsCatalog(pks,mpk,[],'coordinates-shared-key',true);assert.equal(map.length,1);
   const city=map.find(s=>s.providerStopIds.mpk_rzeszow==='20');assert.equal(city.lat,50.04025);assert.equal(city.lon,22);
 });
 test('nearby opposite platforms remain separate; a shared physical platform may combine providers',()=>{
@@ -41,4 +41,134 @@ test('locality-only GTFS names match a landmark only with unique codes and a nea
   const api=[{id:1,name:'Boguchwała, SKRZYŻOWANIE',code:'93',lat:49.98,lon:21.94}],gtfs=[{id:4,name:'Boguchwała 93 nż',lat:49.9801,lon:21.9401}];
   assert.equal(matchCoordinates(api,gtfs).stops['1'].gtfsStopId,'4');
   assert.deepEqual(matchCoordinates([...api,{...api[0],id:2}],gtfs).stops,{});
+});
+
+test('physical catalog merges provider aliases and duplicate IDs but retains different platforms and distant namesakes',()=>{
+  const pks=[{id:'p1',name:'Rzeszów Podkarp. Matuszczaka 03',lat:50.01,lon:22,lines:['108']},
+    {id:'p2',name:'Rzeszów Podkarpacka / Matuszczaka 3',lat:50.0101,lon:22,lines:['223']},
+    {id:'p3',name:'Rzeszów Podkarpacka / Matuszczaka 04',lat:50.01015,lon:22,lines:['228']},
+    {id:'p4',name:'Rzeszów Podkarpacka / Matuszczaka 03',lat:50.011,lon:22,lines:['288']}];
+  const mpk=[{id:'m1',name:'Podkarpacka / Matuszczaka 03',lat:50.01025,lon:22,lines:['11']}];
+  const map=buildStopsCatalog(pks,mpk,[],'platform-aliases',true);
+  assert.equal(map.length,3);
+  const shared=map.find(s=>s.providerStopIds.mpk_rzeszow==='m1');
+  assert.equal(shared.providerStopIds.pks,'p1,p2');assert.deepEqual(shared.lines,['11','108','223']);
+  assert.equal(shared.lat,50.01025);assert.equal(shared.pksStopPoints.length,2);
+  assert.ok(map.some(s=>s.id==='p3'));assert.ok(map.some(s=>s.id==='p4'));
+});
+
+test('close stops in one provider need full identity, not merely a shared locality',()=>{
+  const stops=[{id:'a',name:'Konieczkowa szkoła',lat:49.84,lon:21.92,lines:[]},
+    {id:'b',name:'Konieczkowa kościół',lat:49.84001,lon:21.92,lines:[]},
+    {id:'c',name:'Konieczkowa szkoła',lat:49.84002,lon:21.92,lines:[]}];
+  const map=buildStopsCatalog([stops[1],stops[0],stops[2]],[],[],'nearby-different-landmarks',true);
+  assert.equal(map.length,2);assert.equal(map.find(s=>s.id==='a').providerStopIds.pks,'a,c');
+});
+
+test('real Podkarpacka/Matuszczaka records merge like the list while retaining both directions',()=>{
+  const client=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}},'\nexport {formatPksStops};');
+  const data={items:['3794','3795'].map(id=>{const point=snapshot.stops[id];return {stop_point_id:id,name:point.n,stop_area_name:point.n,stop_point_code:point.code,stop_area_id:point.areaId,location:point};})};
+  const pks=Object.entries(client.formatPksStops(data,snapshot)).map(([id,s])=>({id,name:s.n,lat:s.lat,lon:s.lon,lines:['108']}));
+  const gtfs=JSON.parse(fs.readFileSync('public/data/bus-routes/mpk_rzeszow.json','utf8')).stops;
+  const mpk=['213','256'].map(id=>({id,...gtfs[id],lines:['11']}));
+  const map=buildStopsCatalog(pks,mpk,[],'actual-podkarpacka-map',true);
+  const list=buildStopsCatalog(pks,mpk,[],'actual-podkarpacka-list');
+  assert.equal(map.length,2);assert.equal(list.length,2);
+  for(const [pksId,mpkId] of [['3794','213'],['3795','256']]){
+    const stop=map.find(s=>s.providerStopIds.pks===pksId);
+    assert.equal(stop.providerStopIds.mpk_rzeszow,mpkId);assert.deepEqual(stop.lines,['11','108']);
+    assert.equal(stop.lat,gtfs[mpkId].lat);assert.equal(stop.lon,gtfs[mpkId].lon);
+    assert.deepEqual(stop.providerStopIds,list.find(s=>s.providerStopIds.pks===pksId).providerStopIds);
+  }
+});
+test('map and list share cross-provider proximity rules for differently abbreviated rural names',()=>{
+  const pks=[{id:'school',name:'Konieczkowa, Szk. 08',lat:49.84,lon:21.92,lines:['108']}];
+  const mpk=[{id:'school-city',name:'Konieczkowa szkoła 08',lat:49.84015,lon:21.92,lines:['2']}];
+  assert.equal(buildStopsCatalog(pks,mpk,[],'rural-abbreviations-map',true).length,1);
+  assert.equal(buildStopsCatalog(pks,mpk,[],'rural-abbreviations-list').length,1);
+});
+
+test('map uses exactly the list identities when provider coordinates differ beyond the former marker threshold',()=>{
+  const mpk=[{id:'a',name:'Podkarpacka / Matuszczaka 03',lat:50.01,lon:22,lines:['11']},
+    {id:'b',name:'Podkarpacka / Matuszczaka 03',lat:50.01055,lon:22,lines:['23']},
+    {id:'c',name:'Podkarpacka / Matuszczaka 04',lat:50.01056,lon:22,lines:['30']}];
+  const list=buildStopsCatalog([],mpk,[],'shared-canonical-threshold');
+  const map=buildStopsCatalog([],mpk,[],'shared-canonical-threshold',true);
+  assert.equal(list.length,2);assert.equal(map.length,2);
+  assert.deepEqual(map.map(s=>s.providerStopIds),list.map(s=>s.providerStopIds));
+  assert.equal(map.find(s=>s.providerStopIds.mpk_rzeszow.includes('a')).lat,50.01);
+});
+test('complete bundled PKS/MPK catalogs have identical provider groups on the map and list',()=>{
+  const pks=Object.entries(snapshot.stops).map(([id,s])=>({id,name:s.n+(s.code?' '+s.code:''),lat:s.lat,lon:s.lon,areaId:s.areaId,code:s.code,lines:[]}));
+  const gtfs=JSON.parse(fs.readFileSync('public/data/bus-routes/mpk_rzeszow.json')).stops;
+  const mpk=Object.entries(gtfs).map(([id,s])=>({id,...s,lines:[]}));
+  const list=buildStopsCatalog(pks,mpk,[],'complete-shared-identities');
+  const map=buildStopsCatalog(pks,mpk,[],'complete-shared-identities',true);
+  assert.deepEqual(map.map(s=>[s.id,s.providerStopIds]),list.map(s=>[s.id,s.providerStopIds]));
+});
+
+test('actual Babica DPS 45/Marcel 53 share one platform and the opposite DPS 02 stays separate',()=>{
+  const raw=require('./fixtures/babica-dps-providers.json');
+  const pks=raw.pks.map(s=>({id:String(s.stop_point_id),name:s.stop_area_name+' '+s.stop_point_code,
+    ...snapshot.stops[s.stop_point_id],lines:['251']}));
+  const domain=loadTs('components/stops-panel/stop-domain.ts',{'@/lib/pks-client':{}});
+  const marcel=raw.marcel.map((s,i)=>({id:'marcel-dps-'+i,name:s.nazMi+' - '+s.nazPr.replace(/\s*\([^)]*\)/g,''),
+    matchName:s.nazPr,matchKey:domain.marcelCourseStopMatchKey(s),cityMatchKey:domain.marcelCourseStopIndexKey(s),
+    lat:s.szGps,lon:s.dlGps,routeIds:[String(i+1)]}));
+  const list=buildStopsCatalog(pks,[],marcel,'real-babica-dps');
+  const map=buildStopsCatalog(pks,[],marcel,'real-babica-dps',true);
+  assert.equal(map.length,2);assert.deepEqual(map.map(s=>s.providerStopIds),list.map(s=>s.providerStopIds));
+  for(const [id,alias] of [['9026','marcel-dps-0'],['1365','marcel-dps-1']]){
+    const stop=map.find(s=>s.providerStopIds.pks===id);
+    assert.equal(stop.providerStopIds.marcel,alias);assert.deepEqual(stop.lines,['251','M']);
+    assert.deepEqual(stop.sourceProviderIds,['pks','marcel']);
+  }
+});
+test('different platform numbers only merge for a unique close Marcel alias with a full landmark identity',()=>{
+  const pks=[{id:'1',name:'Babica, DPS 45',lat:49.933608,lon:21.86101,lines:[]}];
+  const marcel={id:'M53',name:'Babica - Dom Pomocy Społecznej 53',matchName:'Dom Pomocy Społecznej 53',
+    lat:49.933698,lon:21.860982,routeIds:['18']};
+  const ambiguous=[...pks,{...pks[0],id:'2',name:'Babica, DPS 02',lat:49.933708}];
+  assert.equal(buildStopsCatalog(ambiguous,[],[marcel],'ambiguous-marcel-alias',true).length,3);
+  assert.equal(buildStopsCatalog(pks,[],[{...marcel,lat:49.9342}],'distant-marcel-alias',true).length,2);
+  const weak=buildStopsCatalog([{...pks[0],name:'Babica 45'}],[],[{...marcel,name:'Babica 53',matchName:'53'}],'weak-marcel-alias',true);
+  assert.equal(weak.find(s=>s.id==='1').providerStopIds.marcel,undefined,'a locality without a landmark cannot override platform numbers');
+});
+test('locality-only EINFO coordinates match unique GTFS landmark platforms on rural routes',async()=>{
+  const {matchCoordinates}=await import('../scripts/lib/stop-coordinate-matching.mjs');
+  const api=[{id:1946,name:'SOŁONKA',code:'02',lat:49.894206,lon:21.940075}],gtfs=[{id:339,name:'Sołonka pętla 02',lat:49.898904,lon:21.953101}];
+  assert.equal(matchCoordinates(api,gtfs).stops['1946'].gtfsStopId,'339');
+  assert.deepEqual(matchCoordinates(api,[...gtfs,{...gtfs[0],id:999,name:'Sołonka szkoła 02'}]).stops,{});
+  assert.deepEqual(matchCoordinates([...api,{...api[0],id:999}],gtfs).stops,{});
+  assert.deepEqual(matchCoordinates(api,[{...gtfs[0],name:'Sołonkowa pętla 02'}]).stops,{});
+  assert.deepEqual(matchCoordinates(api,[{...gtfs[0],name:'Sołonka pętla 03'}]).stops,{});
+  assert.deepEqual(matchCoordinates(api,[{...gtfs[0],lat:50.04}]).stops,{});
+});
+
+
+test('Lisa Kuli/Mochn. 03 resolves to the official outgoing platform and survives API refresh',async()=>{
+  const {matchCoordinates}=await import('../scripts/lib/stop-coordinate-matching.mjs');
+  const api={id:'11461',name:'RZESZÓW, LISA KULI/MOCHN.',code:'03',lat:50.034968,lon:21.998124};
+  const gtfs={id:'1789',name:'Rzeszów, Lisa-Kuli / Mochnackiego 03',lat:50.035944,lon:21.99708};
+  assert.equal(matchCoordinates([api],[gtfs]).stops['11461'].gtfsStopId,'1789');
+  assert.deepEqual(matchCoordinates([api],[{...gtfs,name:'Rzeszów, Lisa-Kuli / Moniuszki 03'}]).stops,{});
+  assert.deepEqual(matchCoordinates([api],[{...gtfs,name:'Rzeszów, Lisa-Kuli / Mochnackiego 04'}]).stops,{});
+  const point=snapshot.stops['11461'];
+  assert.deepEqual([point.lat,point.lon,point.coordinateSource,point.gtfsStopId],[gtfs.lat,gtfs.lon,'gtfs','1789']);
+  const client=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}},'\nexport {formatPksStops};');
+  const result=client.formatPksStops({items:[{stop_point_id:11461,stop_point_code:'03',stop_area_id:4299,
+    stop_area_name:api.name,location:{lat:api.lat,lon:api.lon}}]},snapshot)['11461'];
+  assert.deepEqual([result.lat,result.lon,result.code,result.areaId],[gtfs.lat,gtfs.lon,'03','4299']);
+});
+
+test('installed offline caches receive verified platform corrections without losing IDs or mutating records',()=>{
+  const client=loadTs('lib/pks-client.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>false}}},'\nexport {verifiedCachedPksStops};');
+  const old={n:'Rzeszów, Lisa Kuli/Mochn. 03',lat:50.034968,lon:21.998124,areaId:'4299',code:'03'};
+  const cached={'11461':old,'other':{...old,areaId:'999'}};
+  const fixed=client.verifiedCachedPksStops(cached,snapshot);
+  assert.deepEqual(fixed['11461'],{...old,lat:50.035944,lon:21.99708});
+  assert.equal(cached['11461'].lat,50.034968);
+  assert.equal(fixed.other,cached.other);
+  assert.equal(client.verifiedCachedPksStops({'11461':{...old,areaId:'999'}},snapshot)['11461'].lat,old.lat);
+  assert.equal(client.verifiedCachedPksStops(cached,{stops:{}}),cached);
 });

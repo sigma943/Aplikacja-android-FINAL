@@ -5,9 +5,9 @@ final class WidgetLayoutMetrics {
   final int rowHeight,reservedHeight,capacity;
   WidgetLayoutMetrics(int height){
     compact=height<120;
-    footerVisible=height>=100;
+    footerVisible=height>=108;
     rowHeight=compact?26:28;
-    reservedHeight=(compact?36:44)+(footerVisible?12:0);
+    reservedHeight=(compact?44:52)+(footerVisible?12:0);
     capacity=Math.max(0,Math.min(10,(height-reservedHeight)/rowHeight));
   }
 }

@@ -243,3 +243,13 @@ test('maintenance editor clears history on Spark; read-only admin and users cann
  await assertFails(firebaseSdk.deleteDoc(doc(env.authenticatedContext('viewer').firestore(),'maintenance_changes','entry-one')));
  const ownerDb=env.authenticatedContext('owner').firestore();const result=await assertSucceeds(sparkClient('owner',ownerDb).callClearHistory({}));assert.equal(result.data.deletedCount,1);assert.equal((await getDocs(collection(ownerDb,'maintenance_changes'))).size,0);
 });
+
+test('owner atomically saves statistics access with existing device schema and preserves security settings',async()=>{
+ const db=env.authenticatedContext('owner').firestore();
+ await assertSucceeds(setDoc(doc(db,'admin_settings','security'),{loginEnabled:true,maintenanceMode:false,autoBan:false,hiddenProviderIds:['marcel']}));
+ const batch=writeBatch(db);batch.update(doc(db,'devices','admin'),{permissions:buildDevicePermissions('admin')});batch.set(doc(db,'admin_settings','security'),{statisticsAccess:{'admin-install':false}},{merge:true});await assertSucceeds(batch.commit());
+ const saved=(await getDoc(doc(db,'admin_settings','security'))).data();assert.equal(saved.loginEnabled,true);assert.deepEqual(saved.hiddenProviderIds,['marcel']);assert.equal(saved.statisticsAccess['admin-install'],false);
+ const adminDb=env.authenticatedContext('admin').firestore();assert.equal((await assertSucceeds(getDoc(doc(adminDb,'admin_settings','security')))).data().statisticsAccess['admin-install'],false);
+ await assertFails(setDoc(doc(adminDb,'admin_settings','security'),{statisticsAccess:{'admin-install':true}},{merge:true}));
+ await assertFails(setDoc(doc(env.authenticatedContext('user').firestore(),'admin_settings','security'),{statisticsAccess:{'admin-install':true}},{merge:true}));
+});

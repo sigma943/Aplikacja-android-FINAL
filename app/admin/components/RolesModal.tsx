@@ -1,5 +1,5 @@
 import {AdminModalPortal} from './AdminModalPortal';
-import { X, Shield, Monitor, Users, Lock, Activity, Hammer, Globe, SlidersHorizontal, UserCog } from 'lucide-react';
+import { X, Shield, Monitor, Users, Lock, Activity, Hammer, Globe, SlidersHorizontal, UserCog, BarChart3 } from 'lucide-react';
 import { Device } from '../types';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
@@ -42,6 +42,7 @@ export function RolesModal({
   const getInitialPermissions = (r: string) => {
     if (r.includes('CICIEL')) {
       return {
+        statistics: true,
         monitor: true,
         shield: true,
         users: true,
@@ -57,6 +58,7 @@ export function RolesModal({
     }
     if (r !== 'ADMIN') {
       return {
+        statistics: false,
         monitor: false,
         shield: false,
         users: false,
@@ -71,6 +73,7 @@ export function RolesModal({
       };
     }
     return {
+      statistics: true,
       monitor: true,
       shield: false,
       users: false,
@@ -91,6 +94,7 @@ export function RolesModal({
     return {
       ...base,
       ...device.permissions,
+      statistics: r.includes('CICIEL') || (r==='ADMIN' && device.permissions.statistics!==false),
       disableStops: device.permissions.disableMap ? false : Boolean(device.permissions.disableStops),
     };
   };
@@ -125,6 +129,7 @@ export function RolesModal({
   }, [name, role, onUpdateUser]);
 
   const permsList = [
+    {key:'statistics',label:'Statystyki',desc:'Dostęp do wykresów i statystyk aplikacji',icon:<BarChart3 size={16}/>},
     { key: 'monitor', label: 'Sesje / Urządzenia', desc: 'Sekcja do zarządzania urządzeniami', icon: <Monitor size={16} /> },
     { key: 'shield', label: 'Role i operatorzy', desc: 'Tworzenie i podgląd operatorów', icon: <Shield size={16} /> },
     { key: 'canChangeRoles', label: 'Nadawanie rang', desc: 'Pozwala zmieniac role uzytkownikow', icon: <UserCog size={16} /> },
@@ -137,7 +142,7 @@ export function RolesModal({
   ] as const;
 
   const togglePermission = (key: keyof typeof permissions) => {
-    if (isDisabled || isSelfTarget) return;
+    if (isDisabled || isSelfTarget || (key==='statistics'&&!canManageTabAccess)) return;
     if (key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL')) return;
     setPermissions((prev) => {
       const next = { ...prev, [key]: !prev[key] };
@@ -238,14 +243,16 @@ export function RolesModal({
               {permsList.map(p => (
                 <button 
                   key={p.key}
-                  disabled={isDisabled || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))}
+                  data-permission={p.key}
+                  aria-pressed={Boolean(permissions[p.key as keyof typeof permissions])}
+                  disabled={isDisabled || (p.key === 'statistics' && !canManageTabAccess) || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))}
                   onClick={() => togglePermission(p.key as any)}
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left group",
                     permissions[p.key as keyof typeof permissions] 
                       ? "ui-accent-soft"
                       : "bg-[#111623] border-white/5",
-                    isDisabled || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))
+                    isDisabled || (p.key === 'statistics' && !canManageTabAccess) || (p.key === 'monitor' && (role === 'ADMIN' || role === 'WŁAŚCICIEL'))
                       ? "opacity-60 cursor-not-allowed grayscale-[0.4] brightness-[0.85]"
                       : "cursor-pointer active:scale-[0.98]"
                   )}
@@ -367,7 +374,7 @@ export function RolesModal({
               if (onSave) {
                 const nextPermissions =
                   role.includes('CICIEL')
-                    ? { ...permissions, monitor: true, canChangeRoles: true }
+                    ? { ...permissions, statistics: true, monitor: true, canChangeRoles: true }
                     : role === 'ADMIN'
                       ? { ...permissions, monitor: true }
                       : { ...permissions, canChangeRoles: false };

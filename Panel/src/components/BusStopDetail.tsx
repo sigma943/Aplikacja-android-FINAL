@@ -1,3 +1,5 @@
+import {displayStopLabel} from '@/lib/stop-label';
+import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
 import {useForegroundRefresh} from '../../../lib/use-foreground-refresh';
@@ -176,7 +178,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
               <button
                 aria-label="Pokaż przystanek na mapie"
                 onClick={() => onShowOnMap?.(stop)}
-                disabled={!onShowOnMap}
+                disabled={!onShowOnMap || (stop.type !== 'train' && !readBusCoordinates(stop.lat,stop.lon))}
+                title={stop.type !== 'train' && !readBusCoordinates(stop.lat,stop.lon) ? 'Brak potwierdzonej lokalizacji GPS przystanku' : undefined}
                 className={`flex flex-shrink-0 items-center justify-center gap-1.5 h-10 px-3 rounded-xl border text-[11px] font-semibold transition-colors cursor-pointer active:scale-95 leading-none ui-accent-focus font-sans backdrop-blur-xl disabled:cursor-not-allowed disabled:opacity-40 ${mapButtonClass}`}
               >
                 <MapPin size={13} className="ui-accent-text" />
@@ -195,7 +198,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Stop Info */}
           <div className="relative z-10">
-            <h1 className={`text-xl sm:text-2xl lg:text-3xl font-semibold mb-2 tracking-tight leading-tight break-words ${headingTextClass}`}>{stop.name}</h1>
+            <h1 className={`text-xl sm:text-2xl lg:text-3xl font-semibold mb-2 tracking-tight leading-tight break-words ${headingTextClass}`}>{displayStopLabel(stop.name)}</h1>
             
             <div className="flex flex-wrap gap-1">
               {[...stop.carriers].sort((a, b) => {
@@ -360,6 +363,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         {/* Right Side: Departure Time & Delayed/On-time Badge */}
                         <div className="min-w-[4.4rem] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
                            <div className={`font-semibold tabular-nums tracking-tight text-[18px] sm:text-[19px] ${isPast ? 'text-slate-500 line-through' : headingTextClass}`}>{departureTimeLabel}</div>
+                           {!isPast && dep.carrier?.id === 'mpk' && !dep.realtimeSource && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Rozkład</span>}
+                           {!isPast && dep.carrier?.id === 'mpk' && dep.realtimeSource && dep.plannedAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Na żywo</span>}
                            {!isPast && dep.status === 'delayed' && Number.isFinite(dep.delayMins) && Math.abs(Number(dep.delayMins)) > 0 && (
                              <span className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-black leading-none ${
                                Number(dep.delayMins) > 0

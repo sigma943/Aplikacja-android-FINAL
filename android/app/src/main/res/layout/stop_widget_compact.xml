@@ -1,8 +1,11 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="8dp" android:background="@drawable/widget_dark">
- <LinearLayout android:layout_width="match_parent" android:layout_height="20dp" android:gravity="center_vertical">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="8dp" android:clipToOutline="true" android:background="@drawable/widget_glass_dark">
+ <LinearLayout android:layout_width="match_parent" android:layout_height="28dp" android:gravity="center_vertical">
   <ImageView android:layout_width="14dp" android:layout_height="14dp" android:layout_marginEnd="4dp" android:src="@drawable/widget_bus" android:contentDescription="Autobus"/>
-  <TextView android:id="@+id/widget_title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textStyle="bold" android:textSize="11sp" android:maxLines="1" android:ellipsize="end"/>
-  <TextView android:id="@+id/widget_refresh" android:layout_width="24dp" android:layout_height="match_parent" android:gravity="center" android:text="↻" android:textSize="20sp" android:contentDescription="Odśwież odjazdy"/>
+  <TextView android:id="@+id/widget_title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:includeFontPadding="false" android:textStyle="bold" android:textSize="11sp" android:maxLines="1" android:ellipsize="end"/>
+  <FrameLayout android:layout_width="28dp" android:layout_height="28dp">
+  <ImageView android:id="@+id/widget_refresh" android:layout_width="28dp" android:layout_height="28dp" android:padding="7dp" android:src="@drawable/widget_refresh" android:background="@drawable/widget_refresh_touch" android:clickable="true" android:focusable="true" android:contentDescription="Odśwież odjazdy"/>
+  <FrameLayout android:id="@+id/widget_refresh_progress" android:layout_width="match_parent" android:layout_height="match_parent" android:clickable="true" android:contentDescription="Odświeżanie odjazdów"/>
+  </FrameLayout>
  </LinearLayout>
  <LinearLayout android:id="@+id/widget_rows" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical"/>
  <TextView android:id="@+id/widget_status" android:layout_width="match_parent" android:layout_height="12dp" android:maxLines="1" android:ellipsize="end" android:textSize="9sp" android:includeFontPadding="false"/>

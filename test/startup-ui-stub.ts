@@ -24,6 +24,7 @@ export function httpsCallable<T=any,R=any>(..._:any[]){return async(_:T)=>({data
 if(typeof window!=='undefined')(window as any).__startupTest={
   grants:async()=>setDoc('devices/restored-owner-uid',{role:'admin',permissions:{monitor:true,canBan:false}},{merge:true}),
   heartbeat:async()=>updateDoc('devices/restored-owner-uid',{lastSeenAt:'heartbeat'}),
+  deleteDevice:()=>{records.delete('devices/restored-owner-uid');for(const key of records.keys())if(key.startsWith('installations/'))records.delete(key);listeners.forEach(fn=>fn());},
   profile:()=>[...records].find(([key])=>key.startsWith('installations/'))?.[1],
   writes:()=>profileWrites,
 };

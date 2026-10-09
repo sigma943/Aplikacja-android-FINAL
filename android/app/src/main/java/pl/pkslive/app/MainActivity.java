@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(StableDeviceIdPlugin.class);
     registerPlugin(StopWidgetPlugin.class);
+    registerPlugin(AdminStatisticsExportPlugin.class);
     super.onCreate(savedInstanceState);
   }
 }

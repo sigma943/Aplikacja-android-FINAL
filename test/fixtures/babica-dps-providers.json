@@ -1,0 +1,52 @@
+{
+  "pks": [
+    {
+      "stop_point_id": 1365,
+      "stop_point_code": "02",
+      "stop_area_id": 748,
+      "location": {
+        "lat": 49.934313,
+        "lon": 21.85979
+      },
+      "name": "Babica",
+      "stop_area_name": "BABICA, DPS"
+    },
+    {
+      "stop_point_id": 9026,
+      "stop_point_code": "45",
+      "stop_area_id": 748,
+      "location": {
+        "lat": 49.933663,
+        "lon": 21.861034
+      },
+      "name": "Babica",
+      "stop_area_name": "BABICA, DPS"
+    }
+  ],
+  "marcel": [
+    {
+      "kol": 36,
+      "szGps": 49.933698,
+      "dlGps": 21.860982,
+      "nazTr": "Jasło-Rzeszów",
+      "nazMi": "Babica",
+      "nazPr": "Dom Pomocy Społecznej 53 (+)",
+      "kmOdPoprz": 1.0,
+      "km": 48.9,
+      "czasOdPoprz": 2.0,
+      "godz": "5:43"
+    },
+    {
+      "kol": 12,
+      "szGps": 49.93431,
+      "dlGps": 21.859867,
+      "nazTr": "Rzeszów-Jasło",
+      "nazMi": "Babica",
+      "nazPr": "Dom Pomocy Społecznej 02 (-)",
+      "kmOdPoprz": 1.0,
+      "km": 18.5,
+      "czasOdPoprz": 2.0,
+      "godz": "6:03"
+    }
+  ]
+}

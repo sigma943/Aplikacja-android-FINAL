@@ -40,17 +40,23 @@ public class StopWidgetProvider extends AppWidgetProvider {
   static synchronized void refresh(Context c,int id,boolean manual){
     if(!prefs(c).contains("config_"+id))return;
     long now=System.currentTimeMillis();
-    if(manual){long previous=prefs(c).getLong("manual_"+id,0);if(now-previous<60000)return;prefs(c).edit().putLong("manual_"+id,now).apply();}
+    if(manual){long previous=prefs(c).getLong("manual_"+id,0);if(now-previous<60000){prefs(c).edit().putString("notice_"+id,"Kolejne odświeżenie za "+Math.max(1,(60000-(now-previous)+999)/1000)+" s").putLong("noticeAt_"+id,now).apply();render(c,id);return;}}
     else if(!due(c,id))return;
     PersistableBundle extras=new PersistableBundle();extras.putInt("widgetId",id);extras.putBoolean("manual",manual);
-    JobInfo.Builder builder=new JobInfo.Builder(7402,new ComponentName(c,StopWidgetRefreshService.class)).setExtras(extras).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setMinimumLatency(0);
+    JobInfo.Builder builder=new JobInfo.Builder(7402,new ComponentName(c,StopWidgetRefreshService.class)).setExtras(extras).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+    if(manual&&Build.VERSION.SDK_INT>=31)builder.setExpedited(true);
+    else if(manual)builder.setOverrideDeadline(0);
+    else builder.setMinimumLatency(0);
     if(!manual&&Build.VERSION.SDK_INT>=26)builder.setRequiresBatteryNotLow(!"always".equals(policy(c,id).mode));
-    ((JobScheduler)c.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(builder.build());
+    JobScheduler scheduler=(JobScheduler)c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+    int result=scheduler.schedule(builder.build());
+    if(result==JobScheduler.RESULT_FAILURE&&manual&&Build.VERSION.SDK_INT>=31)result=scheduler.schedule(builder.setExpedited(false).setOverrideDeadline(0).build());
+    if(manual){prefs(c).edit().putLong("manual_"+id,result==JobScheduler.RESULT_SUCCESS?now:0).putLong("refreshing_"+id,result==JobScheduler.RESULT_SUCCESS?now:0).remove("notice_"+id).apply();if(result!=JobScheduler.RESULT_SUCCESS)prefs(c).edit().putString("notice_"+id,"Nie udało się uruchomić odświeżania").putLong("noticeAt_"+id,now).apply();render(c,id);}
   }
   @Override public void onReceive(Context c,Intent intent){super.onReceive(c,intent);if(PINNED.equals(intent.getAction())){int id=intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,-1);String token=intent.getStringExtra("token");String config=prefs(c).getString("pending_"+token,null);if(id!=-1&&config!=null){prefs(c).edit().putString("config_"+id,config).putString("rows_"+id,prefs(c).getString("pending_rows_"+token,"[]")).putLong("updated_"+id,"[]".equals(prefs(c).getString("pending_rows_"+token,"[]"))?0:System.currentTimeMillis()).putBoolean("added_"+token,true).remove("pending_"+token).remove("pending_rows_"+token).apply();render(c,id);schedule(c);if(prefs(c).getLong("updated_"+id,0)==0)refresh(c,id,true);}}else if(TICK.equals(intent.getAction())||Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())){schedule(c);for(int id:ids(c))render(c,id);}else if(REFRESH.equals(intent.getAction())){refresh(c,intent.getIntExtra("widgetId",-1),true);}else if(Intent.ACTION_CONFIGURATION_CHANGED.equals(intent.getAction())||Intent.ACTION_TIME_CHANGED.equals(intent.getAction())||Intent.ACTION_TIMEZONE_CHANGED.equals(intent.getAction())){for(int id:ids(c))render(c,id);}}
   @Override public void onUpdate(Context c,AppWidgetManager m,int[] ids){for(int id:ids){render(c,id);refresh(c,id,false);}schedule(c);}
   @Override public void onAppWidgetOptionsChanged(Context c,AppWidgetManager m,int id,Bundle options){render(c,id);}
-  @Override public void onDeleted(Context c,int[] ids){for(int id:ids)prefs(c).edit().remove("config_"+id).remove("rows_"+id).remove("updated_"+id).remove("warning_"+id).remove("manual_"+id).remove("synced_"+id).remove("attempted_"+id).apply();schedule(c);}
+  @Override public void onDeleted(Context c,int[] ids){for(int id:ids)prefs(c).edit().remove("config_"+id).remove("rows_"+id).remove("updated_"+id).remove("warning_"+id).remove("manual_"+id).remove("synced_"+id).remove("attempted_"+id).remove("refreshing_"+id).remove("notice_"+id).remove("noticeAt_"+id).apply();schedule(c);}
   static PendingIntent open(Context c,int id){Intent i=new Intent(c,MainActivity.class).setAction("widget-open-"+id).putExtra("widgetId",id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP);return PendingIntent.getActivity(c,id,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);}
   static void render(Context c,int id){try{
     AppWidgetManager manager=AppWidgetManager.getInstance(c);Bundle options=manager.getAppWidgetOptions(id);
@@ -62,8 +68,8 @@ public class StopWidgetProvider extends AppWidgetProvider {
     JSONObject config=new JSONObject(prefs(c).getString("config_"+id,"{}"));String theme=config.optString("theme","system");boolean dark="dark".equals(theme)||("system".equals(theme)&&(c.getResources().getConfiguration().uiMode&Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES);
     int fg=Color.parseColor(dark?"#f1f5f9":"#0f172a"),muted=Color.parseColor(dark?"#94a3b8":"#64748b");
     WidgetLayoutMetrics layout=new WidgetLayoutMetrics(height);boolean compact=layout.compact,footerVisible=layout.footerVisible;
-    RemoteViews view=new RemoteViews(c.getPackageName(),compact?R.layout.stop_widget_compact:R.layout.stop_widget);view.setInt(R.id.widget_root,"setBackgroundResource",dark?R.drawable.widget_dark:R.drawable.widget_light);
-    String name=config.optJSONObject("stop")==null?"PKS Live":config.getJSONObject("stop").optString("name","PKS Live");view.setTextViewText(R.id.widget_title,name);view.setTextColor(R.id.widget_title,fg);view.setTextColor(R.id.widget_refresh,Color.parseColor("#14b8a6"));view.setOnClickPendingIntent(R.id.widget_root,open(c,id));
+    RemoteViews view=new RemoteViews(c.getPackageName(),compact?R.layout.stop_widget_compact:R.layout.stop_widget);view.setInt(android.R.id.background,"setBackgroundResource",config.optBoolean("glass",true)?(dark?R.drawable.widget_glass_dark:R.drawable.widget_glass_light):(dark?R.drawable.widget_dark:R.drawable.widget_light));
+    String name=config.optJSONObject("stop")==null?"PKS Live":config.getJSONObject("stop").optString("name","PKS Live");String title=name.replaceFirst("(?i)^Rzeszów[, ]+", "");view.setTextViewText(R.id.widget_title,title);view.setTextColor(R.id.widget_title,fg);view.setOnClickPendingIntent(android.R.id.background,open(c,id));
     Intent update=new Intent(c,StopWidgetProvider.class).setAction(REFRESH).putExtra("widgetId",id);view.setOnClickPendingIntent(R.id.widget_refresh,PendingIntent.getBroadcast(c,id,update,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
     view.removeAllViews(R.id.widget_rows);JSONArray rows=new JSONArray(prefs(c).getString("rows_"+id,"[]"));long now=System.currentTimeMillis();int limit=layout.capacity,count=0;
     SimpleDateFormat clock=new SimpleDateFormat("HH:mm",new Locale("pl","PL"));clock.setTimeZone(TimeZone.getTimeZone("Europe/Warsaw"));
@@ -74,8 +80,17 @@ public class StopWidgetProvider extends AppWidgetProvider {
       item.setTextViewText(R.id.widget_time,clock.format(new Date(time)));int delay=row.optInt("delayMins",0);item.setTextColor(R.id.widget_time,delay>0?Color.parseColor("#f43f5e"):delay<0?Color.parseColor("#10b981"):fg);view.addView(R.id.widget_rows,item);count++;
     }
     long updated=prefs(c).getLong("updated_"+id,0);boolean stale=updated==0||now-updated>Math.max(45*60000L,policy(c,id).intervalMillis()+15*60000L);String warning=prefs(c).getString("warning_"+id,"");String footer=stale?"Dane nieaktualne • dotknij ↻":!warning.isEmpty()?"Część danych niedostępna • "+clock.format(new Date(updated)):("off".equals(policy(c,id).mode)?"Ręcznie • ":"Aktualizacja ")+clock.format(new Date(updated));if(count==0)footer=updated==0?(config.optJSONObject("stop")==null?"Wybierz przystanek w aplikacji":"Wczytywanie odjazdów…"):stale?footer:"Brak najbliższych odjazdów";
+    boolean refreshing=now-prefs(c).getLong("refreshing_"+id,0)<90000;
+    String notice=now-prefs(c).getLong("noticeAt_"+id,0)<10000?prefs(c).getString("notice_"+id,""):"";
+    if(refreshing)footer="Odświeżanie odjazdów…";else if(!notice.isEmpty())footer=notice;
+    if(!footerVisible&&(refreshing||!notice.isEmpty()))view.setTextViewText(R.id.widget_title,refreshing?"Odświeżanie…":notice);
+    view.removeAllViews(R.id.widget_refresh_progress);
+    view.setViewVisibility(R.id.widget_refresh_progress,refreshing?View.VISIBLE:View.GONE);
+    view.setViewVisibility(R.id.widget_refresh,refreshing?View.INVISIBLE:View.VISIBLE);
+    if(refreshing){RemoteViews spinner=new RemoteViews(c.getPackageName(),R.layout.widget_refresh_spinner);view.addView(R.id.widget_refresh_progress,spinner);}
+    view.setOnClickPendingIntent(R.id.widget_refresh_progress,PendingIntent.getBroadcast(c,id,update,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
     view.setViewVisibility(R.id.widget_status,footerVisible||count==0?View.VISIBLE:View.GONE);
-    if(stale&&count>0&&!footerVisible)view.setTextViewText(R.id.widget_title,"Nieaktualne • "+name);
+    if(stale&&count>0&&!footerVisible&&!refreshing&&notice.isEmpty())view.setTextViewText(R.id.widget_title,"Nieaktualne • "+title);
     view.setTextViewText(R.id.widget_status,footer);view.setTextColor(R.id.widget_status,muted);return view;
   }
 }

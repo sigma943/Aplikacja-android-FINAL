@@ -26,8 +26,12 @@ const server=http.createServer((req,res)=>{
       window.Date=class extends Original {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
     });
     await page.setRequestInterception(true);
-    let showFixtureBus=false;
-    const fixtureBus=structuredClone(require('./fixtures/pks-vehicle.json'));
+    let showFixtureBus=false, showMarcel=false;
+    const marcelRoad=require('./fixtures/marcel-jaslo-rzeszow-1181798.json');
+    const {decodePolyline}=require('./load-ts.cjs')('lib/bus-road-geometry.ts');
+    let marcelSecondary=0;
+    let fixtureBus=structuredClone(require('./fixtures/pks-vehicle.json'));
+    fixtureBus.trip_id=987654321; // A live ID absent from the packaged GTFS index.
     fixtureBus.position.position_date='2026-10-06 14:18:30';
     fixtureBus.journey.vehicle_journey_date='2026-10-06';fixtureBus.journey.departure_time='14:25:00';
     fixtureBus.next_stop_points=fixtureBus.next_stop_points.map((stop,index)=>({...stop,planned_departure_time:`2026-10-06 14:${String(25+index*2).padStart(2,'0')}:00`,real_departure_time:`2026-10-06 14:${String(25+index*2).padStart(2,'0')}:00`}));
@@ -38,6 +42,15 @@ const server=http.createServer((req,res)=>{
       if(url.includes('/pks/get_vehicles.php'))return json(showFixtureBus?[fixtureBus]:[]);
       if(url.endsWith('/api/pks/vehicles'))return json({items:[]});
       if(url.includes('/api/pks/einfo/stop-point'))return json({items:[]});
+      if(showMarcel && url.includes('/trasy/lokalizacjaBusow'))return json([{idKu:1181798,idPo:42,szGps:49.95,dlGps:21.88,nazTr:'Jasło-Rzeszów',timestamp:'2026-10-06T12:18:30Z'}]);
+      if(showMarcel && url.includes('/trasy/kurs/1181798'))return json(marcelRoad.course);
+      if(showMarcel && (url.includes('valhalla')||url.includes('router.project-osrm.org'))) {
+        const points=url.includes('valhalla')?JSON.parse(new URL(url).searchParams.get('json')).locations.map(p=>[p.lat,p.lon]):new URL(url).pathname.split('/driving/')[1].split(';').map(p=>p.split(',').map(Number).reverse());
+        const chunk=marcelRoad.chunks.find(c=>JSON.stringify(c.stops)===JSON.stringify(points));
+        if(!chunk)return json({error:'Unexpected route pattern'});
+        if(url.includes('valhalla'))return json({trip:{legs:chunk.primary}});
+        marcelSecondary++;return json({code:'Ok',routes:[{geometry:{coordinates:decodePolyline(chunk.secondary).map(([a,b])=>[b,a])}}]});
+      }
       if(url.includes('mpkrzeszow.pl')||url.includes('api-site.marcel-bus.pl'))return json([]);
       if(url.startsWith(origin))return request.continue();
       return request.abort();
@@ -85,7 +98,10 @@ const server=http.createServer((req,res)=>{
     await page.click('[data-carrier-grid] button[aria-label="PKS Rzeszów"]');
     assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
-    await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));await page.reload({waitUntil:'domcontentloaded'});
+    // Check saved theme in a fresh document, preserving the browser context's
+    // storage. Page.reload sporadically times out at this animated-view boundary.
+    await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));
+    await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-ui-theme="dark"]');
     await accent('Fioletowy');
     await button('Przystanki');
@@ -236,6 +252,14 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(await page.$eval('.mks-bus-marker svg[data-bus-glyph]',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))])),carrierGeometry,'map and carrier picker use exactly the same bus geometry');
     await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
     await page.waitForSelector('[data-map-bus-sheet]');
+    await page.waitForFunction(()=>{
+      const canvas=document.querySelector('.leaflet-routeLine-pane canvas');
+      if(!canvas || !canvas.width || !canvas.height)return false;
+      const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+      let painted=0;
+      for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100 && ++painted>100)return true;
+      return false;
+    },{timeout:20000});
     assert.equal(await page.$eval('[data-map-bus-sheet]',el=>el.dataset.expanded),'false','a bus selection opens its compact panel');
     await page.click('[aria-label="Rozwiń panel autobusu"]');
     await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='true');await new Promise(resolve=>setTimeout(resolve,450));const busHandle=await page.$('[aria-label="Zwiń panel autobusu"]');const busBounds=await busHandle.boundingBox();const busHeight=await page.$eval('[data-map-bus-sheet]',el=>el.getBoundingClientRect().height);await page.mouse.move(busBounds.x+30,busBounds.y+12);await page.mouse.down();await page.mouse.move(busBounds.x+30,busBounds.y+62,{steps:8});assert.ok(await page.$eval('[data-map-bus-sheet]',el=>el.getBoundingClientRect().height)<busHeight-20,'bus sheet follows finger');await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='false');await page.click('[aria-label="Rozwiń panel autobusu"]');
@@ -244,6 +268,28 @@ const server=http.createServer((req,res)=>{
     await screenshot('bus-compact');
     await page.waitForFunction(()=>history.state?.pksBackGuard===true);
     await page.evaluate(()=>history.back());await page.waitForSelector('[data-map-bus-sheet]',{hidden:true});
+    fixtureBus=structuredClone(require('./fixtures/pks-251-107-2026-10-08.json'));
+    fixtureBus.position.position_date='2026-10-06 14:18:30';fixtureBus.journey.vehicle_journey_date='2026-10-06';
+    fixtureBus.journey.departure_time='14:15:00';
+    fixtureBus.next_stop_points=fixtureBus.next_stop_points.map((stop,index)=>({...stop,planned_departure_time:`2026-10-06 14:${String(25+index).padStart(2,'0')}:00`,real_departure_time:`2026-10-06 14:${String(25+index).padStart(2,'0')}:00`}));
+    await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.925,lng:21.963},zoom:12})));
+    await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
+    await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());await page.waitForSelector('[data-map-bus-sheet]');
+    assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/251/);
+    await page.waitForFunction(()=>{
+      const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas?.width||!canvas?.height)return false;
+      const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+      let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100&&++painted>100)return true;return false;
+    },{timeout:20000});
+    await screenshot('pks-251-107-route');
+    showFixtureBus=false;showMarcel=true;
+    await page.evaluate(()=>{localStorage.setItem('mks_transport_providers',JSON.stringify(['marcel']));localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.95,lng:21.88},zoom:12}));});
+    await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
+    await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());await page.waitForSelector('[data-map-bus-sheet]');
+    assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/Rzeszów/);
+    await page.waitForFunction(()=>{const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas?.width||!canvas?.height)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100&&++painted>100)return true;return false;},{timeout:20000});
+    assert.equal(marcelSecondary,0,'the complete known Marcel course paints from local road assets without an external router');
+    await screenshot('marcel-jaslo-rzeszow-route');
     await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-transport-diagnostics]');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
     await button('Dodaj');
@@ -286,9 +332,23 @@ const server=http.createServer((req,res)=>{
     assert.equal(shield.w,24);assert.equal(shield.h,24);assert.equal(shield.pw,shield.ph);
     const checkSave=async()=>{const result=await page.evaluate(()=>{const buttons=[...document.querySelectorAll('.admin-modal-overlay button')];const b=buttons.find(el=>el.textContent.trim()==='Zapisz zmiany'),r=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:innerHeight,covered:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)!==b};});assert.ok(result.top>=0&&result.bottom<=result.height,JSON.stringify(result));assert.equal(result.covered,false);};
     await checkSave();await screenshot('admin-roles-mobile');
+
     await page.setViewport({width:320,height:568,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();
     await page.setViewport({width:393,height:400,deviceScaleFactor:1,isMobile:true,hasTouch:true});await fitDialog();await checkSave();await screenshot('admin-roles-keyboard-height');
-    await button('Zapisz zmiany');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));await button('Ban');await fitDialog();
+    await page.waitForSelector('[data-permission="statistics"]');
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.disabled),false);
+    await page.$eval('[data-permission="statistics"]',el=>el.click());
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.getAttribute('aria-pressed')),'false');
+    await button('WŁAŚCICIEL');
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.disabled),true);
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>el.getAttribute('aria-pressed')),'true');
+    assert.ok(await page.$eval('[data-permission="statistics"]',el=>Number(getComputedStyle(el).opacity)<1));
+    await button('ADMIN');
+    await page.waitForFunction(()=>{const el=document.querySelector('[data-permission="statistics"]');return !el.disabled&&el.getAttribute('aria-pressed')==='true';});
+    await page.$eval('[data-permission="statistics"]',el=>el.click());
+    await page.waitForFunction(()=>document.querySelector('[data-permission="statistics"]').getAttribute('aria-pressed')==='false');
+
+    await button('Zapisz zmiany');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));assert.equal(await page.evaluate(()=>window.__savedRole.permissions.statistics),false);await button('Ban');await fitDialog();
     await page.evaluate(()=>{const body=document.querySelector('.admin-modal-overlay .overflow-y-auto');body.scrollTop=body.scrollHeight;});
     await button('ZABLOKUJ URZĄDZENIE');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));
     console.log('Browser: real role, ban and history dialogs escape transformed parents, fit small phones and keyboard height, stay above navigation and keep the shield square.');
@@ -303,7 +363,41 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(await page.evaluate(()=>window.__startupTest.profile().permissions),{monitor:true,canBan:false});
     const profileWrites=await page.evaluate(()=>window.__startupTest.writes());await page.evaluate(()=>window.__startupTest.heartbeat());
     assert.equal(await page.evaluate(()=>window.__startupTest.writes()),profileWrites,'heartbeats must not overwrite saved grants');
+    await page.evaluate(()=>window.__startupTest.deleteDevice());
+    await page.waitForSelector('[data-restored-role="user"]');
+    assert.equal(await page.evaluate(()=>window.__startupTest.profile()?.role),'user','deleted administrator re-registers without the revoked rank');
+    assert.equal(await page.evaluate(()=>window.__startupTest.profile()?.verified),false);
+    console.log('Browser: deleting both admin device and installation revokes admin immediately and re-registers as an unverified user without a stuck loading screen.');
     console.log('Browser: real FirebaseProvider recovers after startup deadline and restores owner despite old Firestore rules without reload or downgrade.');
+    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+    await page.evaluate(()=>localStorage.setItem('pks-live:api-statistics:v1',JSON.stringify({version:1,startedAt:Date.now(),days:[{date:'2026-10-06',providers:{pks:{requests:80,errors:2,latencyMs:16000},mpk_rzeszow:{requests:15,errors:1,latencyMs:3000},marcel:{requests:5,errors:0,latencyMs:1000}}}]})));
+    await page.goto(`${origin}/statistics-fixture/`,{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-statistics-fixture-ready="true"]');
+    await button('Otwórz menu testowe');await page.waitForFunction(()=>{const r=document.querySelector('nav button:nth-child(2)').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;});await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
+    await page.waitForFunction(()=>document.querySelector('[data-statistic="Zapytania API"]').textContent==='100');
+    assert.equal(await page.$eval('[data-statistic="Nowe urządzenia"]',el=>el.textContent),'2');
+    assert.equal(await page.$eval('[data-statistic="Aktywne urządzenia"]',el=>el.textContent),'2');
+    assert.equal(await page.$eval('[data-statistic="Skuteczność API"]',el=>el.textContent),'97%');
+    const statisticsFits=async()=>assert.equal(await page.$eval('[data-statistics-view]',el=>el.scrollWidth>el.clientWidth+1),false,'Statistics must fit without horizontal overflow');
+    await statisticsFits();await screenshot('statistics-dark-mobile');
+    const headerStyle=await page.$eval('[data-statistics-view] header',el=>({position:getComputedStyle(el).position,background:getComputedStyle(el).backgroundColor}));
+    assert.ok(!['fixed','sticky'].includes(headerStyle.position));assert.equal(headerStyle.background,'rgba(0, 0, 0, 0)');
+    await page.$eval('[data-statistics-view]',el=>el.scrollTop=400);
+    await page.waitForFunction(()=>document.querySelector('[data-statistics-view] header').getBoundingClientRect().bottom<document.querySelector('[data-statistics-view]').getBoundingClientRect().top);
+    await screenshot('statistics-header-scrolled-away');await page.$eval('[data-statistics-view]',el=>el.scrollTop=0);
+
+    await button('90 dni');assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect[role="button"]',nodes=>nodes.length),90);
+    await button('Dzisiaj');assert.equal(await page.$$eval('[data-statistics-chart="installations"] rect[role="button"]',nodes=>nodes.length),1);
+    await button('7 dni');
+    await page.evaluate(()=>{URL.createObjectURL=blob=>{blob.text().then(text=>window.__statisticsCsv=text);return 'blob:test-statistics';};HTMLAnchorElement.prototype.click=()=>{};});
+    await button('Eksport CSV');await page.waitForFunction(()=>window.__statisticsCsv);
+    const csv=await page.evaluate(()=>window.__statisticsCsv);assert.match(csv,/2026-10-06;2;100;3/);assert.ok(!csv.includes('same'));
+    await button('Zmień motyw testowy');await statisticsFits();await screenshot('statistics-light-mobile');
+    await page.setViewport({width:320,height:568,deviceScaleFactor:1});await statisticsFits();await screenshot('statistics-small-phone');
+    await page.setViewport({width:1440,height:1000,deviceScaleFactor:1});await statisticsFits();await screenshot('statistics-desktop');
+    await page.click('nav button:first-child');await page.waitForFunction(()=>!document.querySelector('[data-statistics-view]'));
+    await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
+    console.log('Browser: statistics navigation, unique installations, local API totals, date ranges, CSV, light/dark and 320px mobile layouts passed without backend writes.');
     assert.deepEqual(errors,[]);
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
     console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');

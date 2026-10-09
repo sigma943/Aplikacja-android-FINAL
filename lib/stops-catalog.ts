@@ -1,12 +1,46 @@
+import {sanitizeBusStop,readBusCoordinates} from './bus-coordinates';
+import {correctPksStop} from './pks-stop-corrections';
+import {mergePhysicalStopAliases} from './physical-stop-aliases';
 import type { Carrier, Stop } from '@/Panel/src/types';
 import { getSimilarity } from '@/lib/rzeszow-stop-consolidation';
 import { RawStop, PKS_CARRIER, MARCEL_CARRIER, MPK_CARRIER, MarcelIndexedStop, InternalStop, MERGED_STOPS_RUNTIME_CACHE, MERGED_STOPS_RUNTIME_CACHE_LIMIT, stopDisplayName, ensureMpkCityPrefix, preferredStopDisplayName, stopBaseNameKey, mergeTokens, numericTokens, nameSimilarityScore, sharedStopTokenCount, hasConflictingCityToken, mergeCsvValues, mergeDebugNames, distanceMeters, geoBucketKeys, normalizeStopMergeName, hasConflictingStopNumbers, mergeStopsByGpsAndName, mergeMpkStopsForList, canExposeStandaloneMarcelStop, isWeakMarcelName, sortedLines } from '@/components/stops-panel/stop-domain';
 export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;name:string;lat?:number;lon?:number;lines:string[]}>,marcelStops:MarcelIndexedStop[],mergedStopsCacheKey:string,physicalPoints=false): Stop[] {
+    const stableOrder=(a:{id:string},b:{id:string})=>String(a.id).localeCompare(String(b.id),'en',{numeric:true});
+    stops = stops.map(stop => correctPksStop(sanitizeBusStop(stop), String(stop.id))).sort(stableOrder);
+    mpkStops = mpkStops.map(sanitizeBusStop).sort(stableOrder);
+    marcelStops = marcelStops.map(sanitizeBusStop).sort(stableOrder);
     const cacheKey = (physicalPoints ? 'physical:' : 'list:') + mergedStopsCacheKey;
     const cached = MERGED_STOPS_RUNTIME_CACHE.get(cacheKey);
     if (cached) return cached;
 
+    // Both surfaces use one canonical identity pipeline. The map only chooses
+    // the surveyed platform coordinate; it must never rebuild separate groups.
+    if (physicalPoints) {
+      const mpkById = new Map(mpkStops.map(stop => [stop.id, stop]));
+      const canonical = buildStopsCatalog(stops, mpkStops, marcelStops, mergedStopsCacheKey);
+      const points = canonical.map(stop => {
+        const precise = String(stop.providerStopIds?.mpk_rzeszow || '').split(',')
+          .map(id => mpkById.get(id.trim())).find(point => readBusCoordinates(point?.lat, point?.lon));
+        return precise ? {...stop, lat: precise.lat, lon: precise.lon} : stop;
+      });
+      MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, points);
+      if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {
+        const oldest = MERGED_STOPS_RUNTIME_CACHE.keys().next().value;
+        if (oldest) MERGED_STOPS_RUNTIME_CACHE.delete(oldest);
+      }
+      return points;
+    }
+
+    // Provider coordinates can differ along the same numbered platform. Match
+    // its full name/code, never just proximity (opposite directions stay apart).
+    const platformKey = (name: string) => normalizeStopMergeName(name).split(' ')
+      .map(token => /^\d+[a-z]?$/.test(token) ? token.replace(/^0+(?=\d)/, '') : token)
+      .filter(Boolean).sort().join(' ');
+    const sameNumberedPlatform = (a: string, b: string) =>
+      /\b\d{1,3}[a-z]?$/.test(normalizeStopMergeName(a)) && platformKey(a) === platformKey(b);
+
     const byTechnical = new Map<string, InternalStop>();
+    const platformBuckets = new Map<string, Set<InternalStop>>();
     const baseBuckets = new Map<string, InternalStop[]>();
     const tokenBuckets = new Map<string, Set<InternalStop>>();
     const geoBuckets = new Map<string, Set<InternalStop>>();
@@ -15,6 +49,9 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     const technicalKey = (provider: string, id: string) => `${provider}:${String(id).trim()}`;
 
     const registerBucket = (stop: InternalStop) => {
+      const identity = platformKey(stop.name);
+      const platforms = platformBuckets.get(identity) || new Set<InternalStop>();
+      platforms.add(stop); platformBuckets.set(identity, platforms);
       const list = baseBuckets.get(stop.baseNameKey) || [];
       if (!list.includes(stop)) list.push(stop);
       baseBuckets.set(stop.baseNameKey, list);
@@ -139,14 +176,27 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     const findSafeCrossProviderMatch = (
       raw: { name: string; lat?: number; lon?: number },
       candidateProviders = new Set(['pks', 'mpk_rzeszow']),
+      exactIdentity = false,
     ) => {
       const baseNameKey = stopBaseNameKey(raw.name);
       if (!baseNameKey) return null;
+      if (exactIdentity) {
+        let best: InternalStop | null = null, bestDistance = Infinity;
+        for (const candidate of platformBuckets.get(platformKey(raw.name)) || []) {
+          if (!(candidate.sourceProviderIds || []).some(provider => candidateProviders.has(provider))) continue;
+          if (platformKey(candidate.name) !== platformKey(raw.name)) continue;
+          const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
+          if (distance <= (sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8) && distance < bestDistance) {best = candidate; bestDistance = distance;}
+        }
+        return best;
+      }
       const latKey = Number.isFinite(raw.lat) ? Number(raw.lat).toFixed(4) : 'x';
       const lonKey = Number.isFinite(raw.lon) ? Number(raw.lon).toFixed(4) : 'x';
       const providerKey = [...candidateProviders].sort().join('+');
-      const cacheKey = `${providerKey}|${normalizeStopMergeName(raw.name)}|${latKey}|${lonKey}`;
-      if (crossMatchCache.has(cacheKey)) return crossMatchCache.get(cacheKey) || null;
+      const cacheKey = `${providerKey}|${exactIdentity}|${normalizeStopMergeName(raw.name)}|${latKey}|${lonKey}`;
+      // A same-provider lookup runs while its catalog is still growing. A miss
+      // cannot be reused after another physical stop has been registered.
+      if (!exactIdentity && crossMatchCache.has(cacheKey)) return crossMatchCache.get(cacheKey) || null;
 
       const localGpsSet = new Set<InternalStop>();
       geoBucketKeys(raw.lat, raw.lon).forEach((key) => {
@@ -182,17 +232,17 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       let bestScore = -1;
 
       for (const candidate of pool) {
+        if (exactIdentity && platformKey(raw.name) !== platformKey(candidate.name)) continue;
         const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
         const hasGeo = Number.isFinite(distance);
+        // Reject a geographically impossible match before costly text scoring.
+        if (hasGeo && distance > 550) continue;
         if (hasConflictingCityToken(raw.name, candidate.name)) continue;
         if (hasConflictingStopNumbers(raw.name, candidate.name)) continue;
         if (weakName && hasGeo && distance > 120) continue;
         const similarity = Math.max(nameSimilarityScore(raw.name, candidate.name), getSimilarity(raw.name, candidate.name));
         const sharedTokens = sharedStopTokenCount(raw.name, candidate.name);
         const exactBaseBoost = candidate.baseNameKey === baseNameKey ? 0.34 : 0;
-        if (hasGeo && distance > 550) continue;
-        // A list may consolidate nearby stops; map pins must represent one physical platform.
-        if (physicalPoints && (!hasGeo || distance > 8)) continue;
         if (!hasGeo && candidate.baseNameKey !== baseNameKey && similarity < 0.92) continue;
         const distanceScore = hasGeo
           ? distance <= 35
@@ -265,7 +315,9 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         provider: 'pks',
         carrier: PKS_CARRIER,
       };
-      const pksStop = ensureTechnicalStop(raw);
+      const matched = findSafeCrossProviderMatch(raw, new Set(['pks']), true);
+      const pksStop = matched || ensureTechnicalStop(raw);
+      if (matched) attachProvider(matched, raw);
       (stop.lines || []).forEach((line) => pksStop.lineSet.add(line));
     });
 
@@ -279,11 +331,30 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       };
       const matched =
         findSafeCrossProviderMatch(raw, new Set(['pks'])) ||
-        (!physicalPoints ? findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow'])) : null);
+        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']));
       const stop = matched ? matched : ensureTechnicalStop(raw);
-      if (matched) attachProvider(matched, raw);
+      if (matched) {
+        attachProvider(matched, raw);
+      }
       mpkStop.lines.forEach((line) => stop.lineSet.add(line));
     });
+
+    // Marcel and PKS sometimes number the same platform differently. Only a
+    // unique surveyed neighbour with the full locality/landmark identity may
+    // override a number conflict; city platforms and opposite sides stay apart.
+    const findMarcelPlatformAlias = (raw: MarcelIndexedStop, name: string) => {
+      const key = stopBaseNameKey(name);
+      if (mergeTokens(name).length < 2) return null;
+      const candidates = (baseBuckets.get(key) || []).filter(candidate =>
+        candidate.sourceProviderIds?.some(provider => provider === 'pks' || provider === 'mpk_rzeszow') &&
+        !hasConflictingCityToken(name, candidate.name) &&
+        hasConflictingStopNumbers(name, candidate.name),
+      ).map(stop => ({stop, distance: distanceMeters(raw.lat, raw.lon, stop.lat, stop.lon)}))
+        .filter(candidate => candidate.distance <= 60).sort((a, b) => a.distance - b.distance);
+      if (!candidates.length || candidates[0].distance > 25) return null;
+      if (candidates[1] && candidates[1].distance - candidates[0].distance < 20) return null;
+      return candidates[0].stop;
+    };
 
     marcelStops.forEach((marcelStop) => {
       const displayName = stopDisplayName(marcelStop.name);
@@ -293,7 +364,8 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         findSafeCrossProviderMatch({ name: displayName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['pks'])) ||
         findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['pks'])) ||
         findSafeCrossProviderMatch({ name: displayName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel'])) ||
-        findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel']));
+        findSafeCrossProviderMatch({ name: marcelStop.matchName, lat: marcelStop.lat, lon: marcelStop.lon }, new Set(['mpk_rzeszow', 'marcel'])) ||
+        findMarcelPlatformAlias(marcelStop, displayName);
       if (matched) {
         attachProvider(matched, {
           ...marcelStop,
@@ -331,8 +403,8 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         };
       });
 
-    const mergedMpkStops = physicalPoints ? normalizedStops : mergeMpkStopsForList(normalizedStops);
-    const mergedStops = (physicalPoints ? mergedMpkStops : mergeStopsByGpsAndName(mergedMpkStops)).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
+    const mergedMpkStops = mergeMpkStopsForList(mergePhysicalStopAliases(normalizedStops));
+    const mergedStops = mergeStopsByGpsAndName(mergedMpkStops).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
 
     MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, mergedStops);
     if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {

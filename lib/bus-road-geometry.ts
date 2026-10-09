@@ -99,10 +99,10 @@ export function cleanRoadJunctionLoops(route:Point[],stops:Point[]):Point[] {
   return result;
 }
 
-/** Stops are catalog pins, not mandatory driveways: allow nearby road candidates. */
+/** Nearby candidates for interior pins; shared endpoints must snap consistently. */
 export function roadRoutingLocations(stops:Point[],stopWaypoints:boolean,boundaries={start:true,end:true}) {
   return stops.map(([lat,lon],index)=>({lat,lon,type:index===0||index===stops.length-1?'break':stopWaypoints?'via':'through',
-    ...(stopWaypoints?{radius:(index===0&&boundaries.start)||(index===stops.length-1&&boundaries.end)?35:150,rank_candidates:false}:{})}));
+    ...(stopWaypoints?{radius:index===0||index===stops.length-1?35:150,rank_candidates:false}:{})}));
 }
 /** Only request an alternative for a short out-and-back/closed junction excursion. */
 export function hasLocalRoadExcursion(route:Point[]) {

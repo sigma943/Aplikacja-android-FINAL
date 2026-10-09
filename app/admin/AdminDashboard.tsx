@@ -1,271 +1,35 @@
 'use client';
-import { motion, useReducedMotion } from 'motion/react';
-import { uiAccentVariables } from '@/lib/ui-accent';
+import {motion, useReducedMotion} from 'motion/react';
+import {readStatisticsAccess, statisticsPermission, statisticsAccessChange, type StatisticsAccess} from '@/lib/admin/statistics-access';
+import {uiAccentVariables} from '@/lib/ui-accent';
 
-import type { CSSProperties } from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import type {CSSProperties} from 'react';
+import {useState, useEffect, useMemo} from 'react';
 import {useAppBack} from '@/lib/use-app-back';
-import { X } from 'lucide-react';
-import { Sidebar } from './components/Sidebar';
-import { DeviceTable } from './components/DeviceTable';
-import { OperatorsView } from './components/OperatorsView';
-import { LogsView } from './components/LogsView';
-import { BansView } from './components/BansView';
-import { MaintenanceView } from './components/MaintenanceView';
+import {X} from 'lucide-react';
+import {Sidebar} from './components/Sidebar';
+import {DeviceTable} from './components/DeviceTable';
+import {OperatorsView} from './components/OperatorsView';
+import {LogsView} from './components/LogsView';
+import {BansView} from './components/BansView';
+import {StatisticsView} from './components/StatisticsView';
+import {MaintenanceView} from './components/MaintenanceView';
 import {AdminModalPortal} from './components/AdminModalPortal';
-import { RolesModal } from './components/RolesModal';
-import { BanModal } from './components/BanModal';
-import { BanScreen } from './components/BanScreen';
-import { ToastContainer, ToastMessage } from './components/ToastContainer';
-import { Device, Ban, Role, Status, IconType, Operator, OperatorRole, Log } from './types';
-import { cn } from '@/lib/utils';
+import {RolesModal} from './components/RolesModal';
+import {BanModal} from './components/BanModal';
+import {BanScreen} from './components/BanScreen';
+import {ToastContainer, ToastMessage} from './components/ToastContainer';
+import {Device, Ban, Operator, OperatorRole, Log} from './types';
+import {cn} from '@/lib/utils';
 
-import { useFirebase, DeviceData } from '@/components/FirebaseProvider';
-import {
-  collection,
-  onSnapshot,
-  doc,
-  updateDoc,
-  addDoc,
-  serverTimestamp,
-  query,
-  orderBy,
-  limit,
-  setDoc,
-  deleteField,
-  getDoc,
-  getDocs,
-  writeBatch,
-  type WriteBatch,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import {
-  buildDevicePermissions,
-  normalizeAdminPermissions,
-  toLegacyPermissions,
-  effectiveAdminPermissionsForDisplay,
-  canAccessAdminDashboard,
-  type DeviceRole,
-} from '@/lib/admin/rbac';
-import {
-  formatDeviceLabel,
-  formatDeviceTechnicalLabel,
-  formatDeviceOsSummary,
-  formatRelativeTimePl,
-  formatWarsawDateTimeParts,
-  initialsFromPersonName,
-  warsawDateKey,
-  extractDeviceModelCode,
-  type DeviceModelAliases,
-} from '@/lib/format-device-label';
-import { agentLog } from '@/lib/debug-agent-log';
+import {useFirebase, DeviceData} from '@/components/FirebaseProvider';
+import {collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, orderBy, limit, setDoc, deleteField, getDoc, getDocs, writeBatch, type WriteBatch} from 'firebase/firestore';
+import {db} from '@/lib/firebase';
+import {buildDevicePermissions, normalizeAdminPermissions, toLegacyPermissions, effectiveAdminPermissionsForDisplay, canAccessAdminDashboard, type DeviceRole} from '@/lib/admin/rbac';
+import {formatDeviceLabel, formatDeviceTechnicalLabel, formatDeviceOsSummary, initialsFromPersonName, extractDeviceModelCode, type DeviceModelAliases} from '@/lib/format-device-label';
+import {agentLog} from '@/lib/debug-agent-log';
 
-type AdminLogRaw = {
-  id: string;
-  createdAtMs: number;
-  title: string;
-  description: string;
-  category: Log['category'];
-  iconType: Log['iconType'];
-};
-
-const ONLINE_GRACE_MS = 5 * 60_000;
-
-function formatElapsedAgoPl(diffMs: number): string {
-  const diff = Math.max(0, diffMs);
-  if (diff < 60_000) return '1 min temu';
-  if (diff < 3600_000) return `${Math.max(1, Math.floor(diff / 60_000))} min temu`;
-  if (diff < 86400_000) return `${Math.max(1, Math.floor(diff / 3600_000))} godz. temu`;
-
-  const days = Math.max(1, Math.floor(diff / 86400_000));
-  if (days < 7) {
-    if (days === 1) return '1 dzień temu';
-    return `${days} dni temu`;
-  }
-  if (days < 30) return `${Math.max(1, Math.floor(days / 7))} tyg. temu`;
-  if (days < 365) return `${Math.max(1, Math.floor(days / 30))} mies. temu`;
-
-  const years = Math.max(1, Math.floor(days / 365));
-  if (years === 1) return '1 rok temu';
-  if (years < 5) return `${years} lata temu`;
-  return `${years} lat temu`;
-}
-
-function lastSeenInfoFromMs(ms: number | null | undefined, nowMs = Date.now()): { label: string; online: boolean } {
-  if (!ms || Number.isNaN(ms)) return { label: 'Brak sygnału', online: false };
-  const diff = Math.max(0, nowMs - ms);
-  if (diff <= ONLINE_GRACE_MS) return { label: 'teraz', online: true };
-  return { label: formatElapsedAgoPl(diff), online: false };
-}
-
-function lastSeenInfoOfflineFromMs(ms: number | null | undefined): { label: string; online: boolean } {
-  const info = lastSeenInfoFromMs(ms);
-  return { label: info.online ? '1 min temu' : info.label, online: false };
-}
-
-function lastSeenLabelFromDevice(d: { lastSeenAt?: { toDate?: () => Date } | null }): string {
-  const t = d.lastSeenAt?.toDate?.();
-  if (!t || Number.isNaN(t.getTime())) return 'Brak sygnału';
-  const { date, time } = formatWarsawDateTimeParts(t.getTime());
-  return `${date}, ${time}`;
-}
-
-function deviceLastSeenMs(d: { lastSeenAt?: { toDate?: () => Date } | null }): number {
-  const t = d.lastSeenAt?.toDate?.();
-  return t && !Number.isNaN(t.getTime()) ? t.getTime() : 0;
-}
-
-function roleRank(role?: DeviceRole): number {
-  if (role === 'owner') return 3;
-  if (role === 'admin') return 2;
-  return 1;
-}
-
-function dedupeDevicesByInstallation(devices: ({ id: string } & DeviceData)[]): ({ id: string } & DeviceData)[] {
-  const byInstallation = new Map<string, { id: string } & DeviceData>();
-  const withoutInstallation: ({ id: string } & DeviceData)[] = [];
-
-  for (const device of devices) {
-    const installationId = String(device.installationId || '').trim();
-    if (!installationId) {
-      withoutInstallation.push(device);
-      continue;
-    }
-
-    const current = byInstallation.get(installationId);
-    if (!current) {
-      byInstallation.set(installationId, device);
-      continue;
-    }
-
-    const currentLastSeen = deviceLastSeenMs(current);
-    const nextLastSeen = deviceLastSeenMs(device);
-    const isClearlyNewerDevice = nextLastSeen > 0 && nextLastSeen > currentLastSeen + 60_000;
-    const currentRoleRank = roleRank(current.role);
-    const nextRoleRank = roleRank(device.role);
-    const shouldReplace =
-      isClearlyNewerDevice ||
-      (Math.abs(nextLastSeen - currentLastSeen) <= 60_000 &&
-        (nextRoleRank > currentRoleRank || (nextRoleRank === currentRoleRank && nextLastSeen >= currentLastSeen)));
-
-    if (shouldReplace) byInstallation.set(installationId, device);
-  }
-
-  return [...withoutInstallation, ...byInstallation.values()];
-}
-
-function deviceLabelById(devices: ({ id: string } & DeviceData)[]): Record<string, string> {
-  const m: Record<string, string> = {};
-  for (const d of devices) {
-    m[d.id] = formatAdminTargetLabel(d, d.id);
-  }
-  return m;
-}
-
-function formatAdminTargetLabel(d: ({ id: string } & DeviceData) | undefined, fallbackId?: string): string {
-  if (!d) return fallbackId ? `Urządzenie (${fallbackId.slice(0, 8)}…)` : 'Urządzenie';
-  if ((d.role === 'owner' || d.role === 'admin') && String(d.displayName || '').trim()) {
-    return formatDeviceLabel({ displayName: d.displayName, deviceInfo: d.deviceInfo, deviceId: d.id });
-  }
-  return formatDeviceTechnicalLabel(d.deviceInfo, d.id);
-}
-
-function humanizeGlobalSettingsDescription(raw: string): string {
-  const s = raw.trim();
-  if (!s.startsWith('{')) return raw;
-  try {
-    const o = JSON.parse(s) as Record<string, unknown>;
-    if (!o || typeof o !== 'object') return raw;
-    const bits: string[] = [];
-    if ('loginEnabled' in o) bits.push(o.loginEnabled ? 'logowanie włączone' : 'logowanie wyłączone');
-    if ('maintenanceMode' in o) bits.push(o.maintenanceMode ? 'tryb konserwacji włączony' : 'tryb konserwacji wyłączony');
-    if ('autoBan' in o) bits.push(o.autoBan ? 'auto-ban włączony' : 'auto-ban wyłączony');
-    return bits.length ? bits.join(' · ') : raw;
-  } catch {
-    return raw;
-  }
-}
-
-function prettifyIdArrowDescription(desc: string, labelFor: (id: string) => string): string {
-  const arrow = ' -> ';
-  const i = desc.indexOf(arrow);
-  if (i <= 0) return desc;
-  const left = desc.slice(0, i).trim();
-  const right = desc.slice(i + arrow.length).trim();
-  if (!/^[A-Za-z0-9_-]{10,128}$/.test(left)) return desc;
-  return `${labelFor(left)} → ${right}`;
-}
-
-function enrichAdminLogsForUi(raw: AdminLogRaw[], devices: ({ id: string } & DeviceData)[]): Log[] {
-  const labels = deviceLabelById(devices);
-  const labelFor = (id: string) => labels[id] || `Urządzenie (${id.slice(0, 8)}…)`;
-  const now = Date.now();
-
-  return raw.map((r) => {
-    let description = r.description;
-    if (r.title.toLowerCase().includes('ustawienia globalne') || description.trim().startsWith('{')) {
-      description = humanizeGlobalSettingsDescription(description);
-    }
-    if (description.includes(' -> ')) {
-      description = prettifyIdArrowDescription(description, labelFor);
-    }
-
-    const rel = formatRelativeTimePl(r.createdAtMs, now);
-    const { date, time } = formatWarsawDateTimeParts(r.createdAtMs);
-
-    return {
-      id: r.id,
-      createdAtMs: r.createdAtMs,
-      date,
-      time,
-      timeAgo: rel,
-      title: r.title,
-      description,
-      category: r.category,
-      iconType: r.iconType,
-    };
-  });
-}
-
-const mapRole = (role: DeviceRole): Role => {
-  if (role === 'owner') return 'Właściciel' as Role;
-  if (role === 'admin') return 'Administrator' as Role;
-  return 'Użytkownik' as Role;
-};
-
-const mapStatus = (status: string): Status => {
-  return status === 'banned' ? 'Zablokowany' : 'Aktywny';
-};
-
-const determineIconType = (deviceInfo: string): IconType => {
-  const info = deviceInfo.toLowerCase();
-  if (info.includes('iphone') || info.includes('android') || info.includes('mobile')) return 'mobile';
-  if (info.includes('ipad') || info.includes('tablet')) return 'tablet';
-  return 'desktop';
-};
-
-function computeBanStats(devices: ({ id: string } & DeviceData)[]) {
-  const now = Date.now();
-  const todayKey = warsawDateKey(now);
-  const activeBans = devices.filter((d) => d.status === 'banned').length;
-
-  const expireToday = devices.filter((d) => {
-    if (d.status !== 'banned' || !d.banDetails?.expiresAt) return false;
-    const exp = new Date(d.banDetails.expiresAt).getTime();
-    if (Number.isNaN(exp)) return false;
-    return warsawDateKey(exp) === todayKey && exp > now;
-  }).length;
-
-  const everWithBanDetails = devices.filter(
-    (d) => d.banDetails != null && typeof d.banDetails === 'object',
-  ).length;
-
-  return {
-    activeBans,
-    expireToday,
-    everWithBanDetails,
-  };
-}
+import {type AdminLogRaw, lastSeenInfoFromMs, lastSeenInfoOfflineFromMs, dedupeDevicesByInstallation, formatAdminTargetLabel, enrichAdminLogsForUi, mapRole, mapStatus, determineIconType, computeBanStats} from '@/lib/admin/dashboard-model';
 
 export interface AdminDashboardProps {
   embedded?: boolean;
@@ -279,6 +43,9 @@ export interface AdminDashboardProps {
 export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
   const { device: currentDevice, loading, user, localLastSeenMs } = useFirebase();
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
+  const [statisticsAccess,setStatisticsAccess]=useState<StatisticsAccess>({});
+  const [statisticsAccessReady,setStatisticsAccessReady]=useState(false);
+  const [statisticsDevicesReady, setStatisticsDevicesReady] = useState(false);
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [adminLogRaws, setAdminLogRaws] = useState<AdminLogRaw[]>([]);
   const [logsError, setLogsError] = useState<string | null>(null);
@@ -354,6 +121,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         return { id: d.id, ...(raw as DeviceData) };
       });
       setDevicesError(null);
+      setStatisticsDevicesReady(true);
       setDevicesData(dedupeDevicesByInstallation(data));
     }, (e: unknown) => {
       console.error('[AdminDashboard] Firestore list devices failed', e);
@@ -408,13 +176,14 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   useEffect(() => {
     if (loading || !currentDevice) return;
     const caps = effectiveAdminPermissionsForDisplay(currentDevice.role, currentDevice.permissions);
-    if (!caps.globalSettings && !caps.globalSettingsEdit) return;
-
+    if (!canAccessAdminDashboard(currentDevice.role,currentDevice.permissions)) return;
+    setStatisticsAccessReady(false);
     const unsub = onSnapshot(doc(db, 'admin_settings', 'security'), (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.data() as Record<string, unknown>;
+      const data = (snap.data()||{}) as Record<string, unknown>;
+      setStatisticsAccess(readStatisticsAccess(data.statisticsAccess));setStatisticsAccessReady(true);
+      if (!snap.exists() || (!caps.globalSettings && !caps.globalSettingsEdit)) return;
       setGlobalSettings({
-        loginEnabled: Boolean(data.loginEnabled),
+        loginEnabled: Boolean(data.loginEnabled ?? true),
         maintenanceMode: Boolean(data.maintenanceMode),
         autoBan: Boolean(data.autoBan),
         hiddenProviderIds: Array.isArray(data.hiddenProviderIds)
@@ -422,9 +191,9 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
               .filter((providerId) => providerId !== 'pkp_intercity')
           : [],
       });
-    });
+    },()=>{setStatisticsAccess({});setStatisticsAccessReady(false);});
     return () => unsub();
-  }, [currentDevice, loading]);
+  }, [loading,user?.uid,currentDevice?.role,currentDevice?.installationId,currentDevice?.permissions?.globalSettings,currentDevice?.permissions?.globalSettingsEdit]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -470,11 +239,12 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   useEffect(() => {
     if (loading || !currentDevice) return;
     const caps = effectiveAdminPermissionsForDisplay(currentDevice.role, currentDevice.permissions);
+    if (activeView==='statistics' && !statisticsPermission({id:user?.uid||'',role:currentDevice.role,installationId:currentDevice.installationId},statisticsAccess,statisticsAccessReady))setActiveView('devices');
     if (activeView === 'logs' && !caps.logs) setActiveView('devices');
     if (activeView === 'operators' && !caps.shield) setActiveView('devices');
     if (activeView === 'bans' && currentDevice.role !== 'owner' && !caps.group) setActiveView('devices');
     if (activeView === 'maintenance' && currentDevice.role !== 'owner' && !caps.globalSettings && !caps.globalSettingsEdit) setActiveView('devices');
-  }, [activeView, currentDevice, loading]);
+  }, [activeView, currentDevice, loading,statisticsAccess,statisticsAccessReady,user?.uid]);
 
   const logsData = useMemo(() => enrichAdminLogsForUi(adminLogRaws, devicesData), [adminLogRaws, devicesData]);
 
@@ -500,7 +270,9 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   const globalSettingsSectionVisible =
     currentDevice.role === 'owner' || myCaps.globalSettings || myCaps.globalSettingsEdit;
   const globalSettingsCanSave = currentDevice.role === 'owner' || myCaps.globalSettingsEdit;
+  const statisticsAllowed=statisticsPermission({id:uid,role:currentDevice.role,installationId:currentDevice.installationId},statisticsAccess,statisticsAccessReady);
   const allowedNavIds: string[] = ['devices'];
+  if(statisticsAllowed)allowedNavIds.push('statistics');
   if (currentDevice.role === 'owner' || myCaps.shield) allowedNavIds.push('operators');
   if (currentDevice.role === 'owner' || myCaps.group) allowedNavIds.push('bans');
   if (currentDevice.role === 'owner' || myCaps.logs) allowedNavIds.push('logs');
@@ -543,7 +315,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     iconType: determineIconType(d.deviceInfo),
     lastSeenLabel: lastSeenInfoFor(d).label,
     lastSeenOnline: lastSeenInfoFor(d).online,
-    permissions: effectiveAdminPermissionsForDisplay(d.role, d.permissions),
+    permissions: {...effectiveAdminPermissionsForDisplay(d.role, d.permissions),statistics:statisticsPermission(d,statisticsAccess)},
   }));
 
   const operators: Operator[] = devicesData
@@ -552,7 +324,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       const role = (
         d.role === 'owner' ? 'WŁAŚCICIEL' : d.role === 'admin' ? 'ADMIN' : 'UŻYTKOWNIK'
       ) as OperatorRole;
-      const permissions = effectiveAdminPermissionsForDisplay(d.role, d.permissions);
+      const permissions = {...effectiveAdminPermissionsForDisplay(d.role, d.permissions),statistics:statisticsPermission(d,statisticsAccess)};
       const lastSeenInfo = lastSeenInfoFor(d);
       return {
         id: d.id,
@@ -925,6 +697,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       }
 
       const roleBatch = writeBatch(db);
+      stageStatisticsAccess(roleBatch,targetRow,fbRole,permissions.statistics);
       roleBatch.update(doc(db, 'devices', selectedDeviceForRole.id), patch);
       await syncInstallationProfile(
         targetRow?.installationId,
@@ -1100,6 +873,14 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     }
   };
 
+  const stageStatisticsAccess=(batch:WriteBatch,target:{id:string;installationId?:string}|undefined,role:DeviceRole,requested:boolean|undefined)=>{
+    if(!target)return;
+    const change=statisticsAccessChange(target,role,requested,statisticsAccess);
+    if(!change)return;
+    if(currentDevice.role!=='owner')throw new Error('Tylko właściciel może zmieniać dostęp do statystyk.');
+    batch.set(doc(db,'admin_settings','security'),{statisticsAccess:{[change.key]:change.enabled}},{merge:true});
+  };
+
   const saveOperatorPatch = async (operatorId: string, role: OperatorRole, permissions: Operator['permissions']) => {
     if (!assertNotSelf(operatorId)) return;
     if (!canChangeRolesUi) {
@@ -1126,6 +907,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       if (fbRole === 'owner' || fbRole === 'admin') normalized.monitor = true;
       const verified = fbRole === 'owner' || fbRole === 'admin' || target?.verified === true;
       const roleBatch = writeBatch(db);
+      stageStatisticsAccess(roleBatch,target,fbRole,permissions.statistics);
       roleBatch.update(doc(db, 'devices', operatorId), {
         role: fbRole,
         verified,
@@ -1533,6 +1315,10 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         />
         )}
 
+        {activeView === 'statistics' && statisticsAllowed && (
+          <StatisticsView devices={devicesData} devicesError={devicesError} devicesReady={statisticsDevicesReady} onMenuClick={() => setIsSidebarOpen(true)} accentColor={themeColor} isDarkTheme={isDarkTheme} />
+        )}
+
         {activeView === 'maintenance' && (
           <MaintenanceView
             onMenuClick={() => setIsSidebarOpen(true)}
@@ -1589,3 +1375,4 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     </div>
   );
 }
+

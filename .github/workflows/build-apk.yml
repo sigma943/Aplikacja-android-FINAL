@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242, fix/mpk-diagnostics-242, fix/mpk-mybus-fallback-242, fix/mpk-mybus-timetable-242]
   workflow_dispatch:
 
 jobs:
@@ -40,6 +40,9 @@ jobs:
 
       - name: Verify map stop interactions
         run: node test/map-stops-browser.cjs
+
+      - name: Verify MPK backup route and stop pins
+        run: node test/mpk-route-browser.cjs
 
       - name: Upload UI previews
         if: always()
