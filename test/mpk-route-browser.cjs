@@ -47,7 +47,8 @@ try{
  await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]')?.textContent.includes('Powst. Warszawy'));
  assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/Powst. Warszawy/);
  await page.evaluate(()=>[...document.querySelectorAll('[data-map-bus-sheet] [data-route-stop-id]')].find(el=>el.textContent.includes('Powst. Warszawy')).click());
- await page.waitForSelector('.stop-highlight-pin .map-stop-pin');
+ // Leaflet can replace the marker after its first attachment; wait for the rendered style.
+ await page.waitForFunction(()=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color==='rgb(255, 122, 0)';});
  assert.equal(await page.$eval('.stop-highlight-pin .map-stop-pin',el=>getComputedStyle(el).color),'rgb(255, 122, 0)','MPK route stop pin matches its orange route');
  assert.equal(geometryRequests,1);assert.deepEqual(errors,[]);
  fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/mpk-mybus-0a-route.png'});
