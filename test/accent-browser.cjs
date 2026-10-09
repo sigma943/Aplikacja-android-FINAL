@@ -43,7 +43,9 @@ const server=http.createServer((req,res)=>{
       if(url.endsWith('/api/pks/vehicles'))return json({items:[]});
       if(url.includes('/api/pks/einfo/stop-point'))return json({items:[]});
       if(showMarcel && url.includes('/trasy/lokalizacjaBusow'))return json([{idKu:1181798,idPo:42,szGps:49.95,dlGps:21.88,nazTr:'Jasło-Rzeszów',timestamp:'2026-10-06T12:18:30Z'}]);
-      if(showMarcel && url.includes('/trasy/kurs/1181798'))return json(marcelRoad.course);
+      if(showMarcel && url.includes('/trasy/kurs/1181798'))return json(marcelRoad.course.map(stop=>{
+        const [hour,minute]=stop.godz.split(':');return {...stop,godz:`${Number(hour)+10}:${minute}`};
+      }));
       if(showMarcel && (url.includes('valhalla')||url.includes('router.project-osrm.org'))) {
         const points=url.includes('valhalla')?JSON.parse(new URL(url).searchParams.get('json')).locations.map(p=>[p.lat,p.lon]):new URL(url).pathname.split('/driving/')[1].split(';').map(p=>p.split(',').map(Number).reverse());
         const chunk=marcelRoad.chunks.find(c=>JSON.stringify(c.stops)===JSON.stringify(points));
@@ -290,6 +292,12 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>{const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas?.width||!canvas?.height)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100&&++painted>100)return true;return false;},{timeout:20000});
     assert.equal(marcelSecondary,0,'the complete known Marcel course paints from local road assets without an external router');
     await screenshot('marcel-jaslo-rzeszow-route');
+    await page.click('[aria-label="Rozwiń panel autobusu"]');
+    await page.waitForFunction(()=>[...document.querySelectorAll('[data-map-bus-sheet] span')].some(el=>el.parentElement?.parentElement?.classList.contains('cursor-pointer')));
+    await page.evaluate(()=>[...document.querySelectorAll('[data-map-bus-sheet] span')].find(el=>el.parentElement?.parentElement?.classList.contains('cursor-pointer')).parentElement.parentElement.click());
+    await page.waitForSelector('.stop-highlight-pin .map-stop-pin');
+    assert.equal(await style('.stop-highlight-pin .map-stop-pin','color'),'rgb(104, 196, 74)','Marcel route stop pin matches its green route');
+    await screenshot('marcel-route-green-pin');
     await page.goto(`${origin}/maintenance/`,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-transport-diagnostics]');
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
     await button('Dodaj');

@@ -1,5 +1,6 @@
 'use client';
 import {bundledMarcelRoute} from '@/lib/marcel-route-assets';
+import {correctMarcelNiebylecRoute} from '@/lib/marcel-niebylec-route';
 
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {loadStopPlatforms} from '@/lib/stop-platform-position';
@@ -206,7 +207,7 @@ export default function BusMap({
 
     const suppliedGeometry = selectedVehicle.routeGeometry;
     if (suppliedGeometry && suppliedGeometry.length > 1 && roadRouteMatchesStops(suppliedGeometry, routeGeometryStops.map(stop => [stop.lat, stop.lon]), 180)) {
-      setSnappedRoute(simplifyRouteForPaint(suppliedGeometry));
+      setSnappedRoute(simplifyRouteForPaint(correctMarcelNiebylecRoute(suppliedGeometry,selectedVehicle.provider)));
       return;
     }
 
@@ -225,7 +226,7 @@ export default function BusMap({
       const localRoute = await readPersistentRouteGeometry(routeKey, routeGeometryVersion);
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (localRoute.length > 1 && (routeMode === 'rail' || roadRouteMatchesStops(localRoute, routeGeometryStops.map(stop => [stop.lat,stop.lon]), 180))) {
-        const refinedLocalRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(localRoute,routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : localRoute);
+        const refinedLocalRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(correctMarcelNiebylecRoute(localRoute,selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : localRoute);
         refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
         refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
         setSnappedRoute(refinedLocalRoute);
@@ -239,7 +240,7 @@ export default function BusMap({
         : [];
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (officialRoute.length > 1) {
-        const refinedOfficialRoute = simplifyRouteForPaint(cleanRoadJunctionLoops(officialRoute,routeGeometryStops.map(stop=>[stop.lat,stop.lon])));
+        const refinedOfficialRoute = simplifyRouteForPaint(cleanRoadJunctionLoops(correctMarcelNiebylecRoute(officialRoute,selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])));
         refinedRouteCacheRef.current.set(routeKey, refinedOfficialRoute);
         refinedRouteByVehicleRef.current.set(currentIdentity, refinedOfficialRoute);
         writePersistentRouteGeometry(routeKey, refinedOfficialRoute, routeGeometryVersion);
@@ -268,7 +269,7 @@ export default function BusMap({
           .map(([lon, lat]) => [lat, lon] as [number, number])
           .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
         if (points.length > 1) {
-          const refinedRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(points,routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : points);
+          const refinedRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(correctMarcelNiebylecRoute(points,selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : points);
           refinedRouteCacheRef.current.set(routeKey, refinedRoute);
           if (response.cacheKey) refinedRouteCacheRef.current.set(response.cacheKey, refinedRoute);
           refinedRouteByVehicleRef.current.set(currentIdentity, refinedRoute);
@@ -395,7 +396,7 @@ export default function BusMap({
           maxZoom={19}
         />
 
-        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStopId?routeStopsData[highlightedStopId]:undefined} stops={mapStops} color={themeColor}/>
+        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStopId?routeStopsData[highlightedStopId]:undefined} stops={mapStops} color={selectedVehicle?.provider==='marcel'||selectedVehicle?.provider==='mpk_rzeszow'?selectedRouteColor:themeColor}/>
         {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={selectedCatalogStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}
