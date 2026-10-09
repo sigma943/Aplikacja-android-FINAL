@@ -10,4 +10,13 @@ final class WidgetLayoutMetrics {
     reservedHeight=(compact?44:52)+(footerVisible?12:0);
     capacity=Math.max(0,Math.min(10,(height-reservedHeight)/rowHeight));
   }
+  WidgetLayoutMetrics(int height,WidgetAppearance appearance){
+    compact=height<120;
+    footerVisible=height>=108;
+    boolean dense=compact||"compact".equals(appearance.density);
+    int font=appearance.fontAdjustment(height);
+    rowHeight=(dense?26:32)+(font==2?6:font==-1?-2:0);
+    reservedHeight=(compact?44:52)+(footerVisible?12:0);
+    capacity=Math.max(0,Math.min(10,(height-reservedHeight)/rowHeight));
+  }
 }

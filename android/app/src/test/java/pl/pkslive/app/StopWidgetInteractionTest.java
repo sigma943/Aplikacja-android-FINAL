@@ -13,6 +13,7 @@ import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk=31)
+@org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
 public class StopWidgetInteractionTest {
   private Context context;
   @Before public void setup(){context=RuntimeEnvironment.getApplication();StopWidgetProvider.prefs(context).edit().clear().putLong("updated_7",System.currentTimeMillis()).putString("config_7","{\"stop\":{\"name\":\"Rzeszów, Podkarpacka Matuszczaka 04\"},\"refreshMode\":\"off\"}").putString("rows_7","[{\"line\":\"108\",\"direction\":\"Gwoźnica Górna\",\"realAtMs\":"+(System.currentTimeMillis()+600000)+"}]").apply();}
@@ -50,16 +51,17 @@ public class StopWidgetInteractionTest {
     for(String theme:new String[]{"dark","light"}){
       StopWidgetProvider.prefs(context).edit().putString("config_7","{\"stop\":{\"name\":\"Test\"},\"theme\":\""+theme+"\"}").apply();
       View root=inflate(context,320,180);
-      android.graphics.drawable.GradientDrawable bg=(android.graphics.drawable.GradientDrawable)root.getBackground();
-      for(int color:bg.getColors()){assertTrue(android.graphics.Color.alpha(color)<255);assertTrue(android.graphics.Color.alpha(color)>=128);}
+      android.graphics.Bitmap bg=((android.graphics.drawable.BitmapDrawable)((ImageView)root.findViewById(R.id.widget_background)).getDrawable()).getBitmap();
+      int alpha=android.graphics.Color.alpha(bg.getPixel(bg.getWidth()/2,bg.getHeight()/2));
+      assertTrue(alpha<255);assertTrue(alpha>=128);
       assertEquals(1f,root.getAlpha(),0f);assertEquals(1f,root.findViewById(R.id.widget_title).getAlpha(),0f);
-      assertTrue(root.getClipToOutline());assertTrue(bg.getCornerRadius()>0);
+      assertTrue(root.getClipToOutline());assertEquals(0,android.graphics.Color.alpha(bg.getPixel(0,0)));
     }
   }
   @Test public void glassCanBeDisabledForAnOpaqueBackground()throws Exception{
     StopWidgetProvider.prefs(context).edit().putString("config_7","{\"stop\":{\"name\":\"Test\"},\"glass\":false}").apply();
-    android.graphics.drawable.GradientDrawable bg=(android.graphics.drawable.GradientDrawable)inflate(context,320,180).getBackground();
-    for(int color:bg.getColors())assertEquals(255,android.graphics.Color.alpha(color));
+    android.graphics.Bitmap bg=((android.graphics.drawable.BitmapDrawable)((ImageView)inflate(context,320,180).findViewById(R.id.widget_background)).getDrawable()).getBitmap();
+    assertEquals(255,android.graphics.Color.alpha(bg.getPixel(bg.getWidth()/2,bg.getHeight()/2)));
   }
   @Test public void refreshClickSendsTheWidgetIdAndQueuesExpeditedJobEvenWhenAutomaticRefreshIsOff()throws Exception{
     // Robolectric records PendingIntent broadcasts but does not deliver all
