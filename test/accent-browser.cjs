@@ -284,6 +284,7 @@ const server=http.createServer((req,res)=>{
     await choose('Styl kart','Wyraźna ramka');
     assert.equal(await page.$eval('.personal-group',el=>getComputedStyle(el).borderTopWidth),'2px');
     await choose('Styl przycisków','Obrys');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.personal-choice[aria-pressed="true"]')).backgroundColor==='rgba(0, 0, 0, 0)');
     assert.equal(await page.$eval('.personal-choice[aria-pressed="true"]',el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)');
     await choose('Styl przycisków','Standardowy');await choose('Styl kart','Standardowy');await choose('Zabarwienie paneli','Według motywu');
     await openGroup('Kształty i głębia');
