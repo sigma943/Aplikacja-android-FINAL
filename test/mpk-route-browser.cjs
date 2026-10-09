@@ -69,9 +69,10 @@ try{
  await page.waitForSelector('input[placeholder*="Babica"]');await page.type('input[placeholder*="Babica"]','Matuszczaka');
  await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>el.textContent.includes('Matuszczaka')));
  await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id]')].find(el=>el.textContent.includes('Matuszczaka')).click());
- await page.waitForFunction(()=>document.body.textContent.includes('+6 min')&&document.body.textContent.includes('Rozkład'));
+ await page.waitForFunction(()=>document.body.textContent.includes('+6 min')&&document.body.textContent.includes('Lubelska MPK'));
  const rendered=await page.evaluate(()=>{const title=[...document.querySelectorAll('h4')].find(el=>el.textContent==='Olbrachta p. Jarową');return title?.parentElement.parentElement.parentElement.parentElement.textContent;});
  assert.match(rendered,/1[01] min/);assert.match(rendered,/\+6 min/);assert.doesNotMatch(rendered,/Rozkład/);assert.deepEqual(errors,[]);
+ assert.doesNotMatch(await page.evaluate(()=>document.body.textContent),/Rozkład/,'scheduled-only departures must also omit the schedule label');
  await page.screenshot({path:'test/ui-previews/mpk-mybus-stop-live.png'});
  console.log('MPK backup: routes, next-stop circles, models, break countdown and actual stop predictions rendered.');
 }finally{await browser.close();await new Promise(r=>server.close(r));fixture.cleanup();}})().catch(e=>{console.error(e);process.exitCode=1;});
