@@ -1,140 +1,29 @@
 'use client';
-import {Monitor,Sun,Moon,Sparkles,Check,Settings,Bus,MapPin,Palette} from 'lucide-react';
-import {useState,type CSSProperties} from 'react';
+import {useState} from 'react';
+import {Settings,Bus,MapPin,Palette,Sparkles} from 'lucide-react';
 import InterfacePersonalization from './InterfacePersonalization';
 import type {InterfaceAppearance} from '@/lib/interface-appearance';
-type Props={appearance:InterfaceAppearance;saveAppearance:(value:InterfaceAppearance)=>void;onOpenPersonalization:()=>void;panelGlow:boolean;glowStrength:number;savePanelGlow:(value:boolean)=>void;saveGlowStrength:(value:number)=>void;showMapStops?:boolean;saveMapStops?:(value:boolean)=>void;themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
-export default function OptionsContent({appearance,saveAppearance,onOpenPersonalization,panelGlow,glowStrength,savePanelGlow,saveGlowStrength,themeColor, textSub, optionsCard, isDark, isWarm, appTheme, optionsButton, isOptionsExpanded, saveAppTheme, saveThemeColor, transparentUI, saveTransparentUI, showInactive, saveInactive, lightEffects, saveLightEffects,showMapStops=false,saveMapStops}:Props){const [tab,setTab]=useState<'general'|'personalization'>('general');return <>
-               <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                     <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${themeColor}18`, color: themeColor }}><Settings className="h-[18px] w-[18px]" /></span>
-                     <div>
-                        <h2 id="options-title" className="text-base font-semibold tracking-tight md:text-lg">Opcje aplikacji</h2>
-                        <p className={`text-[11px] ${textSub}`}>Twój wygląd, Twoje ustawienia</p>
-                  </div>
-                  </div>
-
-               </div>
-
-               <div role="tablist" aria-label="Zakładki opcji" className="personal-tabs" onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?'general':event.key==='End'?'personalization':tab==='general'?'personalization':'general';setTab(next);if(next==='personalization')onOpenPersonalization();event.currentTarget.querySelector<HTMLButtonElement>(next==='general'?'#options-general-tab':'#options-personal-tab')?.focus();}}>
-                 <button type="button" role="tab" id="options-general-tab" tabIndex={tab==='general'?0:-1} aria-controls="options-general-panel" aria-selected={tab==='general'} onClick={()=>setTab('general')}><Settings size={15}/>Ogólne</button>
-                 <button type="button" role="tab" id="options-personal-tab" tabIndex={tab==='personalization'?0:-1} aria-controls="options-personal-panel" aria-selected={tab==='personalization'} onClick={()=>{setTab('personalization');onOpenPersonalization();}}><Palette size={15}/>Personalizacja</button>
-               </div>
-               {tab==='personalization'&&<div role="tabpanel" id="options-personal-panel" aria-labelledby="options-personal-tab" data-options-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain"><InterfacePersonalization value={appearance} onChange={saveAppearance} dark={isDark} theme={appTheme} accent={themeColor} setTheme={saveAppTheme} setAccent={saveThemeColor} glass={transparentUI} setGlass={saveTransparentUI} glow={panelGlow} setGlow={savePanelGlow} glowStrength={glowStrength} setGlowStrength={saveGlowStrength} lightEffects={lightEffects} setLightEffects={saveLightEffects}/></div>}
-               {tab==='general'&&<div role="tabpanel" id="options-general-panel" aria-labelledby="options-general-tab" data-options-scroll className={`flex min-h-0 w-full flex-1 flex-col gap-2 overscroll-contain relative z-0 pr-1 ${isOptionsExpanded ? "overflow-y-auto" : "overflow-hidden"}`}>
-                  
-                  {/* Appearance */}
-                  <div data-options-appearance className={`shrink-0 rounded-2xl border p-2.5 md:p-4 ${optionsCard}`}>
-                     <h3 className={`mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${isDark ? 'text-violet-200' : isWarm ? 'text-[#746a58]' : 'text-slate-500'}`}>Motyw aplikacji</h3>
-                     
-                     <div className="mb-2 grid grid-cols-3 gap-1.5">
-                        {[
-                           { id: 'system', name: 'Systemowy', icon: <Monitor className="w-4 h-4 mr-1.5" /> },
-                           { id: 'light', name: 'Jasny', icon: <Sun className="w-4 h-4 mr-1.5" /> },
-                           { id: 'light-warm', name: 'Piaskowy', icon: <Sun className="w-4 h-4 mr-1.5" /> },
-                           { id: 'dark', name: 'Ciemny', icon: <Moon className="w-4 h-4 mr-1.5" /> },
-                           { id: 'dark-oled', name: 'AMOLED', icon: <Moon className="w-4 h-4 mr-1.5" /> },
-                           { id: 'dark-aurora', name: 'Aurora', icon: <Sparkles className="w-4 h-4 mr-1.5" /> }
-                        ].map(mode => (
-                           <button
-                              key={mode.id}
-                              onClick={() => saveAppTheme(mode.id)}
-                              aria-pressed={appTheme === mode.id}
-                              className={`relative flex h-11 items-center justify-center rounded-xl text-[11px] font-medium transition-colors border md:text-sm ${appTheme === mode.id ? '' : 'border-transparent'} ${optionsButton}`}
-                              style={appTheme === mode.id ? { borderColor: `${themeColor}80`, color: themeColor, backgroundColor: `${themeColor}18` } as CSSProperties : {}}
-                           >
-                              {mode.icon}
-                              {mode.name}
-                              {appTheme === mode.id && <span className="absolute right-1 top-1 h-1 w-1 rounded-full" style={{ backgroundColor: themeColor }} />}
-                           </button>
-                        ))}
-                     </div>
-
-                     <div className={`flex items-center justify-between gap-1 border-t px-1 pt-2 ${isDark ? 'border-white/8' : 'border-slate-900/8'}`}>
-                        <span className={`text-[11px] ${textSub}`}>Akcent</span>
-                        {[
-                           { name: 'Turkusowy', hex: '#00A3A2' },
-                           { name: 'Niebieski', hex: '#3b82f6' },
-                           { name: 'Fioletowy', hex: '#8b5cf6' },
-                           { name: 'Różowy', hex: '#f43f5e' },
-                           { name: 'Bursztynowy', hex: '#f59e0b' }
-                        ].map(color => (
-                           <button
-                              key={color.name}
-                              onClick={() => saveThemeColor(color.hex)}
-                              aria-label={`Kolor akcentu: ${color.name}`}
-                              aria-pressed={themeColor === color.hex}
-                              className="flex h-11 w-9 min-[380px]:w-11 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-105"
-                              title={color.name}
-                           >
-                              <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: color.hex, boxShadow: themeColor === color.hex ? `0 0 0 2px ${isDark ? '#0d1425' : '#ffffff'}, 0 0 0 3px ${color.hex}` : undefined }}>
-                                 {themeColor === color.hex && <Check className="h-4 w-4 text-white" strokeWidth={3} />}
-                              </span>
-                           </button>
-                        ))}
-                     </div>
-                  </div>
-
-                  <div data-options-extra id="additional-options" aria-hidden={!isOptionsExpanded} inert={!isOptionsExpanded} className="shrink-0">
-                  <div className="flex flex-col gap-2 pb-0.5">
-                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
-                        <div className="flex min-w-0 items-center gap-3 pr-3">
-                           <Sparkles className="h-5 w-5 shrink-0" style={{ color: themeColor }} />
-                           <div className="flex flex-col">
-                              <span className="text-sm font-semibold">Przezroczystość</span>
-                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Rozmycie tła paneli</span>
-                           </div>
-                        </div>
-                        <div className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors ${transparentUI ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: transparentUI ? themeColor : '' }}>
-                           <div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${transparentUI ? 'translate-x-5' : ''}`}></div>
-                        </div>
-                        <input type="checkbox" className="sr-only" checked={transparentUI} onChange={(e) => saveTransparentUI(e.target.checked)} />
-                     </label>
-                     
-                     <section className={`overflow-hidden rounded-2xl border ${optionsCard}`}>
-                       <label className="group flex min-h-20 cursor-pointer items-center justify-between gap-3 p-3 md:p-4">
-                         <div className="flex min-w-0 items-center gap-3">
-                           <Sun className="h-5 w-5 shrink-0" style={{color:themeColor}}/>
-                           <div><span className="text-sm font-semibold">Poświata paneli</span><p className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Miękkie plamy koloru w tle paneli</p></div>
-                         </div>
-                         <input aria-label="Poświata paneli" role="switch" type="checkbox" className="peer sr-only" checked={panelGlow} onChange={event=>savePanelGlow(event.target.checked)}/>
-                         <span aria-hidden="true" className={`relative h-7 w-12 shrink-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 ${panelGlow?'':isDark?'bg-white/12':'bg-slate-300'}`} style={{backgroundColor:panelGlow?themeColor:undefined,outlineColor:themeColor}}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${panelGlow?'translate-x-5':''}`}/></span>
-                       </label>
-                       {panelGlow&&<div className={`border-t px-4 pb-4 pt-3 ${isDark?'border-white/8':'border-slate-900/8'}`}>
-                         <label htmlFor="panel-glow-strength" className="flex items-center justify-between text-xs font-medium"><span>Siła poświaty</span><output className="ui-accent-soft rounded-lg px-2 py-1 tabular-nums">{glowStrength}%</output></label>
-                         <input id="panel-glow-strength" type="range" min="0" max="100" step="5" value={glowStrength} onChange={event=>saveGlowStrength(Number(event.target.value))} className="ui-accent-focus mt-2 h-8 w-full cursor-pointer" style={{accentColor:themeColor}}/>
-                         <div className={`flex justify-between text-[10px] ${textSub}`}><span>Subtelna</span><span>Wyraźna</span></div>
-                         {lightEffects&&<p className={`mt-2 text-[11px] ${textSub}`}>Lżejsze efekty ograniczają siłę poświaty.</p>}
-                       </div>}
-                     </section>
-
-                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
-                        <div className="flex min-w-0 items-center gap-3 pr-3">
-                           <Bus className={`h-5 w-5 shrink-0 ${isDark ? 'text-white/90' : 'text-slate-700'}`} />
-                           <div className="flex flex-col">
-                              <span className="text-sm font-semibold">Autobusy bez linii</span>
-                              <span className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Pokaż ostatnią pozycję pojazdów bez kursu</span>
-                           </div>
-                        </div>
-                        <div className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors ${showInactive ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{ backgroundColor: showInactive ? themeColor : '' }}>
-                           <div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${showInactive ? 'translate-x-5' : ''}`}></div>
-                        </div>
-                        <input type="checkbox" className="sr-only" checked={showInactive} onChange={(e) => saveInactive(e.target.checked)} />
-                     </label>
-
-                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 md:p-4 ${optionsCard}`}>
-                       <div className="flex min-w-0 items-center gap-3 pr-3"><MapPin className="h-5 w-5 shrink-0" style={{color:themeColor}}/><div><span className="text-sm font-semibold">Pokaż przystanki na mapie</span><p className={`mt-1 text-[11px] ${textSub}`}>Przybliż mapę i dotknij przystanku, aby sprawdzić odjazdy</p></div></div>
-                       <div className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${showMapStops?'':isDark?'bg-white/12':'bg-slate-300'}`} style={{backgroundColor:showMapStops?themeColor:''}}><div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${showMapStops?'translate-x-5':''}`}/></div>
-                       <input aria-label="Pokaż przystanki na mapie" type="checkbox" className="sr-only" checked={showMapStops} onChange={event=>saveMapStops?.(event.target.checked)}/>
-                     </label>
-
-                     <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-colors md:p-4 ${optionsCard}`}>
-                       <div className="flex min-w-0 items-center gap-3 pr-3"><Sparkles className="h-5 w-5 shrink-0" style={{color:themeColor}}/><div><span className="text-sm font-semibold">Lżejsze efekty</span><p className={`mt-1 text-[11px] ${textSub}`}>Mniej rozmycia i cieni na słabszych telefonach</p></div></div>
-                       <div className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${lightEffects ? '' : (isDark ? 'bg-white/12' : 'bg-slate-300')}`} style={{backgroundColor:lightEffects?themeColor:''}}><div className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform ${lightEffects?'translate-x-5':''}`}/></div>
-                       <input aria-label="Lżejsze efekty" type="checkbox" checked={lightEffects} onChange={event=>saveLightEffects(event.target.checked)} className="sr-only"/>
-                     </label>
-                  </div>
-                  </div>
-
-               </div>}
-</>;}
+export type PreviewChrome={mapGlassPanel:string;mapGlassInput:string;textSub:string;bottomGlassShell:string};
+type Props={chrome:PreviewChrome;appearance:InterfaceAppearance;saveAppearance:(value:InterfaceAppearance)=>void;onOpenPersonalization:()=>void;panelGlow:boolean;glowStrength:number;savePanelGlow:(value:boolean)=>void;saveGlowStrength:(value:number)=>void;showMapStops?:boolean;saveMapStops?:(value:boolean)=>void;themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
+export default function OptionsContent(p:Props){
+ const [tab,setTab]=useState<'general'|'personalization'>('general');
+ const open=(next:'general'|'personalization')=>{setTab(next);if(next==='personalization')p.onOpenPersonalization();};
+ return <>
+  <div className="mb-3 flex shrink-0 items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-xl ui-accent-soft"><Settings size={18}/></span><div><h2 id="options-title" className="text-base font-semibold md:text-lg">Opcje aplikacji</h2><p className={`text-[11px] ${p.textSub}`}>Twój wygląd, Twoje ustawienia</p></div></div>
+  <div role="tablist" aria-label="Zakładki opcji" className="personal-tabs" onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?'general':event.key==='End'?'personalization':tab==='general'?'personalization':'general';open(next);event.currentTarget.querySelector<HTMLButtonElement>(next==='general'?'#options-general-tab':'#options-personal-tab')?.focus();}}>
+   <button role="tab" type="button" id="options-general-tab" tabIndex={tab==='general'?0:-1} aria-controls="options-general-panel" aria-selected={tab==='general'} onClick={()=>open('general')}><Settings size={15}/>Ogólne</button>
+   <button role="tab" type="button" id="options-personal-tab" tabIndex={tab==='personalization'?0:-1} aria-controls="options-personal-panel" aria-selected={tab==='personalization'} onClick={()=>open('personalization')}><Palette size={15}/>Personalizacja</button>
+  </div>
+  {tab==='personalization'?<div role="tabpanel" id="options-personal-panel" aria-labelledby="options-personal-tab" data-options-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain"><InterfacePersonalization chrome={p.chrome} value={p.appearance} onChange={p.saveAppearance} dark={p.isDark} theme={p.appTheme} accent={p.themeColor} setTheme={p.saveAppTheme} setAccent={p.saveThemeColor} glass={p.transparentUI} setGlass={p.saveTransparentUI} glow={p.panelGlow} setGlow={p.savePanelGlow} glowStrength={p.glowStrength} setGlowStrength={p.saveGlowStrength} lightEffects={p.lightEffects}/></div>:
+  <div role="tabpanel" id="options-general-panel" aria-labelledby="options-general-tab" data-options-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+   <p data-options-appearance className={`mb-3 px-1 text-xs leading-relaxed ${p.textSub}`}>Ustawienia działania aplikacji. Wygląd zmienisz w zakładce „Personalizacja”.</p>
+   <div data-options-extra id="additional-options" className="grid gap-2">
+    {[
+     {label:'Autobusy bez linii',description:'Pokaż ostatnią pozycję pojazdów bez kursu',icon:<Bus size={20}/>,checked:p.showInactive,change:p.saveInactive},
+     {label:'Pokaż przystanki na mapie',description:'Przybliż mapę i dotknij przystanku, aby sprawdzić odjazdy',icon:<MapPin size={20}/>,checked:p.showMapStops||false,change:(on:boolean)=>p.saveMapStops?.(on)},
+     {label:'Lżejsze efekty',description:'Mniej rozmycia i cieni na słabszych telefonach',icon:<Sparkles size={20}/>,checked:p.lightEffects,change:p.saveLightEffects},
+    ].map(option=><label key={option.label} className={`personal-toggle rounded-2xl border p-3 ${p.optionsCard}`}><span className="flex min-w-0 items-center gap-3"><span className="shrink-0 ui-accent-text">{option.icon}</span><span><span className="block text-sm font-semibold">{option.label}</span><span className={`mt-1 block text-[11px] leading-relaxed ${p.textSub}`}>{option.description}</span></span></span><input type="checkbox" role="switch" aria-label={option.label} checked={option.checked} onChange={event=>option.change(event.target.checked)}/></label>)}
+   </div>
+  </div>}
+ </>;
+}

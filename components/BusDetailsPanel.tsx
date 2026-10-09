@@ -12,6 +12,7 @@ import {punctualityTimeClass} from '@/lib/punctuality-color';
 import {displayStopLabel} from '@/lib/stop-label';
 
 interface BusDetailsPanelProps {
+  preview?:boolean;
   selectedBus: Vehicle;
   busDrag: ReturnType<typeof useSheetGesture>;
   busHeaderRef: RefObject<HTMLDivElement | null>;
@@ -41,16 +42,16 @@ interface BusDetailsPanelProps {
   formatScheduleStopName: (name: string) => string;
 }
 
-export default function BusDetailsPanel({selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+export default function BusDetailsPanel({preview=false,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
   return (
     <motion.div
                   key="bus-panel-map"
                   style={{height:busDrag.height}}
-                  data-map-bus-sheet
+                  data-map-bus-sheet={preview?undefined:true}
                   data-expanded={isBusPanelExpanded}
                   data-glass={transparentUI ? 'on' : 'off'}
                   data-ui-mode={isDark ? 'dark' : 'light'}
-                  initial={{ y: "100%", opacity: 0.5 }}
+                  initial={preview?false:{ y: "100%", opacity: 0.5 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: "100%", opacity: 0.5 }}
                   transition={SHEET_SPRING}

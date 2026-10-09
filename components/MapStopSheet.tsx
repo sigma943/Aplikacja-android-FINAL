@@ -17,6 +17,7 @@ export interface MapStopDeparture {
 }
 
 interface Props {
+  preview?:boolean;
   name: string;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
@@ -27,20 +28,20 @@ interface Props {
   departures: MapStopDeparture[];
 }
 
-export default function MapStopSheet({ name, expanded, onExpandedChange, transparent, dark, loading, error, departures }: Props) {
+export default function MapStopSheet({ preview=false,name, expanded, onExpandedChange, transparent, dark, loading, error, departures }: Props) {
   const reduceMotion = useReducedMotion();
   const next = departures[0];
   const [full,setFull]=useState(320);
-  useEffect(()=>{const measure=()=>setFull(Math.max(84,Math.min(innerHeight*.42,380)));measure();window.addEventListener('resize',measure);return()=>window.removeEventListener('resize',measure);},[]);
+  useEffect(()=>{const measure=()=>setFull(preview?280:Math.max(84,Math.min(innerHeight*.42,380)));measure();window.addEventListener('resize',measure);return()=>window.removeEventListener('resize',measure);},[preview]);
   const drag=useSheetGesture(expanded,onExpandedChange,84,full);
   return (
     <motion.section
       aria-label="Przystanek na mapie"
-      data-map-stop-sheet
+      data-map-stop-sheet={preview?undefined:true}
       data-expanded={expanded}
       data-glass={transparent ? 'on' : 'off'}
       data-ui-mode={dark ? 'dark' : 'light'}
-      initial={reduceMotion ? false : { y: '100%', opacity: 0 }}
+      initial={reduceMotion||preview ? false : { y: '100%', opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: '100%', opacity: 0 }}
       transition={reduceMotion ? {duration: 0} : SHEET_SPRING}
@@ -51,7 +52,7 @@ export default function MapStopSheet({ name, expanded, onExpandedChange, transpa
         type="button"
         aria-label={expanded ? 'Zwiń panel przystanku' : 'Rozwiń panel przystanku'}
         aria-expanded={expanded}
-        aria-controls="map-stop-departures"
+        aria-controls={preview?'preview-stop-departures':'map-stop-departures'}
         {...drag.handle}
         className="map-stop-handle relative w-full shrink-0 px-4 pb-3 pt-3 text-left touch-none"
       >
@@ -66,7 +67,7 @@ export default function MapStopSheet({ name, expanded, onExpandedChange, transpa
         </span>
       </motion.button>
       {(expanded || drag.dragging) && (
-        <div id="map-stop-departures" className="map-stop-departures min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 touch-pan-y custom-scrollbar">
+        <div id={preview?'preview-stop-departures':'map-stop-departures'} className="map-stop-departures min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 touch-pan-y custom-scrollbar">
           <div className="map-detail-muted flex items-center gap-2 px-1 py-2 text-[10px] font-bold uppercase tracking-[0.15em]"><Clock size={13} /> Najbliższe odjazdy</div>
           {error && <p role="alert" className="mb-2 rounded-xl bg-amber-500/10 p-2 text-xs text-amber-500">{error}</p>}
           {loading ? <div className="map-detail-muted py-6 text-center text-sm" role="status">Pobieranie rozkładu…</div> : !departures.length ? <p className="map-detail-muted py-5 text-center text-sm">{error ? 'Rozkład niedostępny' : 'Brak najbliższych odjazdów'}</p> : departures.map((departure, index) => (

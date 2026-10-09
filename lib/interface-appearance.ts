@@ -1,10 +1,13 @@
 import {normalizeUiAccent} from './ui-accent';
+import {withAlpha} from './home/vehicle-display';
+export function vehicleHeaderStyle(color:string,glass:boolean){return {background:glass?`linear-gradient(135deg, ${withAlpha(color,0.48)}, ${withAlpha(color,0.28)})`:color};}
 
 export interface InterfaceAppearance {
   panelRadius:number; cardRadius:number; controlRadius:number;
   borderStrength:number; shadowStrength:number;
   glassOpacity:number; glassBlur:number; glassSaturation:number;
-  surfaceTint:'original'|'accent'|'warm';
+  surfaceTint:'original'|'accent'|'warm'|'custom';
+  panelColor:string; panelTintStrength:number; cardStyle:'original'|'soft'|'outlined'|'flat'; buttonStyle:'original'|'solid'|'outline';
   textScale:number; fontFamily:'system'|'sans'|'mono'; titleWeight:number;
   letterSpacing:number; tabularNumbers:boolean;
   density:'comfortable'|'compact'|'spacious';
@@ -16,7 +19,7 @@ export interface InterfaceAppearance {
 }
 export const DEFAULT_INTERFACE_APPEARANCE:InterfaceAppearance={
   panelRadius:24,cardRadius:20,controlRadius:12,borderStrength:12,shadowStrength:30,
-  glassOpacity:64,glassBlur:18,glassSaturation:135,surfaceTint:'original',
+  glassOpacity:64,glassBlur:18,glassSaturation:135,surfaceTint:'original',panelColor:'#64748b',panelTintStrength:35,cardStyle:'original',buttonStyle:'original',
   textScale:100,fontFamily:'system',titleWeight:700,letterSpacing:0,tabularNumbers:true,
   density:'comfortable',iconSize:24,iconStroke:2,navLabels:true,navIndicator:'line',inactiveOpacity:100,
   reducedMotion:false,hoverHighlight:true,
@@ -32,22 +35,22 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   return {
     panelRadius:n('panelRadius',0,36),cardRadius:n('cardRadius',0,30),controlRadius:n('controlRadius',0,24),
     borderStrength:n('borderStrength',0,40),shadowStrength:n('shadowStrength',0,100),
-    glassOpacity:n('glassOpacity',20,100),glassBlur:n('glassBlur',0,28),glassSaturation:n('glassSaturation',80,180),
-    surfaceTint:choice('surfaceTint',['original','accent','warm']),textScale:n('textScale',90,120),
-    fontFamily:choice('fontFamily',['system','sans','mono']),titleWeight:n('titleWeight',500,800),letterSpacing:n('letterSpacing',0,.8),tabularNumbers:flag('tabularNumbers'),
+    glassOpacity:n('glassOpacity',20,100),glassBlur:n('glassBlur',0,28),glassSaturation:135,
+    surfaceTint:choice('surfaceTint',['original','accent','warm','custom']),panelColor:normalizeUiAccent(typeof v.panelColor==='string'?v.panelColor:d.panelColor),panelTintStrength:n('panelTintStrength',5,55),cardStyle:choice('cardStyle',['original','soft','outlined','flat']),buttonStyle:choice('buttonStyle',['original','solid','outline']),textScale:n('textScale',90,120),
+    fontFamily:choice('fontFamily',['system','sans','mono']),titleWeight:n('titleWeight',500,800),letterSpacing:0,tabularNumbers:true,
     density:choice('density',['comfortable','compact','spacious']),iconSize:n('iconSize',18,30),iconStroke:n('iconStroke',1,3),
-    navLabels:flag('navLabels'),navIndicator:choice('navIndicator',['line','pill','none']),inactiveOpacity:n('inactiveOpacity',45,100),
-    reducedMotion:flag('reducedMotion'),hoverHighlight:flag('hoverHighlight'),
+    navLabels:flag('navLabels'),navIndicator:choice('navIndicator',['line','pill','none']),inactiveOpacity:100,
+    reducedMotion:flag('reducedMotion'),hoverHighlight:true,
     glowStyle:choice('glowStyle',['graphite','accent','mixed']),glowColor:normalizeUiAccent(typeof v.glowColor==='string'?v.glowColor:d.glowColor),
     glowSpread:n('glowSpread',40,100),glowPlacement:choice('glowPlacement',['corners','center','diagonal']),
   };
 }
 
-export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,accent:string,lightEffects:boolean){
-  const color=normalizeUiAccent(accent),base=dark?'#1b2937':'#f7fafc';
-  const target=v.surfaceTint==='accent'?color:'#d2c2a4';
+export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,accent:string,lightEffects:boolean,theme=''){
+  const color=normalizeUiAccent(accent),base=theme==='dark-oled'?'#141d26':theme==='dark-aurora'?'#211b36':theme==='light-warm'?'#faf7ef':dark?'#1b2937':'#f7fafc';
+  const target=v.surfaceTint==='custom'?v.panelColor:v.surfaceTint==='accent'?color:'#d2c2a4';
   const rgb=(hex:string)=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
-  const bg=rgb(base).map((c,i)=>Math.round(v.surfaceTint==='original'?c:c*.87+rgb(target)[i]*.13));
+  const bg=rgb(base).map((c,i)=>Math.round(v.surfaceTint==='original'?c:c*(1-v.panelTintStrength/100)+rgb(target)[i]*v.panelTintStrength/100));
   const variables:Record<string,string>={
     '--personal-panel-radius':`${v.panelRadius}px`,'--personal-card-radius':`${v.cardRadius}px`,'--personal-control-radius':`${v.controlRadius}px`,
     '--personal-edge':`rgba(${dark?'255,255,255':'15,23,42'},${v.borderStrength/100})`,
@@ -65,18 +68,18 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
 }
 
 /** Keep original styles exactly until each property is customized. */
-export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,dark:boolean,accent:string,lightEffects:boolean){
+export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,dark:boolean,accent:string,lightEffects:boolean,theme=''){
   const defaults=DEFAULT_INTERFACE_APPEARANCE;
   const attrs:Record<string,string>={
     radius:String(v.panelRadius!==defaults.panelRadius),cardRadius:String(v.cardRadius!==defaults.cardRadius),controlRadius:String(v.controlRadius!==defaults.controlRadius),
     border:String(v.borderStrength!==defaults.borderStrength),shadow:String(v.shadowStrength!==defaults.shadowStrength),
     glass:String(v.glassOpacity!==defaults.glassOpacity||v.surfaceTint!=='original'),blur:String(v.glassBlur!==defaults.glassBlur||v.glassSaturation!==defaults.glassSaturation),
-    surface:v.surfaceTint,text:String(v.textScale!==100),font:v.fontFamily,title:String(v.titleWeight!==700),spacing:String(v.letterSpacing!==0),
+    cardStyle:v.cardStyle,buttonStyle:v.buttonStyle,surface:v.surfaceTint,text:String(v.textScale!==100),font:v.fontFamily,title:String(v.titleWeight!==700),spacing:String(v.letterSpacing!==0),
     numbers:v.tabularNumbers?'tabular':'proportional',density:v.density,icons:String(v.iconSize!==24||v.iconStroke!==2),
     labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),motion:v.reducedMotion?'reduced':'normal',hover:String(v.hoverHighlight),
   };
   for(const [key,value] of Object.entries(attrs))root.setAttribute('data-personal-'+key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value);
-  const variables=interfaceAppearanceVariables(v,dark,accent,lightEffects);
+  const variables=interfaceAppearanceVariables(v,dark,accent,lightEffects,theme);
   for(const [key,value] of Object.entries(variables))root.style.setProperty(key,value);
   return ()=>{for(const key of Object.keys(attrs))root.removeAttribute('data-personal-'+key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()));for(const key of Object.keys(variables))root.style.removeProperty(key);};
 }
