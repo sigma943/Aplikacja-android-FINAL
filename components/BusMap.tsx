@@ -10,7 +10,7 @@ import {MapContainer, TileLayer, Polyline, ZoomControl, Pane} from 'react-leafle
 import L from 'leaflet';
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
 import type {Stop} from '@/Panel/src/types';
-import {canonicalMapStopId} from '@/lib/map-stop-markers';
+import {canonicalMapStopId, mapStopColor} from '@/lib/map-stop-markers';
 
 import {routeGeometryKey} from '@/lib/route-geometry-key';
 import {officialBusRoute} from '@/lib/official-bus-routes';
@@ -166,6 +166,10 @@ export default function BusMap({
   [vehicles, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.delay]);
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
+  const highlightedStop = highlightedStopId ? routeStopsData[highlightedStopId] : undefined;
+  const selectedStopColor = selectedVehicle?.provider === 'marcel' || selectedVehicle?.provider === 'mpk_rzeszow'
+    ? selectedRouteColor
+    : selectedVehicle?.provider !== 'pkp_intercity' && highlightedStop && mapStopColor({name: highlightedStop.n}) === '#ff7a00' ? '#ff7a00' : themeColor;
   const routeHaloOpts = useMemo<L.PolylineOptions>(() => ({ pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), []);
   const routeGlowOpts = useMemo<L.PolylineOptions>(() => ({ pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), []);
   const routePolylineOpts = useMemo<L.PolylineOptions>(() => ({ className: 'mks-route-line', pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), [selectedRouteColor]);
@@ -396,7 +400,7 @@ export default function BusMap({
           maxZoom={19}
         />
 
-        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStopId?routeStopsData[highlightedStopId]:undefined} stops={mapStops} color={selectedVehicle?.provider==='marcel'||selectedVehicle?.provider==='mpk_rzeszow'?selectedRouteColor:themeColor}/>
+        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} stops={mapStops} color={selectedStopColor}/>
         {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={selectedCatalogStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}

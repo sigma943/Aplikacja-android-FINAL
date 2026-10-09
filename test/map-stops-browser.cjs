@@ -39,6 +39,8 @@ try{
  await new Promise(resolve=>setTimeout(resolve,400));
  await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'-',keyCode:189,which:189,bubbles:true})));
  await page.waitForSelector('.map-catalog-stop',{hidden:true});await page.waitForSelector('.stop-highlight-pin');
+ assert.equal(await page.$eval('.stop-highlight-pin .map-stop-pin',el=>getComputedStyle(el).color),'rgb(255, 122, 0)',
+  'a selected city stop keeps its orange colour when the catalog marker becomes a pin');
  await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'+',keyCode:187,which:187,bubbles:true})));
  await new Promise(resolve=>setTimeout(resolve,400));
  await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'+',keyCode:187,which:187,bubbles:true})));
