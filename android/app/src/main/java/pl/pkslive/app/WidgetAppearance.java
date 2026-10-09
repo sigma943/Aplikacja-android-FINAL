@@ -5,8 +5,8 @@ import org.json.JSONObject;
 
 /** Appearance is stored per widget; existing widgets inherit the refreshed default style. */
 final class WidgetAppearance {
-  final boolean customized,dark,showDirections,showStatus,showDelay,showSeparators,highlightNext;
-  final int transparency,cornerRadius,accent,foreground,muted;
+  final boolean customized,dark,showDirections,showStatus,showDelay,showSeparators,highlightNext,softBackground;
+  final int transparency,cornerRadius,accent,foreground,muted,softBackgroundStrength;
   final String surface,density,textSize,lineColors;
   WidgetAppearance(JSONObject config,boolean dark){
     this.dark=dark;
@@ -25,6 +25,8 @@ final class WidgetAppearance {
     showDirections=value.optBoolean("showDirections",true);showStatus=value.optBoolean("showStatus",true);
     showDelay=value.optBoolean("showDelay",true);showSeparators=value.optBoolean("showSeparators",true);
     highlightNext=value.optBoolean("highlightNext",true);
+    softBackground=value.optBoolean("softBackground",false);
+    softBackgroundStrength=clamp(value.optDouble("softBackgroundStrength",40),40,100);
   }
   static int clamp(double value,int fallback,int max){return Double.isNaN(value)||Double.isInfinite(value)?fallback:(int)Math.max(0,Math.min(max,Math.round(value)));}
   int fontAdjustment(int height){int adjustment="large".equals(textSize)?2:"small".equals(textSize)?-1:0;return height<90?Math.min(0,adjustment):adjustment;}
@@ -48,8 +50,22 @@ final class WidgetAppearance {
     if(glass)paint.setShader(new LinearGradient(0,0,width*.25f,height,top,bottom,Shader.TileMode.CLAMP));else paint.setColor(bottom);
     RectF bounds=new RectF(.5f,.5f,width-.5f,height-.5f);
     canvas.drawRoundRect(bounds,cornerRadius,cornerRadius,paint);
+    if(softBackground&&softBackgroundStrength>0&&opacity>0){
+      double amount=softBackgroundStrength/100.;
+      paint.setShader(null);
+      paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP));
+      softPatch(canvas,paint,width,height,-.08f,.06f,.95f,.65f,Color.rgb(10,15,20),amount*(dark?.22:.28),.75f);
+      softPatch(canvas,paint,width,height,1.08f,1f,.9f,.85f,Color.rgb(2,6,12),amount*(dark?.38:.18),.8f);
+      softPatch(canvas,paint,width,height,.92f,.02f,.65f,.55f,accent,amount*(dark?.1:.07),.8f);
+      paint.setXfermode(null);
+    }
     if(opacity>0){paint.setShader(null);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1);paint.setColor(alpha(readable(accent),56));canvas.drawRoundRect(bounds,cornerRadius,cornerRadius,paint);}
     return bitmap;
+  }
+  private static void softPatch(Canvas canvas,Paint paint,int width,int height,float x,float y,float rx,float ry,int color,double strength,float stop){
+    canvas.save();canvas.translate(width*x,height*y);canvas.scale(width*rx,height*ry);
+    paint.setShader(new RadialGradient(0,0,stop,new int[]{alpha(color,(int)Math.round(255*strength)),alpha(color,0)},null,Shader.TileMode.CLAMP));
+    canvas.drawCircle(0,0,stop,paint);canvas.restore();
   }
   Bitmap badge(int color){Bitmap bitmap=Bitmap.createBitmap(40,24,Bitmap.Config.ARGB_8888);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setColor(alpha(color,36));new Canvas(bitmap).drawRoundRect(new RectF(0,0,40,24),8,8,paint);return bitmap;}
   Bitmap control(int color,boolean round){Bitmap bitmap=Bitmap.createBitmap(32,32,Bitmap.Config.ARGB_8888);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setColor(alpha(color,26));Canvas canvas=new Canvas(bitmap);if(round)canvas.drawCircle(16,16,16,paint);else canvas.drawRoundRect(new RectF(0,0,32,32),8,8,paint);return bitmap;}

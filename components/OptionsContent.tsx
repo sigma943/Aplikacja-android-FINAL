@@ -88,7 +88,7 @@ export default function OptionsContent({panelGlow,glowStrength,savePanelGlow,sav
                        <label className="group flex min-h-20 cursor-pointer items-center justify-between gap-3 p-3 md:p-4">
                          <div className="flex min-w-0 items-center gap-3">
                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{color:themeColor,backgroundColor:`${themeColor}14`}}><Sun size={20}/></span>
-                           <div><span className="text-sm font-semibold">Poświata paneli</span><p className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Delikatne światło w kolorze akcentu</p></div>
+                           <div><span className="text-sm font-semibold">Poświata paneli</span><p className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Miękkie plamy koloru w tle paneli</p></div>
                          </div>
                          <input aria-label="Poświata paneli" role="switch" type="checkbox" className="peer sr-only" checked={panelGlow} onChange={event=>savePanelGlow(event.target.checked)}/>
                          <span aria-hidden="true" className={`relative h-7 w-12 shrink-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 ${panelGlow?'':isDark?'bg-white/12':'bg-slate-300'}`} style={{backgroundColor:panelGlow?themeColor:undefined,outlineColor:themeColor}}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${panelGlow?'translate-x-5':''}`}/></span>

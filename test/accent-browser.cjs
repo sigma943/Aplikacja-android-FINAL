@@ -232,11 +232,13 @@ const server=http.createServer((req,res)=>{
     assert.ok(draggingHeight>compactHeight+45,'settings follow the pointer before release');
     await page.mouse.up();await page.waitForFunction(()=>document.querySelector('[data-options-sheet]').dataset.expanded==='true');
     assert.equal(await page.$eval('[aria-label="Poświata paneli"]',el=>el.checked),false,'glow starts disabled');
-    const plainShadow=await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).boxShadow);
+    const plainBackground=await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage);
+    const glassBlur=await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backdropFilter);
     await page.$eval('[aria-label="Poświata paneli"]',el=>el.click());
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on');
     assert.equal(await page.$eval('#panel-glow-strength',el=>el.value),'40');
-    assert.notEqual(await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).boxShadow),plainShadow);
+    assert.notEqual(await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage),plainBackground);
+    assert.equal(await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backdropFilter),glassBlur,'soft background preserves glass blur');
     await page.focus('#panel-glow-strength');await page.keyboard.press('End');
     await page.waitForFunction(()=>localStorage.getItem('mks_panel_glow_strength')==='100');
     assert.equal(await page.$eval('[data-options-sheet]',el=>el.scrollWidth>el.clientWidth+1),false,'glow does not change panel layout');
@@ -439,6 +441,12 @@ const server=http.createServer((req,res)=>{
     await screenshot('widget-default-dark');
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Więcej opcji personalizacji')).click());
     await page.waitForSelector('#widget-transparency');
+    assert.equal(await page.$eval('[aria-label="Miękkie tło widżetu"]',el=>el.checked),false);
+    await page.$eval('[aria-label="Miękkie tło widżetu"]',el=>el.click());
+    await page.waitForFunction(()=>document.querySelector('[data-widget-preview]').style.background.includes('radial-gradient'));
+    await page.focus('#widget-soft-background-strength');await page.keyboard.press('End');
+    await page.waitForFunction(()=>document.querySelector('#widget-soft-background-strength').value==='100');
+    await screenshot('widget-soft-background');
     await page.focus('#widget-transparency');await page.keyboard.press('End');
     await page.waitForFunction(()=>(document.querySelector('[data-widget-preview]').style.background.match(/rgba\([^)]*, 0\)/g)||[]).length===2);
     assert.equal(await page.$eval('[data-widget-preview]',el=>getComputedStyle(el).opacity),'1','full transparency affects background, not text');

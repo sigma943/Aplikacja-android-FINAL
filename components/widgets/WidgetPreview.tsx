@@ -1,4 +1,5 @@
 'use client';
+import {softPanelBackground} from '@/lib/panel-glow';
 import {BusFront,RefreshCw} from 'lucide-react';
 import type {Departure} from '@/Panel/src/types';
 import type {StopWidgetConfig} from '@/lib/stop-widget';
@@ -7,12 +8,14 @@ import {widgetAccentColor,widgetRgba,widgetSurfaceColors,type WidgetAppearance} 
 export default function WidgetPreview({name,departures,size,dark,glass,appearance}:{name:string;departures:Departure[];size:StopWidgetConfig['size'];dark:boolean;glass:boolean;appearance:WidgetAppearance}) {
   const accent=widgetAccentColor(appearance.accentColor,dark),[top,bottom]=widgetSurfaceColors(appearance,dark);
   const opacity=1-appearance.transparency/100,compact=size==='small'||appearance.density==='compact';
+  const baseBackground=glass?`linear-gradient(160deg,${widgetRgba(top,opacity)},${widgetRgba(bottom,opacity)})`:widgetRgba(bottom,opacity);
+  const softBackground=appearance.softBackground&&opacity>0?softPanelBackground(appearance.accentColor,appearance.softBackgroundStrength/100*opacity,dark)+',':'';
   const requestedScale=appearance.textSize==='large'?2:appearance.textSize==='small'?-1:0;
   const scale=size==='small'?Math.min(requestedScale,0):requestedScale;
   const color=dark?'#f1f5f9':'#0f172a',muted=dark?'#94a3b8':'#64748b';
   return <div aria-label="Podgląd widżetu" className="relative overflow-hidden rounded-3xl p-4" style={{background:'radial-gradient(ellipse at 15% 10%,#459bb8 0%,transparent 60%),radial-gradient(ellipse at 90% 90%,#a991be 0%,transparent 60%),linear-gradient(145deg,#243b57,#577583)'}}>
     <p className="mb-3 text-[10px] font-semibold tracking-[.14em] uppercase text-white/80">Podgląd na ekranie głównym</p>
-    <div data-widget-preview style={{background:glass?`linear-gradient(160deg,${widgetRgba(top,opacity)},${widgetRgba(bottom,opacity)})`:widgetRgba(bottom,opacity),color,borderRadius:appearance.cornerRadius,maxWidth:size==='small'?250:undefined,border:appearance.transparency===100?'1px solid transparent':`1px solid ${widgetRgba(accent,.22)}`}} className="mx-auto p-3 shadow-xl">
+    <div data-widget-preview style={{background:softBackground+baseBackground,color,borderRadius:appearance.cornerRadius,maxWidth:size==='small'?250:undefined,border:appearance.transparency===100?'1px solid transparent':`1px solid ${widgetRgba(accent,.22)}`}} className="mx-auto p-3 shadow-xl">
       <div className="flex items-center gap-2 mb-2">
         <span style={{color:accent,background:widgetRgba(accent,.12)}} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"><BusFront size={16}/></span>
         <span className="min-w-0 flex-1 truncate font-bold" style={{fontSize:12+scale}}>{name.replace(/^Rzeszów[, ]+/i,'')}</span>

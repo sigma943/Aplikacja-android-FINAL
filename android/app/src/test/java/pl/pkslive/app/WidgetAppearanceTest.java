@@ -61,6 +61,20 @@ public class WidgetAppearanceTest {
       }
     }
   }
+  @Test public void softBackgroundAddsDepthWithoutChangingOpacityOrCorners()throws Exception{
+    for(int transparency:new int[]{0,65,100}){
+      String common="{\"appearance\":{\"transparency\":"+transparency;
+      WidgetAppearance plain=new WidgetAppearance(new JSONObject(common+"}}"),false);
+      WidgetAppearance soft=new WidgetAppearance(new JSONObject(common+",\"softBackground\":true,\"softBackgroundStrength\":100}}"),false);
+      Bitmap a=plain.background(320,180,true),b=soft.background(320,180,true);
+      int x=a.getWidth()/4,y=a.getHeight()/4;
+      assertEquals(Color.alpha(a.getPixel(x,y)),Color.alpha(b.getPixel(x,y)));
+      assertEquals(Color.alpha(a.getPixel(0,0)),Color.alpha(b.getPixel(0,0)));
+      if(transparency<100)assertNotEquals(a.getPixel(x,y),b.getPixel(x,y));
+      else assertEquals(0,Color.alpha(b.getPixel(x,y)));
+      assertTrue(b.getWidth()<=192);assertTrue(b.getHeight()<=192);
+    }
+  }
   @Test public void unsafeOrInvalidValuesFallBackAndCornersStayBounded()throws Exception{
     WidgetAppearance style=new WidgetAppearance(new JSONObject("{\"appearance\":{\"transparency\":250,\"cornerRadius\":-1,\"accentColor\":\"invalid\"}}"),false);
     assertEquals(100,style.transparency);assertEquals(0,style.cornerRadius);assertEquals(Color.parseColor("#14b8a6"),style.accent);

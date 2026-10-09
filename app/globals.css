@@ -406,10 +406,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--pks-accent); }
   box-shadow: none;
 }
 
-/* A static edge glow: no animation, filters or extra layers over content. */
+/* Soft background patches preserve the translucent surface and its backdrop blur. */
 html[data-panel-glow='on'] :is(.pks-map-surface, .map-detail-shell, .pks-options-sheet, [data-carrier-sheet], .transit-surface, .widget-generator) {
-  box-shadow: inset 0 0 0 1px var(--panel-glow-edge),
-    inset 0 0 var(--panel-glow-radius) var(--panel-glow-inner),
-    0 0 var(--panel-glow-radius) var(--panel-glow-outer),
-    0 8px 24px rgb(0 0 0 / 12%);
+  background-image: var(--panel-glow-image);
 }

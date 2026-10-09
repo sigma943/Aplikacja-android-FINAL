@@ -18,13 +18,15 @@ export interface WidgetAppearance {
   showDelay: boolean;
   showSeparators: boolean;
   highlightNext: boolean;
+  softBackground: boolean;
+  softBackgroundStrength: number;
 }
 
 export const DEFAULT_WIDGET_APPEARANCE: WidgetAppearance = {
   transparency: 20, accentColor: '#14b8a6', cornerRadius: 24, surface: 'tinted',
   density: 'comfortable', textSize: 'normal', lineColors: 'carrier',
   showDirections: true, showStatus: true, showDelay: true,
-  showSeparators: true, highlightNext: true,
+  showSeparators: true, highlightNext: true, softBackground: false, softBackgroundStrength: 40,
 };
 
 export function normalizeWidgetAppearance(value: Partial<WidgetAppearance> = {}): WidgetAppearance {
@@ -42,6 +44,8 @@ export function normalizeWidgetAppearance(value: Partial<WidgetAppearance> = {})
     showDirections: value.showDirections !== false, showStatus: value.showStatus !== false,
     showDelay: value.showDelay !== false, showSeparators: value.showSeparators !== false,
     highlightNext: value.highlightNext !== false,
+    softBackground: value.softBackground === true,
+    softBackgroundStrength: number(value.softBackgroundStrength, defaults.softBackgroundStrength, 100),
   };
 }
 
