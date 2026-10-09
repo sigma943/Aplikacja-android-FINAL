@@ -26,7 +26,7 @@ export default function WidgetPreview({name,departures,size,dark,glass,appearanc
           {appearance.showDirections&&<span className="min-w-0 flex-1 truncate" style={{fontSize:(compact?11:12)+scale}}>{departure.direction}</span>}
           <span className="ml-auto flex shrink-0 flex-col items-end">
             <span className="font-bold tabular-nums tracking-tight" style={{color:highlight?accent:color,fontSize:(compact?14:16)+scale}}>{departure.time}</span>
-            {appearance.showDelay&&delay!==0&&<span style={{color:delay>0?(dark?'#fda4af':'#be123c'):(dark?'#6ee7b7':'#047857'),fontSize:8+Math.max(scale,0)}} className="font-semibold">{departure.delayEstimated?'szac. ':''}{delay>0?'+':''}{delay} min</span>}
+            {appearance.showDelay&&delay!==0&&<span style={{color:delay>0?(dark?'#f3bec7':'#9f3450'):(dark?'#99dbc4':'#206d54'),background:delay>0?(dark?'#e8a4b026':'#be123c0f'):(dark?'#10b98122':'#0478570f'),border:`1px solid ${delay>0?(dark?'#e8a4b030':'#be123c18'):(dark?'#10b98130':'#04785718')}`,fontSize:8+Math.max(scale,0),lineHeight:1.2,padding:'0 5px',borderRadius:999}} className="font-medium tabular-nums">{departure.delayEstimated?'szac. ':''}{delay>0?'+':''}{delay} min</span>}
           </span>
         </div>;
       }):<p className="py-3 text-xs" style={{color:muted}}>Brak najbliższych odjazdów</p>}

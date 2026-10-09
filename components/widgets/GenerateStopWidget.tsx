@@ -13,7 +13,7 @@ import WidgetPreview from './WidgetPreview';
 import WidgetPersonalization from './WidgetPersonalization';
 import './widget-generator.css';
 export default function GenerateStopWidget({stop,lines,departures,vehicles,dark,onClose}:{stop:Stop;lines:string[];departures:Departure[];vehicles:Vehicle[];dark:boolean;onClose:()=>void}) {
-  const [scope,setScope]=useState('all'),[selected,setSelected]=useState<string[]>(lines),[query,setQuery]=useState('');
+  const [scope,setScope]=useState('all'),[selected,setSelected]=useState<string[]>([]),[query,setQuery]=useState('');
   const [size,setSize]=useState<StopWidgetConfig['size']>('medium'),[theme,setTheme]=useState<StopWidgetConfig['theme']>('system');
   const [systemDark,setSystemDark]=useState(false);
   useEffect(()=>{let active=true;const media=window.matchMedia('(prefers-color-scheme: dark)');const update=()=>void widgetSystemIsDark().then(value=>{if(active)setSystemDark(value);}).catch(()=>{if(active)setSystemDark(media.matches);});update();media.addEventListener('change',update);return()=>{active=false;media.removeEventListener('change',update);};},[]);

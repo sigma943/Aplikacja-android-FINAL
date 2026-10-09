@@ -107,7 +107,8 @@ public class StopWidgetProvider extends AppWidgetProvider {
         item.setViewVisibility(R.id.widget_delay,appearance.showDelay&&delay!=0?View.VISIBLE:View.GONE);
         item.setTextViewText(R.id.widget_delay,(row.optBoolean("delayEstimated",false)?"szac. ":"")+(delay>0?"+":"")+delay+" min");
         item.setTextViewTextSize(R.id.widget_delay,TypedValue.COMPLEX_UNIT_SP,8+Math.max(font,0));
-        item.setTextColor(R.id.widget_delay,Color.parseColor(delay>0?(dark?"#fda4af":"#be123c"):(dark?"#6ee7b7":"#047857")));
+        item.setTextColor(R.id.widget_delay,Color.parseColor(delay>0?(dark?"#f3bec7":"#9f3450"):(dark?"#99dbc4":"#206d54")));
+        item.setInt(R.id.widget_delay,"setBackgroundResource",delay>0?(dark?R.drawable.widget_delay_dark:R.drawable.widget_delay_light):(dark?R.drawable.widget_early_dark:R.drawable.widget_early_light));
       }
       view.addView(R.id.widget_rows,item);count++;
     }

@@ -116,7 +116,9 @@ try{
  await page.screenshot({path:path.resolve('test/ui-previews/generate-widget-refresh.png')});
  assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>getComputedStyle(el).backgroundColor),'rgb(16, 30, 38)','opaque dark dialog');
  await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Tylko wybrane linie')).click());
- await page.waitForSelector('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),true);await page.click('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),false);
+ await page.waitForSelector('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),false);
+ assert.equal(await page.$eval('[aria-labelledby="widget-title"] footer button',el=>el.disabled),true,'empty selected lines cannot create a widget');
+ await page.click('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),true);
  await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Duży')).click());
  assert.equal(await page.$eval('[aria-labelledby="widget-title"] button[aria-pressed="true"]',el=>el.textContent.includes('Duży')),true);
  await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent==='Jasny').click());
