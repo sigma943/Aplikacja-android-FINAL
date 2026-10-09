@@ -34,6 +34,7 @@ export interface Vehicle {
   schedule?: StopSchedule[];
   routeStops?: StopSchedule[];
   routePath?: number[];
+  routeGeometry?: [number, number][];
   model?: string;
   // Test fields
   lastStopDistance?: number;

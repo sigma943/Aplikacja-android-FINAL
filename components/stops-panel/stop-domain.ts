@@ -1055,8 +1055,8 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
   const line = cleanLine(entry.line);
   if (!line) return null;
   const plannedAtMs = parseTimeOnDate(dateIso, entry.departure_time);
-  let realAtMs = parseTimeOnDate(dateIso, entry.real_departure_time) ?? plannedAtMs;
-  if (realAtMs != null && plannedAtMs != null && realAtMs < plannedAtMs - 12 * 3600_000) {
+  let realAtMs = typeof entry.real_departure_at_ms === 'number' && Number.isFinite(entry.real_departure_at_ms) ? entry.real_departure_at_ms : parseTimeOnDate(dateIso, entry.real_departure_time) ?? plannedAtMs;
+  if (entry.real_departure_at_ms == null && realAtMs != null && plannedAtMs != null && realAtMs < plannedAtMs - 12 * 3600_000) {
     realAtMs = parseTimeOnDate(warsawDateIso(1, new Date(`${dateIso}T12:00:00Z`)), entry.real_departure_time);
   }
   const delayMins = plannedAtMs != null && realAtMs != null ? busDelayMinutes((realAtMs - plannedAtMs) / 1000) : 0;
@@ -1076,7 +1076,7 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
     line,
     direction,
     time: formatWarsawTime(realAtMs, entry.departure_time),
-    status: delayMins !== 0 ? 'delayed' : 'on_time',
+    status: plannedAtMs == null ? 'unknown' : delayMins !== 0 ? 'delayed' : 'on_time',
     delayMins,
     carrier: MPK_CARRIER,
     type: 'departure',

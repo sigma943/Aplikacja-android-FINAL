@@ -84,6 +84,7 @@ type TransportApiVehicle = {
   schedule?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean; platform?: string; track?: string; stopDelayMinutes?: number; timeType?: 'arrival' | 'departure' }>;
   routeStops?: Array<{ id: number; name: string; planned: string | null; real: string | null; lat?: number; lon?: number; lng?: number; isPast?: boolean; platform?: string; track?: string; stopDelayMinutes?: number; timeType?: 'arrival' | 'departure' }>;
   routePath?: number[];
+  routeGeometry?: [number, number][];
   model?: string;
   lastStopDistance?: number;
   lastStopId?: number;
@@ -143,6 +144,7 @@ export type MpkRzeszowScheduleEntry = {
   trip_headsign?: string;
   departure_time: string;
   real_departure_time?: string;
+  real_departure_at_ms?: number;
   realtime_source?: 'stop-board';
   block_id?: string | number;
   private_code?: string;

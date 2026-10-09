@@ -363,6 +363,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         {/* Right Side: Departure Time & Delayed/On-time Badge */}
                         <div className="min-w-[4.4rem] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
                            <div className={`font-semibold tabular-nums tracking-tight text-[18px] sm:text-[19px] ${isPast ? 'text-slate-500 line-through' : headingTextClass}`}>{departureTimeLabel}</div>
+                           {!isPast && dep.carrier?.id === 'mpk' && !dep.realtimeSource && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Rozkład</span>}
+                           {!isPast && dep.carrier?.id === 'mpk' && dep.realtimeSource && dep.plannedAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Na żywo</span>}
                            {!isPast && dep.status === 'delayed' && Number.isFinite(dep.delayMins) && Math.abs(Number(dep.delayMins)) > 0 && (
                              <span className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-black leading-none ${
                                Number(dep.delayMins) > 0
