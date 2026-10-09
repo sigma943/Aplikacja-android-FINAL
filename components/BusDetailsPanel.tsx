@@ -207,6 +207,7 @@ export default function BusDetailsPanel({selectedBus, busDrag, busHeaderRef, isB
                                 return (
                                   <div 
                                      key={`${sch.id || idx}-${idx}`} 
+                                     data-route-stop-id={sch.id}
                                      onClick={() => {
                                        if (sch.id) {
                                          openVehicleRouteStop(sch.id.toString());

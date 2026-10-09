@@ -293,8 +293,8 @@ const server=http.createServer((req,res)=>{
     assert.equal(marcelSecondary,0,'the complete known Marcel course paints from local road assets without an external router');
     await screenshot('marcel-jaslo-rzeszow-route');
     await page.click('[aria-label="Rozwiń panel autobusu"]');
-    await page.waitForFunction(()=>[...document.querySelectorAll('[data-map-bus-sheet] span')].some(el=>el.parentElement?.parentElement?.classList.contains('cursor-pointer')));
-    await page.evaluate(()=>[...document.querySelectorAll('[data-map-bus-sheet] span')].find(el=>el.parentElement?.parentElement?.classList.contains('cursor-pointer')).parentElement.parentElement.click());
+    await page.waitForSelector('[data-map-bus-sheet] [data-route-stop-id]');
+    await page.evaluate(()=>document.querySelector('[data-map-bus-sheet] [data-route-stop-id]').click());
     await page.waitForSelector('.stop-highlight-pin .map-stop-pin');
     assert.equal(await style('.stop-highlight-pin .map-stop-pin','color'),'rgb(104, 196, 74)','Marcel route stop pin matches its green route');
     await screenshot('marcel-route-green-pin');

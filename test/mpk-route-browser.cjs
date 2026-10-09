@@ -46,7 +46,7 @@ try{
  await page.focus('[aria-label="Rozwiń panel autobusu"]');await page.keyboard.press('Enter');
  await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]')?.textContent.includes('Powst. Warszawy'));
  assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/Powst. Warszawy/);
- await page.evaluate(()=>[...document.querySelectorAll('[data-map-bus-sheet] span')].find(el=>el.textContent.includes('Powst. Warszawy')).parentElement.parentElement.click());
+ await page.evaluate(()=>[...document.querySelectorAll('[data-map-bus-sheet] [data-route-stop-id]')].find(el=>el.textContent.includes('Powst. Warszawy')).click());
  await page.waitForSelector('.stop-highlight-pin .map-stop-pin');
  assert.equal(await page.$eval('.stop-highlight-pin .map-stop-pin',el=>getComputedStyle(el).color),'rgb(255, 122, 0)','MPK route stop pin matches its orange route');
  assert.equal(geometryRequests,1);assert.deepEqual(errors,[]);
