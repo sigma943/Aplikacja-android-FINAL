@@ -289,7 +289,7 @@ const server=http.createServer((req,res)=>{
     await page.$eval('[aria-label="Podgląd: Przystanek"]',el=>el.click());
     assert.match(await page.$eval('[data-interface-preview]',el=>el.textContent),/Podkarpacka/);
     await page.reload({waitUntil:'domcontentloaded'});
-    await page.waitForFunction(()=>document.documentElement.dataset.personalRadius==='true'&&document.documentElement.dataset.personalLabels==='false');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalRadius==='true'&&document.documentElement.dataset.personalLabels==='false'&&getComputedStyle(document.querySelector('.pks-map-surface')).borderTopLeftRadius==='36px');
     assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).borderTopLeftRadius),'36px','saved shape survives app restart');
     await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
     await screenshot('personalization-dark');
