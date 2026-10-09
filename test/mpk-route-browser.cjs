@@ -4,7 +4,9 @@ const server=http.createServer((req,res)=>{const pathname=decodeURIComponent(new
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`,browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']}),page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let geometryRequests=0,waiting=false,stopPlan='',stopLater='',stopBoard='';
 try{
  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
- await page.evaluateOnNewDocument(()=>{const arc=CanvasRenderingContext2D.prototype.arc;CanvasRenderingContext2D.prototype.arc=function(...args){this.canvas.dataset.testCircleCount=String(Number(this.canvas.dataset.testCircleCount||0)+1);return arc.apply(this,args);};localStorage.setItem('mks_transport_providers',JSON.stringify(['mpk_rzeszow']));if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.025,lng:21.995},zoom:14}));});
+ await page.evaluateOnNewDocument(()=>{const arc=CanvasRenderingContext2D.prototype.arc;CanvasRenderingContext2D.prototype.arc=function(...args){this.canvas.dataset.testCircleCount=String(Number(this.canvas.dataset.testCircleCount||0)+1);return arc.apply(this,args);};
+  const stroke=CanvasRenderingContext2D.prototype.stroke;CanvasRenderingContext2D.prototype.stroke=function(...args){if(this.canvas.closest('.leaflet-routeLine-pane'))this.canvas.dataset.testRouteStrokes=String(Number(this.canvas.dataset.testRouteStrokes||0)+1);return stroke.apply(this,args);};
+  localStorage.setItem('mks_transport_providers',JSON.stringify(['mpk_rzeszow']));if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.025,lng:21.995},zoom:14}));});
  await page.setRequestInterception(true);page.on('request',request=>{const url=request.url(),reply=(body,type='application/json',status=200)=>request.respond({status,contentType:type,headers:{'access-control-allow-origin':'*'},body});
  if(url.includes('GetVehicles?')&&waiting)return reply('<Vehicles><V nb="770" nr="   " nnr="51   " op=" " nop="Bardowskiego p. Dworzec Lokalny" x="22.02432" y="50.11553" px="22.02432" py="50.11553" ik="0" nk="3293" s="6" is="1572" o="1572"/></Vehicles>','application/xml');
  if(url.includes('GetVehicles?'))return reply('<Vehicles><V nb="102" nr="0A" op="Dworzec Główny PKP" x="21.985" y="50.021" ik="2500" s="1" is="0" lp="8" o="-120"/></Vehicles>','application/xml');
@@ -44,6 +46,10 @@ try{
  await page.focus('[aria-label="Rozwiń panel autobusu"]');await page.keyboard.press('Enter');
  await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]')?.textContent.includes('Powst. Warszawy'));
  assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/Powst. Warszawy/);
+ await page.evaluate(()=>[...document.querySelectorAll('[data-map-bus-sheet] [data-route-stop-id]')].find(el=>el.textContent.includes('Powst. Warszawy')).click());
+ // Leaflet can replace the marker after its first attachment; wait for the rendered style.
+ await page.waitForFunction(()=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color==='rgb(255, 122, 0)';});
+ assert.equal(await page.$eval('.stop-highlight-pin .map-stop-pin',el=>getComputedStyle(el).color),'rgb(255, 122, 0)','MPK route stop pin matches its orange route');
  assert.equal(geometryRequests,1);assert.deepEqual(errors,[]);
  fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/mpk-mybus-0a-route.png'});
  waiting=true;
@@ -60,6 +66,20 @@ try{
  await page.waitForFunction(()=>Number(document.querySelector('.leaflet-routeStops-pane canvas')?.dataset.testCircleCount)>=2);
  assert.equal(geometryRequests,2);assert.deepEqual(errors,[]);
  await page.screenshot({path:'test/ui-previews/mpk-mybus-51-break.png'});
+ // The second clock must keep advancing without repainting unchanged route styles.
+ await new Promise(resolve=>setTimeout(resolve,500));
+ const idleRoute=await page.evaluate(()=>{
+  const canvas=document.querySelector('.leaflet-routeLine-pane canvas');
+  const match=document.querySelector('[data-map-bus-sheet]').textContent.match(/Odjazd za:\s*(\d+):(\d{2})/);
+  return {strokes:Number(canvas.dataset.testRouteStrokes),seconds:Number(match[1])*60+Number(match[2])};
+ });
+ assert.ok(idleRoute.strokes>0,'route instrumentation observed actual drawing');
+ await page.waitForFunction(previous=>{
+  const match=document.querySelector('[data-map-bus-sheet]')?.textContent.match(/Odjazd za:\s*(\d+):(\d{2})/);
+  return match&&Number(match[1])*60+Number(match[2])<=previous-2;
+ },{timeout:5000},idleRoute.seconds);
+ assert.equal(await page.$eval('.leaflet-routeLine-pane canvas',el=>Number(el.dataset.testRouteStrokes)),idleRoute.strokes,
+  'unchanged route must not repaint on clock ticks');
  // An HTTP-200 primary with scheduled rows must recover actual MPK stop predictions.
  const seconds=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date()).split(':').reduce((sum,value)=>sum*60+Number(value),0));
  const clock=value=>`${Math.floor(value/3600)}:${String(Math.floor(value%3600/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;
@@ -69,9 +89,10 @@ try{
  await page.waitForSelector('input[placeholder*="Babica"]');await page.type('input[placeholder*="Babica"]','Matuszczaka');
  await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>el.textContent.includes('Matuszczaka')));
  await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id]')].find(el=>el.textContent.includes('Matuszczaka')).click());
- await page.waitForFunction(()=>document.body.textContent.includes('+6 min')&&document.body.textContent.includes('Rozkład'));
+ await page.waitForFunction(()=>document.body.textContent.includes('+6 min')&&document.body.textContent.includes('Lubelska MPK'));
  const rendered=await page.evaluate(()=>{const title=[...document.querySelectorAll('h4')].find(el=>el.textContent==='Olbrachta p. Jarową');return title?.parentElement.parentElement.parentElement.parentElement.textContent;});
  assert.match(rendered,/1[01] min/);assert.match(rendered,/\+6 min/);assert.doesNotMatch(rendered,/Rozkład/);assert.deepEqual(errors,[]);
+ assert.doesNotMatch(await page.evaluate(()=>document.body.textContent),/Rozkład/,'scheduled-only departures must also omit the schedule label');
  await page.screenshot({path:'test/ui-previews/mpk-mybus-stop-live.png'});
  console.log('MPK backup: routes, next-stop circles, models, break countdown and actual stop predictions rendered.');
 }finally{await browser.close();await new Promise(r=>server.close(r));fixture.cleanup();}})().catch(e=>{console.error(e);process.exitCode=1;});

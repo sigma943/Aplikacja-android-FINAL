@@ -1,4 +1,4 @@
-import { warsawTimeMs } from './transit-time';
+import { warsawTimeMs, warsawClock } from './transit-time';
 
 type TimedStop = {id?: string|number; lat?:number;lon?:number;planned?:string|null;real?:string|null};
 export type BusOperatingInput = {
@@ -33,7 +33,7 @@ export function busOperatingState(input:BusOperatingInput) {
   const ended=Number.isFinite(lastMs)&&lastMs<=input.nowMs+60000;
   if(waiting && ((stopped&&atFirst)||input.reportedBreak))return {
     status:'break' as const,
-    statusText:`Przerwa do ${new Date(firstMs).toLocaleTimeString('pl-PL',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'})}`,
+    statusText:`Przerwa do ${warsawClock(firstMs)}`,
     nextTripStartAtMs:firstMs,
     nextTripFirstStopId:input.firstStopId??first?.id,
   };

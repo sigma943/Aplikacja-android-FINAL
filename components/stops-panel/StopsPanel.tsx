@@ -1,4 +1,6 @@
 'use client';
+import {isMpkPassengerLine} from '@/lib/mpk-passenger-lines';
+
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {useAppBack} from '@/lib/use-app-back';
 import { motion, useReducedMotion } from 'motion/react';
@@ -214,7 +216,7 @@ export default function StopsPanel({
       const add = (line: string,provider: string) => { if(line) lineProviders[line] = [...new Set([...(lineProviders[line]||[]),provider])]; };
       const pksLines = pksLinesForStop(stop,pksLinesByStopId);
       pksLines.forEach(line=>add(line,'pks'));
-      splitCsvValues(stop.providerStopIds?.mpk_rzeszow).forEach(id=>mpkById.get(id)?.forEach(line=>add(line,'mpk')));
+      splitCsvValues(stop.providerStopIds?.mpk_rzeszow).forEach(id=>mpkById.get(id)?.filter(isMpkPassengerLine).forEach(line=>add(line,'mpk')));
       if(stop.sourceProviderIds?.includes('marcel')) add('M','marcel');
       return {...stop,lines:sortedLines(Object.keys(lineProviders)),lineProviders,providerStopIds:{...stop.providerStopIds,pksLines:pksLines.join(',')}};
     });

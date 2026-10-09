@@ -1,3 +1,4 @@
+import {mpkPassengerStop} from './mpk-passenger-lines';
 import {sanitizeBusStop,readBusCoordinates} from './bus-coordinates';
 import {correctPksStop} from './pks-stop-corrections';
 import {mergePhysicalStopAliases} from './physical-stop-aliases';
@@ -7,7 +8,7 @@ import { RawStop, PKS_CARRIER, MARCEL_CARRIER, MPK_CARRIER, MarcelIndexedStop, I
 export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;name:string;lat?:number;lon?:number;lines:string[]}>,marcelStops:MarcelIndexedStop[],mergedStopsCacheKey:string,physicalPoints=false): Stop[] {
     const stableOrder=(a:{id:string},b:{id:string})=>String(a.id).localeCompare(String(b.id),'en',{numeric:true});
     stops = stops.map(stop => correctPksStop(sanitizeBusStop(stop), String(stop.id))).sort(stableOrder);
-    mpkStops = mpkStops.map(sanitizeBusStop).sort(stableOrder);
+    mpkStops = mpkStops.map(mpkPassengerStop).map(sanitizeBusStop).sort(stableOrder);
     marcelStops = marcelStops.map(sanitizeBusStop).sort(stableOrder);
     const cacheKey = (physicalPoints ? 'physical:' : 'list:') + mergedStopsCacheKey;
     const cached = MERGED_STOPS_RUNTIME_CACHE.get(cacheKey);

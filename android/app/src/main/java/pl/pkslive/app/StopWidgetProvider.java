@@ -5,6 +5,8 @@ import android.appwidget.*;
 import android.content.*;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.drawable.Icon;
+import android.util.TypedValue;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.PersistableBundle;
@@ -67,17 +69,48 @@ public class StopWidgetProvider extends AppWidgetProvider {
   static RemoteViews createView(Context c,int id,int width,int height) throws JSONException {
     JSONObject config=new JSONObject(prefs(c).getString("config_"+id,"{}"));String theme=config.optString("theme","system");boolean dark="dark".equals(theme)||("system".equals(theme)&&(c.getResources().getConfiguration().uiMode&Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES);
     int fg=Color.parseColor(dark?"#f1f5f9":"#0f172a"),muted=Color.parseColor(dark?"#94a3b8":"#64748b");
-    WidgetLayoutMetrics layout=new WidgetLayoutMetrics(height);boolean compact=layout.compact,footerVisible=layout.footerVisible;
-    RemoteViews view=new RemoteViews(c.getPackageName(),compact?R.layout.stop_widget_compact:R.layout.stop_widget);view.setInt(android.R.id.background,"setBackgroundResource",config.optBoolean("glass",true)?(dark?R.drawable.widget_glass_dark:R.drawable.widget_glass_light):(dark?R.drawable.widget_dark:R.drawable.widget_light));
+    WidgetAppearance appearance=new WidgetAppearance(config,dark);
+    WidgetLayoutMetrics layout=new WidgetLayoutMetrics(height,appearance);boolean compact=layout.compact,footerVisible=layout.footerVisible;
+    RemoteViews view=new RemoteViews(c.getPackageName(),compact?R.layout.stop_widget_compact:R.layout.stop_widget);
+    int accent=appearance.readable(appearance.accent),font=appearance.fontAdjustment(height);
+    {
+      view.setInt(android.R.id.background,"setBackgroundResource",android.R.color.transparent);
+      view.setImageViewBitmap(R.id.widget_background,appearance.background(width,height,config.optBoolean("glass",true)));
+      view.setImageViewIcon(R.id.widget_bus,Icon.createWithResource(c,R.drawable.widget_bus).setTint(accent));
+      view.setImageViewIcon(R.id.widget_refresh,Icon.createWithResource(c,R.drawable.widget_refresh).setTint(accent));
+      view.setInt(R.id.widget_refresh,"setBackgroundResource",android.R.color.transparent);
+      view.setImageViewBitmap(R.id.widget_refresh_background,appearance.control(accent,true));
+      view.setImageViewBitmap(R.id.widget_bus_background,appearance.control(accent,false));
+      view.setTextViewTextSize(R.id.widget_title,TypedValue.COMPLEX_UNIT_SP,(compact?11:12)+font);
+    }
     String name=config.optJSONObject("stop")==null?"PKS Live":config.getJSONObject("stop").optString("name","PKS Live");String title=name.replaceFirst("(?i)^Rzeszów[, ]+", "");view.setTextViewText(R.id.widget_title,title);view.setTextColor(R.id.widget_title,fg);view.setOnClickPendingIntent(android.R.id.background,open(c,id));
     Intent update=new Intent(c,StopWidgetProvider.class).setAction(REFRESH).putExtra("widgetId",id);view.setOnClickPendingIntent(R.id.widget_refresh,PendingIntent.getBroadcast(c,id,update,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
     view.removeAllViews(R.id.widget_rows);JSONArray rows=new JSONArray(prefs(c).getString("rows_"+id,"[]"));long now=System.currentTimeMillis();int limit=layout.capacity,count=0;
     SimpleDateFormat clock=new SimpleDateFormat("HH:mm",new Locale("pl","PL"));clock.setTimeZone(TimeZone.getTimeZone("Europe/Warsaw"));
     for(int i=0;i<rows.length()&&count<limit;i++){JSONObject row=rows.getJSONObject(i);JSONArray selected=config.optJSONArray("lines");if(selected!=null){boolean matches=false;for(int n=0;n<selected.length();n++)if(selected.optString(n).equals(row.optString("line")))matches=true;if(!matches)continue;}long time=row.optLong("realAtMs",row.optLong("plannedAtMs",0));long precision=row.optLong("boardTimePrecisionMs",0);if(time+precision<now)continue;
-      RemoteViews item=new RemoteViews(c.getPackageName(),compact?R.layout.stop_widget_row_compact:R.layout.stop_widget_row);String carrier=row.optJSONObject("carrier")==null?"pks":row.getJSONObject("carrier").optString("id","pks");String color="mpk".equals(carrier)?(dark?"#fb923c":"#c2410c"):"marcel".equals(carrier)?(dark?"#a3e635":"#4d7c0f"):(dark?"#2dd4bf":"#0f766e");
-      item.setInt(R.id.widget_line,"setBackgroundResource","mpk".equals(carrier)?R.drawable.widget_badge_mpk:"marcel".equals(carrier)?R.drawable.widget_badge_marcel:R.drawable.widget_badge);
-      item.setTextViewText(R.id.widget_line,row.optString("line"));item.setTextColor(R.id.widget_line,Color.parseColor(color));item.setTextViewText(R.id.widget_direction,row.optString("direction"));item.setTextColor(R.id.widget_direction,fg);item.setViewVisibility(R.id.widget_direction,width<220?View.INVISIBLE:View.VISIBLE);
-      item.setTextViewText(R.id.widget_time,clock.format(new Date(time)));int delay=row.optInt("delayMins",0);item.setTextColor(R.id.widget_time,delay>0?Color.parseColor("#f43f5e"):delay<0?Color.parseColor("#10b981"):fg);view.addView(R.id.widget_rows,item);count++;
+      RemoteViews item=new RemoteViews(c.getPackageName(),compact?R.layout.stop_widget_row_compact:R.layout.stop_widget_row);String carrier=row.optJSONObject("carrier")==null?"pks":row.getJSONObject("carrier").optString("id","pks");
+      item.setTextViewText(R.id.widget_line,row.optString("line"));item.setTextViewText(R.id.widget_direction,row.optString("direction"));item.setTextColor(R.id.widget_direction,fg);
+      item.setTextViewText(R.id.widget_time,clock.format(new Date(time)));int delay=row.optInt("delayMins",0);
+      {
+        boolean dense=compact||"compact".equals(appearance.density),highlight=appearance.highlightNext&&count==0;
+        int lineColor=appearance.lineColor(carrier);
+        item.setInt(R.id.widget_row_root,"setMinimumHeight",Math.round(layout.rowHeight*c.getResources().getDisplayMetrics().density));
+        item.setImageViewBitmap(R.id.widget_row_background,appearance.rowBackground(Math.max(1,width-(compact?16:20)),layout.rowHeight,highlight,appearance.showSeparators));
+        item.setInt(R.id.widget_line,"setBackgroundResource",android.R.color.transparent);
+        item.setImageViewBitmap(R.id.widget_badge_background,appearance.badge(lineColor));
+        item.setTextColor(R.id.widget_line,lineColor);
+        item.setTextViewTextSize(R.id.widget_line,TypedValue.COMPLEX_UNIT_SP,(dense?11:12)+font);
+        item.setTextViewTextSize(R.id.widget_direction,TypedValue.COMPLEX_UNIT_SP,(dense?11:12)+font);
+        item.setViewVisibility(R.id.widget_direction,appearance.showDirections&&width>=220?View.VISIBLE:View.INVISIBLE);
+        item.setTextViewTextSize(R.id.widget_time,TypedValue.COMPLEX_UNIT_SP,(dense?14:16)+font);
+        item.setTextColor(R.id.widget_time,highlight?accent:fg);
+        item.setViewVisibility(R.id.widget_delay,appearance.showDelay&&delay!=0?View.VISIBLE:View.GONE);
+        item.setTextViewText(R.id.widget_delay,(row.optBoolean("delayEstimated",false)?"szac. ":"")+(delay>0?"+":"")+delay+" min");
+        item.setTextViewTextSize(R.id.widget_delay,TypedValue.COMPLEX_UNIT_SP,8+Math.max(font,0));
+        item.setTextColor(R.id.widget_delay,Color.parseColor(delay>0?(dark?"#f3bec7":"#9f3450"):(dark?"#99dbc4":"#206d54")));
+        item.setInt(R.id.widget_delay,"setBackgroundResource",delay>0?(dark?R.drawable.widget_delay_dark:R.drawable.widget_delay_light):(dark?R.drawable.widget_early_dark:R.drawable.widget_early_light));
+      }
+      view.addView(R.id.widget_rows,item);count++;
     }
     long updated=prefs(c).getLong("updated_"+id,0);boolean stale=updated==0||now-updated>Math.max(45*60000L,policy(c,id).intervalMillis()+15*60000L);String warning=prefs(c).getString("warning_"+id,"");String footer=stale?"Dane nieaktualne • dotknij ↻":!warning.isEmpty()?"Część danych niedostępna • "+clock.format(new Date(updated)):("off".equals(policy(c,id).mode)?"Ręcznie • ":"Aktualizacja ")+clock.format(new Date(updated));if(count==0)footer=updated==0?(config.optJSONObject("stop")==null?"Wybierz przystanek w aplikacji":"Wczytywanie odjazdów…"):stale?footer:"Brak najbliższych odjazdów";
     boolean refreshing=now-prefs(c).getLong("refreshing_"+id,0)<90000;
@@ -87,9 +120,15 @@ public class StopWidgetProvider extends AppWidgetProvider {
     view.removeAllViews(R.id.widget_refresh_progress);
     view.setViewVisibility(R.id.widget_refresh_progress,refreshing?View.VISIBLE:View.GONE);
     view.setViewVisibility(R.id.widget_refresh,refreshing?View.INVISIBLE:View.VISIBLE);
-    if(refreshing){RemoteViews spinner=new RemoteViews(c.getPackageName(),R.layout.widget_refresh_spinner);view.addView(R.id.widget_refresh_progress,spinner);}
+    if(refreshing){
+      RemoteViews spinner=new RemoteViews(c.getPackageName(),R.layout.widget_refresh_spinner);
+      spinner.setInt(R.id.widget_spinner,"setBackgroundResource",android.R.color.transparent);
+      for(int n=0;n<16;n++)spinner.setImageViewIcon(c.getResources().getIdentifier("widget_spinner_frame_"+n,"id",c.getPackageName()),Icon.createWithResource(c,R.drawable.widget_refresh).setTint(accent));
+      view.addView(R.id.widget_refresh_progress,spinner);
+    }
     view.setOnClickPendingIntent(R.id.widget_refresh_progress,PendingIntent.getBroadcast(c,id,update,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
-    view.setViewVisibility(R.id.widget_status,footerVisible||count==0?View.VISIBLE:View.GONE);
+    boolean important=stale||!warning.isEmpty()||refreshing||!notice.isEmpty()||count==0;
+    view.setViewVisibility(R.id.widget_status,(footerVisible&&(appearance.showStatus||important))||count==0?View.VISIBLE:View.GONE);
     if(stale&&count>0&&!footerVisible&&!refreshing&&notice.isEmpty())view.setTextViewText(R.id.widget_title,"Nieaktualne • "+title);
     view.setTextViewText(R.id.widget_status,footer);view.setTextColor(R.id.widget_status,muted);return view;
   }

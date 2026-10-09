@@ -4,7 +4,8 @@ import {departureFromLiveVehicle} from './vehicle-stop-timing';
 import {departureIsPast} from './departure-display';
 import {warsawDateIso, warsawTimeMs} from './transit-time';
 import type {Vehicle} from '@/components/BusMap';
-export interface StopWidgetConfig {stop: Stop; lines: string[] | null; size: 'small'|'medium'|'large'; theme: 'system'|'light'|'dark'; glass?:boolean; refreshMinutes?: 15|30|60|120; refreshMode?: 'always'|'battery-saver'|'off'}
+import {normalizeWidgetAppearance, type WidgetAppearance} from './widget-appearance';
+export interface StopWidgetConfig {stop: Stop; lines: string[] | null; size: 'small'|'medium'|'large'; theme: 'system'|'light'|'dark'; glass?:boolean; appearance?: Partial<WidgetAppearance>; refreshMinutes?: 15|30|60|120; refreshMode?: 'always'|'battery-saver'|'off'}
 export function widgetDepartures(departures: Departure[], vehicles: Vehicle[], lines: string[] | null, now=Date.now(),limit=16) {
   return departures.map(d=>departureFromLiveVehicle(d,vehicles)).map(d=>({...d,plannedAtMs:d.plannedAtMs??warsawTimeMs(warsawDateIso(0,new Date(now)),d.time)}))
     .filter(d=>(lines===null||lines.includes(d.line))&&!departureIsPast(d,now,d.plannedAtMs))
@@ -14,7 +15,8 @@ const plugin=registerPlugin<{systemTheme():Promise<{dark:boolean}>;sync(options:
 export const canGenerateWidget=()=>Capacitor.getPlatform()==='android';
 export async function pinStopWidget(config:StopWidgetConfig,departures:Departure[],vehicles:Vehicle[]) {
   if(!canGenerateWidget())throw new Error('Widżety ekranu głównego są dostępne w aplikacji na Androida.');
-  return plugin.pin({config:JSON.stringify(config),departures:JSON.stringify(widgetDepartures(departures,vehicles,config.lines))});
+  const normalized = config.appearance ? {...config, appearance:normalizeWidgetAppearance(config.appearance)} : config;
+  return plugin.pin({config:JSON.stringify(normalized),departures:JSON.stringify(widgetDepartures(departures,vehicles,config.lines))});
 }
 export const widgetPinStatus=(token:string)=>plugin.status({token});
 

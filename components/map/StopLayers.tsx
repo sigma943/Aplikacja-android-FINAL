@@ -23,12 +23,12 @@ function SelectedStopPin({id,catalogId,point,stops,color,rail=false}:{id?:string
   return <Marker position={[point.lat,point.lon]} zIndexOffset={5000} icon={L.divIcon({className:'stop-highlight-pin',html:`<svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" style="color:${color};filter:drop-shadow(0 3px 4px #0005)"><path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/><circle cx="19" cy="18" r="6.5" fill="white"/></svg>`,iconSize:[38,48],iconAnchor:[19,46]})}/>;
 }
 
-function CatalogStopsLayer({stops,selected,onSelect}:{stops:Stop[];selected?:string|null;onSelect?:(stop:Stop)=>void}) {
+function CatalogStopsLayer({stops,selected,selectedColor,onSelect}:{stops:Stop[];selected?:string|null;selectedColor?:string;onSelect?:(stop:Stop)=>void}) {
   const map=useMap();
   const [revision,setRevision]=useState(0);
   useMapEvents({moveend:()=>setRevision(value=>value+1),zoomend:()=>setRevision(value=>value+1)});
   const visible=useMemo(()=>{const bounds=map.getBounds();return visibleMapStops(stops,[bounds.getWest(),bounds.getSouth(),bounds.getEast(),bounds.getNorth()],map.getZoom(),selected);},[map,stops,selected,revision]);
-  const icons=useMemo(()=>new Map(visible.map(stop=>[stop.id,L.divIcon({className:'map-catalog-stop',html:mapStopIconHtml(mapStopColor(stop),stop.id===selected),iconSize:[40,40],iconAnchor:[20,20]})])),[visible,selected]);
+  const icons=useMemo(()=>new Map(visible.map(stop=>[stop.id,L.divIcon({className:'map-catalog-stop',html:mapStopIconHtml(stop.id===selected&&selectedColor?selectedColor:mapStopColor(stop),stop.id===selected),iconSize:[40,40],iconAnchor:[20,20]})])),[visible,selected,selectedColor]);
   return <>{visible.map(stop=><Marker key={stop.id} position={[platformPosition(stop)!.lat,platformPosition(stop)!.lon]} title={displayStopLabel(stop.name)} alt={displayStopLabel(stop.name)}
     icon={icons.get(stop.id)!} zIndexOffset={stop.id===selected?4500:-500}
     eventHandlers={{click:event=>{L.DomEvent.stopPropagation(event.originalEvent);onSelect?.({...stop,...platformPosition(stop)});}}}/>)}</>;

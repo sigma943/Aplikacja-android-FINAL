@@ -39,6 +39,8 @@ try{
  await new Promise(resolve=>setTimeout(resolve,400));
  await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'-',keyCode:189,which:189,bubbles:true})));
  await page.waitForSelector('.map-catalog-stop',{hidden:true});await page.waitForSelector('.stop-highlight-pin');
+ assert.equal(await page.$eval('.stop-highlight-pin .map-stop-pin',el=>getComputedStyle(el).color),'rgb(255, 122, 0)',
+  'a selected city stop keeps its orange colour when the catalog marker becomes a pin');
  await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'+',keyCode:187,which:187,bubbles:true})));
  await new Promise(resolve=>setTimeout(resolve,400));
  await page.$eval('.leaflet-container',el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'+',keyCode:187,which:187,bubbles:true})));
@@ -98,8 +100,8 @@ try{
  assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>el.parentElement.parentElement.tagName),'BODY','widget dialog uses a portal above transformed panels');
  assert.match(await page.$eval('[aria-labelledby="widget-title"]',el=>el.textContent),/Generuj widżet/);
  assert.equal(await page.$eval('[aria-label="Zamknij okno widżetu"]',el=>el.querySelector('svg')===null),true,'text cancellation replaces the handle and X');
- assert.equal(await page.$eval('[aria-label="Efekt szkła widżetu"]',el=>el.checked),true);
- await page.click('[aria-label="Efekt szkła widżetu"]');assert.equal(await page.$eval('[aria-label="Efekt szkła widżetu"]',el=>el.checked),false);
+ assert.equal(await page.$('[aria-label="Efekt szkła widżetu"]'),null,'redundant glass toggle is removed');
+ assert.match(await page.$eval('[data-widget-preview]',el=>el.style.background),/linear-gradient/,'the existing preview retains its default appearance');
  assert.equal(await page.$eval('#widget-refresh-interval',el=>el.value),'30');
  assert.equal(await page.$eval('input[name="widget-refresh-mode"]:checked',el=>el.parentElement.textContent.includes('Pauza')),true);
  await page.select('#widget-refresh-interval','120');
@@ -114,7 +116,9 @@ try{
  await page.screenshot({path:path.resolve('test/ui-previews/generate-widget-refresh.png')});
  assert.equal(await page.$eval('[aria-labelledby="widget-title"]',el=>getComputedStyle(el).backgroundColor),'rgb(16, 30, 38)','opaque dark dialog');
  await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Tylko wybrane linie')).click());
- await page.waitForSelector('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),true);await page.click('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),false);
+ await page.waitForSelector('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),false);
+ assert.equal(await page.$eval('[aria-labelledby="widget-title"] footer button',el=>el.disabled),true,'empty selected lines cannot create a widget');
+ await page.click('[aria-label="Linia 2"]');assert.equal(await page.$eval('[aria-label="Linia 2"]',el=>el.checked),true);
  await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Duży')).click());
  assert.equal(await page.$eval('[aria-labelledby="widget-title"] button[aria-pressed="true"]',el=>el.textContent.includes('Duży')),true);
  await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent==='Jasny').click());

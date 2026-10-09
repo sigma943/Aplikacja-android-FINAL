@@ -1,3 +1,4 @@
+import {isMpkPassengerLine} from './mpk-passenger-lines';
 import type {MpkRzeszowScheduleEntry as Entry} from './transport/types';
 import {warsawDateIso,warsawTimeMs} from './transit-time';
 const attributes=(text:string):Record<string,string>=>Object.fromEntries([...text.matchAll(/([\w-]+)="([^"]*)"/g)].map(m=>[m[1],m[2].replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&')]));
@@ -8,7 +9,7 @@ export function parseMybusDepartures(xml:string,stopId:string,now:number):MybusD
  if(!root||header.i!==stopId)throw Error('Invalid myBus stop board or mismatched SIP stop');
  return [...xml.matchAll(/<D\b([^>]*?)\/>/g)].flatMap(match=>{
   const row=attributes(match[1]),seconds=Number(row.t),relative=Number(row.vr),line=row.r?.trim();
-  if(!line||!row.d?.trim()||!row.t||!Number.isFinite(seconds)||seconds<0||seconds>172800||!row.vr||!Number.isFinite(relative)||Math.abs(relative)>172800||!['1','2','3'].includes(row.m))return [];
+  if(!isMpkPassengerLine(line)||!line||!row.d?.trim()||!row.t||!Number.isFinite(seconds)||seconds<0||seconds>172800||!row.vr||!Number.isFinite(relative)||Math.abs(relative)>172800||!['1','2','3'].includes(row.m))return [];
   const clock=`${Math.floor(seconds/3600)}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
   // Resolve midnight/service-day rollover from the source countdown, retaining second precision.
   const atMs=[-1,0,1].map(offset=>warsawTimeMs(warsawDateIso(offset,new Date(now)),clock)).sort((a,b)=>Math.abs(a-(now+relative*1000))-Math.abs(b-(now+relative*1000)))[0];

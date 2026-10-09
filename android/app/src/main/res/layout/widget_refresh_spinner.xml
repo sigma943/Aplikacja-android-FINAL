@@ -1,18 +1,18 @@
 <ViewFlipper xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_spinner" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_refresh_touch" android:autoStart="true" android:flipInterval="65">
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="0.0" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="22.5" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="45.0" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="67.5" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="90.0" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="112.5" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="135.0" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="157.5" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="180.0" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="202.5" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="225.0" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="247.5" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="270.0" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="292.5" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="315.0" android:src="@drawable/widget_refresh"/>
- <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="337.5" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_0" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="0.0" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_1" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="22.5" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_2" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="45.0" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_3" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="67.5" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_4" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="90.0" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_5" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="112.5" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_6" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="135.0" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_7" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="157.5" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_8" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="180.0" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_9" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="202.5" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_10" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="225.0" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_11" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="247.5" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_12" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="270.0" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_13" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="292.5" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_14" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="315.0" android:src="@drawable/widget_refresh"/>
+ <ImageView android:id="@+id/widget_spinner_frame_15" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp" android:rotation="337.5" android:src="@drawable/widget_refresh"/>
 </ViewFlipper>
