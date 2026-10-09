@@ -318,7 +318,7 @@ const server=http.createServer((req,res)=>{
     assert.ok(await page.$('.pks-navigation [aria-label="Przystanki"]'),'hidden labels retain accessible navigation names');
     await sameChrome();
     await page.$eval('[aria-label="Podgląd: Przystanek"]',el=>el.click());
-    assert.match(await page.$eval('[data-interface-preview]',el=>el.textContent),/Podkarpacka/);
+    assert.match(await page.$eval('[data-interface-preview]',el=>el.textContent),/Matuszczaka/);
     await openGroup('Kształty i głębia');await range('Zaokrąglenie kart','Home');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-interface-preview] .map-detail-row')).borderTopLeftRadius==='0px');
     await openGroup('Układ i komfort');await choose('Odstępy w kartach','Większe');
