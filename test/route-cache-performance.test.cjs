@@ -45,6 +45,6 @@ test('timetable ticks reuse Warsaw conversions and shared formatters, preserving
     assert.equal(warsawTimeMs('2026-10-07','25:10'),Date.parse('2026-10-07T23:10:00Z'));
     const cold=formats;
     for(let tick=0;tick<100;tick++) for(let row=0;row<200;row++) warsawTimeMs('2026-10-07','10:00');
-    assert.equal(formats,cold);assert.equal(constructors,2);
+    assert.equal(formats,cold);assert.equal(constructors,3);
   } finally {Intl.DateTimeFormat=Original;}
 });

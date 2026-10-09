@@ -112,7 +112,7 @@ export default function BusMap({
   const activeRouteRequestIdRef = useRef(0);
   const routeStopsSource = useMemo(() => {
     return selectedVehicle ? timedVehicleStops(selectedVehicle) : [];
-  }, [selectedVehicle?.routeStops, selectedVehicle?.schedule, selectedVehicle?.delay, selectedVehicle?.status]);
+  }, [selectedVehicle?.routeStops, selectedVehicle?.schedule, selectedVehicle?.delay, selectedVehicle?.status, selectedVehicle?.provider]);
   const routeStopsData = useMemo(() => {
     const next: Record<string, StopData> = selectedVehicle?.provider && selectedVehicle.provider !== 'pks'
       ? {}
@@ -165,9 +165,9 @@ export default function BusMap({
   [vehicles, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.delay]);
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
-  const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
-  const routeGlowOpts = { pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
-  const routePolylineOpts = { className: 'mks-route-line', pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
+  const routeHaloOpts = useMemo<L.PolylineOptions>(() => ({ pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), []);
+  const routeGlowOpts = useMemo<L.PolylineOptions>(() => ({ pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), []);
+  const routePolylineOpts = useMemo<L.PolylineOptions>(() => ({ className: 'mks-route-line', pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), [selectedRouteColor]);
   const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
   const routeDirection = normalizeRouteCachePart(
     selectedVehicle?.direction ||

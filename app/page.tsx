@@ -962,11 +962,11 @@ export default function Home() {
     Boolean(selectedBus) &&
     selectedBusDetailsLoading &&
     ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
-  const selectedBusDisplayedStops = useMemo(() => {
-    const stops = selectedBus ? timedVehicleStops(selectedBus) : [];
-    if (selectedVehicleIsTrain) return stops;
-    return upcomingVehicleStops(stops, now, selectedBus?.lastStopId);
-  }, [now, selectedBus?.lastStopId, selectedBus?.routeStops, selectedBus?.schedule, selectedBus?.delay, selectedBus?.status, selectedVehicleIsTrain]);
+  const selectedBusTimedStops = useMemo(() => selectedBus ? timedVehicleStops(selectedBus) : [],
+    [selectedBus?.routeStops, selectedBus?.schedule, selectedBus?.delay, selectedBus?.status, selectedBus?.provider]);
+  const selectedBusDisplayedStops = useMemo(() => selectedVehicleIsTrain ? selectedBusTimedStops
+    : upcomingVehicleStops(selectedBusTimedStops, now, selectedBus?.lastStopId),
+    [selectedBusTimedStops, now, selectedBus?.lastStopId, selectedVehicleIsTrain]);
 
   const openVehicleRouteStop = (stopId:string) => {
     const point=(selectedBus?.routeStops||selectedBus?.schedule||[]).find(stop=>String(stop.id)===stopId);

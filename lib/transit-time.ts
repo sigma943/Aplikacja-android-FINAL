@@ -4,11 +4,12 @@ const wallFormatter = new Intl.DateTimeFormat('en-CA', {
   hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
 });
 const clockFormatter = new Intl.DateTimeFormat('pl-PL', {timeZone: WARSAW, hour: '2-digit', minute: '2-digit'});
+const dateFormatter = new Intl.DateTimeFormat('en-CA', {timeZone: WARSAW});
 export function warsawClock(ms: number) { return clockFormatter.format(ms); }
 const wallTimeCache = new Map<string, number>();
 
 export function warsawDateIso(dayOffset = 0, now = new Date()) {
-  const today = now.toLocaleDateString('en-CA', { timeZone: WARSAW });
+  const today = dateFormatter.format(now);
   const date = new Date(`${today}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + dayOffset);
   return date.toISOString().slice(0, 10);
