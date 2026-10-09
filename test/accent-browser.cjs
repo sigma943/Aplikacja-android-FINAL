@@ -189,9 +189,9 @@ const server=http.createServer((req,res)=>{
       await new Promise(resolve=>setTimeout(resolve,600));
     };
     await showStopOnMap();
-    assert.equal(await style('.stop-highlight-pin .map-stop-pin','color'),'rgb(59, 130, 246)','selected stop follows the saved accent');
+    assert.equal(await style('.stop-highlight-pin .map-stop-pin','color'),'rgb(20, 184, 166)','show on map uses turquoise for a suburban stop');
     await accent('Fioletowy');
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.stop-highlight-pin .map-stop-pin')).color==='rgb(139, 92, 246)');
+    assert.equal(await page.$eval('.stop-highlight-pin .map-stop-pin',el=>getComputedStyle(el).color),'rgb(20, 184, 166)','stop category colour stays independent of the app accent');
     await accent('Niebieski');
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.glass),'on','fresh install enables glass');
     assert.equal(await page.$eval('[data-map-stop-sheet]',el=>el.dataset.expanded),'false','show on map opens compact card');
@@ -284,6 +284,12 @@ const server=http.createServer((req,res)=>{
       let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>100&&++painted>100)return true;return false;
     },{timeout:20000});
     await screenshot('pks-251-107-route');
+    await page.click('[aria-label="Rozwiń panel autobusu"]');
+    await page.waitForSelector('[data-route-stop-id="5324"]');
+    await page.$eval('[data-route-stop-id="5324"]',el=>el.click());
+    await page.waitForSelector('.stop-highlight-pin .map-stop-pin');
+    assert.equal(await page.$eval('.stop-highlight-pin .map-stop-pin',el=>getComputedStyle(el).color),'rgb(20, 184, 166)',
+      'a city stop selected from a PKS timetable follows the turquoise route');
     showFixtureBus=false;showMarcel=true;
     await page.evaluate(()=>{localStorage.setItem('mks_transport_providers',JSON.stringify(['marcel']));localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.95,lng:21.88},zoom:12}));});
     await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
