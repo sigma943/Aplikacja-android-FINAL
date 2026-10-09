@@ -1,8 +1,9 @@
+import {mpkFleetModel} from '../mpk-fleet-models';
 
 
 import {parseMybusTimetable} from '../mpk-mybus-timetable';
 
-import {mpkFeedVehicles, mpkSignalTime} from '../mpk-vehicle-feed';
+import {mpkFeedVehicles, mpkSignalTime, mpkFirstText, mpkMybusDepartureTime, mpkVehicleLine, mpkVehicleDirection, mpkMybusCourseId} from '../mpk-vehicle-feed';
 
 import {busOperatingState} from '../bus-operating-state';
 
@@ -170,7 +171,7 @@ function mapMpkDirectVehicle(
 
   const vehicleNumber = normalizeMpkVehicleId(rawVehicle.nb || rawVehicle.id);
   const details = detailsByVehicle.get(vehicleNumber);
-  const line = String(rawVehicle.nr || rawVehicle.nnr || details?.nr || '').trim() || '?';
+  const line = mpkVehicleLine(rawVehicle, details?.nr) || '?';
   const hasLine = line !== '?';
   const signalMs = mpkSignalTime(rawVehicle, now);
   const dataAgeSec = Math.max(0, Math.floor((now - signalMs) / 1000));
@@ -187,10 +188,10 @@ function mapMpkDirectVehicle(
   const rawDelay = Number(rawVehicle.o ?? details?.delay ?? 0);
   const statusCode = String(rawVehicle.s || details?.status || '');
   const delay = getEffectiveMpkDelay(rawDelay, statusCode, speed, tripSchedule?.schedule);
-  const nextStopId = Number(rawVehicle.nk || details?.end_stop_id);
+  const nextStopId = Number(rawVehicle.feedSource === 'mybus' ? details?.end_stop_id : rawVehicle.nk || details?.end_stop_id);
   const nextStopName = String(rawVehicle.nop || details?.end_stop_name || '').trim();
-  const direction = String(rawVehicle.op || details?.op || rawVehicle.nop || '').trim() || 'W trasie';
-  const operating = busOperatingState({lat,lon,speed,nowMs:now,stops:tripSchedule?.routeStops||[],reportedBreak:isMpkBreakStatus(statusCode)});
+  const direction = mpkVehicleDirection(rawVehicle, details?.op) || 'W trasie';
+  const operating = busOperatingState({lat,lon,speed,nowMs:now,stops:tripSchedule?.routeStops||[],firstDepartureMs:mpkMybusDepartureTime(rawVehicle,now,tripSchedule?.routeStops),reportedBreak:isMpkBreakStatus(statusCode)});
   const isBreak = operating.status==='break';
   const breakUntilMs = 'nextTripStartAtMs' in operating ? operating.nextTripStartAtMs : undefined;
 
@@ -218,16 +219,16 @@ function mapMpkDirectVehicle(
       : [],
     routeStops: tripSchedule?.routeStops || [],
     routePath: tripSchedule?.routePath || [],
-    model: details?.bus,
+    model: mpkFirstText(details?.bus) || mpkFleetModel(vehicleNumber),
     lastStopDistance: Number.isFinite(Number(rawVehicle.dp)) ? Number(rawVehicle.dp) : undefined,
     lastStopId: undefined,
     lastSignalTime: new Date(now - dataAgeSec * 1000).toISOString(),
     previousTripEndedAtMs: isBreak ? now : undefined,
     nextTripStartAtMs: breakUntilMs,
     nextTripFirstStopId: 'nextTripFirstStopId' in operating ? Number(operating.nextTripFirstStopId) : undefined,
-    journeyId: details?.rawBrygada ?? rawVehicle.kwi?.trim() ?? undefined,
+    journeyId: mpkMybusCourseId(rawVehicle) ? `mybus:${mpkMybusCourseId(rawVehicle)}` : details?.rawBrygada ?? rawVehicle.kwi?.trim() ?? undefined,
     serviceId: rawVehicle.kwi?.trim() || details?.brygada,
-    tripId: details?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik ?? undefined,
+    tripId: details?.trip_id ?? rawVehicle.tripid ?? mpkMybusCourseId(rawVehicle) ?? rawVehicle.ik ?? undefined,
     brigadeName: rawVehicle.kwi?.trim() || details?.brygada,
     status: isBreak ? 'break' : 'active',
     statusText: operating.statusText,
@@ -298,7 +299,7 @@ async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeIna
     const xml = await requestText(`${MPK_RZESZOW_MYBUS_TIMETABLE_URL}?${new URLSearchParams({nNb: lookupVehicleId})}`).catch(() => null);
     if (xml) {
       try {
-        const schedule = parseMybusTimetable(xml, Date.now(), String(rawVehicle.nr || rawVehicle.nnr || '').trim());
+        const schedule = parseMybusTimetable(xml, Date.now(), mpkVehicleLine(rawVehicle));
         if (schedule.length) {
           const {enrichMybusRoute} = await import('../mpk-mybus-route');
           const enriched = await enrichMybusRoute(xml, schedule, requestText);

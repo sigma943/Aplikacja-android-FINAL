@@ -1,8 +1,9 @@
+import {mpkFleetModel} from './mpk-fleet-models';
 import {enrichMybusRoute} from './mpk-mybus-route';
 import {parseMybusTimetable} from './mpk-mybus-timetable';
 import { warsawDateIso, warsawTimeMs } from './transit-time';
 import { busOperatingState } from './bus-operating-state';
-import { mpkFeedVehicles, mpkSignalTime } from './mpk-vehicle-feed';
+import { mpkFeedVehicles, mpkSignalTime, mpkFirstText, mpkMybusDepartureTime, mpkVehicleLine, mpkVehicleDirection, mpkMybusCourseId } from './mpk-vehicle-feed';
 import { getCachedValue } from './cache';
 import type { GetVehiclesOptions, ProviderVehiclesResult, TransportProvider, TransportStopSchedule, TransportVehicle } from './types';
 
@@ -390,7 +391,7 @@ function toTransportVehicle(
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
   const rawVehicleNumber = normalizeVehicleId(rawVehicle.nb || rawVehicle.id);
-  const line = toCleanLine(rawVehicle.nr || rawVehicle.nnr || details?.nr);
+  const line = toCleanLine(mpkVehicleLine(rawVehicle, details?.nr));
   const hasLine = line !== '?';
   const ageSec = Math.max(0, Math.floor((now - mpkSignalTime(rawVehicle, now)) / 1000));
 
@@ -405,11 +406,12 @@ function toTransportVehicle(
   const geometrySpeed = movedDistance > 0 ? Math.min(55, Math.round(movedDistance * 100000)) : 0;
   const speed = computeObservedSpeedKmh(`mpk_rzeszow:${rawVehicleNumber}`, lat, lng, now - ageSec * 1000, geometrySpeed) ?? 0;
   const statusCode = String(rawVehicle.s || details?.status || '');
-  const direction = String(rawVehicle.op || details?.op || rawVehicle.nop || '').trim() || 'W trasie';
+  const direction = mpkVehicleDirection(rawVehicle, details?.op) || 'W trasie';
   const delaySeconds = getEffectiveMpkDelay(Number(rawVehicle.o ?? details?.delay ?? 0), statusCode);
   const operating = busOperatingState({
     lat, lon: lng, speed, nowMs: now,
-    stops: (tripSchedule?.routeStops || []).map(stop => ({ ...stop, lon: stop.lng })),
+    stops: (tripSchedule?.routeStops || []).map(stop => ({ ...stop, lon: stop.lon ?? stop.lng })),
+    firstDepartureMs: mpkMybusDepartureTime(rawVehicle, now, tripSchedule?.routeStops),
     reportedBreak: isMpkBreakStatus(statusCode),
   });
   const isBreak = operating.status === 'break';
@@ -417,7 +419,7 @@ function toTransportVehicle(
   const nextTripFirstStopId = 'nextTripFirstStopId' in operating ? Number(operating.nextTripFirstStopId) : undefined;
   const statusText = isBreak ? operating.statusText : getMpkStatusText(statusCode, speed);
   const prefixedId = `mpk_rzeszow_${rawVehicleNumber}`;
-  const nextStopId = Number(rawVehicle.nk || details?.end_stop_id);
+  const nextStopId = Number(rawVehicle.feedSource === 'mybus' ? details?.end_stop_id : rawVehicle.nk || details?.end_stop_id);
   const nextStopName =
     formatMpkStopName(rawVehicle.nop || details?.end_stop_name) ||
     stopsDictionary[String(nextStopId)] ||
@@ -455,16 +457,16 @@ function toTransportVehicle(
       : [],
     routeStops: tripSchedule?.routeStops || [],
     routePath: tripSchedule?.routePath || [],
-    model: details?.bus,
+    model: mpkFirstText(details?.bus) || mpkFleetModel(rawVehicleNumber),
     lastStopDistance: Number.isFinite(Number(rawVehicle.dp)) ? Number(rawVehicle.dp) : undefined,
     lastStopId: undefined,
     lastUpdate: new Date(now - ageSec * 1000).toISOString(),
     previousTripEndedAtMs: isBreak ? now : undefined,
     nextTripStartAtMs,
     nextTripFirstStopId,
-    journeyId: details?.rawBrygada ?? rawVehicle.kwi?.trim() ?? undefined,
+    journeyId: mpkMybusCourseId(rawVehicle) ? `mybus:${mpkMybusCourseId(rawVehicle)}` : details?.rawBrygada ?? rawVehicle.kwi?.trim() ?? undefined,
     serviceId: rawVehicle.kwi?.trim() || details?.brygada,
-    tripId: details?.trip_id ?? rawVehicle.tripid ?? rawVehicle.ik ?? undefined,
+    tripId: details?.trip_id ?? rawVehicle.tripid ?? mpkMybusCourseId(rawVehicle) ?? rawVehicle.ik ?? undefined,
     brigadeName: rawVehicle.kwi?.trim() || details?.brygada,
     status: isBreak ? 'break' : 'active',
     statusText,
@@ -524,7 +526,7 @@ export const mpkRzeszowProvider: TransportProvider = {
     if (!tripSchedule.schedule.some(stop => stop.planned || stop.real)) {
       try {
         const xml = await fetchTextWithRetry(`${MYBUS_TIMETABLE_URL}?${new URLSearchParams({nNb: lookupVehicleId})}`, {headers: {Accept: 'application/xml'}});
-        const schedule = parseMybusTimetable(xml, Date.now(), String(rawVehicle.nr || rawVehicle.nnr || '').trim());
+        const schedule = parseMybusTimetable(xml, Date.now(), mpkVehicleLine(rawVehicle));
         if (schedule.length) {
           const enriched = await enrichMybusRoute(xml, schedule, url => fetchTextWithRetry(url, {headers: {Accept: 'application/xml'}}));
           tripSchedule = enriched;

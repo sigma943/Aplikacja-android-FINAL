@@ -1,14 +1,15 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path'),puppeteer=require('puppeteer');
 const fixture=require('./build-accent-fixture.cjs')(),root=fixture.root,production=path.resolve('out');
 const server=http.createServer((req,res)=>{const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);let file=path.resolve(root,'.'+(pathname.endsWith('/')?pathname+'index.html':pathname));if(!file.startsWith(root+path.sep)){res.writeHead(404);return res.end();}if(!fs.existsSync(file))file=path.resolve(production,'.'+pathname);if(!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);return res.end();}res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');fs.createReadStream(file).pipe(res);});
-(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`,browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']}),page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let geometryRequests=0;
+(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`,browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']}),page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let geometryRequests=0,waiting=false;
 try{
  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
- await page.evaluateOnNewDocument(()=>{const arc=CanvasRenderingContext2D.prototype.arc;CanvasRenderingContext2D.prototype.arc=function(...args){this.canvas.dataset.testCircleCount=String(Number(this.canvas.dataset.testCircleCount||0)+1);return arc.apply(this,args);};localStorage.setItem('mks_transport_providers',JSON.stringify(['mpk_rzeszow']));localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.025,lng:21.995},zoom:14}));});
+ await page.evaluateOnNewDocument(()=>{const arc=CanvasRenderingContext2D.prototype.arc;CanvasRenderingContext2D.prototype.arc=function(...args){this.canvas.dataset.testCircleCount=String(Number(this.canvas.dataset.testCircleCount||0)+1);return arc.apply(this,args);};localStorage.setItem('mks_transport_providers',JSON.stringify(['mpk_rzeszow']));if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.025,lng:21.995},zoom:14}));});
  await page.setRequestInterception(true);page.on('request',request=>{const url=request.url(),reply=(body,type='application/json',status=200)=>request.respond({status,contentType:type,headers:{'access-control-allow-origin':'*'},body});
+ if(url.includes('GetVehicles?')&&waiting)return reply('<Vehicles><V nb="770" nr="   " nnr="51   " op=" " nop="Bardowskiego p. Dworzec Lokalny" x="22.02432" y="50.11553" px="22.02432" py="50.11553" ik="0" nk="3293" s="6" is="1572" o="1572"/></Vehicles>','application/xml');
  if(url.includes('GetVehicles?'))return reply('<Vehicles><V nb="102" nr="0A" op="Dworzec Główny PKP" x="21.985" y="50.021" ik="2500" s="1" is="0" lp="8" o="-120"/></Vehicles>','application/xml');
- if(url.includes('GetVehicleTimeTable?'))return reply(fs.readFileSync('test/fixtures/mpk-mybus-0a-timetable.xml','utf8'),'application/xml');
- if(url.includes('GetRouteVariantWithTransitPoints?')){geometryRequests++;return reply(fs.readFileSync('test/fixtures/mpk-mybus-0a-route.xml','utf8'),'application/xml');}
+ if(url.includes('GetVehicleTimeTable?'))return reply(fs.readFileSync(waiting?'test/fixtures/mpk-mybus-51-waiting.xml':'test/fixtures/mpk-mybus-0a-timetable.xml','utf8'),'application/xml');
+ if(url.includes('GetRouteVariantWithTransitPoints?')){geometryRequests++;return reply(fs.readFileSync(waiting?'test/fixtures/mpk-mybus-51-route.xml':'test/fixtures/mpk-mybus-0a-route.xml','utf8'),'application/xml');}
  if(url.includes('stopscache'))return reply(fs.readFileSync('test/fixtures/mpk-mybus-canonical-stops.json','utf8'));
  if(url.includes('get_trip_stops'))return reply('{"stops":[]}');
  if(url.includes('vehicles_proxy'))return reply('missing','text/plain',404);
@@ -25,8 +26,24 @@ try{
  await page.waitForFunction(()=>{const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>0)painted++;return painted>200;},{timeout:30000});
  await page.waitForFunction(()=>Number(document.querySelector('.leaflet-routeStops-pane canvas')?.dataset.testCircleCount)>=10);
  assert.ok(await page.$eval('.leaflet-routeStops-pane canvas',el=>Number(el.dataset.testCircleCount)>=10),'upcoming stop circles are drawn by the Canvas renderer');
+ await page.focus('[aria-label="Rozwiń panel autobusu"]');await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]')?.textContent.includes('Powst. Warszawy'));
  assert.match(await page.$eval('[data-map-bus-sheet]',el=>el.textContent),/Powst. Warszawy/);
  assert.equal(geometryRequests,1);assert.deepEqual(errors,[]);
  fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/mpk-mybus-0a-route.png'});
- console.log('MPK 0A backup: real route polyline and next-stop circles rendered.');
+ waiting=true;
+ await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.11,lng:22.025},zoom:14})));
+ await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.mks-bus-marker');
+ await page.evaluate(()=>[...document.querySelectorAll('.mks-bus-marker')].find(el=>el.textContent.includes('51'))?.click());
+ await page.waitForFunction(()=>{const text=document.querySelector('[data-map-bus-sheet]')?.textContent||'';return text.includes('Solaris Urbino 18 IV (2018)')&&text.includes('Odjazd za:');});
+ const before=await page.$eval('[data-map-bus-sheet]',el=>el.textContent.match(/Odjazd za:\s*(\d+):(\d{2})/).slice(1).map(Number));
+ assert.ok(before[0]*60+before[1]>24*60&&before[0]*60+before[1]<=1573);
+ await page.waitForFunction(previous=>{const match=document.querySelector('[data-map-bus-sheet]')?.textContent.match(/Odjazd za:\s*(\d+):(\d{2})/);return match&&Number(match[1])*60+Number(match[2])<previous;},{timeout:5000},before[0]*60+before[1]);
+ await page.focus('[aria-label="Rozwiń panel autobusu"]');await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]')?.textContent.includes('Jasionka - Port Lotniczy'));
+ await page.waitForFunction(()=>{const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>0)painted++;return painted>200;});
+ await page.waitForFunction(()=>Number(document.querySelector('.leaflet-routeStops-pane canvas')?.dataset.testCircleCount)>=2);
+ assert.equal(geometryRequests,2);assert.deepEqual(errors,[]);
+ await page.screenshot({path:'test/ui-previews/mpk-mybus-51-break.png'});
+ console.log('MPK backup: routes, next-stop circles, exact models and ticking break countdown rendered.');
 }finally{await browser.close();await new Promise(r=>server.close(r));fixture.cleanup();}})().catch(e=>{console.error(e);process.exitCode=1;});
