@@ -16,6 +16,7 @@ import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {uiAccentVariables} from '@/lib/ui-accent';
 import {panelGlowStrength,panelGlowVariables} from '@/lib/panel-glow';
+import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppearance,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
@@ -152,6 +153,7 @@ export default function Home() {
   const [lightEffects,setLightEffects]=useState(false);
   const [panelGlow,setPanelGlow]=useState(false);
   const [glowStrength,setGlowStrength]=useState(40);
+  const [interfaceAppearance,setInterfaceAppearance]=useState<InterfaceAppearance>(()=>({...DEFAULT_INTERFACE_APPEARANCE}));
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
@@ -318,6 +320,7 @@ export default function Home() {
     const sTrans = localStorage.getItem('mks_transparent');
     setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');
     setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
+    try{setInterfaceAppearance(normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')));}catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
     setTimeout(()=>setLightEffects(localStorage.getItem('mks_light_effects')==='true'),0);
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
     const favs = localStorage.getItem('mks_fav_stops');
@@ -361,6 +364,7 @@ export default function Home() {
     document.body.style.backgroundColor = bg;
   };
   const saveLightEffects=(value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));};
+  const saveInterfaceAppearance=(value:InterfaceAppearance)=>{const normalized=normalizeInterfaceAppearance(value);setInterfaceAppearance(normalized);localStorage.setItem(INTERFACE_APPEARANCE_KEY,JSON.stringify(normalized));window.dispatchEvent(new Event('pks-interface-appearance'));};
   const savePanelGlow=(value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));};
   const saveGlowStrength=(value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));};
   const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val)); };
@@ -929,9 +933,10 @@ export default function Home() {
   useEffect(()=>{
     const root=document.documentElement;
     root.dataset.panelGlow=panelGlow&&glowStrength>0?'on':'off';
-    for(const [key,value] of Object.entries(panelGlowVariables(themeColor,glowStrength,isDark,lightEffects)))root.style.setProperty(key,value);
-    return ()=>{delete root.dataset.panelGlow;for(const key of Object.keys(panelGlowVariables(themeColor,glowStrength,isDark,lightEffects)))root.style.removeProperty(key);};
-  },[panelGlow,glowStrength,themeColor,isDark,lightEffects]);
+    for(const [key,value] of Object.entries(panelGlowVariables(interfaceAppearance.glowColor,glowStrength,isDark,lightEffects,{style:interfaceAppearance.glowStyle,spread:interfaceAppearance.glowSpread,placement:interfaceAppearance.glowPlacement})))root.style.setProperty(key,value);
+    return ()=>{delete root.dataset.panelGlow;for(const key of Object.keys(panelGlowVariables(interfaceAppearance.glowColor,glowStrength,isDark,lightEffects,{style:interfaceAppearance.glowStyle,spread:interfaceAppearance.glowSpread,placement:interfaceAppearance.glowPlacement})))root.style.removeProperty(key);};
+  },[panelGlow,glowStrength,interfaceAppearance,isDark,lightEffects]);
+  useEffect(()=>applyInterfaceAppearance(document.documentElement,interfaceAppearance,isDark,themeColor,lightEffects),[interfaceAppearance,isDark,themeColor,lightEffects]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1466,42 +1471,49 @@ export default function Home() {
          <div className={`pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${bottomGlassShell}`}>
             <button 
                disabled={isMapTabDisabled}
+               aria-current={activeTab==='map'?'page':undefined}
+               aria-label="Mapa"
                onClick={() => { if (!isMapTabDisabled) { setActiveTab('map'); setSelectedBus(null); setSelectedStopId(null); setSelectedExternalStop(null); } }}
                className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${isMapTabDisabled ? 'cursor-not-allowed opacity-35 grayscale' : activeTab === 'map' ? '' : 'hover:text-current/90'}`}
                style={activeTab === 'map' ? { color: themeColor } : {}}
             >
                <MapIcon className="h-6 w-6" />
-               <span className="text-[11px] font-semibold leading-none">Mapa</span>
-               {activeTab === 'map' && <motion.span layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
+               <span data-nav-label className="text-[11px] font-semibold leading-none">Mapa</span>
+               {activeTab === 'map' && <motion.span data-nav-indicator layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
             </button>
             <button 
                disabled={isStopsTabDisabled}
+               aria-current={activeTab==='stops'?'page':undefined}
+               aria-label="Przystanki"
                onClick={() => { if (!isStopsTabDisabled) { setActiveTab('stops'); setSelectedBus(null); } }}
                className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${isStopsTabDisabled ? 'cursor-not-allowed opacity-35 grayscale' : activeTab === 'stops' ? '' : 'hover:text-current/90'}`}
                style={activeTab === 'stops' ? { color: themeColor } : {}}
             >
                <StopTabIcon className="h-6 w-6" />
-               <span className="text-[11px] font-semibold leading-none">Przystanki</span>
-               {activeTab === 'stops' && <motion.span layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
+               <span data-nav-label className="text-[11px] font-semibold leading-none">Przystanki</span>
+               {activeTab === 'stops' && <motion.span data-nav-indicator layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
             </button>
             {canOpenAdminEmbed && (
                <button 
                   type="button"
+                  aria-current={activeTab==='admin'?'page':undefined}
+                  aria-label="Admin"
                   onClick={() => { if(activeTab !== 'admin')adminReturnTab.current = activeTab === 'stops' ? 'stops' : 'map';setActiveTab('admin'); setSelectedBus(null); setSelectedStopId(null); setSelectedExternalStop(null); setIsSettingsOpen(false); }}
                   className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${activeTab === 'admin' ? '' : 'hover:text-current/90'}`}
                   style={activeTab === 'admin' ? { color: themeColor } : {}}
                >
                   <Shield className="h-6 w-6" />
-                  <span className="text-[11px] font-semibold leading-none">Admin</span>
-                  {activeTab === 'admin' && <motion.span layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
+                  <span data-nav-label className="text-[11px] font-semibold leading-none">Admin</span>
+                  {activeTab === 'admin' && <motion.span data-nav-indicator layoutId="navigation-active-tab" transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
                </button>
             )}
             <button 
+               aria-label="Opcje"
                onClick={() => setIsSettingsOpen(true)}
                className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors hover:text-current/90"
             >
                <Settings className="h-6 w-6" />
-               <span className="text-[11px] font-semibold leading-none">Opcje</span>
+               <span data-nav-label className="text-[11px] font-semibold leading-none">Opcje</span>
             </button>
          </div>
       </div>
@@ -1516,7 +1528,7 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <OptionsContent panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
+            <OptionsContent appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={()=>setIsOptionsExpanded(true)} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
         )}
       </AnimatePresence>

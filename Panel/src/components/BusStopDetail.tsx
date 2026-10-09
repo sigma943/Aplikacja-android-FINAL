@@ -327,7 +327,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         animate={animateDepartures ? { opacity: isPast ? 0.45 : 1, y: 0 } : { opacity: isPast ? 0.45 : 1, y: 0 }}
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
                         transition={animateDepartures ? { duration: 0.3, delay: Math.min(idx * 0.06, 0.3) } : { duration: 0 }}
-                        key={dep.id} 
+                        key={dep.id}
+                        data-interface-row
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? `border-b ${rowBorderClass}` : ''} ${rowClass} transition-colors cursor-pointer ${isPast ? (isDarkTheme ? 'bg-black/15' : 'bg-slate-100/70') : ''}`}
                       >
                         {/* Left Side: Line Badge & Directions */}

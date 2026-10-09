@@ -22,10 +22,10 @@ export default function OptionsSheet({ expanded, onExpandedChange, onClose, clas
 
   useEffect(() => {
     const root = sheet.current;
-    const appearance = root?.querySelector<HTMLElement>('[data-options-appearance]');
-    const scroll = root?.querySelector<HTMLElement>('[data-options-scroll]');
-    if (!root || !appearance || !scroll) return;
+    if (!root) return;
+    let appearance:HTMLElement|null=null,scroll:HTMLElement|null=null;
     const measure = () => {
+      if(!appearance||!scroll)return;
       const prefix = scroll.getBoundingClientRect().top - root.getBoundingClientRect().top;
       const padding = parseFloat(getComputedStyle(root).paddingBottom) || 12;
       const compact = Math.min(prefix + appearance.offsetHeight + padding, innerHeight * 0.55);
@@ -33,12 +33,22 @@ export default function OptionsSheet({ expanded, onExpandedChange, onClose, clas
       setLimits(previous => Math.abs(previous.compact - compact) < 1 && Math.abs(previous.full - full) < 1 ? previous : {compact, full});
     };
     const observer = new ResizeObserver(measure);
-    observer.observe(appearance);
-    const extra = root.querySelector<HTMLElement>('[data-options-extra]');
-    if (extra) observer.observe(extra);
+    const connect = () => {
+      const next=root.querySelector<HTMLElement>('[data-options-appearance]');
+      const nextScroll=root.querySelector<HTMLElement>('[data-options-scroll]');
+      if(next!==appearance||nextScroll!==scroll){
+        observer.disconnect();appearance=next;scroll=nextScroll;
+        if(appearance)observer.observe(appearance);
+        const extra=root.querySelector<HTMLElement>('[data-options-extra]');
+        if(extra)observer.observe(extra);
+      }
+      measure();
+    };
+    const mutation=new MutationObserver(connect);
+    mutation.observe(root,{childList:true,subtree:true});
     window.addEventListener('resize', measure);
-    measure();
-    return () => {observer.disconnect();window.removeEventListener('resize', measure);};
+    connect();
+    return () => {observer.disconnect();mutation.disconnect();window.removeEventListener('resize', measure);};
   }, []);
 
   useEffect(()=>{if(!expanded)sheet.current?.querySelector('[data-options-scroll]')?.scrollTo(0,0);},[expanded]);

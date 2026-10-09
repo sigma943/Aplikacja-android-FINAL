@@ -1,8 +1,10 @@
 'use client';
-import {Monitor,Sun,Moon,Sparkles,Check,Settings,Bus,MapPin} from 'lucide-react';
-import type {CSSProperties} from 'react';
-type Props={panelGlow:boolean;glowStrength:number;savePanelGlow:(value:boolean)=>void;saveGlowStrength:(value:number)=>void;showMapStops?:boolean;saveMapStops?:(value:boolean)=>void;themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
-export default function OptionsContent({panelGlow,glowStrength,savePanelGlow,saveGlowStrength,themeColor, textSub, optionsCard, isDark, isWarm, appTheme, optionsButton, isOptionsExpanded, saveAppTheme, saveThemeColor, transparentUI, saveTransparentUI, showInactive, saveInactive, lightEffects, saveLightEffects,showMapStops=false,saveMapStops}:Props){return <>
+import {Monitor,Sun,Moon,Sparkles,Check,Settings,Bus,MapPin,Palette} from 'lucide-react';
+import {useState,type CSSProperties} from 'react';
+import InterfacePersonalization from './InterfacePersonalization';
+import type {InterfaceAppearance} from '@/lib/interface-appearance';
+type Props={appearance:InterfaceAppearance;saveAppearance:(value:InterfaceAppearance)=>void;onOpenPersonalization:()=>void;panelGlow:boolean;glowStrength:number;savePanelGlow:(value:boolean)=>void;saveGlowStrength:(value:number)=>void;showMapStops?:boolean;saveMapStops?:(value:boolean)=>void;themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
+export default function OptionsContent({appearance,saveAppearance,onOpenPersonalization,panelGlow,glowStrength,savePanelGlow,saveGlowStrength,themeColor, textSub, optionsCard, isDark, isWarm, appTheme, optionsButton, isOptionsExpanded, saveAppTheme, saveThemeColor, transparentUI, saveTransparentUI, showInactive, saveInactive, lightEffects, saveLightEffects,showMapStops=false,saveMapStops}:Props){const [tab,setTab]=useState<'general'|'personalization'>('general');return <>
                <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
                      <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${themeColor}18`, color: themeColor }}><Settings className="h-[18px] w-[18px]" /></span>
@@ -14,7 +16,12 @@ export default function OptionsContent({panelGlow,glowStrength,savePanelGlow,sav
 
                </div>
 
-               <div data-options-scroll className={`flex min-h-0 w-full flex-1 flex-col gap-2 overscroll-contain relative z-0 pr-1 ${isOptionsExpanded ? "overflow-y-auto" : "overflow-hidden"}`}>
+               <div role="tablist" aria-label="Zakładki opcji" className="personal-tabs" onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?'general':event.key==='End'?'personalization':tab==='general'?'personalization':'general';setTab(next);if(next==='personalization')onOpenPersonalization();event.currentTarget.querySelector<HTMLButtonElement>(next==='general'?'#options-general-tab':'#options-personal-tab')?.focus();}}>
+                 <button type="button" role="tab" id="options-general-tab" tabIndex={tab==='general'?0:-1} aria-controls="options-general-panel" aria-selected={tab==='general'} onClick={()=>setTab('general')}><Settings size={15}/>Ogólne</button>
+                 <button type="button" role="tab" id="options-personal-tab" tabIndex={tab==='personalization'?0:-1} aria-controls="options-personal-panel" aria-selected={tab==='personalization'} onClick={()=>{setTab('personalization');onOpenPersonalization();}}><Palette size={15}/>Personalizacja</button>
+               </div>
+               {tab==='personalization'&&<div role="tabpanel" id="options-personal-panel" aria-labelledby="options-personal-tab" data-options-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain"><InterfacePersonalization value={appearance} onChange={saveAppearance} dark={isDark} theme={appTheme} accent={themeColor} setTheme={saveAppTheme} setAccent={saveThemeColor} glass={transparentUI} setGlass={saveTransparentUI} glow={panelGlow} setGlow={savePanelGlow} glowStrength={glowStrength} setGlowStrength={saveGlowStrength} lightEffects={lightEffects} setLightEffects={saveLightEffects}/></div>}
+               {tab==='general'&&<div role="tabpanel" id="options-general-panel" aria-labelledby="options-general-tab" data-options-scroll className={`flex min-h-0 w-full flex-1 flex-col gap-2 overscroll-contain relative z-0 pr-1 ${isOptionsExpanded ? "overflow-y-auto" : "overflow-hidden"}`}>
                   
                   {/* Appearance */}
                   <div data-options-appearance className={`shrink-0 rounded-2xl border p-2.5 md:p-4 ${optionsCard}`}>
@@ -87,7 +94,7 @@ export default function OptionsContent({panelGlow,glowStrength,savePanelGlow,sav
                      <section className={`overflow-hidden rounded-2xl border ${optionsCard}`}>
                        <label className="group flex min-h-20 cursor-pointer items-center justify-between gap-3 p-3 md:p-4">
                          <div className="flex min-w-0 items-center gap-3">
-                           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{color:themeColor,backgroundColor:`${themeColor}14`}}><Sun size={20}/></span>
+                           <Sun className="h-5 w-5 shrink-0" style={{color:themeColor}}/>
                            <div><span className="text-sm font-semibold">Poświata paneli</span><p className={`mt-1 text-[11px] leading-relaxed ${textSub}`}>Miękkie plamy koloru w tle paneli</p></div>
                          </div>
                          <input aria-label="Poświata paneli" role="switch" type="checkbox" className="peer sr-only" checked={panelGlow} onChange={event=>savePanelGlow(event.target.checked)}/>
@@ -129,5 +136,5 @@ export default function OptionsContent({panelGlow,glowStrength,savePanelGlow,sav
                   </div>
                   </div>
 
-               </div>
+               </div>}
 </>;}
