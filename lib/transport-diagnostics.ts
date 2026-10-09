@@ -19,8 +19,8 @@ export function recordTransportDiagnostic(provider:DiagnosticProvider,kind:Diagn
   records.set(key,next);if(records.size>100)records.delete(records.keys().next().value!);snapshot=[...records.values()];listeners.forEach(listener=>listener());
 }
 export function diagnosticRequest(url:string){
-  const provider:DiagnosticProvider|null=/marcel/i.test(url)?'marcel':/pks|einfo/i.test(url)?'pks':/mpk\/|mpk_rzeszow|mpkrzeszow\.pl|type=mpk|przystanki|stop_schedule|stop_id=/i.test(url)?'mpk_rzeszow':null;
-  const kind:DiagnosticKind=/get_vehicles|vehicles|lokalizacjaBusow|type=mpk/.test(url)?'vehicles':/departures|timetable|schedule|wariantTrasy\/kusy/.test(url)?'departures':'catalog';
+  const provider:DiagnosticProvider|null=/84\.38\.160\.220\/myBusServices\//.test(url)?'mpk_rzeszow':/marcel/i.test(url)?'marcel':/pks|einfo/i.test(url)?'pks':/mpk\/|mpk_rzeszow|mpkrzeszow\.pl|type=mpk|przystanki|stop_schedule|stop_id=/i.test(url)?'mpk_rzeszow':null;
+  const kind:DiagnosticKind=/get_vehicles|vehicles|GetVehicles|lokalizacjaBusow|type=mpk/.test(url)?'vehicles':/departures|timetable|schedule|TimeTable|wariantTrasy\/kusy/.test(url)?'departures':'catalog';
   return provider?{provider,kind}:null;
 }
 export async function measuredTransport<T>(provider:DiagnosticProvider,kind:DiagnosticKind,run:()=>Promise<T>,count?:(value:T)=>number|undefined,age?:(value:T)=>number|undefined,scope:TransportMeasurement['scope']='operation',source?:string){

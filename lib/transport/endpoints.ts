@@ -9,6 +9,8 @@ const MPK_RZESZOW_VEHICLES_JSON_URL = 'https://www.mpkrzeszow.pl/ztm/new/api.php
 
 const MPK_RZESZOW_VEHICLES_XML_URL = 'https://www.mpkrzeszow.pl/mpk/vehicles_proxy.php';
 
+export const MPK_RZESZOW_MYBUS_VEHICLES_URL = 'http://84.38.160.220/myBusServices/SchedulesService.svc/GetVehicles?cNbLst=&cTrackLst=&cDirLst=&cIdLst=&cKrsLst=&cRouteLst=';
+
 const MPK_RZESZOW_VEHICLES_DETAILS_URL = 'https://www.mpkrzeszow.pl/mpk/get_vehicles.php';
 
 const MPK_RZESZOW_TRIP_STOPS_URL = 'https://www.mpkrzeszow.pl/brygady/get_trip_stops_advanced.php';
@@ -54,3 +56,5 @@ export {PKP_DEFAULT_CENTER};
 export {PKP_MAX_DISTANCE_KM};
 export {PKP_METADATA_CACHE_TTL_MS};
 export {PKP_METADATA_LOOKUP_LIMIT};
+
+export const MPK_RZESZOW_MYBUS_TIMETABLE_URL = 'http://84.38.160.220/myBusServices/SchedulesService.svc/GetVehicleTimeTable';

@@ -419,7 +419,9 @@ export default function Home() {
     const detailsScheduleScore = scheduleScore(detailsSchedule);
     const baseRouteStopsScore = routeStopsScore(baseRouteStops);
     const detailsRouteStopsScore = routeStopsScore(detailsRouteStops);
-    const hasLiveSchedule = baseScheduleScore >= detailsScheduleScore + 2;
+    const hasLiveSchedule = details.scheduleSource !== 'mybus' &&
+      !(base.scheduleSource === 'mybus' && detailsSchedule.some(stop => stop.planned || stop.real)) &&
+      baseScheduleScore >= detailsScheduleScore + 2;
     const hasLiveRouteStops = baseRouteStopsScore >= detailsRouteStopsScore + 2;
     const hasLiveRoutePath = baseRoutePath.length > 1 && baseRoutePath.length >= detailsRoutePath.length;
 
@@ -433,15 +435,17 @@ export default function Home() {
       lat: base.lat,
       lon: base.lon,
       delay: base.delay ?? details.delay,
-      nextTripStartAtMs: base.nextTripStartAtMs ?? details.nextTripStartAtMs,
-      nextTripFirstStopId: base.nextTripFirstStopId ?? details.nextTripFirstStopId,
+      nextTripStartAtMs: base.provider === 'mpk_rzeszow' && base.status !== 'break' ? undefined : base.nextTripStartAtMs ?? details.nextTripStartAtMs,
+      nextTripFirstStopId: base.provider === 'mpk_rzeszow' && base.status !== 'break' ? undefined : base.nextTripFirstStopId ?? details.nextTripFirstStopId,
       status: base.status,
       statusText: base.statusText,
       dataAgeSec: base.dataAgeSec,
       lastSignalTime: base.lastSignalTime,
+      scheduleSource: hasLiveSchedule || !detailsSchedule.length ? base.scheduleSource : details.scheduleSource,
       schedule: hasLiveSchedule ? baseSchedule : (detailsSchedule.length > 0 ? detailsSchedule : baseSchedule),
-      routeStops: hasLiveRouteStops ? baseRouteStops : (detailsRouteStops.length > 0 ? detailsRouteStops : baseRouteStops),
-      routePath: hasLiveRoutePath ? baseRoutePath : (detailsRoutePath.length > 0 ? detailsRoutePath : baseRoutePath),
+      routeStops: details.scheduleSource === 'mybus' ? detailsRouteStops : hasLiveRouteStops ? baseRouteStops : (detailsRouteStops.length > 0 ? detailsRouteStops : baseRouteStops),
+      routeGeometry: details.scheduleSource === 'mybus' ? details.routeGeometry : (details.routeGeometry?.length ? details.routeGeometry : base.routeGeometry),
+      routePath: details.scheduleSource === 'mybus' ? detailsRoutePath : hasLiveRoutePath ? baseRoutePath : (detailsRoutePath.length > 0 ? detailsRoutePath : baseRoutePath),
       // Preserve details-only metadata if polling payload does not carry it.
       model: base.model || details.model,
       journeyId: base.journeyId ?? details.journeyId,
@@ -509,7 +513,7 @@ export default function Home() {
           cacheKey,
           {
             vehicle: details,
-            expiresAt: Date.now() + (hasUsableRouteDetails(details) ? 30 * 60_000 : 8_000),
+            expiresAt: Date.now() + (details.scheduleSource === 'mybus' ? 8_000 : hasUsableRouteDetails(details) ? 30 * 60_000 : 8_000),
           },
         );
         setSelectedBus((current) => current?.id === vehicle.id ? mergeVehicleDetails(current, details) : current);

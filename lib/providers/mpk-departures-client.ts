@@ -6,7 +6,7 @@ import {mpkBoardEntries, mpkServicesOnDate, type MpkCalendar} from '../mpk-depar
 
 import {type MpkRzeszowStop, type MpkRzeszowScheduleEntry} from '../transport/types';
 import {MPK_RZESZOW_STOPS_URL, MPK_RZESZOW_STOP_SCHEDULE_URL} from '../transport/endpoints';
-import {requestJson} from '../transport/http';
+import {requestText,requestJson} from '../transport/http';
 import {CLIENT_STOP_CACHE_TTL_MS, readPersistentClientCache, writePersistentClientCache} from '../transport/cache';
 
 const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v4';
@@ -87,14 +87,33 @@ export async function fetchMpkRzeszowDeparturesClient(
   })();
   const [board, schedule] = await Promise.allSettled([boardPromise, schedulePromise]);
   if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
-  if (schedule.status === 'rejected' && (dateIso !== warsawDateIso() || board.status === 'rejected')) throw schedule.reason;
+  if (schedule.status === 'rejected' && dateIso !== warsawDateIso()) throw schedule.reason;
   const entries = new Map<string, MpkRzeszowScheduleEntry>();
   // Board HH:mm and GTFS HH:mm:ss must identify the same departure.
   const key = (entry: MpkRzeszowScheduleEntry) => `${entry.trip_id ?? `${entry.line}:${entry.trip_headsign}`}:${Math.floor(warsawTimeMs(dateIso, entry.departure_time) / 60_000)}`;
   if (schedule.status === 'fulfilled') schedule.value.forEach((entry) => entries.set(key(entry), entry));
   if (board.status === 'fulfilled') board.value.forEach((entry) => entries.set(key(entry), entry));
-  const result = [...entries.values()] as MpkRzeszowScheduleEntry[] & { warning?: string };
+  let values = [...entries.values()];
+  let realtimeUnavailable = false;
+  if (dateIso === warsawDateIso() && !values.some(entry => entry.real_departure_time)) {
+    try {
+      const {mybusStopCatalogue} = await import('../mpk-mybus-stop-catalogue');
+      const matches = Object.entries(mybusStopCatalogue).filter(([,entry]) => String(entry[0]) === stopId);
+      if (matches.length !== 1) throw new Error('MPK stop has no unique SIP identity');
+      const sipId = matches[0][0];
+      const xml = await requestText(`http://84.38.160.220/myBusServices/SchedulesService.svc/GetTimeTableReal?${new URLSearchParams({nBusStopId:sipId})}`, {signal:options?.signal});
+      const {parseMybusDepartures,mergeMybusDepartures} = await import('../mpk-mybus-departures');
+      const observedAt = Date.now();
+      values = mergeMybusDepartures(values,parseMybusDepartures(xml,sipId,observedAt),dateIso,observedAt);
+    } catch (error) {
+      if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+      realtimeUnavailable = true;
+    }
+  }
+  const result = values as MpkRzeszowScheduleEntry[] & { warning?: string };
   if(schedule.status==='rejected' || board.status==='rejected') result.warning = 'MPK: nie wszystkie dane są dostępne; pokazano dostępny rozkład.';
+  if(realtimeUnavailable && schedule.status === 'rejected' && board.status === 'rejected') throw schedule.reason;
+  if(realtimeUnavailable) result.warning = 'MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.';
   return result;
 }
 

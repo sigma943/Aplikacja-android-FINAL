@@ -167,7 +167,7 @@ export default function BusMap({
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const routeHaloOpts = { pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
   const routeGlowOpts = { pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
-  const routePolylineOpts = { pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
+  const routePolylineOpts = { className: 'mks-route-line', pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 } as L.PolylineOptions;
   const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
   const routeDirection = normalizeRouteCachePart(
     selectedVehicle?.direction ||
@@ -201,6 +201,12 @@ export default function BusMap({
 
     if (routeGeometryStops.length < 2) {
       startTransition(() => setSnappedRoute([]));
+      return;
+    }
+
+    const suppliedGeometry = selectedVehicle.routeGeometry;
+    if (suppliedGeometry && suppliedGeometry.length > 1 && roadRouteMatchesStops(suppliedGeometry, routeGeometryStops.map(stop => [stop.lat, stop.lon]), 180)) {
+      setSnappedRoute(simplifyRouteForPaint(suppliedGeometry));
       return;
     }
 
@@ -293,7 +299,7 @@ export default function BusMap({
       cancelled = true;
       controller.abort();
     };
-  }, [routeKey, routeStopsHash, selectedVehicle?.provider, selectedVehicle?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeKey, routeStopsHash, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.routeGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 
