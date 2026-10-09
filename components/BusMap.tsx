@@ -401,7 +401,7 @@ export default function BusMap({
         />
 
         <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} stops={mapStops} color={selectedStopColor}/>
-        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={selectedCatalogStopId} onSelect={onMapStopClick}/>}
+        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={selectedCatalogStopId} selectedColor={selectedVehicle?selectedStopColor:undefined} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
