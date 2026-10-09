@@ -8,7 +8,7 @@ export default function WidgetPersonalization({value,onChange,dark}:{value:Widge
   const set=<K extends keyof WidgetAppearance>(key:K,next:WidgetAppearance[K])=>onChange({...value,[key]:next});
   const choice=(active:boolean)=>`ui-accent-focus rounded-xl border px-3 py-2.5 text-xs transition-colors ${active?'ui-accent-soft border-[var(--pks-accent)]':dark?'border-white/10 bg-white/[.035]':'border-slate-200 bg-slate-50'}`;
   const select=(key:'surface'|'density'|'textSize'|'lineColors',label:string,options:{value:string;label:string}[])=><fieldset><legend className="mb-2 text-xs font-semibold">{label}</legend><div className="flex flex-wrap gap-2">{options.map(option=><button type="button" key={option.value} aria-pressed={value[key]===option.value} onClick={()=>set(key,option.value as WidgetAppearance[typeof key])} className={choice(value[key]===option.value)}>{option.label}</button>)}</div></fieldset>;
-  return <section className={`overflow-hidden rounded-2xl border ${dark?'border-white/10':'border-slate-200'}`}>
+  return <section className={`widget-personalization overflow-hidden rounded-2xl border ${dark?'border-white/10':'border-slate-200'}`}>
     <button type="button" aria-expanded={expanded} aria-controls="widget-personalization-options" onClick={()=>setExpanded(old=>!old)} className="ui-accent-focus flex w-full items-center gap-3 p-4 text-left">
       <span className="ui-accent-soft rounded-xl p-2"><SlidersHorizontal size={18}/></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Więcej opcji personalizacji</span><span className="mt-1 block text-xs opacity-60">Przezroczystość, kolory i szczegóły wyglądu</span></span><ChevronDown size={18} className={`shrink-0 transition-transform ${expanded?'rotate-180':''}`}/>
     </button>
@@ -24,7 +24,7 @@ export default function WidgetPersonalization({value,onChange,dark}:{value:Widge
         ['highlightNext','Wyróżnij najbliższy odjazd'],['showDirections','Pokazuj kierunki'],
         ['showDelay','Pokazuj opóźnienie w minutach'],['showSeparators','Oddzielaj odjazdy linią'],
         ['showStatus','Pokazuj godzinę aktualizacji'],
-      ] as const).map(([key,label])=><label key={key} className="flex min-h-11 cursor-pointer items-center justify-between gap-3 border-b border-current/5 py-2 text-xs"><span>{label}</span><input type="checkbox" checked={value[key]} onChange={event=>set(key,event.target.checked)} style={{accentColor:value.accentColor}}/></label>)}<p className="pt-2 text-[11px] leading-relaxed opacity-60">Ostrzeżenie o nieaktualnych danych pozostaje widoczne. Mały widżet dopasowuje zawartość do dostępnego miejsca.</p></div>
+      ] as const).map(([key,label])=><label key={key} className="flex min-h-11 cursor-pointer items-center justify-between gap-3 border-b border-current/5 py-2 text-xs"><span>{label}</span><input type="checkbox" role="switch" aria-label={label} checked={value[key]} onChange={event=>set(key,event.target.checked)} style={{accentColor:value.accentColor}}/></label>)}<p className="pt-2 text-[11px] leading-relaxed opacity-60">Ostrzeżenie o nieaktualnych danych pozostaje widoczne. Mały widżet dopasowuje zawartość do dostępnego miejsca.</p></div>
       <button type="button" onClick={()=>onChange({...DEFAULT_WIDGET_APPEARANCE})} className="ui-accent-focus flex items-center gap-2 rounded-lg py-2 text-xs opacity-65"><RotateCcw size={14}/>Przywróć domyślny wygląd</button>
     </div>}
   </section>;

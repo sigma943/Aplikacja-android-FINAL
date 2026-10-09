@@ -1,0 +1,82 @@
+.widget-generator {
+  --widget-control-surface: rgba(255, 255, 255, .045);
+  --widget-control-border: rgba(255, 255, 255, .1);
+}
+.widget-generator[data-ui-mode="light"] {
+  --widget-control-surface: #f8fafc;
+  --widget-control-border: #e2e8f0;
+}
+.widget-generator header { padding-bottom: 20px; }
+.widget-generator .widget-settings-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--widget-control-border);
+  border-radius: 20px;
+  background: var(--widget-control-surface);
+}
+.widget-generator .widget-settings-card > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 12px;
+}
+.widget-generator .widget-settings-card > legend + * { clear: both; }
+.widget-generator label:has(input[type="radio"]) { cursor: pointer; min-height: 48px; }
+.widget-generator input[type="radio"] {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 2px solid var(--widget-control-border);
+  border-radius: 50%;
+  background: var(--widget-control-surface);
+}
+.widget-generator input[type="radio"]:checked {
+  border: 6px solid var(--pks-accent);
+  background: #fff;
+}
+.widget-generator input[role="switch"] {
+  appearance: none;
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid var(--widget-control-border);
+  border-radius: 999px;
+  background: #64748b;
+  cursor: pointer;
+  transition: background-color .16s;
+}
+.widget-generator input[role="switch"]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.18);
+  transition: transform .16s;
+}
+.widget-generator input[role="switch"]:checked { background: var(--pks-accent); border-color: transparent; }
+.widget-generator input[role="switch"]:checked::after { transform: translateX(18px); }
+.widget-generator input:focus-visible {
+  outline: 2px solid var(--pks-accent);
+  outline-offset: 4px;
+}
+.widget-generator .widget-personalization { border-radius: 20px; background: var(--widget-control-surface); }
+.widget-generator .widget-personalization > button { padding: 18px 16px; }
+.widget-generator .widget-personalization label:has(input[role="switch"]) { min-height: 56px; }
+.widget-generator .widget-personalization output {
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--widget-control-surface);
+  font-variant-numeric: tabular-nums;
+}
+.widget-generator .widget-personalization input[type="range"] { min-height: 28px; cursor: pointer; }
+.widget-generator .widget-personalization button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--pks-accent); }
+.widget-generator footer { background: inherit; }
+@media (prefers-reduced-motion: reduce) {
+  .widget-generator input[role="switch"],
+  .widget-generator input[role="switch"]::after { transition: none; }
+}
