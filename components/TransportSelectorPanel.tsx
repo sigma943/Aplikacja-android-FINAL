@@ -169,7 +169,7 @@ export default function TransportSelectorPanel({
                     <motion.button key={option.id} type="button" disabled={!option.enabled}
                       aria-label={name} aria-pressed={selected} onClick={() => option.enabled && onToggle(option.id)}
                       whileTap={{ scale: 0.96 }}
-                      className={`relative flex min-w-0 flex-col items-center overflow-hidden rounded-[20px] border px-2 pb-3 pt-3 text-center transition-colors disabled:opacity-40 ${theme.cardBase} ${selected ? 'ui-accent-border' : theme.cardIdle}`}
+                      data-interface-card className={`relative flex min-w-0 flex-col items-center overflow-hidden rounded-[20px] border px-2 pb-3 pt-3 text-center transition-colors disabled:opacity-40 ${theme.cardBase} ${selected ? 'ui-accent-border' : theme.cardIdle}`}
                       style={selected ? { backgroundColor: 'var(--pks-accent-soft)' } : undefined}>
                       <span className={`absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border ${selected ? 'ui-accent-solid border-transparent' : 'border-current opacity-20'}`}>
                         {selected && <Check size={12} strokeWidth={3}/>}
@@ -208,7 +208,7 @@ export default function TransportSelectorPanel({
                           }`}
                         >
                           <div
-                            className={`relative aspect-square overflow-hidden rounded-[14px] border transition-all sm:aspect-[1.24] sm:rounded-[22px] ${theme.cardBase} ${
+                            data-interface-card className={`relative aspect-square overflow-hidden rounded-[14px] border transition-all sm:aspect-[1.24] sm:rounded-[22px] ${theme.cardBase} ${
                               isSelected
                                 ? 'shadow-[0_20px_48px_rgba(0,0,0,0.22)]'
                                 : theme.cardIdle

@@ -16,8 +16,9 @@ import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {uiAccentVariables} from '@/lib/ui-accent';
 import {MapHeader,BottomNavigation,StopTabIcon} from '@/components/ApplicationChrome';
-import {panelGlowStrength,panelGlowVariables} from '@/lib/panel-glow';
-import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppearance,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
+import {applyScheduledProfile} from '@/lib/personalization-profiles';
+import {panelGlowStrength} from '@/lib/panel-glow';
+import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
@@ -123,7 +124,8 @@ export default function Home() {
   },[selectedBus?.id]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isOptionsExpanded, setIsOptionsExpanded] = useState(false);
+  const [isOptionsExpanded, setIsOptionsExpanded] = useState(true);
+  const openOptions = () => { setIsOptionsExpanded(true); setIsSettingsOpen(true); };
   useEffect(() => {
     if (!isSettingsOpen) setIsOptionsExpanded(false);
   }, [isSettingsOpen]);
@@ -148,8 +150,10 @@ export default function Home() {
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
+  const [initialFavoritesOnly,setInitialFavoritesOnly]=useState(false);
+  const startScreenApplied=useRef(false);
   const [widgetStop,setWidgetStop]=useState<StopsPanelStop|null>(null);
-  useEffect(()=>onWidgetOpen(stop=>{setWidgetStop(stop);setActiveTab('stops');}),[]);
+  useEffect(()=>onWidgetOpen(stop=>{startScreenApplied.current=true;setWidgetStop(stop);setActiveTab('stops');}),[]);
   const [hasOpenedStops, setHasOpenedStops] = useState(false);
   useEffect(() => {
     if (activeTab === 'stops') setHasOpenedStops(true);
@@ -293,6 +297,7 @@ export default function Home() {
   const mapDepartureError=[...new Set([...mapToday.warnings,...mapTomorrow.warnings])].join(' ')||null;
 
   useEffect(() => {
+    applyScheduledProfile();
     const storedProviders = sanitizeProvidersWithVisibility(readStoredTransportProviders(), hiddenProvidersSet);
     activeProvidersRef.current = storedProviders;
     setActiveProviders(storedProviders);
@@ -311,7 +316,9 @@ export default function Home() {
     const sTrans = localStorage.getItem('mks_transparent');
     setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');
     setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
-    try{setInterfaceAppearance(normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')));}catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
+    try{const savedAppearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));setInterfaceAppearance(savedAppearance);
+      if(!startScreenApplied.current){startScreenApplied.current=true;if(savedAppearance.startScreen!=='map'){setInitialFavoritesOnly(savedAppearance.startScreen==='favorites');setActiveTab('stops');}}
+    }catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
     setTimeout(()=>setLightEffects(localStorage.getItem('mks_light_effects')==='true'),0);
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
     const favs = localStorage.getItem('mks_fav_stops');
@@ -327,12 +334,21 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex); };
+  useEffect(()=>{
+    const update=()=>{
+      try{setInterfaceAppearance(normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')));}catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
+      const theme=localStorage.getItem('mks_app_theme')||'dark-oled';if(['light','light-warm','dark','dark-oled','dark-aurora','system'].includes(theme))setAppTheme(theme as typeof appTheme);setThemeColor(localStorage.getItem('mks_theme')||'#00a3a2');
+      setTransparentUI(localStorage.getItem('mks_transparent')!=='false');setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
+    };
+    window.addEventListener('pks-profile-applied',update);return()=>window.removeEventListener('pks-profile-applied',update);
+  },[]);
+
+  const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex);window.dispatchEvent(new Event('pks-interface-appearance')); };
   const saveMapStops=(value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));};
   const saveInactive = (val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); };
   const saveAppTheme = (val: any) => {
     setAppTheme(val);
-    localStorage.setItem('mks_app_theme', val);
+    localStorage.setItem('mks_app_theme', val);window.dispatchEvent(new Event('pks-interface-appearance'));
     const actual = val === 'system' ? (systemIsDark ? 'dark' : 'light') : val;
     const bg =
       actual === 'light'
@@ -354,11 +370,11 @@ export default function Home() {
     document.documentElement.style.backgroundColor = bg;
     document.body.style.backgroundColor = bg;
   };
-  const saveLightEffects=(value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));};
+  const saveLightEffects=(value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));};
   const saveInterfaceAppearance=(value:InterfaceAppearance)=>{const normalized=normalizeInterfaceAppearance(value);setInterfaceAppearance(normalized);localStorage.setItem(INTERFACE_APPEARANCE_KEY,JSON.stringify(normalized));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const savePanelGlow=(value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));};
-  const saveGlowStrength=(value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));};
-  const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val)); };
+  const savePanelGlow=(value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));};
+  const saveGlowStrength=(value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));window.dispatchEvent(new Event('pks-interface-appearance'));};
+  const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val));window.dispatchEvent(new Event('pks-interface-appearance')); };
 
   const deferredFilterRoute = useDeferredValue(filterRoute);
   const handleManualRefresh = async () => {
@@ -921,13 +937,6 @@ export default function Home() {
       document.documentElement.style.setProperty(key, value);
     }
   }, [themeColor, isDark]);
-  useEffect(()=>{
-    const root=document.documentElement;
-    root.dataset.panelGlow=panelGlow&&glowStrength>0?'on':'off';
-    for(const [key,value] of Object.entries(panelGlowVariables(interfaceAppearance.glowColor,glowStrength,isDark,lightEffects,{style:interfaceAppearance.glowStyle,spread:interfaceAppearance.glowSpread,placement:interfaceAppearance.glowPlacement})))root.style.setProperty(key,value);
-    return ()=>{delete root.dataset.panelGlow;for(const key of Object.keys(panelGlowVariables(interfaceAppearance.glowColor,glowStrength,isDark,lightEffects,{style:interfaceAppearance.glowStyle,spread:interfaceAppearance.glowSpread,placement:interfaceAppearance.glowPlacement})))root.style.removeProperty(key);};
-  },[panelGlow,glowStrength,interfaceAppearance,isDark,lightEffects]);
-  useEffect(()=>applyInterfaceAppearance(document.documentElement,interfaceAppearance,isDark,themeColor,lightEffects,actualTheme),[interfaceAppearance,isDark,themeColor,lightEffects,actualTheme]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1215,13 +1224,13 @@ export default function Home() {
              />
 
             {/* Overlays for Map */}
-            <div className={`absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none ${activeTab === 'map' ? 'flex' : 'hidden'} flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+            <div data-map-toolbar data-map-detail={Boolean(selectedBus||selectedStopId)} className={`absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none ${activeTab === 'map' ? 'flex' : 'hidden'} flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
               
               {/* Top Box Mobile / Desktop */}
               <MapHeader mapGlassPanel={mapGlassPanel} mapGlassInput={mapGlassInput} themeColor={themeColor} transparentUI={transparentUI} isDark={isDark} isManualRefreshing={isManualRefreshing} showAlertDot={showAlertDot} error={error} isOffline={isOffline} textSub={textSub} filterRoute={filterRoute} setFilterRoute={setFilterRoute} handleManualRefresh={handleManualRefresh} closeMapPanelsForSearch={closeMapPanelsForSearch}/>
 
 
-              <div className="flex w-full justify-end md:hidden pointer-events-auto -mt-2 pr-1">
+              <div data-map-carriers className="flex w-full justify-end md:hidden pointer-events-auto -mt-2 pr-1">
                 <button
                   type="button"
                   onClick={openTransportPanel}
@@ -1271,7 +1280,7 @@ export default function Home() {
                  )}
                  <div className={`w-px h-4 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
                  <button 
-                    onClick={() => setIsSettingsOpen(true)}
+                    onClick={openOptions}
                     className={`p-2 -mr-2 rounded-full transition-colors border ${isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-400' : 'bg-slate-50 hover:bg-slate-100 border-slate-100 text-slate-500'}`}
                     title="Ustawienia"
                  >
@@ -1377,6 +1386,7 @@ export default function Home() {
             aria-hidden={activeTab !== 'stops'}
          >
             {hasOpenedStops && <StopsPanel
+               initialFavoritesOnly={initialFavoritesOnly}
                initialStop={widgetStop}
                active={activeTab === 'stops'}
                stops={stopsList}
@@ -1409,11 +1419,11 @@ export default function Home() {
 
          {/* Bottom Navigation for Mobile */}
       <div className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
-         <BottomNavigation activeTab={activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
+         <BottomNavigation order={interfaceAppearance.navOrder} activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
             onMap={()=>{if(!isMapTabDisabled){setActiveTab('map');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);}}}
             onStops={()=>{if(!isStopsTabDisabled){setActiveTab('stops');setSelectedBus(null);}}}
             onAdmin={()=>{if(activeTab!=='admin')adminReturnTab.current=activeTab==='stops'?'stops':'map';setActiveTab('admin');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);setIsSettingsOpen(false);}}
-            onOptions={()=>setIsSettingsOpen(true)}/>
+            onOptions={openOptions}/>
 
       </div>
 
@@ -1427,7 +1437,7 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <OptionsContent chrome={{mapGlassPanel,mapGlassInput,textSub,bottomGlassShell}} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={()=>setIsOptionsExpanded(true)} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
+            <OptionsContent canOpenAdminEmbed={canOpenAdminEmbed} chrome={{mapGlassPanel,mapGlassInput,textSub,bottomGlassShell}} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={()=>setIsOptionsExpanded(true)} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
         )}
       </AnimatePresence>

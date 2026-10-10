@@ -127,12 +127,13 @@ const createBusIcon = (
     <div class="mks-marker-inner relative flex flex-col items-center justify-start ${isSelClass}" style="width: 48px; height: 68px; ${filterStyle}">
       
       <div class="relative z-10 h-[48px] w-[34px] ${isHighVolume ? '' : 'drop-shadow-sm'}">
+        <span class="marker-carrier-label">${markerColor === MPK_RZESZOW_COLOR ? 'MPK' : markerColor === MARCEL_COLOR ? 'M' : 'PKS'}</span>
         ${busFrontSvg(display, markerColor, Boolean(isSelected))}
       </div>
 
       ${numberLabel ? `
         <!-- Minimal Vehicle ID -->
-        <div class="mt-1 border border-slate-200 rounded px-1.5 py-[1px] text-[8px] tracking-wide font-bold max-w-[44px] truncate text-center ${isHighVolume?'':'shadow-sm'} flex items-center justify-center gap-1" style="background-color: rgba(255,255,255,0.95); color: #64748b;">
+        <div class="marker-number mt-1 border border-slate-200 rounded px-1.5 py-[1px] text-[8px] tracking-wide font-bold max-w-[44px] truncate text-center ${isHighVolume?'':'shadow-sm'} flex items-center justify-center gap-1" style="background-color: rgba(255,255,255,0.95); color: #64748b;">
           <span>${numberLabel}</span>
         </div>
       ` : ''}
@@ -143,7 +144,7 @@ const createBusIcon = (
 
   return L.divIcon({
     className: 'mks-bus-marker !bg-transparent !border-0',
-    html: html,
+    html: `<div class="mks-marker-appearance">${html}</div>`,
     iconSize: [48, 72],
     iconAnchor: [24, 46],
     popupAnchor: [0, -46],
@@ -181,11 +182,11 @@ const createTrainIcon = (
     <div class="mks-marker-inner relative flex flex-col items-center justify-start ${isSelClass}" style="width: 58px; height: 72px;">
       <div class="relative flex h-[45px] w-[45px] items-center justify-center rounded-[12px] border-2 border-white bg-white ${isHighVolume ? '' : 'shadow-lg'} overflow-hidden">
         <img src="/train-icons/${category}.svg" alt="" class="h-[38px] w-[38px] object-contain" />
-        <div class="absolute left-1 top-1 rounded bg-[#1d4ed8] px-1 text-[8px] font-black leading-3 text-white">${display}</div>
+        <div class="marker-train-line absolute left-1 top-1 rounded bg-[#1d4ed8] px-1 text-[8px] font-black leading-3 text-white">${display}</div>
         ${isSelected ? `<div class="absolute inset-0 bg-blue-400/10 pointer-events-none"></div>` : ''}
       </div>
       ${numberLabel ? `
-        <div class="mt-1 border border-slate-200 rounded px-1.5 py-[1px] text-[8px] tracking-wide font-bold max-w-[54px] truncate text-center ${isHighVolume ? '' : 'shadow-sm'} flex items-center justify-center" style="background-color: rgba(255,255,255,0.96); color: #1e3a8a;">
+        <div class="marker-number mt-1 border border-slate-200 rounded px-1.5 py-[1px] text-[8px] tracking-wide font-bold max-w-[54px] truncate text-center ${isHighVolume ? '' : 'shadow-sm'} flex items-center justify-center" style="background-color: rgba(255,255,255,0.96); color: #1e3a8a;">
           <span>${numberLabel}</span>
         </div>
       ` : ''}
@@ -195,7 +196,7 @@ const createTrainIcon = (
 
   return L.divIcon({
     className: 'mks-bus-marker mks-train-marker !bg-transparent !border-0',
-    html,
+    html: `<div class="mks-marker-appearance"><span class="marker-carrier-label marker-train-carrier">PKP</span>${html}</div>`,
     iconSize: [58, 74],
     iconAnchor: [29, 50],
     popupAnchor: [0, -50],

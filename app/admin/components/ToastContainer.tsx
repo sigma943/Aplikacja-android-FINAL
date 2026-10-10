@@ -27,7 +27,7 @@ export function ToastContainer({ toasts, onClose }: ToastContainerProps) {
             className="w-full max-w-sm pointer-events-auto"
           >
             <div className={cn(
-              "relative overflow-hidden bg-[#0F131D]/95 backdrop-blur-xl border border-white/5 rounded-[1.25rem] p-4 flex items-center justify-between shadow-2xl",
+              "pks-personal-card relative overflow-hidden bg-[#0F131D]/95 backdrop-blur-xl border border-white/5 rounded-[1.25rem] p-4 flex items-center justify-between shadow-2xl",
               toast.type === 'ban' ? "shadow-[0_10px_40px_rgba(244,63,94,0.15)]" : "shadow-[0_10px_40px_rgba(16,185,129,0.15)]"
             )}>
               {/* Left Accent Glow Line */}

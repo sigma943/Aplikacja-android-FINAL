@@ -1155,7 +1155,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       {/* Modal: edycja własnej nazwy (imię i nazwisko) */}
       {isEditProfileOpen && (
         <AdminModalPortal><div role="dialog" aria-modal="true" aria-label="Twoja nazwa" className="admin-modal-overlay bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-sm max-h-full overflow-y-auto rounded-3xl border border-white/10 bg-[#0d1117] p-6 shadow-2xl flex flex-col gap-4">
+          <div className="pks-personal-card w-full max-w-sm max-h-full overflow-y-auto rounded-3xl border border-white/10 bg-[#0d1117] p-6 shadow-2xl flex flex-col gap-4">
             <div>
               <h2 className="text-lg font-black text-white">Twoja nazwa</h2>
               <p className="text-xs text-slate-400 mt-1">Wpisz imię i nazwisko, które będzie widoczne w panelu zamiast nazwy urządzenia.</p>
@@ -1208,7 +1208,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {embedded && onExit && (
-          <div className="admin-topbar sticky top-0 z-30 hidden justify-end bg-[#040609]/90 px-4 py-4 backdrop-blur md:flex md:px-6">
+          <div data-interface-panel className="admin-topbar sticky top-0 z-30 hidden justify-end bg-[#040609]/90 px-4 py-4 backdrop-blur md:flex md:px-6">
             <button
               type="button"
               aria-label="Zamknij panel administratora"

@@ -3,7 +3,7 @@ import { Clock } from 'lucide-react';
 export function BanScreen() {
   return (
     <div className="min-h-screen bg-[#040609] flex items-center justify-center p-6">
-      <div className="w-full max-w-4xl bg-[#0F131D] border border-white/5 border-t-white/10 rounded-3xl overflow-hidden shadow-2xl relative">
+      <div className="pks-personal-card w-full max-w-4xl bg-[#0F131D] border border-white/5 border-t-white/10 rounded-3xl overflow-hidden shadow-2xl relative">
         <div className="absolute inset-0 bg-rose-500/5 mix-blend-overlay pointer-events-none" />
         
         <div className="flex flex-col md:flex-row h-full">
@@ -16,7 +16,7 @@ export function BanScreen() {
 
             <div className="space-y-4 max-w-sm">
               
-              <div className="flex items-center gap-4 bg-[#151B28] border border-white/5 border-t-white/10 rounded-2xl p-5">
+              <div className="pks-personal-card flex items-center gap-4 bg-[#151B28] border border-white/5 border-t-white/10 rounded-2xl p-5">
                  <div className="text-rose-500">
                     <Clock size={24} />
                  </div>
@@ -26,7 +26,7 @@ export function BanScreen() {
                  </div>
               </div>
 
-              <div className="flex items-center gap-4 bg-[#151B28] border border-white/5 border-t-white/10 rounded-2xl p-5">
+              <div className="pks-personal-card flex items-center gap-4 bg-[#151B28] border border-white/5 border-t-white/10 rounded-2xl p-5">
                  <div className="text-rose-500">
                     <Clock size={24} />
                  </div>

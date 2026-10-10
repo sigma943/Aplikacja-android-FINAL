@@ -328,7 +328,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
                         transition={animateDepartures ? { duration: 0.3, delay: Math.min(idx * 0.06, 0.3) } : { duration: 0 }}
                         key={dep.id}
-                        data-interface-row
+                        data-interface-row data-departure-row
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? `border-b ${rowBorderClass}` : ''} ${rowClass} transition-colors cursor-pointer ${isPast ? (isDarkTheme ? 'bg-black/15' : 'bg-slate-100/70') : ''}`}
                       >
                         {/* Left Side: Line Badge & Directions */}
@@ -352,8 +352,9 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                                  </span>
                                 )}
                              </div>
+                             {dep.carrier?.name&&<div data-departure-extra className={`mt-0.5 text-[10px] ${mutedTextClass}`}>{dep.carrier.name}</div>}
                              {dep.vehicleDesc && (
-                               <div className={`flex items-center text-[10px] sm:text-[11px] mt-0.5 truncate ${mutedTextClass}`}>
+                               <div data-departure-extra className={`flex items-center text-[10px] sm:text-[11px] mt-0.5 truncate ${mutedTextClass}`}>
                                  <Navigation size={9} className={`mr-1 rotate-[135deg] shrink-0 ${isPast ? 'text-slate-500' : dep.carrier?.colorClass || 'text-teal-400'}`} />
                                  {dep.vehicleDesc}
                                </div>

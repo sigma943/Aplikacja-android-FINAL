@@ -1,4 +1,5 @@
 'use client';
+import {NAV_ITEMS,type NavItem} from '@/lib/interface-appearance';
 import type {CSSProperties} from 'react';
 import {motion} from 'motion/react';
 import {Bus,Search,RefreshCw,X,Map as MapIcon,Settings,Shield} from 'lucide-react';
@@ -65,54 +66,16 @@ export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,
               </div>
 );}
 
-type NavigationProps={preview?:boolean;activeTab:string;className:string;themeColor:string;isMapTabDisabled?:boolean;isStopsTabDisabled?:boolean;canOpenAdminEmbed?:boolean;onMap:()=>void;onStops:()=>void;onAdmin?:()=>void;onOptions:()=>void};
-export function BottomNavigation({preview=false,activeTab,className,themeColor,isMapTabDisabled=false,isStopsTabDisabled=false,canOpenAdminEmbed=false,onMap,onStops,onAdmin,onOptions}:NavigationProps){return (
-<div className={`pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${className}`}>
-            <button 
-               disabled={isMapTabDisabled}
-               aria-current={activeTab==='map'?'page':undefined}
-               aria-label="Mapa"
-               onClick={onMap}
-               className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${isMapTabDisabled ? 'cursor-not-allowed opacity-35 grayscale' : activeTab === 'map' ? '' : 'hover:text-current/90'}`}
-               style={activeTab === 'map' ? { color: themeColor } : {}}
-            >
-               <MapIcon className="h-6 w-6" />
-               <span data-nav-label className="text-[11px] font-semibold leading-none">Mapa</span>
-               {activeTab === 'map' && <motion.span data-nav-indicator layoutId={preview?undefined:'navigation-active-tab'} transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
-            </button>
-            <button 
-               disabled={isStopsTabDisabled}
-               aria-current={activeTab==='stops'?'page':undefined}
-               aria-label="Przystanki"
-               onClick={onStops}
-               className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${isStopsTabDisabled ? 'cursor-not-allowed opacity-35 grayscale' : activeTab === 'stops' ? '' : 'hover:text-current/90'}`}
-               style={activeTab === 'stops' ? { color: themeColor } : {}}
-            >
-               <StopTabIcon className="h-6 w-6" />
-               <span data-nav-label className="text-[11px] font-semibold leading-none">Przystanki</span>
-               {activeTab === 'stops' && <motion.span data-nav-indicator layoutId={preview?undefined:'navigation-active-tab'} transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
-            </button>
-            {canOpenAdminEmbed && (
-               <button 
-                  type="button"
-                  aria-current={activeTab==='admin'?'page':undefined}
-                  aria-label="Admin"
-                  onClick={onAdmin}
-                  className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${activeTab === 'admin' ? '' : 'hover:text-current/90'}`}
-                  style={activeTab === 'admin' ? { color: themeColor } : {}}
-               >
-                  <Shield className="h-6 w-6" />
-                  <span data-nav-label className="text-[11px] font-semibold leading-none">Admin</span>
-                  {activeTab === 'admin' && <motion.span data-nav-indicator layoutId={preview?undefined:'navigation-active-tab'} transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
-               </button>
-            )}
-            <button 
-               aria-label="Opcje"
-               onClick={onOptions}
-               className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors hover:text-current/90"
-            >
-               <Settings className="h-6 w-6" />
-               <span data-nav-label className="text-[11px] font-semibold leading-none">Opcje</span>
-            </button>
-         </div>
-);}
+type NavigationProps={preview?:boolean;order?:readonly NavItem[];activeTab:string;className:string;themeColor:string;isMapTabDisabled?:boolean;isStopsTabDisabled?:boolean;canOpenAdminEmbed?:boolean;onMap:()=>void;onStops:()=>void;onAdmin?:()=>void;onOptions:()=>void};
+export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,className,themeColor,isMapTabDisabled=false,isStopsTabDisabled=false,canOpenAdminEmbed=false,onMap,onStops,onAdmin,onOptions}:NavigationProps){
+ const items={map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
+ return <div className={`pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${className}`}>
+  {order.filter(id=>id!=='admin'||canOpenAdminEmbed).map(id=>{
+   const item=items[id],Icon=item.Icon,active=activeTab===id;
+   return <button type="button" key={id} data-nav-item={id} disabled={item.disabled} aria-current={active?'page':undefined} aria-label={item.label} onClick={item.onClick} className={`relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${item.disabled?'cursor-not-allowed opacity-35 grayscale':active?'':'hover:text-current/90'}`} style={active?{color:themeColor}:{}}>
+    <Icon className="h-6 w-6"/><span data-nav-label className="text-[11px] font-semibold leading-none">{item.label}</span>
+    {active&&<motion.span data-nav-indicator layoutId={preview?undefined:'navigation-active-tab'} transition={{type:'spring',stiffness:420,damping:36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{backgroundColor:themeColor}}/>}
+   </button>;
+  })}
+ </div>;
+}

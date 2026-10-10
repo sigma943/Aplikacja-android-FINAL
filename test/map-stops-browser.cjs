@@ -21,11 +21,10 @@ try{
   if(url.startsWith(origin))return request.continue();return request.abort();
  });
  const button=async label=>page.evaluate(text=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text)?.click(),label);
- const option=async()=>{await button('Opcje');await page.waitForSelector('[aria-label="Rozwiń opcje"]');
-  // Wait for the sheet to enter before pointer-down: movement under the pointer
-  // during its spring transition is correctly interpreted as a drag, not a tap.
+ const option=async()=>{await button('Opcje');await page.waitForSelector('[data-options-sheet][data-expanded="true"]');
+  // Wait for the expanded sheet to settle before interacting with its controls.
   await page.waitForFunction(()=>{const sheet=document.querySelector('[data-options-sheet]');if(!sheet)return false;const transform=getComputedStyle(sheet).transform;return transform==='none'||Math.abs(new DOMMatrixReadOnly(transform).m42)<.5;});
-  await page.click('[aria-label="Rozwiń opcje"]');await page.waitForFunction(()=>document.querySelector('[data-options-sheet]')?.dataset.expanded==='true');await page.evaluate(()=>document.querySelector('[aria-label="Pokaż przystanki na mapie"]').click());await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});};
+  assert.equal(await page.$eval('[data-options-sheet]',el=>el.dataset.expanded),'true','settings open expanded');await page.evaluate(()=>document.querySelector('[aria-label="Pokaż przystanki na mapie"]').click());await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});};
  await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-container');
  assert.equal(await page.$$('.map-catalog-stop').then(rows=>rows.length),0,'stops are disabled initially');
  await option();

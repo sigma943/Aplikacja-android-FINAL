@@ -162,6 +162,13 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.querySelector('.transit-view').innerText.includes('Rzeszów'));
     assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(139, 92, 246)');
     await overflow();await screenshot('departures-dark-purple');
+    const departureDirection=await page.$eval('[data-departure-row] h4',el=>el.textContent);
+    const detailedDepartureHeight=await page.$eval('[data-departure-row]',el=>el.getBoundingClientRect().height);
+    await page.evaluate(()=>document.documentElement.dataset.personalDepartures='simple');
+    assert.ok(await page.$eval('[data-departure-row]',el=>el.getBoundingClientRect().height)<detailedDepartureHeight,'simple departures visibly reduce row height');
+    assert.ok(await page.$eval('[data-departure-row]',(el,direction)=>el.innerText.includes(direction),departureDirection),'simple departures keep the direction');
+    await page.evaluate(()=>document.documentElement.dataset.personalDepartures='detailed');
+
     assert.ok(await page.$eval('.transit-view',el=>parseFloat(getComputedStyle(el).paddingBottom))<=90,'departure detail has one compact bottom inset');
     assert.equal(await page.$eval('[data-stop-lines]',el=>parseFloat(getComputedStyle(el).paddingBottom)),0,'line badges do not add a second spacer');
     await accent('Niebieski');
@@ -225,6 +232,9 @@ const server=http.createServer((req,res)=>{
     assert.notEqual(await style('[data-map-stop-sheet]','backgroundColor'),oledGlass,'dark and AMOLED have distinct glass palettes');
     assert.equal(await page.$$eval('.map-stop-handle .rounded-2xl',els=>els.length),0,'stop handle retains only the title and arrow');
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');await new Promise(resolve=>setTimeout(resolve,650));
+    assert.equal(await page.$eval('[data-options-sheet]',el=>el.dataset.expanded),'true','options open expanded');
+    assert.ok(await page.$eval('[data-options-scroll]',el=>el.clientHeight-el.querySelector('[data-options-content]').getBoundingClientRect().height)<24,'general settings fit their content without a blank gap');
+    await page.click('[aria-label="Zwiń opcje"]');await new Promise(resolve=>setTimeout(resolve,650));
     const compactHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
     const optionsHandle=await page.$('[aria-label="Rozwiń opcje"]');const optionsBounds=await optionsHandle.boundingBox();
     const handleX=optionsBounds.x+optionsBounds.width/2,handleY=optionsBounds.y+optionsBounds.height/2;
@@ -248,6 +258,7 @@ const server=http.createServer((req,res)=>{
     await new Promise(resolve=>setTimeout(resolve,650));await screenshot('options-compact');
     await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');
+    assert.equal(await page.$eval('[data-options-sheet]',el=>el.dataset.expanded),'true','reopening options expands them again');
     await page.waitForFunction(()=>history.state?.pksBackGuard===true);
     await page.evaluate(()=>history.back());await page.waitForSelector('[data-options-sheet]',{hidden:true});
     // Exercise real preferences against the map, reload persistence and the compact editor.
@@ -275,8 +286,26 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='off');
     for(let i=0;i<14;i++)await page.keyboard.press('ArrowRight');
     await page.waitForFunction(()=>localStorage.getItem('mks_panel_glow_strength')==='70');
+    const savedAccent=await page.evaluate(()=>localStorage.getItem('mks_theme'));
+    await page.$eval('[aria-label="Kolor poświaty: Fioletowy"]',el=>el.click());
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('mks_interface_appearance_v1')).glowColor==='#8b5cf6');
+    assert.equal(await page.$eval('[aria-label="Kolor poświaty: Fioletowy"]',el=>el.getAttribute('aria-pressed')),'true');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('mks_theme')),savedAccent,'glow palette is independent from the UI accent');
+    assert.equal(await page.$eval('[aria-label="Kolor miękkiej poświaty"]',el=>el.value),'#8b5cf6');
+    await page.$eval('[aria-label="Kolor poświaty: Turkusowy"]',el=>el.click());
+
     assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).backdropFilter),glowBlur,'soft patches preserve glass');
     await sameChrome();
+    for(const selector of ['[data-options-sheet]','.pks-navigation','.personal-group']){
+      assert.match(await page.$eval(selector,el=>getComputedStyle(el).backgroundImage),/radial-gradient/,'glow reaches settings, cards and navigation');
+    }
+    await openGroup('Wzór tła');await choose('Faktura paneli','Kropki');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalPattern==='dots');
+    for(const selector of ['.pks-map-surface','[data-options-sheet]','.pks-navigation','.personal-group']){
+      const background=await page.$eval(selector,el=>getComputedStyle(el).backgroundImage);
+      assert.match(background,/radial-gradient/);assert.match(background,/data:image\/svg\+xml/,'texture and glow coexist');
+    }
+    await choose('Faktura paneli','Gładkie');
     await choose('Zabarwienie paneli','Akcent');
     await range('Siła zabarwienia paneli','End');
     await page.waitForFunction(()=>document.documentElement.dataset.personalSurface==='accent'&&JSON.parse(localStorage.getItem('mks_interface_appearance_v1')).panelTintStrength===55);
@@ -338,14 +367,65 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$('[data-interface-preview]'),null,'preview can be hidden');
     await page.$eval('.personal-preview-wrap button',el=>el.click());
     await page.waitForSelector('[data-interface-preview]');
-    await page.evaluate(()=>[...document.querySelectorAll('.personal-presets button')].find(el=>el.textContent==='Czytelny').click());
+    await page.evaluate(()=>document.querySelector('.personal-presets [aria-label="Zestaw: Czytelny"]').click());
     await page.waitForFunction(()=>document.documentElement.dataset.personalText==='true');
     await page.setViewport({width:320,height:740,deviceScaleFactor:1});
     await screenshot('personalization-light-compact');
     assert.equal(await page.$eval('[data-options-sheet]',el=>el.scrollWidth>el.clientWidth+1),false,'personalization fits a narrow phone');
     assert.ok(await page.$eval('[data-options-scroll]',el=>el.scrollHeight>el.clientHeight),'advanced settings remain scrollable');
+    assert.ok(await page.$eval('.personal-reset',el=>{const style=getComputedStyle(el);return style.color!==style.backgroundColor&&style.backgroundColor!=='rgba(0, 0, 0, 0)';}),'reset has a contrasting label and solid surface on a light theme');
+    await openGroup('Nawigacja i profile');
+    const tools=await page.$('.personal-tools');assert.ok(tools);
+    assert.equal(await page.$eval('.personal-order',el=>el.innerText.includes('Admin')),Boolean(await page.$('.pks-navigation [data-nav-item="admin"]')),'tab order only shows Admin when the real navigation grants access');
+    assert.equal(await page.$eval('.personal-tools',el=>el.innerText.includes('Zakładka Admin jest widoczna')),false,'tab order has no Admin explanation');
+    const visibleTabOrder=await page.$$eval('.personal-order > div > span',els=>els.map(el=>el.textContent));
+    await page.$eval('[aria-label="Przesuń Opcje wcześniej"]',el=>el.click());
+    assert.deepEqual(await page.$$eval('.personal-order > div > span',els=>els.map(el=>el.textContent)),[...visibleTabOrder.slice(0,-2),'Opcje',visibleTabOrder.at(-2)],'moving skips tabs hidden by permissions');
+    await page.$eval('[aria-label="Przesuń Opcje później"]',el=>el.click());
+    const chooseTool=async(title,label)=>page.evaluate((title,label)=>[...document.querySelectorAll('.personal-tools .personal-field')].find(el=>el.querySelector('legend').textContent===title)?.querySelectorAll('button').forEach(el=>{if(el.textContent.trim()===label)el.click();}),title,label);
+    await chooseTool('Ekran startowy','Ulubione');await chooseTool('Obsługa jedną ręką','Lewa ręka');
+    await chooseTool('Podpis znacznika','Przewoźnik');
+    await page.$eval('[aria-label="Przesuń Przystanki wcześniej"]',el=>el.click());
+    await page.waitForFunction(()=>document.querySelector('.pks-navigation button').dataset.navItem==='stops');
+    await page.$eval('.personal-profile-save',el=>el.scrollIntoView({block:'center'}));
+    assert.ok(await page.$eval('.personal-profile-save button',el=>el.disabled),'save remains visible and disabled without a name');
+    assert.ok(await page.$eval('.personal-profile-save',el=>{const button=el.querySelector('button').getBoundingClientRect(),box=el.getBoundingClientRect();return button.width>0&&button.right<=box.right+1&&button.left>=box.left;}),'save fits next to the name at 320px');
+    await page.type('[aria-label="Nazwa własnego zestawu"]','Mój zestaw testowy');
+    await page.click('.personal-profile-save button');
+    await page.waitForSelector('[aria-label="Zastosuj zestaw Mój zestaw testowy"]');
+    await chooseTool('Podpis znacznika','Sama ikona');
+    await page.$eval('[aria-label="Zastosuj zestaw Mój zestaw testowy"]',el=>el.click());
+    await page.waitForFunction(()=>document.documentElement.dataset.personalMarker==='carrier'&&document.documentElement.dataset.personalHand==='left');
+    assert.equal(await page.$eval('.personal-tools',el=>el.scrollWidth>el.clientWidth+1),false,'profile and scheduling controls fit 320px');
+    await page.$eval('[aria-label="Usuń zestaw Mój zestaw testowy"]',el=>el.click());
+    await page.waitForSelector('[aria-label="Zastosuj zestaw Mój zestaw testowy"]',{hidden:true});
     await page.evaluate(()=>document.querySelector('.personal-reset').click());
     await page.waitForFunction(()=>document.documentElement.dataset.personalRadius==='false'&&document.documentElement.dataset.personalLabels==='true');
+    await openGroup('Nawigacja i ikony');
+    await choose('Układ nawigacji','Podpis obok ikony');await choose('Aktywna zakładka','Pełny akcent');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalLayout==='inline');
+    assert.equal(await page.$eval('.pks-navigation [aria-label="Opcje"]',el=>el.getAttribute('aria-current')),'page');
+    assert.equal(await page.$eval('.pks-navigation [aria-label="Opcje"]',el=>getComputedStyle(el).flexDirection),'row');
+    assert.notEqual(await page.$eval('.pks-navigation [aria-label="Opcje"]',el=>getComputedStyle(el,'::before').backgroundColor),'rgba(0, 0, 0, 0)');
+    assert.equal(await page.$eval('.pks-navigation',el=>el.scrollWidth>el.clientWidth+1),false,'inline navigation fits 320px');
+    await openGroup('Tekst i czytelność');await choose('Kontrast tekstu','Mocniejszy');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalContrast==='strong');
+    assert.equal(await page.$eval('.personal-note',el=>getComputedStyle(el).opacity),'1');
+    await openGroup('Wzór tła');await choose('Faktura paneli','Siatka');
+    await openGroup('Miękka poświata');await page.$eval('[aria-label="Miękka poświata paneli"]',el=>el.click());
+    await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on');
+    // Saving disables the focused button. Keys must still reach the active dialog.
+    await page.evaluate(()=>document.activeElement?.blur());
+    await page.keyboard.press('Tab');
+    assert.ok(await page.$eval('[data-options-sheet]',el=>el.contains(document.activeElement)),'Tab restores focus to the settings after the focused control becomes disabled');
+    await page.evaluate(()=>document.activeElement?.blur());
+    await page.keyboard.press('Escape');await page.waitForSelector('[data-options-sheet]',{hidden:true});
+    await page.click('.pks-navigation [aria-label="Przystanki"]');await page.waitForSelector('.transit-stop-card');
+    for(const selector of ['.transit-surface','.transit-stop-card']){
+      const background=await page.$eval(selector,el=>getComputedStyle(el).backgroundImage);
+      assert.match(background,/radial-gradient/);assert.match(background,/data:image\/svg\+xml/);
+    }
+    await screenshot('personalization-stops-texture');
     await page.evaluate(entries=>{for(const [key,value]of Object.entries(entries)){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}},savedAppearance);
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.reload({waitUntil:'domcontentloaded'});
@@ -355,6 +435,14 @@ const server=http.createServer((req,res)=>{
     await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on'&&localStorage.getItem('mks_panel_glow_strength')==='70');
     assert.deepEqual(await page.$eval('.mks-bus-marker svg[data-bus-glyph]',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))])),carrierGeometry,'map and carrier picker use exactly the same bus geometry');
+    for(const hand of ['left','right']){
+      await page.setViewport({width:320,height:740,deviceScaleFactor:1});
+      await page.evaluate(hand=>document.documentElement.dataset.personalHand=hand,hand);
+      assert.ok(await page.$eval('[data-map-toolbar]',el=>{const box=el.getBoundingClientRect();return box.left>=0&&box.right<=innerWidth&&el.scrollWidth<=el.clientWidth+1;}),'one-hand toolbar fits the phone');
+      assert.ok(await page.$eval('[data-map-carriers] button',el=>{const carrier=el.getBoundingClientRect(),navigation=document.querySelector('.pks-navigation').getBoundingClientRect();return carrier.bottom<navigation.top;}),'carrier control remains above navigation');
+    }
+    await page.evaluate(()=>document.documentElement.dataset.personalHand='off');
+    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
     await page.waitForSelector('[data-map-bus-sheet]');
     await page.waitForFunction(()=>{

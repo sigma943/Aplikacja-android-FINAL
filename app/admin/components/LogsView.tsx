@@ -173,7 +173,7 @@ export function LogsView({
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             className="fixed left-0 right-0 top-4 z-[100] flex justify-center px-4"
           >
-            <div className="relative w-full max-w-sm overflow-hidden rounded-[1.25rem] border border-white/5 bg-[#0F131D]/95 p-4 shadow-2xl shadow-[0_10px_40px_rgba(244,63,94,0.15)] backdrop-blur-xl">
+            <div className="pks-personal-card relative w-full max-w-sm overflow-hidden rounded-[1.25rem] border border-white/5 bg-[#0F131D]/95 p-4 shadow-2xl shadow-[0_10px_40px_rgba(244,63,94,0.15)] backdrop-blur-xl">
               <div className="absolute bottom-0 left-0 top-0 w-1 bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,1)]" />
               <div className="flex gap-4 pl-2">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-500/20 bg-rose-500/10 text-rose-400">
@@ -275,7 +275,7 @@ export function LogsView({
                   initial={{ opacity: 0, scale: 0.95, y: -5 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                  className="absolute top-full left-0 right-0 mt-2 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1"
+                  className="pks-personal-card absolute top-full left-0 right-0 mt-2 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1"
                 >
                   <button onClick={() => { setFilterType('ALL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Wszystkie typy</button>
                   <button onClick={() => { setFilterType('SYSTEM'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Tylko Systemowe</button>
@@ -308,7 +308,7 @@ export function LogsView({
                   initial={{ opacity: 0, scale: 0.95, y: -5 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                  className="absolute top-full right-0 mt-2 w-72 sm:w-80 bg-[#111623] border border-white/10 rounded-2xl z-30 shadow-2xl p-2 flex flex-col max-h-[80vh] overflow-y-auto"
+                  className="pks-personal-card absolute top-full right-0 mt-2 w-72 sm:w-80 bg-[#111623] border border-white/10 rounded-2xl z-30 shadow-2xl p-2 flex flex-col max-h-[80vh] overflow-y-auto"
                 >
                   <div className="p-1 space-y-1">
                     <button onClick={() => { setFilterDate('ALL'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'ALL' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Wszystkie daty</button>
@@ -396,7 +396,7 @@ export function LogsView({
                <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-center py-12 text-slate-500 text-sm bg-[#111623] rounded-3xl border border-white/5"
+                className="pks-personal-card text-center py-12 text-slate-500 text-sm bg-[#111623] rounded-3xl border border-white/5"
                >
                   Nie znaleziono logów spełniających kryteria wyszukiwania.
                </motion.div>
@@ -447,7 +447,7 @@ function LogCard({ log }: { log: Log }) {
   const style = getIcon(log.iconType);
 
   return (
-    <div className="bg-[#111623] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 transition-all group shadow-inner">
+    <div className="pks-personal-card bg-[#111623] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 transition-all group shadow-inner">
       <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all group-hover:scale-110 group-hover:rotate-6 duration-300 shadow-lg", style.bg, style.border, "border")}>
         {style.icon}
       </div>

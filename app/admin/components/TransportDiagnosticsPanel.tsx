@@ -9,7 +9,7 @@ export function TransportDiagnosticsPanel(){
   const rows=useSyncExternalStore(subscribeTransportDiagnostics,getTransportDiagnostics,()=>empty);
   const [busy,setBusy]=useState(false);
   const probe=async()=>{setBusy(true);try{await diagnoseBuiltinProviders();}finally{setBusy(false);}};
-  return <section data-transport-diagnostics className="rounded-3xl border border-white/10 bg-[#0b1019] p-4">
+  return <section data-transport-diagnostics className="pks-personal-card rounded-3xl border border-white/10 bg-[#0b1019] p-4">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold text-white">Diagnostyka przewoźników</h2><p className="mt-1 text-xs text-slate-400">Odczyty z tego urządzenia. Test sprawdza wbudowane źródła pojazdów; pozostałe wyniki pochodzą z używania aplikacji.</p></div>
       <button disabled={busy} onClick={()=>void probe()} className="ui-accent-soft rounded-xl border px-4 py-2 text-xs font-bold disabled:opacity-50">{busy?'Sprawdzanie…':'Sprawdź źródła'}</button></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3">{(['pks','mpk_rzeszow','marcel'] as const).map(provider=><div key={provider} className="rounded-2xl border border-white/10 p-3"><h3 className="text-sm font-bold text-white">{names[provider]}</h3>

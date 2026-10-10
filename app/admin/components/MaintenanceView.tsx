@@ -302,7 +302,7 @@ export function MaintenanceView({
           <StatusCard icon={<Clock3 size={22} />} title="Ostatni test globalny" value={lastGlobalTest ? safeDate(lastGlobalTest) : 'Brak danych'} hint={activeEndpoint?.lastTest?.latencyMs ? `${activeEndpoint.lastTest.latencyMs} ms` : 'uruchom test'} tone="violet" />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-[#0b1019] shadow-2xl">
+        <section className="pks-personal-card rounded-3xl border border-white/10 bg-[#0b1019] shadow-2xl">
           <div className="grid gap-3 border-b border-white/5 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
             <div className="relative min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
@@ -410,7 +410,7 @@ export function MaintenanceView({
           </div>
         </section>
 
-        <section className="grid gap-4 rounded-3xl border ui-accent-border bg-[#07111a] p-4 shadow-2xl xl:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.8fr)_minmax(260px,0.7fr)]">
+        <section className="pks-personal-card grid gap-4 rounded-3xl border ui-accent-border bg-[#07111a] p-4 shadow-2xl xl:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.8fr)_minmax(260px,0.7fr)]">
           <div className="min-w-0">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -473,7 +473,7 @@ export function MaintenanceView({
         {showHistory && (
           <AdminModalPortal>
           <motion.div role="dialog" aria-modal="true" aria-label="Historia zmian" className="admin-modal-overlay bg-black/60 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }} className="flex max-h-full min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#111623] shadow-2xl">
+            <motion.div initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }} className="pks-personal-card flex max-h-full min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#111623] shadow-2xl">
               <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 p-5">
                 <div>
                   <h2 className="text-lg font-black text-white">Historia zmian</h2>
@@ -525,7 +525,7 @@ function StatusCard({ icon, title, value, hint, tone }: { icon: React.ReactNode;
     violet: 'text-violet-300 bg-violet-500/10 border-violet-400/20',
   };
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-[#111623] p-4 shadow-xl">
+    <div className="pks-personal-card min-w-0 rounded-2xl border border-white/10 bg-[#111623] p-4 shadow-xl">
       <div className="flex items-center gap-4">
         <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border', colors[tone])}>{icon}</div>
         <div className="min-w-0">

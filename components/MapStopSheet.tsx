@@ -10,6 +10,7 @@ export interface MapStopDeparture {
   id: string;
   line: string;
   direction: string;
+  carrierName?:string;
   color: string;
   time: string;
   day: string;
@@ -73,9 +74,9 @@ export default function MapStopSheet({ preview=false,name, expanded, onExpandedC
           {loading ? <div className="map-detail-muted py-6 text-center text-sm" role="status">Pobieranie rozkładu…</div> : !departures.length ? <p className="map-detail-muted py-5 text-center text-sm">{error ? 'Rozkład niedostępny' : 'Brak najbliższych odjazdów'}</p> : departures.map((departure, index) => (
             <div key={departure.id}>
               {departure.day && departure.day !== departures[index - 1]?.day && <p className="map-detail-muted px-1 pb-2 pt-3 text-[10px] font-bold uppercase tracking-wide">{departure.day}</p>}
-              <div className="map-detail-row mb-2 flex items-center gap-3 rounded-2xl border p-3">
+              <div data-departure-row className="map-detail-row mb-2 flex items-center gap-3 rounded-2xl border p-3">
                 <span className="flex min-w-10 shrink-0 items-center justify-center rounded-xl border px-2 py-2 text-xs font-black" style={{ color: departure.color, borderColor: `${departure.color}40`, backgroundColor: `${departure.color}18` }}>{departure.line}</span>
-                <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{departure.direction}</span>
+                <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{departure.direction}{departure.carrierName&&<span data-departure-extra className="map-detail-muted mt-1 block text-[10px] font-normal">{departure.carrierName}</span>}</span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
                   <span className="text-sm font-bold tabular-nums">{departure.time}</span>
                   {departure.delayMinutes !== 0 && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${departure.delayMinutes > 0 ? 'bg-rose-500/15 text-rose-400' : 'bg-emerald-500/15 text-emerald-400'}`}>{departure.delayMinutes > 0 ? '+' : ''}{departure.delayMinutes} min</span>}

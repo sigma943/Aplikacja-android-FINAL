@@ -116,7 +116,7 @@ export function BansView({
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  className="absolute right-0 top-full mt-2 w-56 bg-[#111623] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-20 p-1.5 flex flex-col gap-1"
+                  className="pks-personal-card absolute right-0 top-full mt-2 w-56 bg-[#111623] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-20 p-1.5 flex flex-col gap-1"
                 >
                   <button onClick={() => { setFilterStatus('PERMANENTNY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Permanentne</button>
                   <button onClick={() => { setFilterStatus('CZASOWY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Czasowe</button>
@@ -135,7 +135,7 @@ export function BansView({
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-center py-16 text-slate-500 text-sm font-medium bg-[#111623] rounded-3xl border border-white/5"
+                className="pks-personal-card text-center py-16 text-slate-500 text-sm font-medium bg-[#111623] rounded-3xl border border-white/5"
               >
                 Brak zablokowanych urządzeń dla podanych filtrów.
               </motion.div>
@@ -176,7 +176,7 @@ function StatCard({ title, value, subtitle, icon, color }: any) {
   };
 
   return (
-    <div className={cn('relative bg-[#111623] border rounded-2xl p-4 flex flex-col items-start shadow-lg transition-all hover:bg-white/[0.03] cursor-default group overflow-hidden', colorMap[color as keyof typeof colorMap])}>
+    <div className={cn('pks-personal-card relative bg-[#111623] border rounded-2xl p-4 flex flex-col items-start shadow-lg transition-all hover:bg-white/[0.03] cursor-default group overflow-hidden', colorMap[color as keyof typeof colorMap])}>
       <div className="absolute top-3 right-3 opacity-20">{icon}</div>
       <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1">{title}</div>
       <div className="text-2xl font-black tracking-tight text-white mb-1 font-mono">{value}</div>
@@ -189,7 +189,7 @@ function BanCard({ ban, canBan, onUnblock }: { ban: Ban; canBan: boolean; onUnbl
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="bg-[#111623] border border-white/5 border-t-white/10 rounded-3xl overflow-hidden hover:border-emerald-500/20 transition-all shadow-2xl group relative">
+    <div className="pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-3xl overflow-hidden hover:border-emerald-500/20 transition-all shadow-2xl group relative">
       <div className="p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
           <div className="flex items-center gap-4 min-w-0 flex-1">

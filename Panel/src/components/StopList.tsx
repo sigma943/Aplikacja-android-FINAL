@@ -8,6 +8,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import VirtualStopCards from './VirtualStopCards';
 
 interface StopListProps {
+  initialFavoritesOnly?:boolean;
   notice?: React.ReactNode;
   backEnabled?: boolean;
   onVisibleStopsChange?: (stops: Stop[]) => void;
@@ -19,6 +20,7 @@ interface StopListProps {
   isLoading?: boolean;
   isDarkTheme?: boolean;
   searchState?: {
+    favoritesOnly?:boolean;
     isFullListOpen?: boolean;
     previewScrollTop?: number;
     fullScrollTop?: number;
@@ -28,6 +30,7 @@ interface StopListProps {
     visibleFullCount: number;
   };
   onSearchStateChange?: (state: {
+    favoritesOnly?:boolean;
     isFullListOpen?: boolean;
     previewScrollTop?: number;
     fullScrollTop?: number;
@@ -87,8 +90,12 @@ export default function StopList({
   isLoading = false,
   isDarkTheme = true,
   searchState,
+  initialFavoritesOnly=false,
   onSearchStateChange,
 }: StopListProps) {
+  const [localFavoritesOnly,setLocalFavoritesOnly]=useState(initialFavoritesOnly);
+  const favoritesOnly=searchState?.favoritesOnly??localFavoritesOnly;
+  const setFavoritesOnly=(value:boolean)=>{setLocalFavoritesOnly(value);onSearchStateChange?.({favoritesOnly:value});};
   const [localInputValue, setLocalInputValue] = useState('');
   const reduceMotion = useReducedMotion();
   const [localFullListOpen, setLocalFullListOpen] = useState(false);
@@ -148,12 +155,12 @@ export default function StopList({
   );
 
   const filteredStops = useMemo(
-    () => filterStops(searchableStops, deferredInputValue, carrierFilter),
-    [searchableStops, deferredInputValue, carrierFilter],
+    () => filterStops(searchableStops, deferredInputValue, carrierFilter).filter(stop=>!favoritesOnly||stop.isFavorite),
+    [searchableStops, deferredInputValue, carrierFilter,favoritesOnly],
   );
   const fullFilteredStops = useMemo(
-    () => (isFullListOpen ? filterStops(searchableStops, deferredFullInputValue, carrierFilter) : []),
-    [isFullListOpen, searchableStops, deferredFullInputValue, carrierFilter],
+    () => (isFullListOpen ? filterStops(searchableStops, deferredFullInputValue, carrierFilter).filter(stop=>!favoritesOnly||stop.isFavorite) : []),
+    [isFullListOpen, searchableStops, deferredFullInputValue, carrierFilter,favoritesOnly],
   );
   const displayStops = useMemo(() => filteredStops.slice(0, 30), [filteredStops]);
   const slicedFullStops = useMemo(() => fullFilteredStops.slice(0, visibleFullCount), [fullFilteredStops, visibleFullCount]);
@@ -350,6 +357,7 @@ export default function StopList({
             </button>
           )}
         </div>
+        <button type="button" aria-pressed={favoritesOnly} onClick={()=>setFavoritesOnly(!favoritesOnly)} className={`mt-2 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs ui-accent-focus ${favoritesOnly?'ui-accent-soft':'border-current/10'}`}><Star size={14}/>Tylko ulubione</button>
         {renderCarrierFilters()}
       </div>
 
@@ -403,7 +411,7 @@ export default function StopList({
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-slate-900 text-slate-600">
                   <Search size={20} />
                 </div>
-                Brak wyników dla podanej nazwy.
+                {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak wyników dla podanej nazwy.'}
               </div>
             )}
           </>
@@ -492,7 +500,7 @@ export default function StopList({
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-slate-900 text-slate-600">
                   <Search size={20} />
                 </div>
-                Brak pasujących przystanków dla tej nazwy.
+                {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak pasujących przystanków dla tej nazwy.'}
               </div>
             )}
           </motion.div>

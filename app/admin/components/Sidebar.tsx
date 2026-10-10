@@ -56,7 +56,7 @@ export function Sidebar({
       )}
 
       <div className={cn(
-        "fixed inset-y-0 left-0 z-[7000] w-64 border-r border-white/5 bg-[#080B12] flex flex-col justify-between transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0 lg:flex-shrink-0",
+        "pks-personal-panel fixed inset-y-0 left-0 z-[7000] w-64 border-r border-white/5 bg-[#080B12] flex flex-col justify-between transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0 lg:flex-shrink-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div>
@@ -113,7 +113,7 @@ export function Sidebar({
         </div>
 
         <div className="p-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] lg:pb-4">
-          <div className="w-full flex items-center justify-between p-4 rounded-3xl bg-[#0F131D] border border-white/5 shadow-xl">
+          <div className="pks-personal-card w-full flex items-center justify-between p-4 rounded-3xl bg-[#0F131D] border border-white/5 shadow-xl">
             <div className="flex items-center gap-3 min-w-0">
               <div
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border font-black text-[10px] uppercase"
