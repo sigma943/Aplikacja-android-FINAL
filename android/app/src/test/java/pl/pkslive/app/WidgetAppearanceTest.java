@@ -58,6 +58,15 @@ public class WidgetAppearanceTest {
         assertNotNull("smallest widget retains one full departure",time);
         android.graphics.Rect bounds=new android.graphics.Rect();time.getDrawingRect(bounds);((android.view.ViewGroup)root).offsetDescendantRectToMyCoords(time,bounds);
         assertTrue(bounds.bottom<=root.getHeight());assertTrue(bounds.right<=root.getWidth());
+        View delay=root.findViewById(R.id.widget_delay),row=root.findViewById(R.id.widget_row_root);
+        Rect badgeBounds=new Rect(),rowBounds=new Rect();
+        delay.getDrawingRect(badgeBounds);((android.view.ViewGroup)root).offsetDescendantRectToMyCoords(delay,badgeBounds);
+        row.getDrawingRect(rowBounds);((android.view.ViewGroup)root).offsetDescendantRectToMyCoords(row,rowBounds);
+        float dp=context.getResources().getDisplayMetrics().density;
+        assertTrue("badge stays clear of the separator: "+appearance+" height="+height,rowBounds.bottom-badgeBounds.bottom>=Math.round(2*dp));
+        assertTrue("badge stays below the time",badgeBounds.top-bounds.bottom>=Math.round(2*dp));
+        assertTrue("whole badge fits in the widget",badgeBounds.bottom<=root.getHeight());
+
       }
     }
   }

@@ -1,6 +1,6 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_row_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="26dp">
  <ImageView android:id="@+id/widget_row_background" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:importantForAccessibility="no"/>
- <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center_vertical">
+ <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center_vertical" android:paddingTop="0dp" android:paddingBottom="2dp">
   <FrameLayout android:layout_width="38dp" android:layout_height="22dp">
    <ImageView android:id="@+id/widget_badge_background" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:importantForAccessibility="no"/>
    <TextView android:id="@+id/widget_line" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:background="@drawable/widget_badge" android:textStyle="bold" android:textSize="11sp" android:includeFontPadding="false" android:maxLines="1"/>
@@ -8,7 +8,7 @@
   <TextView android:id="@+id/widget_direction" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:includeFontPadding="false" android:maxLines="1" android:ellipsize="end" android:textSize="11sp"/>
   <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:orientation="vertical" android:gravity="end">
    <TextView android:id="@+id/widget_time" android:fontFeatureSettings="tnum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textStyle="bold" android:textSize="14sp" android:includeFontPadding="false" android:maxLines="1"/>
-   <TextView android:paddingStart="5dp" android:paddingEnd="5dp" android:gravity="center" android:id="@+id/widget_delay" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="8sp" android:includeFontPadding="false" android:maxLines="1" android:visibility="gone"/>
+   <TextView android:paddingStart="6dp" android:paddingEnd="6dp" android:paddingTop="1dp" android:paddingBottom="1dp" android:layout_marginTop="2dp" android:textStyle="bold" android:gravity="center" android:id="@+id/widget_delay" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="8sp" android:includeFontPadding="false" android:maxLines="1" android:visibility="gone"/>
   </LinearLayout>
  </LinearLayout>
 </FrameLayout>

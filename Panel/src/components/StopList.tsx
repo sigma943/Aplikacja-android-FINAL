@@ -280,7 +280,11 @@ export default function StopList({
             {displayStopLabel(stop.name)}
           </h3>
           <div className="mt-1 flex flex-col gap-1">
-            {!isBus && <div className="text-[12px] font-semibold text-blue-400/90">Stacja kolejowa</div>}
+            <div className={`flex min-w-0 flex-wrap items-center text-[12px] font-semibold ${secondaryTextClass}`}>
+              <span className={`min-w-0 truncate ${isBus ? secondaryTextClass : 'text-blue-400/90'}`}>
+                {isBus ? (stop.carriers.map(c => c.name.replace('Rzeszow', 'Rzeszów')).join(' · ') || 'Przystanek autobusowy') : 'Stacja kolejowa'}
+              </span>
+            </div>
             {isBus && stop.lines.length > 0 && renderLineBadges(stop.lines, full, singleProviderId, pksLineSet, stop.lineProviders)}
           </div>
         </div>

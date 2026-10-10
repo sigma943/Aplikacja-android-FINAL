@@ -607,6 +607,15 @@ const server=http.createServer((req,res)=>{
     await page.goto(`${origin}/widget-fixture/`,{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-widget-preview]');
     assert.equal(await page.$('#widget-transparency'),null,'advanced widget options start collapsed');
+    const assertDelaySpacing=async()=>{
+      const spacing=await page.$eval('[data-widget-delay]',el=>{
+        const badge=el.getBoundingClientRect(),row=el.closest('[data-widget-departure]').getBoundingClientRect(),time=el.previousElementSibling.getBoundingClientRect();
+        return {below:row.bottom-badge.bottom,above:badge.top-time.bottom};
+      });
+      assert.ok(spacing.below>=1.5,'delay badge leaves room above the separator');
+      assert.ok(spacing.above>=1.5,'delay badge leaves room below the departure time');
+    };
+    await assertDelaySpacing();
     await screenshot('widget-default-dark');
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Więcej opcji personalizacji')).click());
     await page.waitForSelector('#widget-transparency');
@@ -631,6 +640,7 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.trim()==='Pokazuj kierunki').querySelector('input').click());
     assert.ok(!(await page.$eval('[data-widget-preview]',el=>el.textContent)).includes('Rzeszów D.A.'));
     assert.match(await page.$eval('[data-widget-preview]',el=>el.textContent),/\+1 min/);
+    await assertDelaySpacing();
     await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.trim()==='Pokazuj opóźnienie w minutach').querySelector('input').click());
     assert.doesNotMatch(await page.$eval('[data-widget-preview]',el=>el.textContent),/\+1 min/);
     await page.setViewport({width:320,height:568,deviceScaleFactor:1});
@@ -639,6 +649,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.querySelector('#widget-transparency').value==='20'&&document.querySelector('[data-widget-preview]').style.borderRadius==='24px');
     await button('Jasny');
     assert.equal(await page.$eval('[data-widget-preview]',el=>getComputedStyle(el).color),'rgb(15, 23, 42)');
+    await assertDelaySpacing();
     await screenshot('widget-personalization-small-phone');
     await page.click('[aria-label="Zamknij okno widżetu"]');
     await page.waitForSelector('[role="dialog"]',{hidden:true});

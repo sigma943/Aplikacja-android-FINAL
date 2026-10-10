@@ -71,7 +71,7 @@ try{
   await page.waitForFunction(id=>{const rows=[...document.querySelectorAll('[data-stop-card-id]')];return rows.length===1&&rows[0].dataset.stopCardId===id;},{},lisaId);
  }
  await button('Wszystkie');
- assert.doesNotMatch(await page.$eval('[data-stop-card-id]',el=>el.textContent),/PKS|MPK|Marcel/,'provider names stay hidden on stop cards');
+ assert.match(await page.$eval('[data-stop-card-id]',el=>el.textContent),/PKS.*MPK|MPK.*PKS/,'merged stop lists its providers only on the stop card');
  assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Tylko ulubione')),false,'the unrequested favourites filter is absent');
  await page.screenshot({path:path.resolve('test/ui-previews/list-lisa-kuli-provider-alias.png')});
  await page.$eval('input[placeholder*="Babica"]',el=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(el,'');el.dispatchEvent(new Event('input',{bubbles:true}));});

@@ -7,7 +7,7 @@ import {widgetAccentColor,widgetRgba,widgetSurfaceColors,type WidgetAppearance} 
 
 export default function WidgetPreview({name,departures,size,dark,glass,appearance}:{name:string;departures:Departure[];size:StopWidgetConfig['size'];dark:boolean;glass:boolean;appearance:WidgetAppearance}) {
   const accent=widgetAccentColor(appearance.accentColor,dark),[top,bottom]=widgetSurfaceColors(appearance,dark);
-  const opacity=1-appearance.transparency/100,compact=size==='small'||appearance.density==='compact';
+  const opacity=1-appearance.transparency/100,small=size==='small',compact=small||appearance.density==='compact';
   const baseBackground=glass?`linear-gradient(160deg,${widgetRgba(top,opacity)},${widgetRgba(bottom,opacity)})`:widgetRgba(bottom,opacity);
   const softBackground=appearance.softBackground&&opacity>0?softPanelBackground(appearance.accentColor,appearance.softBackgroundStrength/100*opacity,dark)+',':'';
   const requestedScale=appearance.textSize==='large'?2:appearance.textSize==='small'?-1:0;
@@ -24,12 +24,12 @@ export default function WidgetPreview({name,departures,size,dark,glass,appearanc
       {departures.length?departures.map((departure,index)=>{
         const lineColor=appearance.lineColors==='accent'?accent:widgetAccentColor(departure.carrier?.id==='mpk'?'#f97316':departure.carrier?.id==='marcel'?'#84cc16':'#14b8a6',dark);
         const delay=departure.delayMins??0,highlight=appearance.highlightNext&&index===0;
-        return <div key={departure.id} className="flex items-center gap-2 px-1" style={{minHeight:(compact?26:32)+(scale===2?6:0),borderRadius:highlight?10:0,background:highlight?widgetRgba(accent,.08):undefined,borderBottom:appearance.showSeparators&&index<departures.length-1?`1px solid ${widgetRgba(color,.08)}`:undefined}}>
+        return <div key={departure.id} data-widget-departure className="flex items-center gap-2 px-1" style={{paddingTop:small?0:2,paddingBottom:small?2:4,minHeight:(small?(appearance.showDelay?34:26):compact?(appearance.showDelay?40:28):(appearance.showDelay?44:32))+(scale===2?6:scale===-1?-1:0),borderRadius:highlight?10:0,background:highlight?widgetRgba(accent,.08):undefined,borderBottom:appearance.showSeparators&&index<departures.length-1?`1px solid ${widgetRgba(color,.08)}`:undefined}}>
           <span style={{color:lineColor,background:widgetRgba(lineColor,.14),fontSize:(compact?11:12)+scale}} className="min-w-10 rounded-lg px-2 py-1 text-center font-bold">{departure.line}</span>
           {appearance.showDirections&&<span className="min-w-0 flex-1 truncate" style={{fontSize:(compact?11:12)+scale}}>{departure.direction}</span>}
-          <span className="ml-auto flex shrink-0 flex-col items-end">
-            <span className="font-bold tabular-nums tracking-tight" style={{color:highlight?accent:color,fontSize:(compact?14:16)+scale}}>{departure.time}</span>
-            {appearance.showDelay&&delay!==0&&<span style={{color:delay>0?(dark?'#f3bec7':'#9f3450'):(dark?'#99dbc4':'#206d54'),background:delay>0?(dark?'#e8a4b026':'#be123c0f'):(dark?'#10b98122':'#0478570f'),border:`1px solid ${delay>0?(dark?'#e8a4b030':'#be123c18'):(dark?'#10b98130':'#04785718')}`,fontSize:8+Math.max(scale,0),lineHeight:1.2,padding:'0 5px',borderRadius:999}} className="font-medium tabular-nums">{departure.delayEstimated?'szac. ':''}{delay>0?'+':''}{delay} min</span>}
+          <span className="ml-auto flex shrink-0 flex-col items-end" style={{gap:small?2:3}}>
+            <span className="font-bold tabular-nums tracking-tight" style={{color:highlight?accent:color,fontSize:(compact?14:16)+scale,lineHeight:1.15}}>{departure.time}</span>
+            {appearance.showDelay&&delay!==0&&<span data-widget-delay style={{color:delay>0?(dark?'#fecdd3':'#9f1239'):(dark?'#a7f3d0':'#065f46'),background:delay>0?(dark?'#3b2832':'#fff1f2'):(dark?'#16382f':'#ecfdf5'),border:`1px solid ${delay>0?(dark?'#70434f':'#fecdd3'):(dark?'#27634d':'#bbf7d0')}`,fontSize:(small?8:9)+Math.max(scale,0),lineHeight:1.2,padding:'1px 6px',borderRadius:6}} className="font-semibold tabular-nums">{departure.delayEstimated?'szac. ':''}{delay>0?'+':''}{delay} min</span>}
           </span>
         </div>;
       }):<p className="py-3 text-xs" style={{color:muted}}>Brak najbliższych odjazdów</p>}
