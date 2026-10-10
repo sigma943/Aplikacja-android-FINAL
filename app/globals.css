@@ -585,14 +585,3 @@ html[data-personal-departures='simple'] [data-departure-row].map-detail-row { ma
 .marker-train-carrier { top:4px; color:#1d4ed8; background:white; border-radius:3px; left:5px; right:5px; }
 html[data-personal-marker='carrier'] .marker-carrier-label { display:block; }
 html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus-marker :is(.bus-front-svg text,.marker-train-line,.marker-number) { display:none; }
-@media (max-width:767px) {
- html:is([data-personal-hand='left'],[data-personal-hand='right']) [data-map-toolbar][data-map-detail='false']:not(.hidden) { top:auto; bottom:calc(132px + env(safe-area-inset-bottom)); left:0; right:0; width:auto; display:grid; grid-template-columns:minmax(0,1fr) 44px; align-items:end; gap:8px; }
- html:is([data-personal-hand='left'],[data-personal-hand='right']) [data-map-toolbar][data-map-detail='false']:not(.hidden) > :first-child { min-width:0; }
- html:is([data-personal-hand='left'],[data-personal-hand='right']) [data-map-toolbar][data-map-detail='false']:not(.hidden) [data-map-carriers] { margin:0; padding:0; }
- html[data-personal-hand='left'] [data-map-toolbar][data-map-detail='false']:not(.hidden) { grid-template-columns:44px minmax(0,1fr); }
- html[data-personal-hand='left'] [data-map-toolbar][data-map-detail='false']:not(.hidden) > :first-child { grid-column:2; grid-row:1; }
- html[data-personal-hand='left'] [data-map-toolbar][data-map-detail='false']:not(.hidden) [data-map-carriers] { grid-column:1; grid-row:1; }
- html[data-personal-hand='right'] [data-options-sheet] { margin-left:auto; max-width:380px; }
- html[data-personal-hand='left'] [data-options-sheet] { margin-right:auto; max-width:380px; }
- html[data-personal-hand='left'] .leaflet-bottom.leaflet-right { right:auto; left:0; }
-}

@@ -398,7 +398,11 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(await page.$$eval('.personal-order > div > span',els=>els.map(el=>el.textContent)),[...visibleTabOrder.slice(0,-2),'Opcje',visibleTabOrder.at(-2)],'moving skips tabs hidden by permissions');
     await page.$eval('[aria-label="Przesuń Opcje później"]',el=>el.click());
     const chooseTool=async(title,label)=>page.evaluate((title,label)=>[...document.querySelectorAll('.personal-tools .personal-field')].find(el=>el.querySelector('legend').textContent===title)?.querySelectorAll('button').forEach(el=>{if(el.textContent.trim()===label)el.click();}),title,label);
-    await chooseTool('Ekran startowy','Ulubione');await chooseTool('Obsługa jedną ręką','Lewa ręka');
+    const startChoices=await page.$$eval('.personal-tools fieldset',fields=>[...fields].find(el=>el.querySelector('legend')?.textContent==='Ekran startowy').innerText);
+    assert.ok(!startChoices.includes('Ulubione'),'favourites is absent from start screen choices');
+    assert.equal(startChoices.includes('Admin'),visibleTabOrder.includes('Admin'),'Admin start choice follows tab permissions');
+    assert.ok(!(await page.$eval('.personal-tools',el=>el.innerText)).includes('Obsługa jedną ręką'),'one-hand mode is removed');
+    await chooseTool('Ekran startowy','Przystanki');
     await chooseTool('Podpis znacznika','Przewoźnik');
     await page.$eval('[aria-label="Przesuń Przystanki wcześniej"]',el=>el.click());
     await page.waitForFunction(()=>document.querySelector('.pks-navigation button').dataset.navItem==='stops');
@@ -410,7 +414,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[aria-label="Zastosuj zestaw Mój zestaw testowy"]');
     await chooseTool('Podpis znacznika','Sama ikona');
     await page.$eval('[aria-label="Zastosuj zestaw Mój zestaw testowy"]',el=>el.click());
-    await page.waitForFunction(()=>document.documentElement.dataset.personalMarker==='carrier'&&document.documentElement.dataset.personalHand==='left');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalMarker==='carrier');
     assert.equal(await page.$eval('.personal-tools',el=>el.scrollWidth>el.clientWidth+1),false,'profile and scheduling controls fit 320px');
     await page.$eval('[aria-label="Usuń zestaw Mój zestaw testowy"]',el=>el.click());
     await page.waitForSelector('[aria-label="Zastosuj zestaw Mój zestaw testowy"]',{hidden:true});
@@ -450,13 +454,6 @@ const server=http.createServer((req,res)=>{
     await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on'&&localStorage.getItem('mks_panel_glow_strength')==='70');
     assert.deepEqual(await page.$eval('.mks-bus-marker svg[data-bus-glyph]',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))])),carrierGeometry,'map and carrier picker use exactly the same bus geometry');
-    for(const hand of ['left','right']){
-      await page.setViewport({width:320,height:740,deviceScaleFactor:1});
-      await page.evaluate(hand=>document.documentElement.dataset.personalHand=hand,hand);
-      assert.ok(await page.$eval('[data-map-toolbar]',el=>{const box=el.getBoundingClientRect();return box.left>=0&&box.right<=innerWidth&&el.scrollWidth<=el.clientWidth+1;}),'one-hand toolbar fits the phone');
-      assert.ok(await page.$eval('[data-map-carriers] button',el=>{const carrier=el.getBoundingClientRect(),navigation=document.querySelector('.pks-navigation').getBoundingClientRect();return carrier.bottom<navigation.top;}),'carrier control remains above navigation');
-    }
-    await page.evaluate(()=>document.documentElement.dataset.personalHand='off');
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
     await page.waitForSelector('[data-map-bus-sheet]');

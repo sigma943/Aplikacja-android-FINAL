@@ -19,13 +19,11 @@ export default function PersonalizationTools(p:Props){
  const move=(index:number,direction:number)=>{const target=visibleOrder[index+direction];if(!target)return;const order=[...p.value.navOrder],from=order.indexOf(visibleOrder[index]),to=order.indexOf(target);[order[from],order[to]]=[order[to],order[from]];set('navOrder',order);};
  const valid=profiles.some(p=>p.id===schedule.dayProfile)&&profiles.some(p=>p.id===schedule.nightProfile)&&schedule.dayAt!==schedule.nightAt;
  return <div className="personal-tools">
-  {choice('startScreen','Ekran startowy',[['map','Mapa'],['stops','Przystanki'],['favorites','Ulubione']])}
+  {choice('startScreen','Ekran startowy',[['map','Mapa'],['stops','Przystanki'],...(p.canOpenAdminEmbed?[['admin','Admin'] as ['admin',string]]:[])])}
   <p className="personal-note">Zmiana przy następnym uruchomieniu.</p>
   <fieldset className="personal-field"><legend>Kolejność zakładek</legend><div className="personal-order">{visibleOrder.map((id,index)=><div key={id}><span>{labels[id]}</span><button type="button" disabled={index===0} onClick={()=>move(index,-1)} aria-label={`Przesuń ${labels[id]} wcześniej`} className="ui-accent-focus"><ArrowUp size={16}/></button><button type="button" disabled={index===visibleOrder.length-1} onClick={()=>move(index,1)} aria-label={`Przesuń ${labels[id]} później`} className="ui-accent-focus"><ArrowDown size={16}/></button></div>)}</div></fieldset>
   {choice('departureView','Widok odjazdów',[['detailed','Szczegółowy'],['simple','Prosty']])}
   <p className="personal-note">Prosty widok: mniejsze odstępy, bez opisu pojazdu.</p>
-  {choice('handedness','Obsługa jedną ręką',[['off','Standardowa'],['left','Lewa ręka'],['right','Prawa ręka']])}
-  <p className="personal-note">Filtr mapy przy dolnym menu, przyciski po wybranej stronie.</p>
   <label className="personal-slider"><span>Rozmiar znaczników pojazdów <output>{p.value.markerSize}%</output></span><input aria-label="Rozmiar znaczników pojazdów" type="range" min="80" max="140" step="5" value={p.value.markerSize} onChange={e=>set('markerSize',Number(e.target.value))}/></label>
   {choice('markerLabel','Podpis znacznika',[['line','Numer linii'],['carrier','Przewoźnik'],['icon','Sama ikona']])}
   <fieldset className="personal-field"><legend>Moje zestawy wyglądu</legend><div className="personal-profile-save"><input aria-label="Nazwa własnego zestawu" maxLength={40} placeholder="Nazwa zestawu" value={name} onChange={e=>setName(e.target.value)}/><button type="button" disabled={!name.trim()||profiles.length>=8} onClick={save} className="personal-choice ui-accent-soft ui-accent-focus"><Save size={15}/>Zapisz</button></div><p className="personal-note">Maksymalnie 8 zestawów.</p>

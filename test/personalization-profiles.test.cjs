@@ -31,6 +31,13 @@ test('missing scheduled profiles never activate a partial schedule',()=>{
  const entries=storage();entries.set(PROFILES_KEY,JSON.stringify([profile('day')]));entries.set(SCHEDULE_KEY,JSON.stringify({enabled:true,dayAt:'07:00',nightAt:'20:00',dayProfile:'day',nightProfile:'missing'}));assert.equal(applyScheduledProfile(new Date(2026,9,10,8,0)),false);
 });
 test('activating a saved profile restores all appearance keys without mutating the snapshot',()=>{
- const entries=storage(),saved=profile('mine');saved.appearance=normalizeInterfaceAppearance({navOrder:['stops','map'],markerSize:130,startScreen:'favorites'});
- activateProfile(saved,false);const restored=JSON.parse(entries.get(INTERFACE_APPEARANCE_KEY));assert.equal(restored.markerSize,130);assert.equal(restored.startScreen,'favorites');assert.deepEqual(restored.navOrder,['stops','map','admin','options']);assert.equal(saved.appearance.markerSize,130);
+ const entries=storage(),saved=profile('mine');saved.appearance=normalizeInterfaceAppearance({navOrder:['stops','map'],markerSize:130,startScreen:'admin'});
+ activateProfile(saved,false);const restored=JSON.parse(entries.get(INTERFACE_APPEARANCE_KEY));assert.equal(restored.markerSize,130);assert.equal(restored.startScreen,'admin');assert.deepEqual(restored.navOrder,['stops','map','admin','options']);assert.equal(saved.appearance.markerSize,130);
+});
+
+test('removed start screen and one-hand mode are ignored in saved settings and profiles',()=>{
+ const value=normalizeInterfaceAppearance({startScreen:'favorites',handedness:'left'});
+ assert.equal(value.startScreen,'map');assert.equal('handedness' in value,false);
+ const saved=normalizeProfiles([{...profile('old'),appearance:{startScreen:'favorites',handedness:'right'}}])[0];
+ assert.equal(saved.appearance.startScreen,'map');assert.equal('handedness' in saved.appearance,false);
 });

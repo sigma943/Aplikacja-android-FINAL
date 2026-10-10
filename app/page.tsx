@@ -150,7 +150,6 @@ export default function Home() {
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
-  const [initialFavoritesOnly,setInitialFavoritesOnly]=useState(false);
   const startScreenApplied=useRef(false);
   const [widgetStop,setWidgetStop]=useState<StopsPanelStop|null>(null);
   useEffect(()=>onWidgetOpen(stop=>{startScreenApplied.current=true;setWidgetStop(stop);setActiveTab('stops');}),[]);
@@ -161,6 +160,14 @@ export default function Home() {
   const canOpenAdminEmbed = Boolean(
     device && canAccessAdminDashboard(device.role, device.permissions),
   );
+  useEffect(()=>{
+    if(loading||startScreenApplied.current)return;
+    startScreenApplied.current=true;
+    try{
+      const saved=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));
+      setActiveTab(saved.startScreen==='admin'&&!canOpenAdminEmbed?'map':saved.startScreen);
+    }catch{setActiveTab('map');}
+  },[loading,canOpenAdminEmbed]);
   const isMapTabDisabled = Boolean(device?.permissions?.disableMap);
   const isStopsTabDisabled = Boolean(device?.permissions?.disableStops) && !isMapTabDisabled;
   useEffect(() => {
@@ -317,7 +324,6 @@ export default function Home() {
     setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');
     setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
     try{const savedAppearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));setInterfaceAppearance(savedAppearance);
-      if(!startScreenApplied.current){startScreenApplied.current=true;if(savedAppearance.startScreen!=='map'){setInitialFavoritesOnly(savedAppearance.startScreen==='favorites');setActiveTab('stops');}}
     }catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
     setTimeout(()=>setLightEffects(localStorage.getItem('mks_light_effects')==='true'),0);
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
@@ -1386,7 +1392,6 @@ export default function Home() {
             aria-hidden={activeTab !== 'stops'}
          >
             {hasOpenedStops && <StopsPanel
-               initialFavoritesOnly={initialFavoritesOnly}
                initialStop={widgetStop}
                active={activeTab === 'stops'}
                stops={stopsList}
