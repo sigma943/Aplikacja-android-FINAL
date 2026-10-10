@@ -57,7 +57,7 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative flex max-h-full w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 border-t-white/20 bg-[#0F131D] shadow-2xl"
+        className="pks-personal-card relative flex max-h-full w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 border-t-white/20 bg-[#0F131D] shadow-2xl"
       >
         <div className="shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between border-b border-white/5">
           <div>

@@ -108,11 +108,14 @@ export function BottomNavigation({preview=false,activeTab,className,themeColor,i
             )}
             <button 
                aria-label="Opcje"
+               aria-current={activeTab==='options'?'page':undefined}
                onClick={onOptions}
                className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors hover:text-current/90"
+               style={activeTab==='options'?{color:themeColor}:{}}
             >
                <Settings className="h-6 w-6" />
                <span data-nav-label className="text-[11px] font-semibold leading-none">Opcje</span>
+               {activeTab === 'options' && <motion.span data-nav-indicator layoutId={preview?undefined:'navigation-active-tab'} transition={{type: "spring", stiffness: 420, damping: 36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{ backgroundColor: themeColor }} />}
             </button>
          </div>
 );}

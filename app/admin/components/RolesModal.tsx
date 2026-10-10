@@ -171,7 +171,7 @@ export function RolesModal({
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-lg shadow-2xl relative flex flex-col max-h-full overflow-hidden"
+        className="pks-personal-card bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-lg shadow-2xl relative flex flex-col max-h-full overflow-hidden"
       >
         
         {/* Header */}
@@ -363,7 +363,7 @@ export function RolesModal({
 
         </div>
 
-        <div className="p-4 sm:p-6 border-t border-white/5 bg-[#111623]/50 backdrop-blur-xl shrink-0">
+        <div className="pks-personal-card p-4 sm:p-6 border-t border-white/5 bg-[#111623]/50 backdrop-blur-xl shrink-0">
           <button 
             type="button"
             onClick={async () => {

@@ -346,7 +346,7 @@ export function DeviceTable({
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             className="fixed left-0 right-0 top-4 z-[12000] flex justify-center px-4"
           >
-            <div className="relative w-full max-w-sm overflow-hidden rounded-[1.25rem] border border-white/5 bg-[#0F131D]/95 p-4 shadow-2xl shadow-[0_10px_40px_rgba(244,63,94,0.15)] backdrop-blur-xl">
+            <div className="pks-personal-card relative w-full max-w-sm overflow-hidden rounded-[1.25rem] border border-white/5 bg-[#0F131D]/95 p-4 shadow-2xl shadow-[0_10px_40px_rgba(244,63,94,0.15)] backdrop-blur-xl">
               <div className="absolute bottom-0 left-0 top-0 w-1 bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,1)]" />
               <div className="flex gap-4 pl-2">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-500/20 bg-rose-500/10 text-rose-400">
@@ -400,7 +400,7 @@ export function DeviceTable({
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 28, opacity: 0, scale: 0.98 }}
               onClick={(e) => e.stopPropagation()}
-              className="max-h-full w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-[#111623] p-5 shadow-2xl sm:p-6"
+              className="pks-personal-card max-h-full w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-[#111623] p-5 shadow-2xl sm:p-6"
             >
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
@@ -464,7 +464,7 @@ export function DeviceTable({
           </div>
         </div>
 
-        <div className="w-full bg-[#111623] border border-white/5 border-t-white/10 rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl">
+        <div className="pks-personal-card w-full bg-[#111623] border border-white/5 border-t-white/10 rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Łączna liczba urządzeń</div>
           <div className="text-2xl font-mono font-black ui-accent-text leading-none">{devices.length}</div>
         </div>
@@ -492,7 +492,7 @@ export function DeviceTable({
           </button>
           <AnimatePresence>
             {showSortDropdown && (
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-full mt-2 w-full sm:w-64 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1">
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="pks-personal-card absolute right-0 top-full mt-2 w-full sm:w-64 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1">
                 {[
                   ['firstLogin', 'Pierwsze logowanie'],
                   ['lastSeen', 'Ostatnio online'],
@@ -515,7 +515,7 @@ export function DeviceTable({
           </button>
           <AnimatePresence>
             {showFilterDropdown && (
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-full mt-2 w-full sm:w-56 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1">
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="pks-personal-card absolute right-0 top-full mt-2 w-full sm:w-56 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1">
                 <button onClick={() => { setFilterRole('ALL'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'ALL' ? 'bg-white/10 text-white shadow-lg' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Wszyscy</button>
                 <button onClick={() => { setFilterRole('WŁAŚCICIEL'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'WŁAŚCICIEL' ? 'ui-accent-soft' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Właściciele</button>
                 <button onClick={() => { setFilterRole('ADMIN'); setShowFilterDropdown(false); }} className={cn('w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer', filterRole === 'ADMIN' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-500 hover:bg-white/5 hover:text-white')}>Administratorzy</button>
@@ -543,7 +543,7 @@ export function DeviceTable({
             const deleteDisabled = !canDeleteTarget(device, isSelf);
             const primaryLabel = device.name;
             return (
-              <motion.div key={device.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative overflow-hidden">
+              <motion.div key={device.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
                 <div className="flex flex-wrap items-center justify-between relative z-10 gap-3">
                   <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto sm:flex-1">
@@ -595,14 +595,14 @@ export function DeviceTable({
               </motion.div>
             );
           }) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-[#111623] border border-white/5 rounded-3xl p-16 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pks-personal-card bg-[#111623] border border-white/5 rounded-3xl p-16 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
               {devicesError ? 'Brak dostępu do listy urządzeń' : 'Nie znaleziono aktywnych urządzeń'}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      <div className="hidden md:block bg-[#111623] border border-white/5 border-t-white/10 rounded-3xl overflow-hidden shadow-2xl">
+      <div className="pks-personal-card hidden md:block bg-[#111623] border border-white/5 border-t-white/10 rounded-3xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm font-sans">
             <thead>
@@ -671,7 +671,7 @@ export function DeviceTable({
 
       {totalPages > 1 && (
         <div className="mt-8 w-full overflow-hidden px-1">
-          <div className="mx-auto flex w-full max-w-full items-center justify-between gap-2 rounded-2xl border border-white/5 bg-[#111623]/50 p-2 shadow-lg sm:w-fit sm:justify-center sm:gap-1.5">
+          <div className="pks-personal-card mx-auto flex w-full max-w-full items-center justify-between gap-2 rounded-2xl border border-white/5 bg-[#111623]/50 p-2 shadow-lg sm:w-fit sm:justify-center sm:gap-1.5">
             <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="shrink-0 p-2 text-slate-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
               <ChevronLeft size={20} />
             </button>

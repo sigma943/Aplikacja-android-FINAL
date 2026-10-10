@@ -277,6 +277,16 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>localStorage.getItem('mks_panel_glow_strength')==='70');
     assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).backdropFilter),glowBlur,'soft patches preserve glass');
     await sameChrome();
+    for(const selector of ['[data-options-sheet]','.pks-navigation','.personal-group']){
+      assert.match(await page.$eval(selector,el=>getComputedStyle(el).backgroundImage),/radial-gradient/,'glow reaches settings, cards and navigation');
+    }
+    await openGroup('Wzór tła');await choose('Faktura paneli','Kropki');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalPattern==='dots');
+    for(const selector of ['.pks-map-surface','[data-options-sheet]','.pks-navigation','.personal-group']){
+      const background=await page.$eval(selector,el=>getComputedStyle(el).backgroundImage);
+      assert.match(background,/radial-gradient/);assert.match(background,/data:image\/svg\+xml/,'texture and glow coexist');
+    }
+    await choose('Faktura paneli','Gładkie');
     await choose('Zabarwienie paneli','Akcent');
     await range('Siła zabarwienia paneli','End');
     await page.waitForFunction(()=>document.documentElement.dataset.personalSurface==='accent'&&JSON.parse(localStorage.getItem('mks_interface_appearance_v1')).panelTintStrength===55);
@@ -346,6 +356,26 @@ const server=http.createServer((req,res)=>{
     assert.ok(await page.$eval('[data-options-scroll]',el=>el.scrollHeight>el.clientHeight),'advanced settings remain scrollable');
     await page.evaluate(()=>document.querySelector('.personal-reset').click());
     await page.waitForFunction(()=>document.documentElement.dataset.personalRadius==='false'&&document.documentElement.dataset.personalLabels==='true');
+    await openGroup('Nawigacja i ikony');
+    await choose('Układ nawigacji','Podpis obok ikony');await choose('Aktywna zakładka','Pełny akcent');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalLayout==='inline');
+    assert.equal(await page.$eval('.pks-navigation [aria-label="Opcje"]',el=>el.getAttribute('aria-current')),'page');
+    assert.equal(await page.$eval('.pks-navigation [aria-label="Opcje"]',el=>getComputedStyle(el).flexDirection),'row');
+    assert.notEqual(await page.$eval('.pks-navigation [aria-label="Opcje"]',el=>getComputedStyle(el,'::before').backgroundColor),'rgba(0, 0, 0, 0)');
+    assert.equal(await page.$eval('.pks-navigation',el=>el.scrollWidth>el.clientWidth+1),false,'inline navigation fits 320px');
+    await openGroup('Tekst i czytelność');await choose('Kontrast tekstu','Mocniejszy');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalContrast==='strong');
+    assert.equal(await page.$eval('.personal-note',el=>getComputedStyle(el).opacity),'1');
+    await openGroup('Wzór tła');await choose('Faktura paneli','Siatka');
+    await openGroup('Miękka poświata');await page.$eval('[aria-label="Miękka poświata paneli"]',el=>el.click());
+    await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on');
+    await page.keyboard.press('Escape');await page.waitForSelector('[data-options-sheet]',{hidden:true});
+    await page.click('.pks-navigation [aria-label="Przystanki"]');await page.waitForSelector('.transit-stop-card');
+    for(const selector of ['.transit-surface','.transit-stop-card']){
+      const background=await page.$eval(selector,el=>getComputedStyle(el).backgroundImage);
+      assert.match(background,/radial-gradient/);assert.match(background,/data:image\/svg\+xml/);
+    }
+    await screenshot('personalization-stops-texture');
     await page.evaluate(entries=>{for(const [key,value]of Object.entries(entries)){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}},savedAppearance);
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.reload({waitUntil:'domcontentloaded'});

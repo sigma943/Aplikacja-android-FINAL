@@ -104,7 +104,7 @@ export function OperatorsView({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-400 bg-[#111623] border border-white/5 px-4 py-2 rounded-xl">
+          <div className="pks-personal-card flex items-center gap-2 text-sm text-slate-400 bg-[#111623] border border-white/5 px-4 py-2 rounded-xl">
              <Users size={16} className="text-sky-400" />
              <span>Łącznie administratorów: <strong className="text-white ml-1">{filteredOperators.length}</strong></span>
           </div>
@@ -136,7 +136,7 @@ export function OperatorsView({
                   initial={{ opacity: 0, scale: 0.95, y: -5 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                  className="absolute right-0 top-full mt-2 w-48 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1"
+                  className="pks-personal-card absolute right-0 top-full mt-2 w-48 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1"
                 >
                   <button onClick={() => { setFilterRole('ALL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Wszyscy</button>
                   <button onClick={() => { setFilterRole('WŁAŚCICIEL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Właściciele</button>
@@ -155,7 +155,7 @@ export function OperatorsView({
                <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-center py-10 text-slate-500 text-sm bg-[#111623] rounded-2xl border border-white/5"
+                className="pks-personal-card text-center py-10 text-slate-500 text-sm bg-[#111623] rounded-2xl border border-white/5"
                >
                   Nie znaleziono osób w kadrze spełniających kryteria.
                </motion.div>
@@ -236,7 +236,7 @@ function StatCard({ title, value, subtitle, icon, color }: any) {
   };
 
   return (
-    <div className="bg-[#111623] border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+    <div className="pks-personal-card bg-[#111623] border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
       <div className="flex items-center gap-2 text-slate-400 mb-2">
         {icon} <span className="text-xl font-bold text-white">{value}</span>
       </div>
@@ -265,7 +265,7 @@ function OperatorCard({
   const showActions = !isSelf && canManage;
   
   return (
-    <div className="bg-[#111623] border border-white/5 rounded-2xl p-4 flex items-center justify-between group hover:border-white/10 transition-all hover:bg-white/[0.02] shadow-lg">
+    <div className="pks-personal-card bg-[#111623] border border-white/5 rounded-2xl p-4 flex items-center justify-between group hover:border-white/10 transition-all hover:bg-white/[0.02] shadow-lg">
       <div className="flex items-start gap-4">
         {/* Avatar */}
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/5 bg-gradient-to-br from-white/10 to-transparent text-lg font-bold text-white">
@@ -325,7 +325,7 @@ function OperatorCard({
                 initial={{ opacity: 0, scale: 0.95, x: 10 }}
                 animate={{ opacity: 1, scale: 1, x: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="absolute right-0 top-full mt-2 w-48 bg-[#151B28] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-20 p-1.5 flex flex-col gap-1"
+                className="pks-personal-card absolute right-0 top-full mt-2 w-48 bg-[#151B28] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-20 p-1.5 flex flex-col gap-1"
               >
                 <button 
                   onClick={onEdit} 
@@ -472,7 +472,7 @@ disableStops: false,
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-lg shadow-2xl relative flex max-h-full flex-col overflow-hidden"
+        className="pks-personal-card bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-lg shadow-2xl relative flex max-h-full flex-col overflow-hidden"
       >
         
         <div className="p-4 sm:p-6 border-b border-white/5 flex min-w-0 shrink-0 items-center justify-between gap-3">
@@ -669,7 +669,7 @@ function GlobalPermissionsModal({
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-md shadow-2xl relative flex max-h-full flex-col overflow-hidden"
+        className="pks-personal-card bg-[#0F131D] border border-white/10 border-t-white/20 rounded-3xl w-full max-w-md shadow-2xl relative flex max-h-full flex-col overflow-hidden"
       >
         
         <div className="p-4 sm:p-6 border-b border-white/5 flex min-w-0 shrink-0 items-center justify-between gap-3">
@@ -694,7 +694,7 @@ function GlobalPermissionsModal({
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
-          <div className="flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
+          <div className="pks-personal-card flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
             <div>
               <div className="text-base font-bold text-white mb-0.5">Logowanie do panelu</div>
               <div className="text-xs text-slate-500">Zezwalaj na logowanie nowych sesji</div>
@@ -720,7 +720,7 @@ function GlobalPermissionsModal({
             </button>
           </div>
 
-          <div className="flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
+          <div className="pks-personal-card flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
             <div>
               <div className="text-base font-bold text-white mb-0.5">Tryb konserwacji</div>
               <div className="text-xs text-slate-500 font-medium text-rose-500/70 uppercase tracking-widest text-[9px]">Ostrzeżenie: Wyłącza panel</div>
@@ -746,7 +746,7 @@ function GlobalPermissionsModal({
             </button>
           </div>
 
-          <div className="flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
+          <div className="pks-personal-card flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
             <div>
               <div className="text-base font-bold text-white mb-0.5">Auto-ban niezweryfikowanych</div>
               <div className="text-xs text-slate-500">Cichy ban na zawsze dla urządzeń bez weryfikacji</div>
@@ -774,7 +774,7 @@ function GlobalPermissionsModal({
 
         </div>
 
-        <div className="shrink-0 p-4 sm:p-6 border-t border-white/5 bg-[#111623]/50 flex justify-end">
+        <div className="pks-personal-card shrink-0 p-4 sm:p-6 border-t border-white/5 bg-[#111623]/50 flex justify-end">
           {readOnly ? (
             <button
               type="button"

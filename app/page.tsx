@@ -16,8 +16,8 @@ import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {uiAccentVariables} from '@/lib/ui-accent';
 import {MapHeader,BottomNavigation,StopTabIcon} from '@/components/ApplicationChrome';
-import {panelGlowStrength,panelGlowVariables} from '@/lib/panel-glow';
-import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppearance,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
+import {panelGlowStrength} from '@/lib/panel-glow';
+import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
@@ -327,12 +327,12 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex); };
+  const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex);window.dispatchEvent(new Event('pks-interface-appearance')); };
   const saveMapStops=(value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));};
   const saveInactive = (val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); };
   const saveAppTheme = (val: any) => {
     setAppTheme(val);
-    localStorage.setItem('mks_app_theme', val);
+    localStorage.setItem('mks_app_theme', val);window.dispatchEvent(new Event('pks-interface-appearance'));
     const actual = val === 'system' ? (systemIsDark ? 'dark' : 'light') : val;
     const bg =
       actual === 'light'
@@ -354,11 +354,11 @@ export default function Home() {
     document.documentElement.style.backgroundColor = bg;
     document.body.style.backgroundColor = bg;
   };
-  const saveLightEffects=(value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));};
+  const saveLightEffects=(value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));};
   const saveInterfaceAppearance=(value:InterfaceAppearance)=>{const normalized=normalizeInterfaceAppearance(value);setInterfaceAppearance(normalized);localStorage.setItem(INTERFACE_APPEARANCE_KEY,JSON.stringify(normalized));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const savePanelGlow=(value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));};
-  const saveGlowStrength=(value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));};
-  const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val)); };
+  const savePanelGlow=(value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));};
+  const saveGlowStrength=(value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));window.dispatchEvent(new Event('pks-interface-appearance'));};
+  const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val));window.dispatchEvent(new Event('pks-interface-appearance')); };
 
   const deferredFilterRoute = useDeferredValue(filterRoute);
   const handleManualRefresh = async () => {
@@ -921,13 +921,6 @@ export default function Home() {
       document.documentElement.style.setProperty(key, value);
     }
   }, [themeColor, isDark]);
-  useEffect(()=>{
-    const root=document.documentElement;
-    root.dataset.panelGlow=panelGlow&&glowStrength>0?'on':'off';
-    for(const [key,value] of Object.entries(panelGlowVariables(interfaceAppearance.glowColor,glowStrength,isDark,lightEffects,{style:interfaceAppearance.glowStyle,spread:interfaceAppearance.glowSpread,placement:interfaceAppearance.glowPlacement})))root.style.setProperty(key,value);
-    return ()=>{delete root.dataset.panelGlow;for(const key of Object.keys(panelGlowVariables(interfaceAppearance.glowColor,glowStrength,isDark,lightEffects,{style:interfaceAppearance.glowStyle,spread:interfaceAppearance.glowSpread,placement:interfaceAppearance.glowPlacement})))root.style.removeProperty(key);};
-  },[panelGlow,glowStrength,interfaceAppearance,isDark,lightEffects]);
-  useEffect(()=>applyInterfaceAppearance(document.documentElement,interfaceAppearance,isDark,themeColor,lightEffects,actualTheme),[interfaceAppearance,isDark,themeColor,lightEffects,actualTheme]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1409,7 +1402,7 @@ export default function Home() {
 
          {/* Bottom Navigation for Mobile */}
       <div className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
-         <BottomNavigation activeTab={activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
+         <BottomNavigation activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
             onMap={()=>{if(!isMapTabDisabled){setActiveTab('map');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);}}}
             onStops={()=>{if(!isStopsTabDisabled){setActiveTab('stops');setSelectedBus(null);}}}
             onAdmin={()=>{if(activeTab!=='admin')adminReturnTab.current=activeTab==='stops'?'stops':'map';setActiveTab('admin');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);setIsSettingsOpen(false);}}
