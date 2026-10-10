@@ -2,7 +2,11 @@ import {normalizeUiAccent} from './ui-accent';
 import {withAlpha} from './home/vehicle-display';
 export function vehicleHeaderStyle(color:string,glass:boolean){return {background:glass?`linear-gradient(135deg, ${withAlpha(color,0.48)}, ${withAlpha(color,0.28)})`:color};}
 
+export const NAV_ITEMS=['map','stops','admin','options'] as const;
+export type NavItem=typeof NAV_ITEMS[number];
 export interface InterfaceAppearance {
+  startScreen:'map'|'stops'|'favorites';navOrder:NavItem[];departureView:'simple'|'detailed';
+  handedness:'off'|'left'|'right';markerSize:number;markerLabel:'line'|'carrier'|'icon';
   panelRadius:number; cardRadius:number; controlRadius:number;
   borderStrength:number; shadowStrength:number;
   glassOpacity:number; glassBlur:number; glassSaturation:number;
@@ -20,6 +24,7 @@ export interface InterfaceAppearance {
   glowSpread:number; glowPlacement:'corners'|'center'|'diagonal';
 }
 export const DEFAULT_INTERFACE_APPEARANCE:InterfaceAppearance={
+  startScreen:'map',navOrder:[...NAV_ITEMS],departureView:'detailed',handedness:'off',markerSize:100,markerLabel:'line',
   panelRadius:24,cardRadius:20,controlRadius:12,borderStrength:12,shadowStrength:30,
   glassOpacity:64,glassBlur:18,glassSaturation:135,surfaceTint:'original',panelColor:'#64748b',panelTintStrength:35,cardStyle:'original',buttonStyle:'original',
   textScale:100,fontFamily:'system',titleWeight:700,letterSpacing:0,tabularNumbers:true,
@@ -35,6 +40,9 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   const choice=<K extends keyof InterfaceAppearance>(key:K,values:readonly InterfaceAppearance[K][])=>values.includes(v[key] as InterfaceAppearance[K])?v[key] as InterfaceAppearance[K]:d[key];
   const flag=(key:keyof InterfaceAppearance)=>typeof v[key]==='boolean'?v[key] as boolean:d[key] as boolean;
   return {
+    startScreen:choice('startScreen',['map','stops','favorites']),
+    navOrder:[...new Set(Array.isArray(v.navOrder)?v.navOrder.filter((item):item is NavItem=>NAV_ITEMS.includes(item as NavItem)):[]),...NAV_ITEMS].filter((item,index,items)=>items.indexOf(item)===index),
+    departureView:choice('departureView',['simple','detailed']),handedness:choice('handedness',['off','left','right']),markerSize:n('markerSize',80,140),markerLabel:choice('markerLabel',['line','carrier','icon']),
     panelRadius:n('panelRadius',0,36),cardRadius:n('cardRadius',0,30),controlRadius:n('controlRadius',0,24),
     borderStrength:n('borderStrength',0,40),shadowStrength:n('shadowStrength',0,100),
     glassOpacity:n('glassOpacity',20,100),glassBlur:n('glassBlur',0,28),glassSaturation:135,
@@ -73,6 +81,8 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
     '--personal-title-weight':`${v.titleWeight}`,'--personal-letter-spacing':`${v.letterSpacing}px`,
     '--personal-font':v.fontFamily==='mono'?'ui-monospace, SFMono-Regular, Consolas, monospace':v.fontFamily==='sans'?'Arial, Helvetica, sans-serif':'system-ui, sans-serif',
     '--personal-icon-size':`${v.iconSize}px`,'--personal-icon-stroke':`${v.iconStroke}`,'--personal-inactive-opacity':`${v.inactiveOpacity/100}`,
+    '--personal-marker-scale':String(v.markerSize/100),
+    '--personal-nav-map':String(v.navOrder.indexOf('map')),'--personal-nav-stops':String(v.navOrder.indexOf('stops')),'--personal-nav-admin':String(v.navOrder.indexOf('admin')),'--personal-nav-options':String(v.navOrder.indexOf('options')),
     '--personal-muted':dark?'#dbe5ef':'#334155',
     '--personal-pattern-image':interfacePanelPattern(v,dark),
     '--personal-row-padding':v.density==='compact'?'8px':v.density==='spacious'?'18px':'12px',
@@ -90,7 +100,7 @@ export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,
     glass:String(v.glassOpacity!==defaults.glassOpacity||v.surfaceTint!=='original'),blur:String(v.glassBlur!==defaults.glassBlur||v.glassSaturation!==defaults.glassSaturation),
     cardStyle:v.cardStyle,buttonStyle:v.buttonStyle,surface:v.surfaceTint,text:String(v.textScale!==100),font:v.fontFamily,title:String(v.titleWeight!==700),spacing:String(v.letterSpacing!==0),
     numbers:v.tabularNumbers?'tabular':'proportional',density:v.density,icons:String(v.iconSize!==24||v.iconStroke!==2),
-    layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),motion:v.reducedMotion?'reduced':'normal',hover:String(v.hoverHighlight),
+    hand:v.handedness,departures:v.departureView,marker:v.markerLabel,layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),motion:v.reducedMotion?'reduced':'normal',hover:String(v.hoverHighlight),
   };
   for(const [key,value] of Object.entries(attrs))root.setAttribute('data-personal-'+key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value);
   const variables=interfaceAppearanceVariables(v,dark,accent,lightEffects,theme);

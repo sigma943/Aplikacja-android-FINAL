@@ -20,6 +20,7 @@ type RawStop = {
 };
 
 interface StopsPanelProps {
+  initialFavoritesOnly?:boolean;
   initialStop?: Stop | null;
   active?: boolean;
   stops: RawStop[];
@@ -81,6 +82,7 @@ type InternalStop = Stop & {
 };
 
 type StopsSearchState = {
+  favoritesOnly?:boolean;
   isFullListOpen?: boolean;
   previewScrollTop?: number;
   fullScrollTop?: number;

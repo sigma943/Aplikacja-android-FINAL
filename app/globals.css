@@ -557,3 +557,37 @@ html[data-personal-nav='block'] .pks-navigation button[aria-current='page'] { co
 .personal-preset-name svg { flex-shrink:0; color:var(--pks-accent-text); }
 .personal-preset-description { display:block; margin-top:4px; font-size:11px; line-height:1.5; color:var(--ui-muted); }
 @media (max-width:360px) { .personal-presets-grid { gap:7px; } .personal-preset { padding:8px; } .personal-preset-preview { padding:7px; } }
+
+.personal-tools { display:grid; gap:20px; }
+.personal-order,.personal-profile-list { display:grid; gap:7px; }
+.personal-order > div,.personal-profile-list > div { display:flex; align-items:center; gap:4px; padding:6px 8px; border:1px solid var(--ui-edge); border-radius:12px; }
+.personal-order span,.personal-profile-list > div > button:first-child { flex:1; min-width:0; overflow-wrap:anywhere; font-size:12px; text-align:left; }
+.personal-order button,.personal-profile-list button { min-width:36px; min-height:36px; display:flex; align-items:center; justify-content:center; border-radius:8px; }
+.personal-order button:disabled { opacity:.25; }
+.personal-profile-save { display:flex; gap:7px; margin-bottom:10px; }
+.personal-profile-save input { flex:1; min-width:0; }
+.personal-profile-save button { display:flex; align-items:center; gap:6px; }
+.personal-profile-save button:disabled { opacity:.4; }
+.personal-schedule { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-bottom:15px; }
+.personal-schedule > div,.personal-schedule label { display:grid; gap:8px; min-width:0; font-size:12px; }
+.personal-tools :is(input[type='text'],input:not([type]),input[type='time'],select) { min-width:0; max-width:100%; padding:10px; border-radius:10px; border:1px solid var(--ui-edge); background:var(--ui-surface); color:var(--ui-text); }
+.personal-profile-save input { padding:10px; border-radius:10px; border:1px solid var(--ui-edge); background:var(--ui-surface); color:var(--ui-text); }
+.pks-navigation [data-nav-item='map'] { order:var(--personal-nav-map,0); }
+.pks-navigation [data-nav-item='stops'] { order:var(--personal-nav-stops,1); }
+.pks-navigation [data-nav-item='admin'] { order:var(--personal-nav-admin,2); }
+.pks-navigation [data-nav-item='options'] { order:var(--personal-nav-options,3); }
+html[data-personal-departures='simple'] [data-departure-extra] { display:none; }
+.mks-marker-appearance { transform:scale(var(--personal-marker-scale,1)); transform-origin:24px 46px; }
+.mks-train-marker .mks-marker-appearance { transform-origin:29px 50px; }
+.marker-carrier-label { display:none; position:absolute; top:10px; left:0; right:0; z-index:20; text-align:center; color:white; font:900 9px system-ui,sans-serif; pointer-events:none; }
+.marker-train-carrier { top:4px; color:#1d4ed8; background:white; border-radius:3px; left:5px; right:5px; }
+html[data-personal-marker='carrier'] .marker-carrier-label { display:block; }
+html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus-marker :is(.bus-front-svg text,.marker-train-line,.marker-number) { display:none; }
+@media (max-width:767px) {
+ html:is([data-personal-hand='left'],[data-personal-hand='right']) [data-map-toolbar][data-map-detail='false'] { top:auto; bottom:calc(70px + env(safe-area-inset-bottom)); width:min(380px,calc(100% - 54px)); gap:6px; }
+ html[data-personal-hand='right'] [data-map-toolbar][data-map-detail='false'] { left:auto; right:54px; }
+ html[data-personal-hand='left'] [data-map-toolbar][data-map-detail='false'] { left:54px; right:auto; }
+ html[data-personal-hand='right'] [data-options-sheet] { margin-left:auto; max-width:380px; }
+ html[data-personal-hand='left'] [data-options-sheet] { margin-right:auto; max-width:380px; }
+ html[data-personal-hand='left'] .leaflet-bottom.leaflet-right { right:auto; left:0; }
+}

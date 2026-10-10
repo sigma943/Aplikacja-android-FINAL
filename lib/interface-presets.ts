@@ -31,5 +31,5 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
 ];
 
 export function matchesInterfacePreset(preset:InterfacePreset,current:{appearance:InterfaceAppearance;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number}){
-  return current.theme===preset.theme&&current.accent.toLowerCase()===preset.accent&&current.glass===preset.glass&&current.glow===preset.glow&&current.glowStrength===preset.glowStrength&&Object.entries(preset.appearance).every(([key,value])=>current.appearance[key as keyof InterfaceAppearance]===value);
+  return current.theme===preset.theme&&current.accent.toLowerCase()===preset.accent&&current.glass===preset.glass&&current.glow===preset.glow&&current.glowStrength===preset.glowStrength&&Object.entries(preset.appearance).every(([key,value])=>JSON.stringify(current.appearance[key as keyof InterfaceAppearance])===JSON.stringify(value));
 }

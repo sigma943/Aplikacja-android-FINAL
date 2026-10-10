@@ -16,6 +16,7 @@ import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {uiAccentVariables} from '@/lib/ui-accent';
 import {MapHeader,BottomNavigation,StopTabIcon} from '@/components/ApplicationChrome';
+import {applyScheduledProfile} from '@/lib/personalization-profiles';
 import {panelGlowStrength} from '@/lib/panel-glow';
 import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {busOperatingState} from '@/lib/bus-operating-state';
@@ -148,8 +149,10 @@ export default function Home() {
 
   // Stops States
   const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
+  const [initialFavoritesOnly,setInitialFavoritesOnly]=useState(false);
+  const startScreenApplied=useRef(false);
   const [widgetStop,setWidgetStop]=useState<StopsPanelStop|null>(null);
-  useEffect(()=>onWidgetOpen(stop=>{setWidgetStop(stop);setActiveTab('stops');}),[]);
+  useEffect(()=>onWidgetOpen(stop=>{startScreenApplied.current=true;setWidgetStop(stop);setActiveTab('stops');}),[]);
   const [hasOpenedStops, setHasOpenedStops] = useState(false);
   useEffect(() => {
     if (activeTab === 'stops') setHasOpenedStops(true);
@@ -293,6 +296,7 @@ export default function Home() {
   const mapDepartureError=[...new Set([...mapToday.warnings,...mapTomorrow.warnings])].join(' ')||null;
 
   useEffect(() => {
+    applyScheduledProfile();
     const storedProviders = sanitizeProvidersWithVisibility(readStoredTransportProviders(), hiddenProvidersSet);
     activeProvidersRef.current = storedProviders;
     setActiveProviders(storedProviders);
@@ -311,7 +315,9 @@ export default function Home() {
     const sTrans = localStorage.getItem('mks_transparent');
     setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');
     setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
-    try{setInterfaceAppearance(normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')));}catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
+    try{const savedAppearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));setInterfaceAppearance(savedAppearance);
+      if(!startScreenApplied.current){startScreenApplied.current=true;if(savedAppearance.startScreen!=='map'){setInitialFavoritesOnly(savedAppearance.startScreen==='favorites');setActiveTab('stops');}}
+    }catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
     setTimeout(()=>setLightEffects(localStorage.getItem('mks_light_effects')==='true'),0);
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
     const favs = localStorage.getItem('mks_fav_stops');
@@ -326,6 +332,15 @@ export default function Home() {
     return () => mediaQuery.removeEventListener('change', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(()=>{
+    const update=()=>{
+      try{setInterfaceAppearance(normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')));}catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
+      const theme=localStorage.getItem('mks_app_theme')||'dark-oled';if(['light','light-warm','dark','dark-oled','dark-aurora','system'].includes(theme))setAppTheme(theme as typeof appTheme);setThemeColor(localStorage.getItem('mks_theme')||'#00a3a2');
+      setTransparentUI(localStorage.getItem('mks_transparent')!=='false');setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
+    };
+    window.addEventListener('pks-profile-applied',update);return()=>window.removeEventListener('pks-profile-applied',update);
+  },[]);
 
   const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex);window.dispatchEvent(new Event('pks-interface-appearance')); };
   const saveMapStops=(value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));};
@@ -1208,7 +1223,7 @@ export default function Home() {
              />
 
             {/* Overlays for Map */}
-            <div className={`absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none ${activeTab === 'map' ? 'flex' : 'hidden'} flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+            <div data-map-toolbar data-map-detail={Boolean(selectedBus||selectedStopId)} className={`absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none ${activeTab === 'map' ? 'flex' : 'hidden'} flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
               
               {/* Top Box Mobile / Desktop */}
               <MapHeader mapGlassPanel={mapGlassPanel} mapGlassInput={mapGlassInput} themeColor={themeColor} transparentUI={transparentUI} isDark={isDark} isManualRefreshing={isManualRefreshing} showAlertDot={showAlertDot} error={error} isOffline={isOffline} textSub={textSub} filterRoute={filterRoute} setFilterRoute={setFilterRoute} handleManualRefresh={handleManualRefresh} closeMapPanelsForSearch={closeMapPanelsForSearch}/>
@@ -1370,6 +1385,7 @@ export default function Home() {
             aria-hidden={activeTab !== 'stops'}
          >
             {hasOpenedStops && <StopsPanel
+               initialFavoritesOnly={initialFavoritesOnly}
                initialStop={widgetStop}
                active={activeTab === 'stops'}
                stops={stopsList}
@@ -1402,7 +1418,7 @@ export default function Home() {
 
          {/* Bottom Navigation for Mobile */}
       <div className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
-         <BottomNavigation activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
+         <BottomNavigation order={interfaceAppearance.navOrder} activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
             onMap={()=>{if(!isMapTabDisabled){setActiveTab('map');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);}}}
             onStops={()=>{if(!isStopsTabDisabled){setActiveTab('stops');setSelectedBus(null);}}}
             onAdmin={()=>{if(activeTab!=='admin')adminReturnTab.current=activeTab==='stops'?'stops':'map';setActiveTab('admin');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);setIsSettingsOpen(false);}}

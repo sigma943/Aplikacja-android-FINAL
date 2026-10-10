@@ -16,7 +16,7 @@ export function mapStopDepartureRows(rows:Departure[],vehicles:Vehicle[],now:num
     const time=row.realAtMs??row.plannedAtMs!;
     todayDate??=warsawDateIso(0,new Date(now));
     const today=warsawDateIso(0,new Date(time))===todayDate;
-    return {id:`${row.carrier?.id}:${row.id}`,line:row.line,direction:row.direction,
+    return {id:`${row.carrier?.id}:${row.id}`,line:row.line,direction:row.direction,carrierName:row.carrier?.name,
       color:row.carrier?.id==='mpk'?'#ff7a00':row.carrier?.id==='marcel'?'#68c44a':'#14b8a6',
       time:today?departureCountdown(row,now):row.time,
       day:today?'':dayFormatter.format(time),delayMinutes:row.delayMins??0};

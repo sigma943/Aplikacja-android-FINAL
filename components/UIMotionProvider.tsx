@@ -6,6 +6,8 @@ import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppe
 
 import {panelGlowStrength,panelGlowVariables} from '@/lib/panel-glow';
 
+import {applyScheduledProfile} from '@/lib/personalization-profiles';
+
 export default function UIMotionProvider({children}: {children: ReactNode}) {
   const [reduced,setReduced]=useState(false);
   useEffect(()=>{
@@ -13,6 +15,7 @@ export default function UIMotionProvider({children}: {children: ReactNode}) {
     let cleanupAppearance:undefined|(()=>void);
     let glowKeys:string[]=[];
     const update=()=>{
+      const switched=applyScheduledProfile();
       let value=normalizeInterfaceAppearance(null);
       try{value=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));}catch{/* Use defaults for damaged saved settings. */}
       const saved=(localStorage.getItem('mks_app_theme')||'dark-oled').trim().toLowerCase();
@@ -26,13 +29,18 @@ export default function UIMotionProvider({children}: {children: ReactNode}) {
       glowKeys=Object.keys(variables);
       for(const [key,next]of Object.entries(variables))root.style.setProperty(key,next);
       setReduced(value.reducedMotion);
+      if(switched)window.dispatchEvent(new Event('pks-profile-applied'));
     };
     update();
     window.addEventListener('pks-interface-appearance',update);
     window.addEventListener('storage',update);
+    window.addEventListener('focus',update);
+    document.addEventListener('visibilitychange',update);
+    const timer=window.setInterval(update,30000);
     media.addEventListener('change',update);
     return ()=>{
       window.removeEventListener('pks-interface-appearance',update);window.removeEventListener('storage',update);media.removeEventListener('change',update);
+      window.clearInterval(timer);window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);
       cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
     };
   },[]);
