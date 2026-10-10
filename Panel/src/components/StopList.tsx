@@ -1,6 +1,6 @@
 import {displayStopLabel} from '@/lib/stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
-import React, { useEffect, useDeferredValue, useMemo, useState } from 'react';
+import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
@@ -76,6 +76,32 @@ function filterStops(stops: SearchableStop[], query: string, carrierFilter: Carr
       return entry.normalizedName.includes(normalizedQuery);
     })
     .map((entry) => entry.stop);
+}
+
+function StopLineBadges({lines,providerId,pksLineSet,providers}:{lines:string[];providerId?:string;pksLineSet:Set<string>;providers?:Record<string,string[]>}) {
+  const row=useRef<HTMLDivElement>(null);
+  const [visibleCount,setVisibleCount]=useState(Math.min(lines.length,5));
+  const lineKey=lines.join(',');
+  useLayoutEffect(()=>{
+    const element=row.current;
+    if(!element)return;
+    let width=-1;
+    const observer=new ResizeObserver(()=>{
+      if(element.clientWidth!==width){width=element.clientWidth;setVisibleCount(Math.min(lines.length,5));}
+    });
+    observer.observe(element);
+    setVisibleCount(Math.min(lines.length,5));
+    return ()=>observer.disconnect();
+  },[lineKey,lines.length]);
+  useLayoutEffect(()=>{
+    const element=row.current;
+    if(element&&element.scrollWidth>element.clientWidth+1&&visibleCount>1)setVisibleCount(visibleCount-1);
+  },[visibleCount,lineKey]);
+  const visible=lines.slice(0,visibleCount),remaining=lines.length-visible.length;
+  return <div ref={row} data-stop-line-badges data-line-total={lines.length} className="mt-1 flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden">
+    {visible.map(line=><span key={line} className={`max-w-[5.5rem] shrink-0 truncate rounded-md border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line,providers?.[line]?.[0]||(pksLineSet.has(line)?'pks':providerId))}`}>{line}</span>)}
+    {remaining>0&&<span data-stop-line-overflow className="shrink-0 rounded border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] font-black text-slate-300">+{remaining}</span>}
+  </div>;
 }
 
 export default function StopList({
@@ -217,27 +243,6 @@ export default function StopList({
     </div>
   );
 
-  const renderLineBadges = (lines: string[], expanded = false, providerId?: string, pksLineSet?: Set<string>, providers?: Record<string,string[]>) => {
-    const visibleCount = expanded ? lines.length : Math.min(lines.length, 5);
-    const visible = lines.slice(0, visibleCount);
-    const remaining = lines.length - visible.length;
-
-    return (
-      <div className="mt-1 flex min-w-0 max-w-full flex-wrap items-center gap-1 overflow-hidden">
-        {visible.map((line) => (
-          <span key={line} className={`max-w-[5.5rem] truncate rounded-md border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line, providers?.[line]?.[0] || (pksLineSet?.has(line) ? 'pks' : providerId))}`}>
-            {line}
-          </span>
-        ))}
-        {remaining > 0 && (
-          <span className="rounded border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] font-black text-slate-300">
-            +{remaining}
-          </span>
-        )}
-      </div>
-    );
-  };
-
   const renderStopCard = (stop: Stop, index: number, full = false) => {
     const isBus = stop.type === 'bus';
     const singleProviderId = stop.carriers.length === 1 ? stop.carriers[0].id : undefined;
@@ -285,7 +290,7 @@ export default function StopList({
                 {isBus ? (stop.carriers.map(c => c.name.replace('Rzeszow', 'Rzeszów')).join(' · ') || 'Przystanek autobusowy') : 'Stacja kolejowa'}
               </span>
             </div>
-            {isBus && stop.lines.length > 0 && renderLineBadges(stop.lines, full, singleProviderId, pksLineSet, stop.lineProviders)}
+            {isBus && stop.lines.length > 0 && <StopLineBadges lines={stop.lines} providerId={singleProviderId} pksLineSet={pksLineSet} providers={stop.lineProviders} />}
           </div>
         </div>
 

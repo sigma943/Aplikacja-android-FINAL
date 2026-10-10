@@ -122,6 +122,21 @@ const server=http.createServer((req,res)=>{
       return bounds.height>=70&&(!next||bounds.bottom<=next.top+1);
     })),true,'full stop cards retain their height and never overlap');
     await page.waitForSelector('[data-virtual-stop-cards]');await assertCards();assert.equal(await page.$eval('[data-virtual-stop-cards]',el=>Number(el.dataset.totalStops)),40);assert.ok(await page.$$eval('[data-stop-card-id]',els=>els.length)<25,'full list renders only nearby cards');
+    const assertLineBadges=async()=>assert.equal(await page.$$eval('[data-stop-line-badges]',rows=>rows.every(row=>{
+      const badges=[...row.children],bounds=row.getBoundingClientRect();
+      const counter=row.querySelector('[data-stop-line-overflow]');
+      const visible=badges.length-(counter?1:0),remaining=counter?Number(counter.textContent.slice(1)):0;
+      return visible<=5&&visible+remaining===Number(row.dataset.lineTotal)&&row.scrollWidth<=row.clientWidth+1&&badges.every(badge=>{
+        const rect=badge.getBoundingClientRect();return Math.abs(rect.top-badges[0].getBoundingClientRect().top)<1&&rect.right<=bounds.right+1;
+      });
+    })),true,'stop lines stay in one row with a visible and accurate +N tile');
+    await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-line-badges]')].every(row=>row.scrollWidth<=row.clientWidth+1));
+    await assertLineBadges();
+    await page.setViewport({width:320,height:568,deviceScaleFactor:1});
+    await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-line-badges]')].every(row=>row.scrollWidth<=row.clientWidth+1));
+    await assertLineBadges();
+    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+    await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-line-badges]')].every(row=>row.scrollWidth<=row.clientWidth+1));
     await screenshot('stops-full-glass');
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim().startsWith('Pokaż więcej (')).click());
     await page.waitForFunction(()=>document.querySelector('[data-virtual-stop-cards]').dataset.totalStops==='80');await assertCards();assert.ok(await page.$$eval('[data-stop-card-id]',els=>els.length)<25,'loading more stops does not inflate DOM');
