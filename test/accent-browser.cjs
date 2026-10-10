@@ -408,6 +408,11 @@ const server=http.createServer((req,res)=>{
     await openGroup('Wzór tła');await choose('Faktura paneli','Siatka');
     await openGroup('Miękka poświata');await page.$eval('[aria-label="Miękka poświata paneli"]',el=>el.click());
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on');
+    // Saving disables the focused button. Keys must still reach the active dialog.
+    await page.evaluate(()=>document.activeElement?.blur());
+    await page.keyboard.press('Tab');
+    assert.ok(await page.$eval('[data-options-sheet]',el=>el.contains(document.activeElement)),'Tab restores focus to the settings after the focused control becomes disabled');
+    await page.evaluate(()=>document.activeElement?.blur());
     await page.keyboard.press('Escape');await page.waitForSelector('[data-options-sheet]',{hidden:true});
     await page.click('.pks-navigation [aria-label="Przystanki"]');await page.waitForSelector('.transit-stop-card');
     for(const selector of ['.transit-surface','.transit-stop-card']){
