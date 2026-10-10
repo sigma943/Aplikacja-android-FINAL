@@ -63,7 +63,7 @@ try{
  await page.screenshot({path:path.resolve('test/ui-previews/map-lisa-kuli-provider-alias.png')});
  await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
  await page.type('input[placeholder*="Babica"]','Lisa');
- await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].filter(el=>/lisa/i.test(el.textContent)).length===1);
+ await page.waitForFunction(()=>{const rows=[...document.querySelectorAll('[data-stop-card-id]')];return rows.length===1&&/lisa/i.test(rows[0].textContent);});
  const lisaId=await page.$eval('[data-stop-card-id]',el=>el.dataset.stopCardId);
  for(const provider of ['PKS Rzeszów','MPK Rzeszów']){
   await button(provider);
