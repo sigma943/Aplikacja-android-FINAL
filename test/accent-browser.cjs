@@ -376,6 +376,12 @@ const server=http.createServer((req,res)=>{
     assert.ok(await page.$eval('.personal-reset',el=>{const style=getComputedStyle(el);return style.color!==style.backgroundColor&&style.backgroundColor!=='rgba(0, 0, 0, 0)';}),'reset has a contrasting label and solid surface on a light theme');
     await openGroup('Nawigacja i profile');
     const tools=await page.$('.personal-tools');assert.ok(tools);
+    assert.equal(await page.$eval('.personal-order',el=>el.innerText.includes('Admin')),Boolean(await page.$('.pks-navigation [data-nav-item="admin"]')),'tab order only shows Admin when the real navigation grants access');
+    assert.equal(await page.$eval('.personal-tools',el=>el.innerText.includes('Zakładka Admin jest widoczna')),false,'tab order has no Admin explanation');
+    const visibleTabOrder=await page.$$eval('.personal-order > div > span',els=>els.map(el=>el.textContent));
+    await page.$eval('[aria-label="Przesuń Opcje wcześniej"]',el=>el.click());
+    assert.deepEqual(await page.$$eval('.personal-order > div > span',els=>els.map(el=>el.textContent)),[...visibleTabOrder.slice(0,-2),'Opcje',visibleTabOrder.at(-2)],'moving skips tabs hidden by permissions');
+    await page.$eval('[aria-label="Przesuń Opcje później"]',el=>el.click());
     const chooseTool=async(title,label)=>page.evaluate((title,label)=>[...document.querySelectorAll('.personal-tools .personal-field')].find(el=>el.querySelector('legend').textContent===title)?.querySelectorAll('button').forEach(el=>{if(el.textContent.trim()===label)el.click();}),title,label);
     await chooseTool('Ekran startowy','Ulubione');await chooseTool('Obsługa jedną ręką','Lewa ręka');
     await chooseTool('Podpis znacznika','Przewoźnik');

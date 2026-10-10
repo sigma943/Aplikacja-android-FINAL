@@ -4,7 +4,7 @@ import {ArrowUp,ArrowDown,Save,Trash2} from 'lucide-react';
 import {type InterfaceAppearance,type NavItem} from '@/lib/interface-appearance';
 import {PROFILES_KEY,SCHEDULE_KEY,DEFAULT_SCHEDULE,readProfiles,readSchedule,normalizeSchedule,activateProfile,type VisualProfile,type VisualSchedule} from '@/lib/personalization-profiles';
 
-type Props={value:InterfaceAppearance;onChange:(value:InterfaceAppearance)=>void;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number};
+type Props={canOpenAdminEmbed?:boolean;value:InterfaceAppearance;onChange:(value:InterfaceAppearance)=>void;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number};
 const labels:Record<NavItem,string>={map:'Mapa',stops:'Przystanki',admin:'Admin',options:'Opcje'};
 export default function PersonalizationTools(p:Props){
  const [profiles,setProfiles]=useState<VisualProfile[]>([]),[schedule,setSchedule]=useState<VisualSchedule>({...DEFAULT_SCHEDULE}),[name,setName]=useState(''),[message,setMessage]=useState('');
@@ -15,12 +15,13 @@ export default function PersonalizationTools(p:Props){
  const store=(next:VisualProfile[])=>{localStorage.setItem(PROFILES_KEY,JSON.stringify(next));setProfiles(next);};
  const capture=(id:string,title:string):VisualProfile=>({id,name:title,updatedAt:Date.now(),appearance:{...p.value,navOrder:[...p.value.navOrder]},theme:p.theme,accent:p.accent,glass:p.glass,glow:p.glow,glowStrength:p.glowStrength});
  const save=()=>{if(!name.trim())return;try{if(profiles.length>=8){setMessage('Możesz zapisać do 8 zestawów. Usuń jeden, aby dodać kolejny.');return;}const next=capture(crypto.randomUUID(),name.trim());store([...profiles,next]);setName('');setMessage(`Zapisano zestaw „${next.name}”.`);if(!schedule.dayProfile)saveSchedule({...schedule,dayProfile:next.id});else if(!schedule.nightProfile)saveSchedule({...schedule,nightProfile:next.id});}catch{setMessage('Nie udało się zapisać zestawu.');}};
- const move=(index:number,direction:number)=>{const order=[...p.value.navOrder];[order[index],order[index+direction]]=[order[index+direction],order[index]];set('navOrder',order);};
+ const visibleOrder=p.value.navOrder.filter(id=>id!=='admin'||p.canOpenAdminEmbed);
+ const move=(index:number,direction:number)=>{const target=visibleOrder[index+direction];if(!target)return;const order=[...p.value.navOrder],from=order.indexOf(visibleOrder[index]),to=order.indexOf(target);[order[from],order[to]]=[order[to],order[from]];set('navOrder',order);};
  const valid=profiles.some(p=>p.id===schedule.dayProfile)&&profiles.some(p=>p.id===schedule.nightProfile)&&schedule.dayAt!==schedule.nightAt;
  return <div className="personal-tools">
   {choice('startScreen','Ekran startowy',[['map','Mapa'],['stops','Przystanki'],['favorites','Ulubione']])}
   <p className="personal-note">Ekran startowy zmieni się przy kolejnym uruchomieniu. Otwarcie z widżetu prowadzi do jego przystanku.</p>
-  <fieldset className="personal-field"><legend>Kolejność zakładek</legend><div className="personal-order">{p.value.navOrder.map((id,index)=><div key={id}><span>{labels[id]}</span><button type="button" disabled={index===0} onClick={()=>move(index,-1)} aria-label={`Przesuń ${labels[id]} wcześniej`} className="ui-accent-focus"><ArrowUp size={16}/></button><button type="button" disabled={index===p.value.navOrder.length-1} onClick={()=>move(index,1)} aria-label={`Przesuń ${labels[id]} później`} className="ui-accent-focus"><ArrowDown size={16}/></button></div>)}</div><p className="personal-note">Zakładka Admin jest widoczna tylko dla uprawnionych użytkowników.</p></fieldset>
+  <fieldset className="personal-field"><legend>Kolejność zakładek</legend><div className="personal-order">{visibleOrder.map((id,index)=><div key={id}><span>{labels[id]}</span><button type="button" disabled={index===0} onClick={()=>move(index,-1)} aria-label={`Przesuń ${labels[id]} wcześniej`} className="ui-accent-focus"><ArrowUp size={16}/></button><button type="button" disabled={index===visibleOrder.length-1} onClick={()=>move(index,1)} aria-label={`Przesuń ${labels[id]} później`} className="ui-accent-focus"><ArrowDown size={16}/></button></div>)}</div></fieldset>
   {choice('departureView','Widok odjazdów',[['detailed','Szczegółowy'],['simple','Prosty']])}
   <p className="personal-note">Prosty widok ma mniejsze odstępy i ukrywa przewoźnika oraz opis pojazdu. Linia, kierunek, czas, opóźnienia i komunikaty pozostają widoczne.</p>
   {choice('handedness','Obsługa jedną ręką',[['off','Standardowa'],['left','Lewa ręka'],['right','Prawa ręka']])}
