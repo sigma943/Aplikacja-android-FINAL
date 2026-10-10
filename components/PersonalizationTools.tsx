@@ -23,7 +23,7 @@ export default function PersonalizationTools(p:Props){
   <p className="personal-note">Ekran startowy zmieni się przy kolejnym uruchomieniu. Otwarcie z widżetu prowadzi do jego przystanku.</p>
   <fieldset className="personal-field"><legend>Kolejność zakładek</legend><div className="personal-order">{visibleOrder.map((id,index)=><div key={id}><span>{labels[id]}</span><button type="button" disabled={index===0} onClick={()=>move(index,-1)} aria-label={`Przesuń ${labels[id]} wcześniej`} className="ui-accent-focus"><ArrowUp size={16}/></button><button type="button" disabled={index===visibleOrder.length-1} onClick={()=>move(index,1)} aria-label={`Przesuń ${labels[id]} później`} className="ui-accent-focus"><ArrowDown size={16}/></button></div>)}</div></fieldset>
   {choice('departureView','Widok odjazdów',[['detailed','Szczegółowy'],['simple','Prosty']])}
-  <p className="personal-note">Prosty widok ma mniejsze odstępy i ukrywa przewoźnika oraz opis pojazdu. Linia, kierunek, czas, opóźnienia i komunikaty pozostają widoczne.</p>
+  <p className="personal-note">Prosty widok ma mniejsze odstępy i ukrywa opis pojazdu. Linia, kierunek, czas, opóźnienia i komunikaty pozostają widoczne.</p>
   {choice('handedness','Obsługa jedną ręką',[['off','Standardowa'],['left','Lewa ręka'],['right','Prawa ręka']])}
   <p className="personal-note">Na telefonie filtr mapy jest bliżej dolnego menu, a przyciski przewoźników i powiększenia są po wybranej stronie.</p>
   <label className="personal-slider"><span>Rozmiar znaczników pojazdów <output>{p.value.markerSize}%</output></span><input aria-label="Rozmiar znaczników pojazdów" type="range" min="80" max="140" step="5" value={p.value.markerSize} onChange={e=>set('markerSize',Number(e.target.value))}/></label>

@@ -352,7 +352,6 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                                  </span>
                                 )}
                              </div>
-                             {dep.carrier?.name&&<div data-departure-extra className={`mt-0.5 text-[10px] ${mutedTextClass}`}>{dep.carrier.name}</div>}
                              {dep.vehicleDesc && (
                                <div data-departure-extra className={`flex items-center text-[10px] sm:text-[11px] mt-0.5 truncate ${mutedTextClass}`}>
                                  <Navigation size={9} className={`mr-1 rotate-[135deg] shrink-0 ${isPast ? 'text-slate-500' : dep.carrier?.colorClass || 'text-teal-400'}`} />

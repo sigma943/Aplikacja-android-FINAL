@@ -93,9 +93,7 @@ export default function StopList({
   initialFavoritesOnly=false,
   onSearchStateChange,
 }: StopListProps) {
-  const [localFavoritesOnly,setLocalFavoritesOnly]=useState(initialFavoritesOnly);
-  const favoritesOnly=searchState?.favoritesOnly??localFavoritesOnly;
-  const setFavoritesOnly=(value:boolean)=>{setLocalFavoritesOnly(value);onSearchStateChange?.({favoritesOnly:value});};
+  const favoritesOnly=searchState?.favoritesOnly??initialFavoritesOnly;
   const [localInputValue, setLocalInputValue] = useState('');
   const reduceMotion = useReducedMotion();
   const [localFullListOpen, setLocalFullListOpen] = useState(false);
@@ -282,11 +280,7 @@ export default function StopList({
             {displayStopLabel(stop.name)}
           </h3>
           <div className="mt-1 flex flex-col gap-1">
-            <div className={`flex min-w-0 flex-wrap items-center text-[12px] font-semibold ${secondaryTextClass}`}>
-              <span className={`min-w-0 truncate ${isBus ? secondaryTextClass : 'text-blue-400/90'}`}>
-                {isBus ? (stop.carriers.map(c => c.name.replace('Rzeszow', 'Rzeszów')).join(' · ') || 'Przystanek autobusowy') : 'Stacja kolejowa'}
-              </span>
-            </div>
+            {!isBus && <div className="text-[12px] font-semibold text-blue-400/90">Stacja kolejowa</div>}
             {isBus && stop.lines.length > 0 && renderLineBadges(stop.lines, full, singleProviderId, pksLineSet, stop.lineProviders)}
           </div>
         </div>
@@ -357,7 +351,6 @@ export default function StopList({
             </button>
           )}
         </div>
-        <button type="button" aria-pressed={favoritesOnly} onClick={()=>setFavoritesOnly(!favoritesOnly)} className={`mt-2 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs ui-accent-focus ${favoritesOnly?'ui-accent-soft':'border-current/10'}`}><Star size={14}/>Tylko ulubione</button>
         {renderCarrierFilters()}
       </div>
 
