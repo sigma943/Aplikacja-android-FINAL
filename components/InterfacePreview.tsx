@@ -30,7 +30,7 @@ export default function InterfacePreview({chrome,accent,glass,dark,navOrder}:{na
      <div className="absolute bottom-0 left-0 right-0"><BottomNavigation preview order={navOrder} activeTab="map" className={chrome.bottomGlassShell} themeColor={accent} onMap={noAction} onStops={noAction} onOptions={noAction}/></div>
     </div></MotionConfig>
    </div>
-   <p className="personal-note mt-2">Te same panele, ikony i style co w aplikacji. Dane przykładowe.</p>
+   <p className="personal-note mt-2">Dane przykładowe.</p>
   </>}
  </section>;
 }
