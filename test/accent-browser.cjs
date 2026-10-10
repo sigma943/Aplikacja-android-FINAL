@@ -275,6 +275,14 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='off');
     for(let i=0;i<14;i++)await page.keyboard.press('ArrowRight');
     await page.waitForFunction(()=>localStorage.getItem('mks_panel_glow_strength')==='70');
+    const savedAccent=await page.evaluate(()=>localStorage.getItem('mks_theme'));
+    await page.$eval('[aria-label="Kolor poświaty: Fioletowy"]',el=>el.click());
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('mks_interface_appearance_v1')).glowColor==='#8b5cf6');
+    assert.equal(await page.$eval('[aria-label="Kolor poświaty: Fioletowy"]',el=>el.getAttribute('aria-pressed')),'true');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('mks_theme')),savedAccent,'glow palette is independent from the UI accent');
+    assert.equal(await page.$eval('[aria-label="Kolor miękkiej poświaty"]',el=>el.value),'#8b5cf6');
+    await page.$eval('[aria-label="Kolor poświaty: Turkusowy"]',el=>el.click());
+
     assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).backdropFilter),glowBlur,'soft patches preserve glass');
     await sameChrome();
     for(const selector of ['[data-options-sheet]','.pks-navigation','.personal-group']){
@@ -348,7 +356,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$('[data-interface-preview]'),null,'preview can be hidden');
     await page.$eval('.personal-preview-wrap button',el=>el.click());
     await page.waitForSelector('[data-interface-preview]');
-    await page.evaluate(()=>[...document.querySelectorAll('.personal-presets button')].find(el=>el.textContent==='Czytelny').click());
+    await page.evaluate(()=>document.querySelector('.personal-presets [aria-label="Zestaw: Czytelny"]').click());
     await page.waitForFunction(()=>document.documentElement.dataset.personalText==='true');
     await page.setViewport({width:320,height:740,deviceScaleFactor:1});
     await screenshot('personalization-light-compact');
