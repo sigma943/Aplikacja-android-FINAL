@@ -23,21 +23,23 @@ export default function OptionsSheet({ expanded, onExpandedChange, onClose, clas
   useEffect(() => {
     const root = sheet.current;
     if (!root) return;
-    let appearance:HTMLElement|null=null,scroll:HTMLElement|null=null;
+    let appearance:HTMLElement|null=null,scroll:HTMLElement|null=null,content:HTMLElement|null=null;
     const measure = () => {
-      if(!appearance||!scroll)return;
+      if(!scroll||!content)return;
       const prefix = scroll.getBoundingClientRect().top - root.getBoundingClientRect().top;
       const padding = parseFloat(getComputedStyle(root).paddingBottom) || 12;
-      const compact = Math.min(prefix + appearance.offsetHeight + padding, innerHeight * 0.55);
-      const full = Math.max(compact, Math.min(prefix + scroll.scrollHeight + padding, innerHeight * 0.8));
+      const compact = Math.min(prefix + (appearance?.offsetHeight || 80) + padding, innerHeight * 0.55);
+      const full = Math.max(compact, Math.min(prefix + content.getBoundingClientRect().height + padding, innerHeight * 0.8));
       setLimits(previous => Math.abs(previous.compact - compact) < 1 && Math.abs(previous.full - full) < 1 ? previous : {compact, full});
     };
     const observer = new ResizeObserver(measure);
     const connect = () => {
       const next=root.querySelector<HTMLElement>('[data-options-appearance]');
       const nextScroll=root.querySelector<HTMLElement>('[data-options-scroll]');
-      if(next!==appearance||nextScroll!==scroll){
-        observer.disconnect();appearance=next;scroll=nextScroll;
+      const nextContent=root.querySelector<HTMLElement>('[data-options-content]');
+      if(next!==appearance||nextScroll!==scroll||nextContent!==content){
+        observer.disconnect();appearance=next;scroll=nextScroll;content=nextContent;
+        if(content)observer.observe(content);
         if(appearance)observer.observe(appearance);
         const extra=root.querySelector<HTMLElement>('[data-options-extra]');
         if(extra)observer.observe(extra);

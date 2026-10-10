@@ -162,6 +162,13 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.querySelector('.transit-view').innerText.includes('Rzeszów'));
     assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(139, 92, 246)');
     await overflow();await screenshot('departures-dark-purple');
+    const departureDirection=await page.$eval('[data-departure-row] h4',el=>el.textContent);
+    const detailedDepartureHeight=await page.$eval('[data-departure-row]',el=>el.getBoundingClientRect().height);
+    await page.evaluate(()=>document.documentElement.dataset.personalDepartures='simple');
+    assert.ok(await page.$eval('[data-departure-row]',el=>el.getBoundingClientRect().height)<detailedDepartureHeight,'simple departures visibly reduce row height');
+    assert.ok(await page.$eval('[data-departure-row]',(el,direction)=>el.innerText.includes(direction),departureDirection),'simple departures keep the direction');
+    await page.evaluate(()=>document.documentElement.dataset.personalDepartures='detailed');
+
     assert.ok(await page.$eval('.transit-view',el=>parseFloat(getComputedStyle(el).paddingBottom))<=90,'departure detail has one compact bottom inset');
     assert.equal(await page.$eval('[data-stop-lines]',el=>parseFloat(getComputedStyle(el).paddingBottom)),0,'line badges do not add a second spacer');
     await accent('Niebieski');
@@ -225,6 +232,9 @@ const server=http.createServer((req,res)=>{
     assert.notEqual(await style('[data-map-stop-sheet]','backgroundColor'),oledGlass,'dark and AMOLED have distinct glass palettes');
     assert.equal(await page.$$eval('.map-stop-handle .rounded-2xl',els=>els.length),0,'stop handle retains only the title and arrow');
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');await new Promise(resolve=>setTimeout(resolve,650));
+    assert.equal(await page.$eval('[data-options-sheet]',el=>el.dataset.expanded),'true','options open expanded');
+    assert.ok(await page.$eval('[data-options-scroll]',el=>el.clientHeight-el.querySelector('[data-options-content]').getBoundingClientRect().height)<24,'general settings fit their content without a blank gap');
+    await page.click('[aria-label="Zwiń opcje"]');await new Promise(resolve=>setTimeout(resolve,650));
     const compactHeight=await page.$eval('[data-options-sheet]',el=>el.getBoundingClientRect().height);
     const optionsHandle=await page.$('[aria-label="Rozwiń opcje"]');const optionsBounds=await optionsHandle.boundingBox();
     const handleX=optionsBounds.x+optionsBounds.width/2,handleY=optionsBounds.y+optionsBounds.height/2;
@@ -248,6 +258,7 @@ const server=http.createServer((req,res)=>{
     await new Promise(resolve=>setTimeout(resolve,650));await screenshot('options-compact');
     await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');
+    assert.equal(await page.$eval('[data-options-sheet]',el=>el.dataset.expanded),'true','reopening options expands them again');
     await page.waitForFunction(()=>history.state?.pksBackGuard===true);
     await page.evaluate(()=>history.back());await page.waitForSelector('[data-options-sheet]',{hidden:true});
     // Exercise real preferences against the map, reload persistence and the compact editor.
@@ -362,15 +373,19 @@ const server=http.createServer((req,res)=>{
     await screenshot('personalization-light-compact');
     assert.equal(await page.$eval('[data-options-sheet]',el=>el.scrollWidth>el.clientWidth+1),false,'personalization fits a narrow phone');
     assert.ok(await page.$eval('[data-options-scroll]',el=>el.scrollHeight>el.clientHeight),'advanced settings remain scrollable');
-    await openGroup('Moja aplikacja');
+    assert.ok(await page.$eval('.personal-reset',el=>{const style=getComputedStyle(el);return style.color!==style.backgroundColor&&style.backgroundColor!=='rgba(0, 0, 0, 0)';}),'reset has a contrasting label and solid surface on a light theme');
+    await openGroup('Nawigacja i profile');
     const tools=await page.$('.personal-tools');assert.ok(tools);
     const chooseTool=async(title,label)=>page.evaluate((title,label)=>[...document.querySelectorAll('.personal-tools .personal-field')].find(el=>el.querySelector('legend').textContent===title)?.querySelectorAll('button').forEach(el=>{if(el.textContent.trim()===label)el.click();}),title,label);
     await chooseTool('Ekran startowy','Ulubione');await chooseTool('Obsługa jedną ręką','Lewa ręka');
     await chooseTool('Podpis znacznika','Przewoźnik');
     await page.$eval('[aria-label="Przesuń Przystanki wcześniej"]',el=>el.click());
     await page.waitForFunction(()=>document.querySelector('.pks-navigation button').dataset.navItem==='stops');
+    await page.$eval('.personal-profile-save',el=>el.scrollIntoView({block:'center'}));
+    assert.ok(await page.$eval('.personal-profile-save button',el=>el.disabled),'save remains visible and disabled without a name');
+    assert.ok(await page.$eval('.personal-profile-save',el=>{const button=el.querySelector('button').getBoundingClientRect(),box=el.getBoundingClientRect();return button.width>0&&button.right<=box.right+1&&button.left>=box.left;}),'save fits next to the name at 320px');
     await page.type('[aria-label="Nazwa własnego zestawu"]','Mój zestaw testowy');
-    await page.$eval('.personal-profile-save button',el=>el.click());
+    await page.click('.personal-profile-save button');
     await page.waitForSelector('[aria-label="Zastosuj zestaw Mój zestaw testowy"]');
     await chooseTool('Podpis znacznika','Sama ikona');
     await page.$eval('[aria-label="Zastosuj zestaw Mój zestaw testowy"]',el=>el.click());
@@ -409,6 +424,14 @@ const server=http.createServer((req,res)=>{
     await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on'&&localStorage.getItem('mks_panel_glow_strength')==='70');
     assert.deepEqual(await page.$eval('.mks-bus-marker svg[data-bus-glyph]',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))])),carrierGeometry,'map and carrier picker use exactly the same bus geometry');
+    for(const hand of ['left','right']){
+      await page.setViewport({width:320,height:740,deviceScaleFactor:1});
+      await page.evaluate(hand=>document.documentElement.dataset.personalHand=hand,hand);
+      assert.ok(await page.$eval('[data-map-toolbar]',el=>{const box=el.getBoundingClientRect();return box.left>=0&&box.right<=innerWidth&&el.scrollWidth<=el.clientWidth+1;}),'one-hand toolbar fits the phone');
+      assert.ok(await page.$eval('[data-map-carriers] button',el=>{const carrier=el.getBoundingClientRect(),navigation=document.querySelector('.pks-navigation').getBoundingClientRect();return carrier.bottom<navigation.top;}),'carrier control remains above navigation');
+    }
+    await page.evaluate(()=>document.documentElement.dataset.personalHand='off');
+    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.evaluate(()=>document.querySelector('.leaflet-marker-icon.mks-bus-marker').click());
     await page.waitForSelector('[data-map-bus-sheet]');
     await page.waitForFunction(()=>{

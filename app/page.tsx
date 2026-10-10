@@ -124,7 +124,8 @@ export default function Home() {
   },[selectedBus?.id]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isOptionsExpanded, setIsOptionsExpanded] = useState(false);
+  const [isOptionsExpanded, setIsOptionsExpanded] = useState(true);
+  const openOptions = () => { setIsOptionsExpanded(true); setIsSettingsOpen(true); };
   useEffect(() => {
     if (!isSettingsOpen) setIsOptionsExpanded(false);
   }, [isSettingsOpen]);
@@ -1229,7 +1230,7 @@ export default function Home() {
               <MapHeader mapGlassPanel={mapGlassPanel} mapGlassInput={mapGlassInput} themeColor={themeColor} transparentUI={transparentUI} isDark={isDark} isManualRefreshing={isManualRefreshing} showAlertDot={showAlertDot} error={error} isOffline={isOffline} textSub={textSub} filterRoute={filterRoute} setFilterRoute={setFilterRoute} handleManualRefresh={handleManualRefresh} closeMapPanelsForSearch={closeMapPanelsForSearch}/>
 
 
-              <div className="flex w-full justify-end md:hidden pointer-events-auto -mt-2 pr-1">
+              <div data-map-carriers className="flex w-full justify-end md:hidden pointer-events-auto -mt-2 pr-1">
                 <button
                   type="button"
                   onClick={openTransportPanel}
@@ -1279,7 +1280,7 @@ export default function Home() {
                  )}
                  <div className={`w-px h-4 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
                  <button 
-                    onClick={() => setIsSettingsOpen(true)}
+                    onClick={openOptions}
                     className={`p-2 -mr-2 rounded-full transition-colors border ${isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-400' : 'bg-slate-50 hover:bg-slate-100 border-slate-100 text-slate-500'}`}
                     title="Ustawienia"
                  >
@@ -1422,7 +1423,7 @@ export default function Home() {
             onMap={()=>{if(!isMapTabDisabled){setActiveTab('map');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);}}}
             onStops={()=>{if(!isStopsTabDisabled){setActiveTab('stops');setSelectedBus(null);}}}
             onAdmin={()=>{if(activeTab!=='admin')adminReturnTab.current=activeTab==='stops'?'stops':'map';setActiveTab('admin');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);setIsSettingsOpen(false);}}
-            onOptions={()=>setIsSettingsOpen(true)}/>
+            onOptions={openOptions}/>
 
       </div>
 

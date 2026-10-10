@@ -1,6 +1,6 @@
 'use client';
 import {useState,type ReactNode,type CSSProperties} from 'react';
-import {Palette,Shapes,Layers,Sun,Type,Navigation,SlidersHorizontal,RotateCcw,Check,ChevronDown} from 'lucide-react';
+import {Palette,Shapes,Layers,Sun,Type,Navigation,SlidersHorizontal,Compass,RotateCcw,Check,ChevronDown} from 'lucide-react';
 import {DEFAULT_INTERFACE_APPEARANCE,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {INTERFACE_PRESETS,matchesInterfacePreset,type InterfacePreset} from '@/lib/interface-presets';
 import {SCHEDULE_KEY,readSchedule} from '@/lib/personalization-profiles';
@@ -70,7 +70,7 @@ export default function InterfacePersonalization(p:Props){
     {group('text','Tekst i czytelność','Rozmiar, krój i wyróżnienie tytułów',<Type size={19}/>,<>{slider('textScale','Wielkość tekstu interfejsu',90,120,5,'%')}{choices('fontFamily','Krój pisma',[['system','Systemowy'],['sans','Klasyczny'],['mono','Monospace']])}{slider('titleWeight','Grubość nagłówków',500,800,100)}{choices('textContrast','Kontrast tekstu',[['standard','Standardowy'],['strong','Mocniejszy']])}</>,'wielkość tekstu interfejsu krój pisma grubość nagłówków litery cyfry kontrast mocniejszy')}
     {group('nav','Nawigacja i ikony','Etykiety, ikony i aktywna zakładka',<Navigation size={19}/>,<>{choices('navLayout','Układ nawigacji',[['stacked','Podpis pod ikoną'],['inline','Podpis obok ikony']])}{slider('iconSize','Rozmiar ikon nawigacji',18,30,2,' px')}{slider('iconStroke','Grubość ikon',1,3,.25)}{toggle('Podpisy pod ikonami',v.navLabels,on=>set('navLabels',on))}{choices('navIndicator','Aktywna zakładka',[['line','Linia'],['pill','Miękkie tło'],['halo','Poświata ikony'],['block','Pełny akcent'],['none','Sam kolor']])}</>,'rozmiar ikon nawigacji grubość podpisy aktywna zakładka widoczność układ obok poświata pełny akcent')}
     {group('comfort','Układ i komfort','Odstępy i spokojniejsze przejścia',<SlidersHorizontal size={19}/>,<>{choices('density','Odstępy w kartach',[['compact','Mniejsze'],['comfortable','Standardowe'],['spacious','Większe']])}{toggle('Ogranicz animacje',v.reducedMotion,on=>set('reducedMotion',on),'Spokojniejsze przejścia i otwieranie paneli')}</>,'odstępy karty animacje ruch wyróżnienie lżejsze efekty')}
-    {group('daily','Moja aplikacja','Zestawy, nawigacja, mapa i harmonogram',<SlidersHorizontal size={19}/>,<PersonalizationTools value={v} onChange={p.onChange} theme={p.theme} accent={p.accent} glass={p.glass} glow={p.glow} glowStrength={p.glowStrength}/>,'własne zestawy profile ekran startowy ulubione kolejność zakładek odjazdy proste szczegółowe lewa prawa ręka znaczniki mapa dzień noc harmonogram godziny')}
+    {group('daily','Nawigacja i profile','Zestawy, nawigacja, mapa i harmonogram',<Compass size={19}/>,<PersonalizationTools value={v} onChange={p.onChange} theme={p.theme} accent={p.accent} glass={p.glass} glow={p.glow} glowStrength={p.glowStrength}/>,'własne zestawy profile ekran startowy ulubione kolejność zakładek odjazdy proste szczegółowe lewa prawa ręka znaczniki mapa dzień noc harmonogram godziny')}
     <button type="button" onClick={reset} className="personal-reset ui-accent-focus"><RotateCcw size={16}/>Przywróć domyślny wygląd</button>
     <p className="personal-note text-center">Ustawienia zapisują się automatycznie na tym urządzeniu.</p>
   </div>;
