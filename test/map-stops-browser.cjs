@@ -63,14 +63,28 @@ try{
  await page.screenshot({path:path.resolve('test/ui-previews/map-lisa-kuli-provider-alias.png')});
  await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
  await page.type('input[placeholder*="Babica"]','Lisa');
- await page.waitForFunction(()=>{const rows=[...document.querySelectorAll('[data-stop-card-id]')].filter(el=>/lisa/i.test(el.textContent));return rows.length===1&&rows[0].textContent.includes('PKS')&&rows[0].textContent.includes('MPK');});
+ await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].filter(el=>/lisa/i.test(el.textContent)).length===1);
+ const lisaId=await page.$eval('[data-stop-card-id]',el=>el.dataset.stopCardId);
+ for(const provider of ['PKS Rzeszów','MPK Rzeszów']){
+  await button(provider);
+  await page.waitForFunction(provider=>[...document.querySelectorAll('button[aria-pressed="true"]')].some(el=>el.textContent.trim()===provider),{},provider);
+  await page.waitForFunction(id=>{const rows=[...document.querySelectorAll('[data-stop-card-id]')];return rows.length===1&&rows[0].dataset.stopCardId===id;},{},lisaId);
+ }
+ await button('Wszystkie');
+ assert.doesNotMatch(await page.$eval('[data-stop-card-id]',el=>el.textContent),/PKS|MPK|Marcel/,'provider names stay hidden on stop cards');
+ assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Tylko ulubione')),false,'the unrequested favourites filter is absent');
  await page.screenshot({path:path.resolve('test/ui-previews/list-lisa-kuli-provider-alias.png')});
  await page.$eval('input[placeholder*="Babica"]',el=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(el,'');el.dispatchEvent(new Event('input',{bubbles:true}));});
  await button('Mapa');
  // Load the Marcel timetable catalog, then render the actual differently numbered Babica platform.
  await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
  await page.type('input[placeholder*="Babica"]','Babica');
- await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>/dps 45/i.test(el.textContent)&&el.textContent.includes('Marcel')));
+ await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>/dps 45/i.test(el.textContent)));
+ const dpsId=await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id]')].find(el=>/dps 45/i.test(el.textContent)).dataset.stopCardId);
+ await button('Marcel');
+ await page.waitForFunction(()=>[...document.querySelectorAll('button[aria-pressed="true"]')].some(el=>el.textContent.trim()==='Marcel'));
+ await page.waitForFunction(id=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>el.dataset.stopCardId===id&&/dps 45/i.test(el.textContent)),{},dpsId);
+ await button('Wszystkie');
  await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>/za torami/i.test(el.textContent)));
  await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id]')].find(el=>/za torami/i.test(el.textContent)).click());
  await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');
