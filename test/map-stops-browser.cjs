@@ -205,6 +205,27 @@ try{
  assert.ok(await runner.evaluate(()=>window.widgetUrls.some(url=>url.startsWith('http://einfo.zgpks.rzeszow.pl/api/its/infoboard/nearest-departures/'))),'runner uses the Android transport endpoint, not a missing local API route');
  assert.ok(await runner.evaluate(()=>window.widgetUrls.every(url=>!url.includes('get_vehicles')&&!url.includes('/api/its/vehicles'))),'background widgets do not download the entire vehicle fleet');
  assert.deepEqual(runnerErrors,[]);await runner.close();
+ // All three operators replace the pin with the selected catalog icon at close zoom.
+ await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17})));
+ await page.goto(origin+'/map-selection-fixture/',{waitUntil:'domcontentloaded'});
+ for(const [provider,color] of [['marcel','rgb(104, 196, 74)'],['pks','rgb(20, 184, 166)'],['mpk_rzeszow','rgb(255, 122, 0)']]){
+  await page.click(`[data-test-provider="${provider}"]`);
+  await page.waitForFunction(expected=>{const ring=document.querySelector('.map-stop-ring.is-selected');return ring&&getComputedStyle(ring).backgroundColor===expected;},{},color);
+  assert.equal(await page.$$('.stop-highlight-pin').then(rows=>rows.length),0,provider+' has no duplicate pin');
+  await page.click('[data-test-icons]');
+  await page.waitForSelector('.map-catalog-stop',{hidden:true});
+  await page.waitForFunction(expected=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color===expected;},{},color);
+  await page.click('[data-test-icons]');
+  await page.waitForSelector('.map-stop-ring.is-selected');await page.waitForSelector('.stop-highlight-pin',{hidden:true});
+ }
+ await page.click('[data-test-provider="marcel"]');
+ const zoomKey=async key=>{await page.$eval('.leaflet-container',(el,key)=>{el.focus();el.dispatchEvent(new KeyboardEvent('keydown',{key,keyCode:key==='-'?189:187,which:key==='-'?189:187,bubbles:true}));},key);await new Promise(resolve=>setTimeout(resolve,400));};
+ await zoomKey('-');await zoomKey('-');
+ await page.waitForSelector('.map-catalog-stop',{hidden:true});
+ await page.waitForFunction(()=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color==='rgb(104, 196, 74)';});
+ await zoomKey('+');await zoomKey('+');
+ await page.waitForSelector('.map-stop-ring.is-selected');await page.waitForSelector('.stop-highlight-pin',{hidden:true});
+ await page.screenshot({path:path.resolve('test/ui-previews/marcel-selected-catalog-stop.png')});
  assert.deepEqual(errors,[]);console.log('Map stops: enable, city/rural colours, click/highlight/sheet, persistence, zoom threshold and disable passed.');
 }finally{await browser.close();server.close();fixture.cleanup();}
 })().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});

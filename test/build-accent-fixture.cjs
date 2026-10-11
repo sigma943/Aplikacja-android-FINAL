@@ -39,6 +39,18 @@ module.exports=function buildAccentFixture(){
   fs.copyFileSync(path.join(source,'test/statistics-ui-fixture.tsx'),path.join(fixture,'app/statistics-fixture/page.tsx'));
   fs.mkdirSync(path.join(fixture,'app/widget-fixture'));
   fs.copyFileSync(path.join(source,'test/widget-ui-fixture.tsx'),path.join(fixture,'app/widget-fixture/page.tsx'));
+  fs.mkdirSync(path.join(fixture,'app/map-selection-fixture'));
+  fs.writeFileSync(path.join(fixture,'app/map-selection-fixture/page.tsx'),`'use client';
+import {useState} from 'react';import dynamic from 'next/dynamic';
+const BusMap=dynamic(()=>import('@/components/BusMap'),{ssr:false});
+export default function Page(){
+ const [provider,setProvider]=useState('marcel'),[show,setShow]=useState(true);
+ const id=provider==='mpk_rzeszow'?200:100;
+ const point={id,name:provider==='marcel'?'Rzeszów - TestMap 03':'Rzeszów TestMap 03',lat:50.04,lon:22,planned:null,real:null};
+ const vehicle={id:'selection-test',provider,name:'Test bus',routeShortName:'M',lat:50.042,lon:22.002,routeStops:[point]};
+ const stops:any[]=[{id:'catalog-platform',name:'Rzeszów TestMap 03',type:'bus',lat:50.04,lon:22,carriers:[],lines:[],isFavorite:false,providerStopIds:{pks:'100',mpk_rzeszow:'200',marcel:'stable-03',marcelCityMatchKeys:'rzeszow|testmap 03'}}];
+ return <div style={{height:'100vh'}}><div style={{position:'fixed',top:0,left:0,zIndex:20000}}>{['marcel','pks','mpk_rzeszow'].map(value=><button key={value} data-test-provider={value} onClick={()=>setProvider(value)}>{value}</button>)}<button data-test-icons onClick={()=>setShow(value=>!value)}>Icons</button></div><BusMap vehicles={[]} selectedVehicle={vehicle} highlightedStopId={String(id)} mapStops={show?stops:[]}/></div>;
+}`);
   fs.copyFileSync(path.join(source,'tsconfig.json'),path.join(fixture,'tsconfig.json'));
   fs.copyFileSync(path.join(source,'package.json'),path.join(fixture,'package.json'));
   fs.writeFileSync(path.join(fixture,'app/layout.tsx'),`import UIMotionProvider from '@/components/UIMotionProvider';export default function Layout({children}:{children:React.ReactNode}){return <html lang="pl"><head><link rel="stylesheet" href="/production.css" /></head><body><UIMotionProvider>{children}</UIMotionProvider></body></html>}`);

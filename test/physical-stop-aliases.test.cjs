@@ -16,6 +16,21 @@ test('map selection resolves provider aliases without numeric ID collisions or a
   assert.equal(canonicalMapStopId(stops,'186','pks'),'186');
   assert.equal(canonicalMapStopId(stops,'missing','mpk_rzeszow'),'missing');
 });
+test('Marcel course selection resolves only one exact catalog locality/platform key',()=>{
+  const {canonicalMapStopId}=load('lib/map-stop-markers.ts');
+  const stops=[{id:'city-03',providerStopIds:{pks:'100',marcel:'stable-03',marcelCityMatchKeys:'rzeszow|podkarpacka matuszczaka 03'}},
+    {id:'city-04',providerStopIds:{marcel:'stable-04',marcelCityMatchKeys:'rzeszow|podkarpacka matuszczaka 04'}},
+    {id:'other-city',providerStopIds:{marcelCityMatchKeys:'krosno|podkarpacka matuszczaka 03'}}];
+  const point={n:'Rzeszów - (15) Podkarpacka / Matuszczaka 03 (+)',lat:50.0168,lon:21.9754};
+  assert.equal(canonicalMapStopId(stops,'100','marcel',point),'city-03');
+  assert.equal(canonicalMapStopId(stops,'marcel:100',undefined,point),'city-03');
+  assert.equal(canonicalMapStopId(stops,'100','pks',point),'city-03');
+  assert.equal(canonicalMapStopId(stops,'stable-04','marcel',point),'city-04','explicit catalog ID wins');
+  assert.equal(canonicalMapStopId(stops,'100','marcel',{...point,n:'Rzeszów - Podkarpacka / Matuszczaka 05'}),'100');
+  assert.equal(canonicalMapStopId([...stops,{...stops[0],id:'ambiguous'}],'100','marcel',point),'100');
+  assert.equal(canonicalMapStopId(stops,'100','marcel'),'100');
+  assert.equal(canonicalMapStopId(stops,'100','mpk_rzeszow',point),'100');
+});
 test('actual Lisa-Kuli Moniuszki PKS 04 and MPK 02 share one identity and keep departure IDs',()=>{
   const pks=['11461','11462'].map(id=>({id,name:pksAsset[id].n+' '+pksAsset[id].code,...pksAsset[id],lines:['223']}));
   const mpk=['118','186'].map(id=>({id,...mpkAsset[id],lines:['8']}));

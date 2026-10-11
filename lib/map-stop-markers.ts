@@ -1,14 +1,26 @@
 import {readBusCoordinates} from './bus-coordinates';
 import {platformPosition} from './stop-platform-position';
 import type {Stop} from '@/Panel/src/types';
+import type {StopData} from './transport/vehicle';
+import {marcelCourseStopIndexKey} from '@/components/stops-panel/stop-domain';
 export const MAP_STOPS_MIN_ZOOM=16;
-export function canonicalMapStopId(stops:Stop[],id?:string|null,provider?:string){
+export function canonicalMapStopId(stops:Stop[],id?:string|null,provider?:string,point?:StopData){
   if(!id)return id;
   const namespace=/^(pks|mpk_rzeszow|marcel):(.+)$/.exec(id);
   const source=namespace?.[1]||provider||'pks',rawId=namespace?.[2]||id;
   if(!namespace&&(!provider||provider==='pks')&&stops.some(s=>s.id===id))return id;
   const matches=stops.filter(s=>String(s.providerStopIds?.[source]||'').split(',').map(v=>v.trim()).includes(rawId));
-  return matches.length===1?matches[0].id:id;
+  if(matches.length===1)return matches[0].id;
+  // Marcel course IDs are not the stable locality/platform IDs used by its catalog.
+  // Reuse the catalog's exact key, preserving side numbers and locality identity.
+  if(source==='marcel'&&matches.length===0&&point){
+    const [city,...place]=point.n.split(' - ');
+    if(!city||!place.length)return id;
+    const key=marcelCourseStopIndexKey({nazMi:city,nazPr:place.join(' - ')});
+    const aliases=stops.filter(stop=>String(stop.providerStopIds?.marcelCityMatchKeys||'').split(',').map(v=>v.trim()).includes(key));
+    if(aliases.length===1)return aliases[0].id;
+  }
+  return id;
 }
 export function mapStopColor(stop:Pick<Stop,'name'>){
   const name=stop.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();

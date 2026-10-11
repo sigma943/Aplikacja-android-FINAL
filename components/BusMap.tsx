@@ -96,7 +96,6 @@ export default function BusMap({
   }, []);
 
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
-  const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider);
   const [,setPlatformRevision]=useState(0);
   const needsPlatforms=mapStops.length>0||Boolean((selectedVehicle||highlightedStopId)&&selectedVehicle?.provider!=='pkp_intercity');
   useEffect(()=>{
@@ -168,6 +167,7 @@ export default function BusMap({
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const highlightedStop = highlightedStopId ? routeStopsData[highlightedStopId] : undefined;
+  const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider,highlightedStop);
   const selectedStopColor = selectedVehicle?.provider === 'pkp_intercity' ? themeColor
     : selectedVehicle ? selectedRouteColor
     : highlightedStop ? mapStopColor({name: highlightedStop.n}) : themeColor;
