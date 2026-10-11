@@ -19,7 +19,6 @@ jobs:
       contents: read
     env:
       PERF_BASELINE_SHA: bc9ada645e6cd09b6e3d1ddda1826403220e5ce2
-      PERF_BASELINE_ROOT: ${{ runner.temp }}/pks-performance-before
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +29,8 @@ jobs:
       - run: npm test
       - name: Prepare pre-optimization checkout and identical measurement harness
         run: |
+          PERF_BASELINE_ROOT="$RUNNER_TEMP/pks-performance-before"
+          echo "PERF_BASELINE_ROOT=$PERF_BASELINE_ROOT" >> "$GITHUB_ENV"
           git fetch --depth=1 origin "$PERF_BASELINE_SHA"
           git worktree add --detach "$PERF_BASELINE_ROOT" "$PERF_BASELINE_SHA"
           ln -s "$GITHUB_WORKSPACE/node_modules" "$PERF_BASELINE_ROOT/node_modules"
