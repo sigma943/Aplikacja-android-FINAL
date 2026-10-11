@@ -1,0 +1,35 @@
+{
+  "checkedAt": "2026-10-11",
+  "sources": {
+    "einfo": "http://einfo.zgpks.rzeszow.pl/api/stop-point",
+    "gtfs": "https://www.mpkrzeszow.pl/gtfs-pks/latest.zip",
+    "platform": "https://www.openstreetmap.org/node/13624663013"
+  },
+  "api": {
+    "stop_point_id": 3801,
+    "stop_point_code": "02",
+    "stop_area_id": 1946,
+    "location": {
+      "lat": 50.035257,
+      "lon": 21.994693
+    },
+    "name": "JASIONKA, STAWY",
+    "stop_area_name": "JASIONKA, STAWY"
+  },
+  "gtfs": {
+    "id": "1758",
+    "name": "Jasionka stawy 02",
+    "lat": 50.1172763,
+    "lon": 22.0486789
+  },
+  "mpk": {
+    "id": "246",
+    "name": "Mochnackiego 02",
+    "lat": 50.03525,
+    "lon": 21.99438,
+    "lines": [
+      "10",
+      "35"
+    ]
+  }
+}

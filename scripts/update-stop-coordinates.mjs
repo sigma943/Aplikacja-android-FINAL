@@ -8,8 +8,18 @@ const arg=name=>{const i=process.argv.indexOf(name);return i<0?null:process.argv
 const data=arg('--points')?JSON.parse(await fs.readFile(arg('--points'),'utf8')):await (await download('http://einfo.zgpks.rzeszow.pl/api/stop-point')).json();
 const archive=unzipSync(arg('--gtfs')?new Uint8Array(await fs.readFile(arg('--gtfs'))):new Uint8Array(await (await download(source)).arrayBuffer()),{filter:e=>/(^|\/)stops\.txt$/.test(e.name)});
 const stops=csv(strFromU8(Object.values(archive)[0])).map(s=>({id:s.stop_id,name:s.stop_name,lat:Number(s.stop_lat),lon:Number(s.stop_lon)}));
-const api=data.items.map(s=>({id:s.stop_point_id,name:s.stop_area_name||s.name,code:s.stop_point_code,lat:Number(s.location?.lat),lon:Number(s.location?.lon)}));
+const api=data.items.map(s=>({id:s.stop_point_id,areaId:String(s.stop_area_id),name:s.stop_area_name||s.name,code:s.stop_point_code,lat:Number(s.location?.lat),lon:Number(s.location?.lon)}));
 const matched=matchCoordinates(api,stops);if(Object.keys(matched.stops).length<500)throw Error('Unexpectedly incomplete coordinate match; existing catalog retained.');
+const summary={total:api.length,verified:Object.keys(matched.stops).length,
+  changedOver10m:api.filter(s=>matched.stops[s.id]&&meters(s,matched.stops[s.id])>10).length,
+  rejectedByReason:Object.fromEntries(['unmatched','ambiguous','distant'].map(reason=>[reason,matched.rejected.filter(s=>s.reason===reason).length])),
+  distant:matched.rejected.filter(s=>s.reason==='distant')};
+if(process.argv.includes('--audit')){
+  // Read-only check against the complete source catalogs. Unmatched does not mean verified.
+  console.log(JSON.stringify(summary,null,2));
+  process.exit(summary.distant.length?1:0);
+}
+if(summary.distant.length)throw Error('Unreviewed distant stop matches; run with --audit before replacing the catalog.');
 const snapshot=Object.fromEntries(data.items.map(s=>{const correction=matched.stops[s.stop_point_id];return [String(s.stop_point_id),{n:s.stop_area_name||s.name,code:s.stop_point_code,areaId:String(s.stop_area_id),lat:correction?.lat??s.location?.lat,lon:correction?.lon??s.location?.lon,...(correction?{coordinateSource:'gtfs',gtfsStopId:correction.gtfsStopId}:{})}];}));
 await fs.writeFile('public/data/pks-stop-points.json',JSON.stringify({source:'http://einfo.zgpks.rzeszow.pl/api/stop-point',coordinateSource:source,updatedAt:new Date().toISOString(),stops:snapshot}));
 console.log(JSON.stringify({total:api.length,verified:Object.keys(matched.stops).length,changedOver10m:api.filter(s=>matched.stops[s.id]&&meters(s,matched.stops[s.id])>10).length,unmatched:matched.rejected.length}));

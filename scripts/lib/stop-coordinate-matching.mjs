@@ -1,3 +1,5 @@
+import {readFileSync} from 'node:fs';
+const coordinateOverrides=JSON.parse(readFileSync(new URL('../../lib/pks-coordinate-overrides.json',import.meta.url),'utf8'));
 const aliases={szk:'szkola',szkole:'szkola',kosc:'kosciol',kos:'kosciol',skrz:'skrzyzowanie',skr:'skrzyzowanie',przych:'przychodnia',cment:'cmentarz',cm:'cmentarz',osr:'osrodek',dw:'dworzec',szp:'szpital',mochn:'mochnackiego'};
 export const stopCode=value=>String(value??'').trim().toLowerCase().replace(/^0+(?=\d)/,'');
 export function coordinateName(value,separator=''){
@@ -36,7 +38,14 @@ export function matchCoordinates(apiStops,gtfsStops){
       if(local.length===1&&localGroups.get(key)?.length===1&&meters(stop,local[0].stop)<=2000)candidates=[local[0].stop];
     }
     if(candidates.length!==1){rejected.push({id:stop.id,name:stop.name,reason:candidates.length?'ambiguous':'unmatched'});continue;}
-    const candidate=candidates[0];if(validPoint(stop)&&meters(stop,candidate)>2000){rejected.push({id:stop.id,name:stop.name,reason:'distant'});continue;}
+    const candidate=candidates[0];
+    const override=coordinateOverrides[String(stop.id)];
+    // Keep the global distance guard. Only reviewed, identity-checked source errors may exceed it.
+    const reviewed=override&&String(stop.areaId)===override.areaId&&stopCode(stop.code||platform.code)===stopCode(override.code)
+      &&coordinateName(platform.name)===coordinateName(override.name)&&String(candidate.id)===override.gtfsStopId
+      &&meters(candidate,override)<=1&&validPoint(stop)
+      &&meters(stop,{lat:override.erroneousLat,lon:override.erroneousLon})<=120;
+    if(validPoint(stop)&&meters(stop,candidate)>2000&&!reviewed){rejected.push({id:stop.id,name:stop.name,reason:'distant'});continue;}
     result[String(stop.id)]={name:stop.name,lat:candidate.lat,lon:candidate.lon,gtfsStopId:String(candidate.id)};
   }
   return {stops:result,rejected};

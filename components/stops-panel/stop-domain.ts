@@ -435,7 +435,7 @@ function hasConflictingCityToken(left: unknown, right: unknown) {
     'baryczka',
     'jasionka',
   ];
-  const cityFor = (value: unknown) => knownCities.find((city) => normalizeStopName(value).split(' ').includes(city));
+  const cityFor = (value: unknown) => knownCities.find((city) => normalizeStopName(value).split(/[^a-z0-9]+/).includes(city));
   const leftCity = cityFor(left);
   const rightCity = cityFor(right);
   return Boolean(leftCity && rightCity && leftCity !== rightCity);

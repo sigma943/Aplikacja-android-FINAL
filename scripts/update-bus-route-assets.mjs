@@ -46,7 +46,7 @@ for(const [provider,url] of [['pks','https://www.mpkrzeszow.pl/gtfs-pks/latest.z
       if(candidates.length===1){const point=candidates[0];canonicalIds.set(stop.stop_id,String(point.stop_point_id));const snapshot=snapshots[point.stop_point_id];snapshot.lat??=Number(stop.stop_lat);snapshot.lon??=Number(stop.stop_lon);}
       else canonicalIds.delete(stop.stop_id);
     }
-    const verified=matchCoordinates(pksPoints.map(point=>({id:point.stop_point_id,name:point.stop_area_name||point.name,code:point.stop_point_code,lat:Number(point.location?.lat),lon:Number(point.location?.lon)})),gtfsStops.map(stop=>({id:stop.stop_id,name:stop.stop_name,lat:Number(stop.stop_lat),lon:Number(stop.stop_lon)}))).stops;
+    const verified=matchCoordinates(pksPoints.map(point=>({id:point.stop_point_id,areaId:String(point.stop_area_id),name:point.stop_area_name||point.name,code:point.stop_point_code,lat:Number(point.location?.lat),lon:Number(point.location?.lon)})),gtfsStops.map(stop=>({id:stop.stop_id,name:stop.stop_name,lat:Number(stop.stop_lat),lon:Number(stop.stop_lon)}))).stops;
     for(const [id,point] of Object.entries(verified)){Object.assign(snapshots[id],{lat:point.lat,lon:point.lon,coordinateSource:'gtfs',gtfsStopId:point.gtfsStopId});}
     await fs.writeFile('public/data/pks-stop-points.json',JSON.stringify({coordinateSource:url,source:'http://einfo.zgpks.rzeszow.pl/api/stop-point',updatedAt:new Date().toISOString(),stops:snapshots}));
   }
