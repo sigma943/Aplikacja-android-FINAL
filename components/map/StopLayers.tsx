@@ -47,13 +47,6 @@ function CatalogStopsLayer({stops,selected,selectedColor,onSelect}:{stops:Stop[]
     color={stop.id===selected&&selectedColor?selectedColor:mapStopColor(stop)} onSelect={onSelect}/>)}</>;
 }
 
-const RouteStopMarker=memo(function RouteStopMarker({stopId,lat,lon,radius,color,weight,onStopClick}:{stopId:string;lat:number;lon:number;radius:number;color:string;weight:number;onStopClick?:(stopId:string)=>void}){
-  const center=useMemo<[number,number]>(()=>[lat,lon],[lat,lon]);
-  const pathOptions=useMemo(()=>({pane:'routeStopsPane',className:'mks-route-stop-marker'}),[]);
-  const handlers=useMemo(()=>({click:(event:L.LeafletMouseEvent)=>{L.DomEvent.stopPropagation(event as any);onStopClick?.(stopId);}}),[onStopClick,stopId]);
-  return <CircleMarker pane="routeStopsPane" center={center} radius={radius} color={color} fillColor="#ffffff" fillOpacity={1} weight={weight} pathOptions={pathOptions} eventHandlers={handlers}/>;
-});
-
 function RouteStopsLayer({
   selectedVehicle,
   stopsData,
@@ -92,13 +85,22 @@ function RouteStopsLayer({
         const isHighlighted = String(stopId) === highlightedStopId;
 
         return (
-          <RouteStopMarker
+          <CircleMarker
             key={`stop-${stopId}-${idx}`}
-            stopId={String(stopId)} lat={stop.lat} lon={stop.lon}
+            pane="routeStopsPane"
+            center={[stop.lat, stop.lon]}
             radius={isHighlighted ? baseRadius + 2.3 : baseRadius}
             color={isHighlighted ? selectedRouteColor : 'rgba(12,18,28,0.9)'}
+            fillColor="#ffffff"
+            fillOpacity={1}
             weight={isHighlighted ? 4.6 : 2.8}
-            onStopClick={onStopClick}
+            pathOptions={{ pane: 'routeStopsPane', className: 'mks-route-stop-marker' }}
+            eventHandlers={{
+              click: (e) => {
+                L.DomEvent.stopPropagation(e as any);
+                if (onStopClick) onStopClick(String(stopId));
+              }
+            }}
           />
         );
       })}
