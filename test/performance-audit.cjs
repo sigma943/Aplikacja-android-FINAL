@@ -51,8 +51,8 @@ async function cpuAudit() {
     session.disconnect();
   }
 }
-async function browserAudit() {
-  const fixture=require('./build-accent-fixture.cjs')(), root=fixture.root, production=path.resolve('out');
+async function browserAudit(fixture, runIndex) {
+  const root=fixture.root, production=path.resolve('out');
   const server=http.createServer((req,res)=>{
     const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
     let file=path.resolve(root,'.'+(pathname.endsWith('/')?pathname+'index.html':pathname));
@@ -111,7 +111,7 @@ async function browserAudit() {
     async function measure(name,action) {
       const before=await metrics(), start=name.startsWith('startup-')?0:await page.evaluate(()=>performance.now());
       await cdp.send('Profiler.start');const details=await action();
-      const {profile}=await cdp.send('Profiler.stop');fs.writeFileSync(path.join(directory,name+'.cpuprofile'),JSON.stringify(profile));
+      const {profile}=await cdp.send('Profiler.stop');fs.writeFileSync(path.join(directory,'run-'+runIndex+'-'+name+'.cpuprofile'),JSON.stringify(profile));
       const hits=new Map();for(const id of profile.samples||[])hits.set(id,(hits.get(id)||0)+1);
       const topSamples=profile.nodes.filter(n=>hits.has(n.id)).map(n=>({function:n.callFrame.functionName||'(anonymous)',file:n.callFrame.url.replace(origin,'fixture'),line:n.callFrame.lineNumber+1,column:n.callFrame.columnNumber+1,samples:hits.get(n.id)})).sort((a,b)=>b.samples-a.samples).slice(0,8);
       const after=await metrics();const stats=await page.evaluate(start=>{
@@ -142,7 +142,7 @@ async function browserAudit() {
       }
     }
     report.browserErrors=errors;if(errors.length)throw new Error('Browser errors: '+errors.join('; '));
-  } finally {if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
+  } finally {if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
 async function overlappingFeedAudit() {
   const fixture=require('./fixtures/pks-vehicle.json');
@@ -168,10 +168,30 @@ async function overlappingFeedAudit() {
   report.overlappingPks={bursts:10,vehicles:250,requests,bytes,parseMs:round(parseMs),medianReadyMs:round(percentile(durations,.5)),mockDelayMs:40};
 }
 (async()=>{
-  try {await cpuAudit();await overlappingFeedAudit();if(!process.argv.includes('--cpu-only'))await browserAudit();}
+  try {
+    await cpuAudit();await overlappingFeedAudit();
+    if(!process.argv.includes('--cpu-only')) {
+      const fixture=require('./build-accent-fixture.cjs')();
+      report.browserRuns=[];
+      try {
+        for(let i=0;i<3;i++) {
+          const start=report.browser.length;
+          await browserAudit(fixture,i+1);
+          report.browserRuns.push(report.browser.slice(start));
+        }
+        report.browser=report.browserRuns[0].map((row,index)=>{
+          const median={...row};
+          for(const [key,value] of Object.entries(row)) {
+            if(typeof value==='number')median[key]=round(percentile(report.browserRuns.map(run=>run[index][key]),.5));
+          }
+          return median;
+        });
+      } finally {fixture.cleanup();}
+    }
+  }
   finally {
     fs.writeFileSync(path.join(directory,'report.json'),JSON.stringify(report,null,2));
-    const md=['# Performance audit','', 'Diagnostic measurements, not phone FPS. Chrome CPU is throttled 4x. Network uses fixtures; map tile loading, Firebase authentication, Android GPU and device temperature are excluded. CPU microbenchmarks use unthrottled Node and cannot be compared directly with Chrome. PKS and MPK catalogs are complete; Marcel fleet is not measured.','', '| Operation | Median ms | P95 ms |','|---|---:|---:|',...report.cpu.map(r=>`| ${r.name} | ${r.medianMs} | ${r.p95Ms} |`),'', '| Browser scenario | JS ms | Layout ms | Tasks >50ms | Max task ms | Frame gap P95 ms |','|---|---:|---:|---:|---:|---:|',...report.browser.map(r=>`| ${r.name} | ${r.scriptMs} | ${r.layoutMs} | ${r.longTasks} | ${r.maxLongTaskMs} | ${r.frameGapP95Ms} |`),'','Raw CPU profiles can be opened in Chrome DevTools Performance. Startup includes code loading and hydration. Refresh includes waiting for the unchanged normal polling interval. Different scenario durations mean totals are not rankings.'];
+    const md=['# Performance audit','', 'Diagnostic measurements, not phone FPS. Browser scenarios report medians of three fresh-browser runs. Main-thread CPU is throttled 4x; worker CPU speed is not independently calibrated. This is not a model of an entire old phone. Network uses fixtures; map tile loading, Firebase authentication, Android GPU and device temperature are excluded. CPU microbenchmarks use unthrottled Node and cannot be compared directly with Chrome. PKS and MPK catalogs are complete; Marcel fleet is not measured.','', '| Operation | Median ms | P95 ms |','|---|---:|---:|',...report.cpu.map(r=>`| ${r.name} | ${r.medianMs} | ${r.p95Ms} |`),'', '| Browser scenario | JS ms | Layout ms | Tasks >50ms | Max task ms | Frame gap P95 ms |','|---|---:|---:|---:|---:|---:|',...report.browser.map(r=>`| ${r.name} | ${r.scriptMs} | ${r.layoutMs} | ${r.longTasks} | ${r.maxLongTaskMs} | ${r.frameGapP95Ms} |`),'','Raw CPU profiles can be opened in Chrome DevTools Performance. Startup includes code loading and hydration. Refresh includes waiting for the unchanged normal polling interval. Different scenario durations mean totals are not rankings.'];
     fs.writeFileSync(path.join(directory,'report.md'),md.join('\n'));
     console.log('PERFORMANCE_REPORT_JSON='+JSON.stringify(report));
   }
