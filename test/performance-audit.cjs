@@ -14,7 +14,7 @@ const round = value => +value.toFixed(2);
 function benchmark(name, fn, repeats=30) {
   const values=[];
   for(let i=0;i<repeats;i++) {const start=performance.now(); fn(i); values.push(performance.now()-start);}
-  report.cpu.push({name, samples:repeats, medianMs:round(percentile(values,.5)), p95Ms:round(percentile(values,.95)), maxMs:round(Math.max(...values))});
+  report.cpu.push({name, samples:repeats, medianMs:+percentile(values,.5).toFixed(4), p95Ms:+percentile(values,.95).toFixed(4), maxMs:+Math.max(...values).toFixed(4)});
 }
 async function cpuAudit() {
   const modules=new Map(), overrides={'@/lib/pks-client':{}};
@@ -30,6 +30,7 @@ async function cpuAudit() {
   const post=(method,params={})=>new Promise((resolve,reject)=>session.post(method,params,(e,r)=>e?reject(e):resolve(r)));
   await post('Profiler.enable');await post('Profiler.start');
   try {
+    benchmark('catalog first build',()=>catalog.buildStopsCatalog(pks,mpk,[],'audit-first'),1);
     benchmark('catalog cold: PKS + MPK',i=>catalog.buildStopsCatalog(pks,mpk,[],'audit-cold-'+i),8);
     const stops=catalog.buildStopsCatalog(pks,mpk,[],'audit-warm');
     benchmark('catalog cache hit: PKS + MPK',()=>catalog.buildStopsCatalog(pks,mpk,[],'audit-warm'));
@@ -100,7 +101,7 @@ async function browserAudit() {
     const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     async function measure(name,action) {
       const before=await metrics(), start=name.startsWith('startup-')?0:await page.evaluate(()=>performance.now());
-      await cdp.send('Profiler.start');await action();
+      await cdp.send('Profiler.start');const details=await action();
       const {profile}=await cdp.send('Profiler.stop');fs.writeFileSync(path.join(directory,name+'.cpuprofile'),JSON.stringify(profile));
       const hits=new Map();for(const id of profile.samples||[])hits.set(id,(hits.get(id)||0)+1);
       const topSamples=profile.nodes.filter(n=>hits.has(n.id)).map(n=>({function:n.callFrame.functionName||'(anonymous)',file:n.callFrame.url.replace(origin,'fixture'),line:n.callFrame.lineNumber+1,column:n.callFrame.columnNumber+1,samples:hits.get(n.id)})).sort((a,b)=>b.samples-a.samples).slice(0,8);
@@ -108,10 +109,10 @@ async function browserAudit() {
         const tasks=window.auditLongTasks.filter(t=>t.start>=start), frames=window.auditFrames.filter(t=>t.start>=start);
         return {durationMs:performance.now()-start,longTasks:tasks.map(t=>t.duration),frames:frames.map(t=>t.duration),markers:document.querySelectorAll('.leaflet-marker-icon').length};
       },start);
-      report.browser.push({name,durationMs:round(stats.durationMs),scriptMs:round((after.ScriptDuration-before.ScriptDuration)*1000),layoutMs:round((after.LayoutDuration-before.LayoutDuration)*1000),longTasks:stats.longTasks.length,longTaskTotalMs:round(stats.longTasks.reduce((a,b)=>a+b,0)),maxLongTaskMs:round(Math.max(0,...stats.longTasks)),frameGapP95Ms:round(percentile(stats.frames,.95)),frameGapsOver50Ms:stats.frames.filter(v=>v>50).length,heapMB:round(after.JSHeapUsedSize/1024/1024),markers:stats.markers,feedRequests,topSamples});
+      report.browser.push({name,durationMs:round(stats.durationMs),scriptMs:round((after.ScriptDuration-before.ScriptDuration)*1000),layoutMs:round((after.LayoutDuration-before.LayoutDuration)*1000),longTasks:stats.longTasks.length,longTaskTotalMs:round(stats.longTasks.reduce((a,b)=>a+b,0)),maxLongTaskMs:round(Math.max(0,...stats.longTasks)),frameGapP95Ms:round(percentile(stats.frames,.95)),frameGapsOver50Ms:stats.frames.filter(v=>v>50).length,heapMB:round(after.JSHeapUsedSize/1024/1024),markers:stats.markers,feedRequests,topSamples,...details});
       console.log('Completed performance scenario: '+name);
     }
-    await measure('startup-100-vehicles',async()=>{await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.mks-bus-marker');await page.waitForSelector('.map-catalog-stop');await pause(2000);});
+    await measure('startup-100-vehicles',async()=>{await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.mks-bus-marker');await page.waitForSelector('.map-catalog-stop');const readyMs=await page.evaluate(()=>performance.now());await pause(2000);return {readyMs:round(readyMs)};});
     await measure('idle-100-vehicles',()=>pause(4000));
     await measure('pan-map-100-vehicles',async()=>{for(let i=0;i<6;i++){await page.mouse.move(190,460);await page.mouse.down();await page.mouse.move(i%2?240:140,i%2?420:500,{steps:20});await page.mouse.up();await pause(400);}await pause(1000);});
     await measure('refresh-250-vehicles',async()=>{fleetSize=250;const before=feedRequests;await page.waitForFunction(()=>document.querySelectorAll('.mks-bus-marker').length>=200,{timeout:30000});if(feedRequests<=before)throw new Error('Fleet refresh was not observed');await pause(2000);});

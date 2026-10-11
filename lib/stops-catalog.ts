@@ -5,14 +5,16 @@ import {mergePhysicalStopAliases} from './physical-stop-aliases';
 import type { Carrier, Stop } from '@/Panel/src/types';
 import { getSimilarity } from '@/lib/rzeszow-stop-consolidation';
 import { RawStop, PKS_CARRIER, MARCEL_CARRIER, MPK_CARRIER, MarcelIndexedStop, InternalStop, MERGED_STOPS_RUNTIME_CACHE, MERGED_STOPS_RUNTIME_CACHE_LIMIT, stopDisplayName, ensureMpkCityPrefix, preferredStopDisplayName, stopBaseNameKey, mergeTokens, numericTokens, nameSimilarityScore, sharedStopTokenCount, hasConflictingCityToken, mergeCsvValues, mergeDebugNames, distanceMeters, geoBucketKeys, normalizeStopMergeName, hasConflictingStopNumbers, mergeStopsByGpsAndName, mergeMpkStopsForList, canExposeStandaloneMarcelStop, isWeakMarcelName, sortedLines } from '@/components/stops-panel/stop-domain';
+const stopOrderCollator = new Intl.Collator('en', {numeric:true});
 export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;name:string;lat?:number;lon?:number;lines:string[]}>,marcelStops:MarcelIndexedStop[],mergedStopsCacheKey:string,physicalPoints=false): Stop[] {
-    const stableOrder=(a:{id:string},b:{id:string})=>String(a.id).localeCompare(String(b.id),'en',{numeric:true});
-    stops = stops.map(stop => correctPksStop(sanitizeBusStop(stop), String(stop.id))).sort(stableOrder);
-    mpkStops = mpkStops.map(mpkPassengerStop).map(sanitizeBusStop).sort(stableOrder);
-    marcelStops = marcelStops.map(sanitizeBusStop).sort(stableOrder);
+    // Callers already key the cache by all effective catalog inputs.
     const cacheKey = (physicalPoints ? 'physical:' : 'list:') + mergedStopsCacheKey;
     const cached = MERGED_STOPS_RUNTIME_CACHE.get(cacheKey);
     if (cached) return cached;
+    const stableOrder=(a:{id:string},b:{id:string})=>stopOrderCollator.compare(String(a.id),String(b.id));
+    stops = stops.map(stop => correctPksStop(sanitizeBusStop(stop), String(stop.id))).sort(stableOrder);
+    mpkStops = mpkStops.map(mpkPassengerStop).map(sanitizeBusStop).sort(stableOrder);
+    marcelStops = marcelStops.map(sanitizeBusStop).sort(stableOrder);
 
     // Both surfaces use one canonical identity pipeline. The map only chooses
     // the surveyed platform coordinate; it must never rebuild separate groups.

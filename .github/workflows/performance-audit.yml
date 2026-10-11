@@ -6,12 +6,20 @@ on:
     paths:
       - '.github/workflows/performance-audit.yml'
       - 'test/performance-audit.cjs'
+      - 'test/compare-performance.cjs'
+      - 'test/catalog-optimization-equivalence.cjs'
+      - 'lib/stops-catalog.ts'
+      - 'lib/stop-text-cache.ts'
+      - 'components/stops-panel/stop-domain.ts'
 jobs:
   profile:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    env:
+      PERF_BASELINE_SHA: bc9ada645e6cd09b6e3d1ddda1826403220e5ce2
+      PERF_BASELINE_ROOT: ${{ runner.temp }}/pks-performance-before
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,14 +28,34 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Prepare pre-optimization checkout and identical measurement harness
+        run: |
+          git fetch --depth=1 origin "$PERF_BASELINE_SHA"
+          git worktree add --detach "$PERF_BASELINE_ROOT" "$PERF_BASELINE_SHA"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$PERF_BASELINE_ROOT/node_modules"
+          cp test/performance-audit.cjs "$PERF_BASELINE_ROOT/test/performance-audit.cjs"
+      - name: Verify identical catalogs, names, aliases, coordinates and visible markers
+        run: node test/catalog-optimization-equivalence.cjs
+      - name: Build and measure pre-optimization version
+        run: |
+          cd "$PERF_BASELINE_ROOT"
+          npm run build:android:web
+          node test/performance-audit.cjs
       - run: npm run build:android:web
       - name: Measure CPU, map, refresh and panels
         run: node test/performance-audit.cjs
+      - name: Compare versions on the same runner
+        run: |
+          node test/compare-performance.cjs "$PERF_BASELINE_ROOT/test/performance-results/report.json" test/performance-results/report.json
+          cp -R "$PERF_BASELINE_ROOT/test/performance-results" test/performance-results/before
       - name: Publish report summary
         if: always()
         run: |
           if [ -f test/performance-results/report.md ]; then
             cat test/performance-results/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f test/performance-results/comparison.md ]; then
+            cat test/performance-results/comparison.md >> "$GITHUB_STEP_SUMMARY"
           fi
       - uses: actions/upload-artifact@v4
         if: always()

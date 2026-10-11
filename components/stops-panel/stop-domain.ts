@@ -1,5 +1,6 @@
 'use client';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
+import {cachedStopText} from '@/lib/stop-text-cache';
 
 import type { Carrier, Departure, Stop } from '@/Panel/src/types';
 import { fetchMarcelCoursesClient, fetchMarcelPublicCourseStopsClient, fetchMarcelRoutesClient, fetchVehicleDetailsClient, type MarcelCourse, type MarcelCourseStopPublic, type TransportProviderId } from '@/lib/pks-client';
@@ -132,16 +133,20 @@ const TEXT_ENCODING_REPLACEMENTS: Array<[RegExp, string]> = [
   [/Â/g, ''],
 ];
 
-function repairTextEncoding(value: unknown) {
-  let text = String(value || '');
+const repairStopText = cachedStopText((value) => {
+  let text = value;
   TEXT_ENCODING_REPLACEMENTS.forEach(([pattern, replacement]) => {
     text = text.replace(pattern, replacement);
   });
   return text;
+});
+
+function repairTextEncoding(value: unknown) {
+  return repairStopText(String(value || ''));
 }
 
-function normalizeStopName(value: unknown) {
-  return repairTextEncoding(value)
+const normalizedStopText = cachedStopText((text) => {
+  return repairTextEncoding(text)
     .trim()
     .toLowerCase()
     .normalize('NFD')
@@ -153,6 +158,10 @@ function normalizeStopName(value: unknown) {
     .replace(/\bpl\.\b/g, 'plac')
     .replace(/\bos\.\b/g, 'osiedle')
     .replace(/\s+/g, ' ');
+});
+
+function normalizeStopName(value: unknown) {
+  return normalizedStopText(String(value || ''));
 }
 
 const TECHNICAL_TERMS = [
