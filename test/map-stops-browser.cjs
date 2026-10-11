@@ -88,10 +88,10 @@ try{
  // Rzeszów D.A.: numbers belong in the stop panel and list cards, not on icons.
  // Set the camera in the new document: an outgoing map animation can still save its old center.
  const terminalCamera=await page.evaluateOnNewDocument(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.042372,lng:22.003212},zoom:19})));
- await page.reload({waitUntil:'domcontentloaded'});
+ await page.goto(origin+'/?terminal-test=1',{waitUntil:'domcontentloaded'});
  await page.removeScriptToEvaluateOnNewDocument(terminalCamera.identifier);
  const terminal='.map-catalog-stop[title="Rzeszów D.A. st. 5"]';
- try{await page.waitForSelector(terminal);}catch(error){console.error('Terminal map diagnostics',await page.evaluate(()=>({camera:localStorage.getItem('mks_map_state'),titles:[...document.querySelectorAll('.map-catalog-stop')].map(el=>el.title)})));throw error;}
+ try{await page.waitForSelector(terminal);}catch(error){console.error('Terminal map diagnostics',await page.evaluate(()=>{let camera;try{camera=localStorage.getItem('mks_map_state');}catch(e){camera=String(e);}return {url:location.href,document:document.documentURI,camera,text:document.body?.textContent?.slice(0,500),titles:[...document.querySelectorAll('.map-catalog-stop')].map(el=>el.title)};}));throw error;}
  assert.equal(await page.$$('.map-stop-platform').then(rows=>rows.length),0,'icons have no platform badge');
  await page.click(terminal);await page.waitForSelector('.map-stop-ring.is-selected');
  await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]')?.textContent.includes('Rzeszów D.A. st. 5'));
