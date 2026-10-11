@@ -142,7 +142,10 @@ const repairStopText = cachedStopText((value) => {
 });
 
 function repairTextEncoding(value: unknown) {
-  return repairStopText(String(value || ''));
+  const text = String(value || '');
+  // Every replacement above starts with one of these characters. Clean input
+  // is already the exact result and must not fill the cache with IDs/GPS values.
+  return /[ĂÄĹÂ]/.test(text) ? repairStopText(text) : text;
 }
 
 const normalizedStopText = cachedStopText((text) => {

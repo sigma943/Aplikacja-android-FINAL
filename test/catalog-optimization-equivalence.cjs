@@ -17,6 +17,8 @@ const marcel=require('./fixtures/babica-dps-providers.json').marcel.map((s,i)=>(
   try {global.fetch=async()=>({ok:true,json:async()=>require('../public/data/stop-platforms.json')});await Promise.all([before.positions.loadStopPlatforms(),after.positions.loadStopPlatforms()]);} finally {global.fetch=original;}
   const texts=[undefined,null,false,true,0,NaN,123,'','   ','Rzeszów D.A. st. 5','Gwoźnica Górna, Szkoła 19','Gwoźnica Górna, Szkoła 20','Jasionka, Stawy 2','Lisa-Kuli/Mochnackiego 03','RzeszĂłw Ĺ› Ĺ‚ Ä…','ul. al. dw. os. Łódź',...pks.map(s=>s.name),...mpk.map(s=>s.name),...marcel.map(s=>s.name)];
   for(let pass=0;pass<2;pass++)for(const text of texts)for(const name of ['repairTextEncoding','normalizeStopName'])assert.equal(after.domain[name](text),before.domain[name](text),name+' '+text);
+  const replacementExamples=['Ăł','Ă“','Ä…','Ä„','Ä‡','Ä\u0087','ÄĆ','Ä™','Ä\u0098','Ĺ‚','Ĺ\u0081','Ĺ„','Ĺ\u0083','Ĺ›','Ĺš','Ĺş','Ĺą','ĹĽ','Ĺ»','Â'];
+  for(const marker of replacementExamples)for(const text of [marker,'Rzesz'+marker+'w',marker.repeat(5)])assert.equal(after.domain.repairTextEncoding(text),before.domain.repairTextEncoding(text));
   for(let i=0;i<9000;i++)after.domain.normalizeStopName('Cache eviction '+i);
   for(const text of texts)assert.equal(after.domain.normalizeStopName(text),before.domain.normalizeStopName(text));
   const sample={id:'test',name:'Rzeszów',lat:50,lon:22,lines:['108'],routeIds:['1'],sourceProviderIds:['pks']};
