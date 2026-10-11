@@ -1,4 +1,5 @@
 import {getEffectiveMpkDelay, fetchMpkTripSchedule} from './providers/mpk-vehicles';
+import {sharedInflight} from './shared-inflight';
 import {verifiedCachedPksStops} from './providers/pks-stops';
 import {formatPksStops} from './providers/pks-stops';
 import {writePersistentClientCache} from './transport/cache';
@@ -30,7 +31,9 @@ import {readMarcelTimestamp, warmMarcelBadgeCourses, fetchMarcelVehiclesDirect, 
 import {loadStopPointIndex} from './providers/pks-stops';
 import {fetchMpkVehicleFeed, fetchMpkRzeszowVehiclesDirect, fetchMpkRzeszowVehicleDetailsDirect} from './providers/mpk-vehicles';
 
-async function fetchPksVehiclesSnapshot(signal?: AbortSignal) {
+const fetchPksVehiclesSnapshot = sharedInflight(fetchPksVehiclesSnapshotUnshared);
+
+async function fetchPksVehiclesSnapshotUnshared(signal?: AbortSignal) {
   const panelFeedUrl = isNative() ? 'http://185.214.67.112/api/its/vehicles' : '/api/pks/vehicles';
   const panelRequest = requestJson<any>(panelFeedUrl, {
     signal,

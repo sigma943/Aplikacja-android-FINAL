@@ -123,8 +123,31 @@ async function browserAudit() {
     report.browserErrors=errors;if(errors.length)throw new Error('Browser errors: '+errors.join('; '));
   } finally {if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
 }
+async function overlappingFeedAudit() {
+  const fixture=require('./fixtures/pks-vehicle.json');
+  const rows=Array.from({length:250},(_,i)=>({...fixture,vehicle_id:i+1}));
+  const payload=JSON.stringify(rows);
+  let requests=0,bytes=0,parseMs=0;
+  const api=load('lib/pks-client.ts',{
+    '@capacitor/core':{Capacitor:{isNativePlatform:()=>false}},
+    './transport/http':{isNative:()=>false,requestJson:async()=>{
+      requests++;bytes+=Buffer.byteLength(payload);
+      await new Promise(resolve=>setTimeout(resolve,40));
+      const start=performance.now();const result=JSON.parse(payload);parseMs+=performance.now()-start;
+      return result;
+    }},
+  },'\nexport {fetchPksVehiclesSnapshot};');
+  const durations=[];
+  for(let i=0;i<10;i++) {
+    const start=performance.now();
+    const [map,panel]=await Promise.all([api.fetchPksVehiclesSnapshot(),api.fetchPksVehiclesSnapshot()]);
+    require('node:assert/strict').deepEqual(map,rows);require('node:assert/strict').deepEqual(panel,rows);
+    await new Promise(resolve=>setTimeout(resolve,5));durations.push(performance.now()-start);
+  }
+  report.overlappingPks={bursts:10,vehicles:250,requests,bytes,parseMs:round(parseMs),medianReadyMs:round(percentile(durations,.5)),mockDelayMs:40};
+}
 (async()=>{
-  try {await cpuAudit();if(!process.argv.includes('--cpu-only'))await browserAudit();}
+  try {await cpuAudit();await overlappingFeedAudit();if(!process.argv.includes('--cpu-only'))await browserAudit();}
   finally {
     fs.writeFileSync(path.join(directory,'report.json'),JSON.stringify(report,null,2));
     const md=['# Performance audit','', 'Diagnostic measurements, not phone FPS. Chrome CPU is throttled 4x. Network uses fixtures; map tile loading, Firebase authentication, Android GPU and device temperature are excluded. CPU microbenchmarks use unthrottled Node and cannot be compared directly with Chrome. PKS and MPK catalogs are complete; Marcel fleet is not measured.','', '| Operation | Median ms | P95 ms |','|---|---:|---:|',...report.cpu.map(r=>`| ${r.name} | ${r.medianMs} | ${r.p95Ms} |`),'', '| Browser scenario | JS ms | Layout ms | Tasks >50ms | Max task ms | Frame gap P95 ms |','|---|---:|---:|---:|---:|---:|',...report.browser.map(r=>`| ${r.name} | ${r.scriptMs} | ${r.layoutMs} | ${r.longTasks} | ${r.maxLongTaskMs} | ${r.frameGapP95Ms} |`),'','Raw CPU profiles can be opened in Chrome DevTools Performance. Startup includes code loading and hydration. Refresh includes waiting for the unchanged normal polling interval. Different scenario durations mean totals are not rankings.'];

@@ -10,6 +10,8 @@ on:
       - 'test/catalog-optimization-equivalence.cjs'
       - 'lib/stops-catalog.ts'
       - 'lib/stop-text-cache.ts'
+      - 'lib/shared-inflight.ts'
+      - 'lib/pks-client.ts'
       - 'components/stops-panel/stop-domain.ts'
 jobs:
   profile:
@@ -18,7 +20,7 @@ jobs:
     permissions:
       contents: read
     env:
-      PERF_BASELINE_SHA: bc9ada645e6cd09b6e3d1ddda1826403220e5ce2
+      PERF_BASELINE_SHA: b8543b001360de94f2d6b7b3ad512d3cc477d264
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
