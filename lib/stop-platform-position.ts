@@ -62,7 +62,18 @@ export function positionWithPlatforms(stop:StopPoint,resolver:ReturnType<typeof 
   // Replacing it with raw apiLat/apiLon undoes those corrections (e.g. Lisa-Kuli 03).
   return readBusCoordinates(stop.lat,stop.lon);
 }
-export function platformPosition(stop:StopPoint){return positionWithPlatforms(stop,resolve);}
+type CachedPosition={name:string;code?:string;lat?:number;lon?:number;revision:number;point:{lat:number;lon:number}|null};
+// Weak keys release discarded catalogs/routes. Compare every resolver input so
+// in-place edits and a newly loaded platform catalog cannot retain old positions.
+const positions=new WeakMap<StopPoint,CachedPosition>();
+export function platformPosition(stop:StopPoint){
+  const name=stop.name||stop.n||'',cached=positions.get(stop);
+  if(cached&&cached.revision===revision&&cached.name===name&&cached.code===stop.code
+    &&Object.is(cached.lat,stop.lat)&&Object.is(cached.lon,stop.lon))return cached.point?{...cached.point}:null;
+  const point=positionWithPlatforms(stop,resolve);
+  positions.set(stop,{name,code:stop.code,lat:stop.lat,lon:stop.lon,revision,point:point?{...point}:null});
+  return point;
+}
 export function loadStopPlatforms(){
   if(!loading)loading=fetch('/data/stop-platforms.json',{cache:'force-cache'})
     .then(r=>{if(!r.ok)throw Error('Platform catalog unavailable');return r.json();})

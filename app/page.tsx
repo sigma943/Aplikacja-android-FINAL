@@ -998,7 +998,7 @@ export default function Home() {
     : upcomingVehicleStops(selectedBusTimedStops, now, selectedBus?.lastStopId),
     [selectedBusTimedStops, now, selectedBus?.lastStopId, selectedVehicleIsTrain]);
 
-  const openVehicleRouteStop = (stopId:string) => {
+  const openVehicleRouteStop = useCallback((stopId:string) => {
     const point=(selectedBus?.routeStops||selectedBus?.schedule||[]).find(stop=>String(stop.id)===stopId);
     const provider=selectedBus?.provider||'pks';
     const known=provider==='pks'?stopsList.find(stop=>stop.id===stopId):undefined;
@@ -1012,7 +1012,8 @@ export default function Home() {
       external.providerStopIds={marcelMatchKeys:match,marcelCityMatchKeys:normalize(city)+'|'+match};
     }
     setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);
-  };
+  },[selectedBus,stopsList]);
+  const selectMapCatalogStop=useCallback((stop:StopsPanelStop)=>{mapStopReturnTab.current=null;setSelectedBus(null);setSelectedExternalStop(stop);setSelectedStopId(stop.id);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);},[]);
   const selectedBusHeaderStyle=vehicleHeaderStyle(selectedVehicleColor,transparentUI);
   const showAlertDot = Boolean(error || isOffline);
 
@@ -1218,7 +1219,7 @@ export default function Home() {
                selectedVehicle={selectedBus}
                stopsData={stopsDataMap}
                mapStops={mapStops}
-               onMapStopClick={(stop)=>{mapStopReturnTab.current=null;setSelectedBus(null);setSelectedExternalStop(stop);setSelectedStopId(stop.id);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);}}
+               onMapStopClick={selectMapCatalogStop}
                themeColor={themeColor}
                refreshInterval={refreshInterval}
                forcedCenter={mapCenter}

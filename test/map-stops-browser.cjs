@@ -226,6 +226,10 @@ try{
  await page.waitForFunction(()=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color==='rgb(104, 196, 74)';});
  await zoomKey('+');await zoomKey('+');
  await page.waitForSelector('.map-stop-ring.is-selected');await page.waitForSelector('.stop-highlight-pin',{hidden:true});
+ // Re-render the parent clock repeatedly without moving an unchanged Leaflet marker.
+ const idleTicks=await page.evaluate(()=>{window.idleMarkerMutations=0;const marker=document.querySelector('.map-catalog-stop');window.idleMarkerObserver=new MutationObserver(records=>{window.idleMarkerMutations+=records.length;});window.idleMarkerObserver.observe(marker,{attributes:true,attributeFilter:['style']});return window.fixtureMapTicks;});
+ await page.waitForFunction(start=>window.fixtureMapTicks>=start+5,{},idleTicks);
+ assert.equal(await page.evaluate(()=>{window.idleMarkerObserver.disconnect();return window.idleMarkerMutations;}),0,'unchanged markers do not repeat DOM position writes on clock ticks');
  await page.screenshot({path:path.resolve('test/ui-previews/marcel-selected-catalog-stop.png')});
  assert.deepEqual(errors,[]);console.log('Map stops: enable, city/rural colours, click/highlight/sheet, persistence, zoom threshold and disable passed.');
 }finally{await browser.close();server.close();fixture.cleanup();}
