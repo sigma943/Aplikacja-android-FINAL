@@ -375,7 +375,9 @@ export default function BusMap({
         }
 
         .map-catalog-stop {background:transparent;border:0;display:flex;align-items:center;justify-content:center;}
-        .map-stop-ring {display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--stop-color);border-radius:50%;color:#fff;background:var(--stop-color);box-shadow:0 1px 5px #0006;transition:transform .24s ease,box-shadow .24s ease,background .24s ease;}
+        .map-stop-ring {position:relative;display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--stop-color);border-radius:50%;color:#fff;background:var(--stop-color);box-shadow:0 1px 5px #0006;transition:transform .24s ease,box-shadow .24s ease,background .24s ease;}
+        .map-stop-platform {position:absolute;top:-7px;right:-9px;min-width:18px;height:18px;padding:0 3px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:1.5px solid #fff;border-radius:6px;background:#102c30;color:#fff;font-size:11px;font-weight:800;line-height:1;box-shadow:0 1px 3px #0008;pointer-events:none;}
+        .stop-highlight-pin .map-stop-platform {top:0;right:-2px;}
         .map-stop-ring.is-selected {transform:scale(1.28);background:var(--stop-color);box-shadow:0 0 0 5px color-mix(in srgb,var(--stop-color) 22%,transparent),0 0 18px var(--stop-color);animation:map-stop-select .42s ease-out;}
         @keyframes map-stop-select {from {transform:scale(.9);box-shadow:0 0 0 0 transparent;}to {transform:scale(1.28);}}
         @media(prefers-reduced-motion:reduce){.map-stop-ring,.map-stop-ring.is-selected{transition:none;animation:none;}}

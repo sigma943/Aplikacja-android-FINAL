@@ -8,7 +8,7 @@ try{
  await page.evaluateOnNewDocument(()=>{const Original=Date;window.Date=class extends Original{constructor(...args){super(...(args.length?args:[Original.parse('2026-10-07T11:45:20Z')]));}static now(){return Original.parse('2026-10-07T11:45:20Z');}};if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17}));});
  await page.setRequestInterception(true);
  page.on('request',request=>{const url=request.url();const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:'03'},'3795':{n:'RZESZÓW, PODKARP.MATUSZCZAKA',lat:50.01679,lon:21.9753,areaId:'1945',code:'03'},...Object.fromEntries(['1365','9026','11462','11461','10694','10695'].map(id=>[id,require('../public/data/pks-stop-points.json').stops[id]]))}});
+  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:'03'},'3795':{n:'RZESZÓW, PODKARP.MATUSZCZAKA',lat:50.01679,lon:21.9753,areaId:'1945',code:'03'},...Object.fromEntries(['1365','9026','11462','11461','10694','10695','3721','3723'].map(id=>[id,require('../public/data/pks-stop-points.json').stops[id]]))}});
   if(url.includes('api-site.marcel-bus.pl/client/api/search/trasy?'))return json([{idTr:18,nazTr:'Jasło-Rzeszów'},{idTr:3,nazTr:'Rzeszów-Jasło'}]);
   if(url.includes('api-site.marcel-bus.pl/client/api/search/wariantTrasy/kusy?'))return json([{idKu:new URL(url).searchParams.get('idTr')==='18'?1181798:1182201}]);
   if(url.includes('api-site.marcel-bus.pl/client/api/trasy/kurs/'))return json([require('./fixtures/babica-dps-providers.json').marcel[url.includes('/1181798?')?0:1],{nazMi:'Babica',nazPr:'(81) za torami',szGps:null,dlGps:null,kol:69,godz:'16:01'}]);
@@ -85,6 +85,24 @@ try{
  },{},lisa03);
  await page.click(lisa03);await page.waitForSelector('.map-stop-ring.is-selected');
  assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/Lisa.*Mochn.*03/i);
+ // Rzeszów D.A.: numbers belong on icons and list cards, not the bottom panel.
+ await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.042372,lng:22.003212},zoom:19})));
+ await page.reload({waitUntil:'domcontentloaded'});
+ const terminal='.map-catalog-stop[title="Rzeszów D.A. st. 5"]';
+ await page.waitForSelector(terminal+' .map-stop-platform');
+ assert.equal(await page.$eval(terminal+' .map-stop-platform',el=>el.textContent),'5');
+ assert.equal(await page.$eval(terminal+' .map-stop-platform',el=>getComputedStyle(el).fontSize),'11px');
+ await page.click(terminal);await page.waitForSelector('.map-stop-ring.is-selected .map-stop-platform');
+ await page.waitForSelector('[data-map-stop-sheet]');
+ assert.doesNotMatch(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/st\. 5/);
+ await page.screenshot({path:path.resolve('test/ui-previews/map-terminal-platforms.png')});
+ await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
+ await page.type('input[placeholder*="Babica"]','Rzeszów D');
+ await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id] h3')].some(el=>el.textContent==='Rzeszów D.A. st. 5'));
+ assert.ok(await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id] h3')].some(el=>el.textContent==='Rzeszów D.A. st. 2')));
+ await page.screenshot({path:path.resolve('test/ui-previews/list-terminal-platforms.png')});
+ await page.$eval('input[placeholder*="Babica"]',el=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(el,'');el.dispatchEvent(new Event('input',{bubbles:true}));});
+ await button('Mapa');
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.03651,lng:21.99752},zoom:19})));
  await page.reload({waitUntil:'domcontentloaded'});
  await page.waitForSelector('.map-catalog-stop[title*="Moniuszki" i]');

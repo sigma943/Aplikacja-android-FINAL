@@ -1,10 +1,29 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const loadTs=require('./load-ts.cjs');
-const {displayStopLabel}=loadTs('lib/stop-label.ts');
+const {displayStopLabel,displayStopCatalogLabel,rzeszowTerminalPlatform}=loadTs('lib/stop-label.ts');
 test('D.A. labels hide numbers and platform suffixes only for display',()=>{
  for(const name of ['Boguchwała D.A. 1','Boguchwała D.A 01','Boguchwała D.A.st. 2','Boguchwała D.A., 3','Boguchwała DA 05','Boguchwała d.a. stanowisko 6'])assert.equal(displayStopLabel(name),'Boguchwała D.A.');
  assert.equal(displayStopLabel('Rzeszów D.A. st. 5'),'Rzeszów D.A.');
  for(const name of ['Niebylec 2','Boguchwała, Stadion Motor 99','Rzeszów, Podkar.Kościół 07','Dąbrowa 1','Wola 12','Boguchwała D.A.'])assert.equal(displayStopLabel(name),name);
  const stops=[{id:'one',name:'Boguchwała D.A. 1'},{id:'two',name:'Boguchwała D.A. 2'}];stops.map(s=>displayStopLabel(s.name));assert.equal(stops[0].name,'Boguchwała D.A. 1');assert.notEqual(stops[0].id,stops[1].id);
+});
+test('Rzeszów terminal platforms are visible only in catalog labels and map badges',()=>{
+ for(const name of ['Rzeszów D.A. st. 5','RZESZÓW  D.A. 05','Rzeszów D.A.stanowisko 5','Rzeszow, DA 5']){
+  assert.equal(rzeszowTerminalPlatform(name),'5');
+  assert.match(displayStopCatalogLabel(name),/D\.A\. st\. 5$/);
+  assert.doesNotMatch(displayStopLabel(name),/st\.|5/);
+ }
+ assert.equal(displayStopCatalogLabel('Rzeszów D.A.','02'),'Rzeszów D.A. st. 2');
+ assert.equal(rzeszowTerminalPlatform('Rzeszów D.A. st. 5','2'),'5','name is authoritative');
+ for(const name of ['Boguchwała D.A. 1','Rzeszów, Podkar.Kościół 07','Rzeszów D.A.']){
+  assert.equal(rzeszowTerminalPlatform(name),null);
+  assert.equal(displayStopCatalogLabel(name),displayStopLabel(name));
+ }
+ assert.equal(rzeszowTerminalPlatform('Rzeszów D.A.','<script>'),null);
+ const {mapStopIconHtml,mapStopPlatformBadge}=loadTs('lib/map-stop-markers.ts');
+ assert.match(mapStopIconHtml('#14b8a6',false,'5'),/<span class="map-stop-platform">5<\/span>/);
+ assert.match(mapStopIconHtml('#14b8a6',true,'2'),/map-stop-platform">2/);
+ assert.doesNotMatch(mapStopIconHtml('#14b8a6',false),/map-stop-platform/);
+ assert.equal(mapStopPlatformBadge('<script>'),'');
 });
 const access=loadTs('lib/admin/statistics-access.ts');
 test('statistics defaults preserve current admins, enforce owners and fail closed while loading',()=>{
