@@ -30,39 +30,45 @@ formatowane tą samą funkcją co API i katalog offline:
 
 | Wynik | Liczba |
 | --- | ---: |
-| Zweryfikowany punkt Google | 6 |
-| Jednoznaczne stanowisko OSM | 1041 |
+| Zweryfikowany punkt Google z potwierdzoną stroną drogi | 5 |
+| Jednoznaczne stanowisko OSM | 1042 |
 | Brak takiego dopasowania, poprawna pozycja API | 662 |
 | Brak obu potwierdzonych pozycji | 91 |
 
-Podkład aplikacji jest mapą Google. Link użytkownika wskazuje dokładnie
-49.8375014, 21.9552742. Wyniki wyszukiwania na tej mapie ujawniły sześć
-nazwanych punktów w Gwoźnicy i przy szkole w Konieczkowej. Każdy porównano
-z oboma stanowiskami API/GTFS i przypisano do najbliższego zgodnego przystanku.
-Numer w poniższej tabeli pochodzi z katalogu PKS; nienumerowany punkt Google
-nie jest podstawą do przesunięcia przeciwnego kierunku.
+## Korekta przypisań po zgłoszeniu strony drogi — 2026-10-11
 
-| Stanowisko PKS | ID | Punkt Google | Różnica względem OSM/GTFS | Odległość drugiego stanowiska od Google |
-| --- | --- | --- | ---: | ---: |
-| Gwoźnica Dolna 12 | 10689 | 49.8375014, 21.9552742 | 21,2 m | 48,5 m (11) |
-| Gwoźnica Górna, Szkoła 19 | 10695 | 49.8298081, 21.9977151 | 23,4 m | 121,3 m (20) |
-| Gwoźnica Górna, SKR 13 | 10672 | 49.8409866, 21.974979 | 1,6 m | 35,2 m (14) |
-| Gwoźnica Górna 24 / Pętla | 10671 | 49.8175507, 22.0029508 | 1,7 m | brak w promieniu 150 m |
-| Gwoźnica Górna, Sklep 15 | 10669 | 49.8370121, 21.9886287 | 1,5 m | 16,2 m (16) |
-| Konieczkowa, Szk. 08 / kierunek Gwoźnica | 11028 | 49.8417995, 21.9255925 | 1,0 m | 93,3 m (07) |
+Pierwsze przypisanie nienumerowanych punktów Google według odległości było błędne.
+Punkt szkoły przenosił stanowisko 19 na stronę stanowiska 20. Punkt Gwoźnicy
+Dolnej przenosił 12 na stronę 11. Różne identyfikatory nie chroniły przed
+wspólną stroną drogi; wcześniejsze testy sprawdzały tylko zachowanie ID i kodów.
 
-Dwa znaczniki były przesunięte o ponad 20 m. Pozostałe cztery zgadzały się
-z dokładnością do 2 m; wszystkie sześć teraz używa dokładnej pozycji Google.
-Rejestr `lib/reviewed-map-platforms.json` przechowuje pełne zaobserwowane linki
-źródłowe i datę sprawdzenia, oddzielnie od danych/licencji OSM.
-Pierwszeństwo działa także offline i przed zakończeniem pobierania katalogu OSM.
-Dopasowanie wciąż wymaga nazwy, numeru stanowiska i odległości do 120 m.
-Stanowiska 11 i 20 zachowują swoje odrębne pozycje. Geometria tras i identyfikatory
-rozkładów nie są zmieniane.
+Sprawdzono wszystkie sześć ostatnich punktów względem osi lokalnych dróg OSM:
 
-Kontrola całego katalogu potwierdza wybór źródła i bezpieczny powrót do API.
-Nie oznacza ręcznej weryfikacji wszystkich 1800 punktów na podkładzie Google
-ani potwierdzenia wszystkich lokalizacji w terenie.
+| Punkt Google | Wynik sprawdzenia | Działanie |
+| --- | --- | --- |
+| Gwoźnica Dolna, 49.8375014 / 21.9552742 | Po stronie stanowiska 11, mimo że 12 jest bliższe | Przypisano do 10688 / 11; 10689 / 12 zachowuje własny punkt |
+| Gwoźnica Górna Szkoła, 49.8298081 / 21.9977151 | Po przeciwnej stronie drogi niż stanowisko 19; brak numeru Google | Odrzucono zmianę; 10695 / 19 i 10694 / 20 pozostają przy własnych OSM/API |
+| Gwoźnica Górna SKR | Ta sama strona co 13; różnica 1,6 m | Zachowano punkt Google |
+| Gwoźnica Górna Pętla | Ta sama strona co 24; różnica 1,7 m | Zachowano punkt Google |
+| Gwoźnica Górna Sklep | Ta sama strona co 15; różnica 1,5 m | Zachowano punkt Google |
+| Konieczkowa Szkoła, kierunek Gwoźnica | Ta sama strona co 08; różnica 1,0 m | Zachowano punkt Google |
+
+Stanowisko szkoła 19: 49.8300183, 21.9977235 (OSM/GTFS),
+49.829998, 21.997718 (API). Stanowisko 20: 49.8306762, 21.9966906 (OSM/GTFS).
+Stanowisko 19 jest po stronie szkoły, 20 po przeciwnej stronie.
+Nienumerowany punkt Google przy sklepie nie dowodzi nowej lokalizacji stanowiska.
+
+`lib/reviewed-map-platforms.json` przechowuje pięć dopuszczonych punktów,
+odrzucony punkt szkoły oraz odcinki osi drogi i linki źródłowe OSM.
+Resolver dla tego rejestru wymaga teraz zgodnej nazwy/kodu, odległości do 120 m
+oraz pozycji po tej samej stronie zweryfikowanego odcinka drogi.
+Brak takiego odcinka lub położenie na osi/przeciwnej stronie odrzuca korektę.
+Wówczas używane jest zgodne numerowane stanowisko OSM, a bez niego oryginalne API.
+Rejestr działa offline; sprawdzanie strony drogi nie wymaga pobierania mapy.
+
+Osie dróg sprawdzono z bieżącego eksportu API OSM. To kontrola ostatnich sześciu
+korekt, nie pełna weryfikacja stron drogi dla wszystkich 1800 przystanków.
+Geometria tras i identyfikatory rozkładów pozostają niezależne od pozycji ikon.
 
 Źródła kontroli:
 
@@ -71,7 +77,8 @@ ani potwierdzenia wszystkich lokalizacji w terenie.
 - https://www.openstreetmap.org/node/560728906 (stanowisko 11)
 - https://www.openstreetmap.org/node/13049729714 (stanowisko 12)
 
-Regresje: `test/stop-platform-position.test.cjs`. Testują sześć źródłowych
-punktów Google, odrębność kierunków 11/12 i 19/20 oraz pierwszeństwo punktu
+Regresje: `test/stop-platform-position.test.cjs`. Testują pięć dopuszczonych
+punktów Google, odrzucenie przejścia przez drogę, przeciwne strony 11/12 i 19/20
+oraz pierwszeństwo punktu
 mapowego, powrót do API, brak GPS, dane offline, odświeżenie źródła, zachowanie
 identyfikatorów oraz filtrowanie widoku według pozycji widocznego znacznika.

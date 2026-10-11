@@ -3,20 +3,23 @@
   "reviewedAt": "2026-10-11",
   "points": [
     {
-      "id": "pks:10689",
-      "name": "Gwoźnica Dolna 12",
-      "code": "12",
+      "id": "pks:10688",
+      "name": "Gwoźnica Dolna 11",
+      "code": "11",
       "lat": 49.8375014,
       "lon": 21.9552742,
-      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+Dolna/data=!4m7!3m6!1s0x473c59001febf11b:0xce0ebb7a0f5b6222!8m2!3d49.8375014!4d21.9552742!16s%2Fg%2F11y50ypblh!19sChIJG_HrHwBZPEcRImJbD3q7Ds4?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
-    },
-    {
-      "id": "pks:10695",
-      "name": "Gwoźnica Górna, Szkoła 19",
-      "code": "19",
-      "lat": 49.8298081,
-      "lon": 21.9977151,
-      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+Szko%C5%82a/data=!4m7!3m6!1s0x473c59006ff469ad:0xe2912ae3c0de4f50!8m2!3d49.8298081!4d21.9977151!16s%2Fg%2F11vxq0dvw9!19sChIJrWn0bwBZPEcRUE_ewOMqkeI?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+Dolna/data=!4m7!3m6!1s0x473c59001febf11b:0xce0ebb7a0f5b6222!8m2!3d49.8375014!4d21.9552742!16s%2Fg%2F11y50ypblh!19sChIJG_HrHwBZPEcRImJbD3q7Ds4?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1",
+      "roadBoundary": [
+        [
+          49.8373062,
+          21.9554654
+        ],
+        [
+          49.8373915,
+          21.9550341
+        ]
+      ],
+      "roadSourceUrl": "https://www.openstreetmap.org/way/260319600"
     },
     {
       "id": "pks:10672",
@@ -24,7 +27,18 @@
       "code": "13",
       "lat": 49.8409866,
       "lon": 21.974979,
-      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+SKR/data=!4m7!3m6!1s0x473c59000602aab7:0x9b525906e40fb59e!8m2!3d49.8409866!4d21.974979!16s%2Fg%2F11vxycl0h3!19sChIJt6oCBgBZPEcRnrUP5AZZUps?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+SKR/data=!4m7!3m6!1s0x473c59000602aab7:0x9b525906e40fb59e!8m2!3d49.8409866!4d21.974979!16s%2Fg%2F11vxycl0h3!19sChIJt6oCBgBZPEcRnrUP5AZZUps?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1",
+      "roadBoundary": [
+        [
+          49.8410526,
+          21.9752836
+        ],
+        [
+          49.8409048,
+          21.9749587
+        ]
+      ],
+      "roadSourceUrl": "https://www.openstreetmap.org/way/44306263"
     },
     {
       "id": "pks:10671",
@@ -32,7 +46,18 @@
       "code": "24",
       "lat": 49.8175507,
       "lon": 22.0029508,
-      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+P%C4%99tla/data=!4m7!3m6!1s0x473c590076e59259:0x632f17dbc0b6aad8!8m2!3d49.8175507!4d22.0029508!16s%2Fg%2F11vxybq0yk!19sChIJWZLldgBZPEcR2Kq2wNsXL2M?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+P%C4%99tla/data=!4m7!3m6!1s0x473c590076e59259:0x632f17dbc0b6aad8!8m2!3d49.8175507!4d22.0029508!16s%2Fg%2F11vxybq0yk!19sChIJWZLldgBZPEcR2Kq2wNsXL2M?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1",
+      "roadBoundary": [
+        [
+          49.8174917,
+          22.003171
+        ],
+        [
+          49.8177552,
+          22.0027637
+        ]
+      ],
+      "roadSourceUrl": "https://www.openstreetmap.org/way/684784311"
     },
     {
       "id": "pks:10669",
@@ -40,7 +65,18 @@
       "code": "15",
       "lat": 49.8370121,
       "lon": 21.9886287,
-      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+Sklep/data=!4m7!3m6!1s0x473c5900361192c7:0x78a9b5d810fac330!8m2!3d49.8370121!4d21.9886287!16s%2Fg%2F11v_4m7mfw!19sChIJx5IRNgBZPEcRMMP6ENi1qXg?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+Sklep/data=!4m7!3m6!1s0x473c5900361192c7:0x78a9b5d810fac330!8m2!3d49.8370121!4d21.9886287!16s%2Fg%2F11v_4m7mfw!19sChIJx5IRNgBZPEcRMMP6ENi1qXg?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1",
+      "roadBoundary": [
+        [
+          49.8367624,
+          21.988917
+        ],
+        [
+          49.8370764,
+          21.9883632
+        ]
+      ],
+      "roadSourceUrl": "https://www.openstreetmap.org/way/44306263"
     },
     {
       "id": "pks:11028",
@@ -48,7 +84,40 @@
       "code": "08",
       "lat": 49.8417995,
       "lon": 21.9255925,
-      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Konieczkowa+Szko%C5%82a+-+kierunku+Gwo%C5%BAnica/data=!4m7!3m6!1s0x473c59001579177b:0x72f944e225083e61!8m2!3d49.8417995!4d21.9255925!16s%2Fg%2F11n57fh2m5!19sChIJexd5FQBZPEcRYT4IJeJE-XI?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Konieczkowa+Szko%C5%82a+-+kierunku+Gwo%C5%BAnica/data=!4m7!3m6!1s0x473c59001579177b:0x72f944e225083e61!8m2!3d49.8417995!4d21.9255925!16s%2Fg%2F11n57fh2m5!19sChIJexd5FQBZPEcRYT4IJeJE-XI?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1",
+      "roadBoundary": [
+        [
+          49.8415847,
+          21.926251
+        ],
+        [
+          49.8420215,
+          21.9253178
+        ]
+      ],
+      "roadSourceUrl": "https://www.openstreetmap.org/way/260319611"
+    }
+  ],
+  "rejectedPoints": [
+    {
+      "id": "pks:10695",
+      "name": "Gwoźnica Górna, Szkoła 19",
+      "code": "19",
+      "lat": 49.8298081,
+      "lon": 21.9977151,
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+Szko%C5%82a/data=!4m7!3m6!1s0x473c59006ff469ad:0xe2912ae3c0de4f50!8m2!3d49.8298081!4d21.9977151!16s%2Fg%2F11vxq0dvw9!19sChIJrWn0bwBZPEcRUE_ewOMqkeI?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1",
+      "reason": "Unnumbered Google place crosses the road from platform 19; no confirmed platform code. Retain the numbered OSM/API locations.",
+      "roadBoundary": [
+        [
+          49.8299308,
+          21.9977376
+        ],
+        [
+          49.830288,
+          21.997325
+        ]
+      ],
+      "roadSourceUrl": "https://www.openstreetmap.org/way/44306256"
     }
   ]
 }

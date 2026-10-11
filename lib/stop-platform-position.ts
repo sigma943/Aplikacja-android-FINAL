@@ -1,7 +1,7 @@
 import {readBusCoordinates} from './bus-coordinates';
 import reviewedPlatforms from './reviewed-map-platforms.json';
 
-export type PlatformPoint={id:string;name:string;code?:string;lat:number;lon:number};
+export type PlatformPoint={id:string;name:string;code?:string;lat:number;lon:number;roadBoundary?:number[][]};
 type StopPoint={name?:string;n?:string;code?:string;lat?:number;lon?:number;apiLat?:number|null;apiLon?:number|null};
 const aliases:Record<string,string>={szk:'szkola',szkole:'szkola',kosc:'kosciol',kos:'kosciol',skrz:'skrzyzowanie',skr:'skrzyzowanie',przych:'przychodnia',cment:'cmentarz',cm:'cmentarz',osr:'osrodek',dw:'dworzec',szp:'szpital',mochn:'mochnackiego'};
 function identity(name:string,code?:string){
@@ -16,7 +16,18 @@ function distance(a:{lat:number;lon:number},b:{lat:number;lon:number}){
   return Math.hypot(x,y)*111195;
 }
 /** Only named passenger platforms, never road stop positions or arbitrary offsets. */
-export function createPlatformResolver(points:PlatformPoint[]){
+export function hasSameRoadside(origin:{lat:number;lon:number},point:PlatformPoint){
+  const boundary=point.roadBoundary;
+  if(!boundary||boundary.length!==2)return false;
+  const a=readBusCoordinates(boundary[0]?.[0],boundary[0]?.[1]);
+  const b=readBusCoordinates(boundary[1]?.[0],boundary[1]?.[1]);
+  if(!a||!b||(a.lat===b.lat&&a.lon===b.lon))return false;
+  const side=(p:{lat:number;lon:number})=>(b.lon-a.lon)*(p.lat-a.lat)-(b.lat-a.lat)*(p.lon-a.lon);
+  // A point on the centreline does not prove which passenger platform it serves.
+  const from=side(origin),to=side(point);
+  return Math.abs(from)>1e-12&&Math.abs(to)>1e-12&&from*to>0;
+}
+export function createPlatformResolver(points:PlatformPoint[],requireRoadside=false){
   const index=new Map<string,Array<PlatformPoint & {number:string}>>();
   for(const point of points){
     if(!point||typeof point.name!=='string'||!readBusCoordinates(point.lat,point.lon))continue;
@@ -29,7 +40,8 @@ export function createPlatformResolver(points:PlatformPoint[]){
     const {base,number}=identity(stop.name||stop.n||'',stop.code);
     const nearby=(index.get(base)||[]).filter(p=>distance(origin,p)<=120);
     // Missing platform codes must not guess between the two sides of a road.
-    const candidates=nearby.filter(p=>number?p.number===number:distance(origin,p)<=40);
+    const candidates=nearby.filter(p=>(number?p.number===number:distance(origin,p)<=40)
+      &&(!requireRoadside||hasSameRoadside(origin,p)));
     if(!number&&nearby.length!==1)return null;
     if(candidates.length!==1)return null;
     return {lat:candidates[0].lat,lon:candidates[0].lon};
@@ -37,7 +49,7 @@ export function createPlatformResolver(points:PlatformPoint[]){
 }
 // Reviewed points from the displayed basemap take precedence over the OSM catalog.
 // Match the full platform name/code and proximity on every surface, including routes.
-const resolveReviewed=createPlatformResolver(reviewedPlatforms.points);
+const resolveReviewed=createPlatformResolver(reviewedPlatforms.points,true);
 let resolve=createPlatformResolver([]);
 let loading:Promise<void>|null=null;
 let revision=0;
