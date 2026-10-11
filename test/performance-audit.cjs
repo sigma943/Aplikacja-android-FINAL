@@ -127,7 +127,8 @@ async function browserAudit(fixture, runIndex) {
     await measure('refresh-250-vehicles',async()=>{fleetSize=250;const before=feedRequests;await page.waitForFunction(()=>document.querySelectorAll('.mks-bus-marker').length>=200,{timeout:30000});if(feedRequests<=before)throw new Error('Fleet refresh was not observed');await pause(2000);});
     await measure('bus-panel',async()=>{await page.click('.mks-bus-marker');await page.waitForSelector('[data-map-bus-sheet]');await page.click('[aria-label="Rozwiń panel autobusu"]');await pause(1500);});
     const button=async label=>page.evaluate(text=>{const b=[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text);if(!b)throw new Error('Missing button '+text);b.click();},label);
-    await measure('stop-list-search',async()=>{await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');await page.type('input[placeholder*="Babica"]','Rzeszów',{delay:100});await page.waitForSelector('[data-stop-card-id]');await pause(1000);});
+    await measure('stop-list-open',async()=>{await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');await page.waitForSelector('[data-stop-card-id]');await pause(700);});
+    await measure('stop-list-search',async()=>{await page.type('input[placeholder*="Babica"]','Rzeszów',{delay:100});await page.waitForSelector('[data-stop-card-id]');await pause(1000);});
     await measure('stop-panel',async()=>{await page.evaluate(()=>document.querySelector('[data-stop-card-id]').click());await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');await pause(1500);});
     const workerJobs=await page.evaluate(()=>window.auditCatalogJobs);
     report.catalogWorker={jobs:workerJobs.length,errors:await page.evaluate(()=>window.auditCatalogWorkerErrors)};
