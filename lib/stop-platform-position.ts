@@ -1,4 +1,5 @@
 import {readBusCoordinates} from './bus-coordinates';
+import reviewedPlatforms from './reviewed-map-platforms.json';
 
 export type PlatformPoint={id:string;name:string;code?:string;lat:number;lon:number};
 type StopPoint={name?:string;n?:string;code?:string;lat?:number;lon?:number;apiLat?:number|null;apiLon?:number|null};
@@ -34,13 +35,16 @@ export function createPlatformResolver(points:PlatformPoint[]){
     return {lat:candidates[0].lat,lon:candidates[0].lon};
   };
 }
+// Reviewed points from the displayed basemap take precedence over the OSM catalog.
+// Match the full platform name/code and proximity on every surface, including routes.
+const resolveReviewed=createPlatformResolver(reviewedPlatforms.points);
 let resolve=createPlatformResolver([]);
 let loading:Promise<void>|null=null;
 let revision=0;
 export function stopPlatformRevision(){return revision;}
 /** A confirmed map platform wins; otherwise retain the original provider API position. */
 export function positionWithPlatforms(stop:StopPoint,resolver:ReturnType<typeof createPlatformResolver>){
-  const platform=resolver(stop);
+  const platform=resolveReviewed(stop)||resolver(stop);
   if(platform)return platform;
   if(stop.apiLat===null||stop.apiLon===null)return null;
   return readBusCoordinates(stop.apiLat,stop.apiLon)||readBusCoordinates(stop.lat,stop.lon);

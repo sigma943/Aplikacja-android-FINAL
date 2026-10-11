@@ -1,0 +1,54 @@
+{
+  "source": "Google Maps place points reviewed separately from the OSM catalog",
+  "reviewedAt": "2026-10-11",
+  "points": [
+    {
+      "id": "pks:10689",
+      "name": "Gwoźnica Dolna 12",
+      "code": "12",
+      "lat": 49.8375014,
+      "lon": 21.9552742,
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+Dolna/data=!4m7!3m6!1s0x473c59001febf11b:0xce0ebb7a0f5b6222!8m2!3d49.8375014!4d21.9552742!16s%2Fg%2F11y50ypblh!19sChIJG_HrHwBZPEcRImJbD3q7Ds4?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+    },
+    {
+      "id": "pks:10695",
+      "name": "Gwoźnica Górna, Szkoła 19",
+      "code": "19",
+      "lat": 49.8298081,
+      "lon": 21.9977151,
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+Szko%C5%82a/data=!4m7!3m6!1s0x473c59006ff469ad:0xe2912ae3c0de4f50!8m2!3d49.8298081!4d21.9977151!16s%2Fg%2F11vxq0dvw9!19sChIJrWn0bwBZPEcRUE_ewOMqkeI?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+    },
+    {
+      "id": "pks:10672",
+      "name": "Gwoźnica Górna, SKR 13",
+      "code": "13",
+      "lat": 49.8409866,
+      "lon": 21.974979,
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+SKR/data=!4m7!3m6!1s0x473c59000602aab7:0x9b525906e40fb59e!8m2!3d49.8409866!4d21.974979!16s%2Fg%2F11vxycl0h3!19sChIJt6oCBgBZPEcRnrUP5AZZUps?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+    },
+    {
+      "id": "pks:10671",
+      "name": "Gwoźnica Górna 24",
+      "code": "24",
+      "lat": 49.8175507,
+      "lon": 22.0029508,
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+P%C4%99tla/data=!4m7!3m6!1s0x473c590076e59259:0x632f17dbc0b6aad8!8m2!3d49.8175507!4d22.0029508!16s%2Fg%2F11vxybq0yk!19sChIJWZLldgBZPEcR2Kq2wNsXL2M?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+    },
+    {
+      "id": "pks:10669",
+      "name": "Gwoźnica Górna, Sklep 15",
+      "code": "15",
+      "lat": 49.8370121,
+      "lon": 21.9886287,
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Gwo%C5%BAnica+G%C3%B3rna+Sklep/data=!4m7!3m6!1s0x473c5900361192c7:0x78a9b5d810fac330!8m2!3d49.8370121!4d21.9886287!16s%2Fg%2F11v_4m7mfw!19sChIJx5IRNgBZPEcRMMP6ENi1qXg?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+    },
+    {
+      "id": "pks:11028",
+      "name": "Konieczkowa, Szk. 08",
+      "code": "08",
+      "lat": 49.8417995,
+      "lon": 21.9255925,
+      "sourceUrl": "https://www.google.com/maps/place/Przystanek+Konieczkowa+Szko%C5%82a+-+kierunku+Gwo%C5%BAnica/data=!4m7!3m6!1s0x473c59001579177b:0x72f944e225083e61!8m2!3d49.8417995!4d21.9255925!16s%2Fg%2F11n57fh2m5!19sChIJexd5FQBZPEcRYT4IJeJE-XI?authuser=0&hl=pl&g_ep=EgoyMDI2MTAwNy4wIJJjKgBIAVAD&rclk=1"
+    }
+  ]
+}

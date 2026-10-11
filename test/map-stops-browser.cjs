@@ -99,7 +99,13 @@ try{
  await page.screenshot({path:path.resolve('test/ui-previews/map-babica-dps-merged.png')});
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.9822,lng:21.94},zoom:17})));await page.reload({waitUntil:'domcontentloaded'});
  await page.waitForSelector('.map-catalog-stop[title^="Boguchwała Testmap"]');
- assert.equal(await page.$eval('.map-catalog-stop[title^="Boguchwała Testmap"] .map-stop-ring',el=>getComputedStyle(el).backgroundColor),'rgb(20, 184, 166)');
+ // Loading the platform catalog can replace a Leaflet icon between $eval's
+ // lookup and evaluation. Read the currently attached ring in one DOM task.
+ await page.waitForFunction(()=>{
+  const ring=document.querySelector('.map-catalog-stop[title^="Boguchwała Testmap"] .map-stop-ring');
+  return ring?.isConnected&&getComputedStyle(ring).backgroundColor==='rgb(20, 184, 166)';
+ });
+ assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.map-catalog-stop[title^="Boguchwała Testmap"] .map-stop-ring')).backgroundColor),'rgb(20, 184, 166)');
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:49.9822,lng:21.94},zoom:15})));await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-container');
  await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');assert.equal(await page.$$('.map-catalog-stop').then(rows=>rows.length),0,'overview zoom hides dots');
  await option();assert.equal(await page.evaluate(()=>localStorage.getItem('mks_show_map_stops')),'false');

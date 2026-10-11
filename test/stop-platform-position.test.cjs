@@ -37,13 +37,50 @@ test('named Mochnackiego platforms accept the provider abbreviation but never th
 
 test('a matched map platform wins and a missing or ambiguous match falls back to original API coordinates',()=>{
   const {positionWithPlatforms}=load('lib/stop-platform-position.ts');
-  const stop={name:'Gwoźnica Dolna 12',lat:49.8373126,lon:21.9552326,apiLat:49.837199,apiLon:21.95569};
-  const platform={id:'node/13049729714',name:stop.name,lat:stop.lat,lon:stop.lon};
+  const stop={name:'Example school 12',lat:49.8373126,lon:21.9552326,apiLat:49.837199,apiLon:21.95569};
+  const platform={id:'example/12',name:stop.name,lat:stop.lat,lon:stop.lon};
   assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver([platform])),{lat:platform.lat,lon:platform.lon});
-  for(const points of [[],[{...platform,name:'Gwoźnica Dolna 11'}],[platform,{...platform,id:'duplicate'}]]){
+  for(const points of [[],[{...platform,name:'Example school 11'}],[platform,{...platform,id:'duplicate'}]]){
     assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver(points)),{lat:stop.apiLat,lon:stop.apiLon});
   }
   assert.equal(stop.lat,platform.lat,'presentation must not replace routing coordinates');
+});
+
+test('reviewed basemap points win over OSM, including before the async catalog loads',()=>{
+  const {positionWithPlatforms,platformPosition}=load('lib/stop-platform-position.ts');
+  const snapshot=require('../public/data/pks-stop-points.json');
+  const reviewed=require('../lib/reviewed-map-platforms.json');
+  const osm=createPlatformResolver(require('../public/data/stop-platforms.json').points);
+  const {formatPksStops,snapshotStopItems}=load('lib/providers/pks-stops.ts');
+  const stops=formatPksStops({items:snapshotStopItems(snapshot)},snapshot);
+  for(const point of reviewed.points){
+    const stop=stops[point.id.replace('pks:','')];
+    assert.ok(stop,point.id);
+    const expected={lat:point.lat,lon:point.lon};
+    assert.deepEqual(positionWithPlatforms(stop,osm),expected,point.name);
+    assert.deepEqual(platformPosition(stop),expected,'works offline before platform fetch');
+    assert.deepEqual(platformPosition({...stop,...expected}),expected,'clicking the displayed marker is stable');
+    assert.notDeepEqual(platformPosition({...stop,lat:stop.lat+1,apiLat:stop.lat+1}),expected,'distant namesakes are not moved');
+    assert.ok(point.sourceUrl.includes('!3d'+point.lat+'!4d'+point.lon),'coordinates retain their observed source');
+  }
+  assert.deepEqual(positionWithPlatforms(stops['10688'],osm),{lat:49.8373085,lon:21.9558807},'Gwoźnica Dolna 11 stays separate');
+  assert.deepEqual(positionWithPlatforms(stops['10694'],osm),{lat:49.8306762,lon:21.9966906},'school 20 stays separate');
+  assert.deepEqual(positionWithPlatforms({...stops['10689'],code:'11',name:'Gwoźnica Dolna 11'},osm),{lat:49.8373085,lon:21.9558807});
+});
+
+test('reviewed positions reach both canonical catalog surfaces and the route stop shape',()=>{
+  const {buildStopsCatalog}=load('lib/stops-catalog.ts',{'@/lib/pks-client':{}});
+  const {platformPosition}=load('lib/stop-platform-position.ts');
+  const raw={id:'10689',name:'Gwoźnica Dolna 12',areaId:'2364',code:'12',lat:49.8373126,lon:21.9552326,
+    apiLat:49.837199,apiLon:21.95569,lines:['108']};
+  const expected={lat:49.8375014,lon:21.9552742};
+  for(const physical of [false,true]){
+    const stop=buildStopsCatalog([raw],[],[],'reviewed-map-position',physical)[0];
+    assert.deepEqual(platformPosition(stop),expected);
+    assert.equal(stop.id,raw.id);
+  }
+  assert.deepEqual(platformPosition({...raw,name:undefined,n:'GWOŹNICA DOLNA 12'}),expected);
+  assert.equal(raw.lat,49.8373126,'routing geometry retains its own coordinates');
 });
 
 test('missing API coordinates cannot reuse GTFS as an unconfirmed map position',()=>{
