@@ -84,13 +84,14 @@ async function browserAudit() {
         const date=new Date().toLocaleString('sv-SE',{timeZone:'Europe/Warsaw'});
         return json(Array.from({length:fleetSize},(_,i)=>{
           const v=structuredClone(require('./fixtures/pks-vehicle.json'));v.vehicle_id=i+1;v.trip_id=987654321+i;
-          v.position={...v.position,lat:50.036+(i%10)*.0008+feedRequests*.00001,long:21.994+Math.floor(i/10)*.0008,position_date:date,speed:15};
+          v.position={...v.position,lat:50.0385+(i%20)*.00015+feedRequests*.00001,long:21.9984+Math.floor(i/20)*.00025,position_date:date,speed:15};
           v.journey.vehicle_journey_date=date.slice(0,10);return v;
         }));
       }
       if(url.includes('mpkrzeszow.pl/przystanki/stopscache'))return json(Object.entries(require('../public/data/bus-routes/mpk_rzeszow.json').stops).map(([id,s])=>({stop_id:id,stop_name:s.name,stop_lat:s.lat,stop_lon:s.lon,lines:''})));
       if(url.includes('mpkrzeszow.pl')||url.includes('api-site.marcel-bus.pl'))return json([]);
       if(url.includes('nearest-departures'))return json({journeys:[]});
+      if(url.includes('/api/pks/einfo/stop-point')&&!url.includes('timetable'))return json({items:Object.entries(require('../public/data/pks-stop-points.json').stops).map(([id,s])=>({stop_point_id:id,name:s.n,stop_area_name:s.n,stop_area_id:s.areaId,stop_point_code:s.code,location:{lat:s.lat,lon:s.lon}}))});
       if(url.includes('stop-point-timetable')||url.includes('/api/pks/'))return json({items:[]});
       if(url.startsWith(origin))return request.continue();return request.abort();
     });
@@ -108,7 +109,7 @@ async function browserAudit() {
     }
     await measure('startup-100-vehicles',async()=>{await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.mks-bus-marker');await page.waitForSelector('.map-catalog-stop');await pause(2000);});
     await measure('idle-100-vehicles',()=>pause(4000));
-    await measure('pan-map-100-vehicles',async()=>{for(let i=0;i<6;i++){await page.mouse.move(190,460);await page.mouse.down();await page.mouse.move(i%2?240:140,500,{steps:20});await page.mouse.up();await pause(400);}await pause(1000);});
+    await measure('pan-map-100-vehicles',async()=>{for(let i=0;i<6;i++){await page.mouse.move(190,460);await page.mouse.down();await page.mouse.move(i%2?240:140,i%2?420:500,{steps:20});await page.mouse.up();await pause(400);}await pause(1000);});
     await measure('refresh-250-vehicles',async()=>{fleetSize=250;const before=feedRequests;await page.waitForFunction(()=>document.querySelectorAll('.mks-bus-marker').length>=200,{timeout:30000});if(feedRequests<=before)throw new Error('Fleet refresh was not observed');await pause(2000);});
     await measure('bus-panel',async()=>{await page.evaluate(()=>document.querySelector('.mks-bus-marker').click());await page.waitForSelector('[data-map-bus-sheet]');await page.click('[aria-label="Rozwiń panel autobusu"]');await pause(1500);});
     const button=async label=>page.evaluate(text=>{const b=[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text);if(!b)throw new Error('Missing button '+text);b.click();},label);
