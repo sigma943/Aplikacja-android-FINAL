@@ -57,6 +57,9 @@ export interface Vehicle {
 }
 
 export interface StopData {
+  apiLat?: number | null;
+  apiLon?: number | null;
+  code?: string;
   n: string;
   lat: number;
   lon: number;

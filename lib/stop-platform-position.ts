@@ -1,7 +1,7 @@
 import {readBusCoordinates} from './bus-coordinates';
 
 export type PlatformPoint={id:string;name:string;code?:string;lat:number;lon:number};
-type StopPoint={name?:string;n?:string;code?:string;lat?:number;lon?:number};
+type StopPoint={name?:string;n?:string;code?:string;lat?:number;lon?:number;apiLat?:number|null;apiLon?:number|null};
 const aliases:Record<string,string>={szk:'szkola',szkole:'szkola',kosc:'kosciol',kos:'kosciol',skrz:'skrzyzowanie',skr:'skrzyzowanie',przych:'przychodnia',cment:'cmentarz',cm:'cmentarz',osr:'osrodek',dw:'dworzec',szp:'szpital',mochn:'mochnackiego'};
 function identity(name:string,code?:string){
   const clean=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l').replace(/\s+nz\.?$/,'').trim();
@@ -36,11 +36,20 @@ export function createPlatformResolver(points:PlatformPoint[]){
 }
 let resolve=createPlatformResolver([]);
 let loading:Promise<void>|null=null;
-export function platformPosition(stop:StopPoint){return resolve(stop)||readBusCoordinates(stop.lat,stop.lon);}
+let revision=0;
+export function stopPlatformRevision(){return revision;}
+/** A confirmed map platform wins; otherwise retain the original provider API position. */
+export function positionWithPlatforms(stop:StopPoint,resolver:ReturnType<typeof createPlatformResolver>){
+  const platform=resolver(stop);
+  if(platform)return platform;
+  if(stop.apiLat===null||stop.apiLon===null)return null;
+  return readBusCoordinates(stop.apiLat,stop.apiLon)||readBusCoordinates(stop.lat,stop.lon);
+}
+export function platformPosition(stop:StopPoint){return positionWithPlatforms(stop,resolve);}
 export function loadStopPlatforms(){
   if(!loading)loading=fetch('/data/stop-platforms.json',{cache:'force-cache'})
     .then(r=>{if(!r.ok)throw Error('Platform catalog unavailable');return r.json();})
-    .then(data=>{if(!Array.isArray(data.points))throw Error('Invalid platform catalog');resolve=createPlatformResolver(data.points);})
+    .then(data=>{if(!Array.isArray(data.points))throw Error('Invalid platform catalog');resolve=createPlatformResolver(data.points);revision++;})
     .catch(()=>{loading=null;});
   return loading;
 }

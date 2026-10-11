@@ -11,7 +11,7 @@ let fullStopsDictionaryPromise: Promise<Record<string, FullStopRecord>> | null =
 
 let stopPointIndexPromise: Promise<StopPointIndex> | null = null;
 
-const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v8';
+const PKS_STOPS_CACHE_KEY = 'pks-live:pks-stops:v9';
 
 function normalizeNameForComparison(value: string) {
   return value
@@ -78,9 +78,9 @@ function readBundledPksStops() {
 
 function snapshotStopItems(snapshot: any) {
   return Object.entries(snapshot.stops || {}).map(([id, raw]) => {
-    const point = raw as {n: string; areaId: string; code: string; lat?: number; lon?: number};
+    const point = raw as {n: string; areaId: string; code: string; lat?: number; lon?: number; apiLat?: number | null; apiLon?: number | null};
     return {stop_point_id: id, name: point.n, stop_area_name: point.n,
-      stop_area_id: point.areaId, stop_point_code: point.code, location: {lat: point.lat, lon: point.lon}};
+      stop_area_id: point.areaId, stop_point_code: point.code, ...('apiLat' in point || 'apiLon' in point ? {apiLocation: {lat: point.apiLat, lon: point.apiLon}} : {}), location: {lat: point.lat, lon: point.lon}};
   });
 }
 
@@ -91,10 +91,10 @@ async function fetchStopsFromNetwork(): Promise<StopsMap> {
   }).catch(async () => {
     if (Object.keys(snapshot.stops || {}).length) {
       return {items: Object.entries(snapshot.stops).map(([id, raw]) => {
-        const point = raw as {n: string; areaId: string; code: string; lat?: number; lon?: number};
+        const point = raw as {n: string; areaId: string; code: string; lat?: number; lon?: number; apiLat?: number | null; apiLon?: number | null};
         return {stop_point_id: id, name: point.n, stop_area_name: point.n,
           stop_area_id: point.areaId, stop_point_code: point.code,
-          location: {lat: point.lat, lon: point.lon}};
+          ...('apiLat' in point || 'apiLon' in point ? {apiLocation: {lat: point.apiLat, lon: point.apiLon}} : {}), location: {lat: point.lat, lon: point.lon}};
       })};
     }
     const fullDict = await loadFullStopsDictionary();
@@ -135,6 +135,7 @@ function formatPksStops(data: any, snapshot: any): StopsMap {
     const snapshotPoint = readBusCoordinates(fallback?.lat,fallback?.lon);
     const apiPoint = readBusCoordinates(stop.location?.lat ?? stop.location?.latitude,
       stop.location?.lon ?? stop.location?.lng ?? stop.location?.long ?? stop.location?.longitude);
+    const sourcePoint = stop.apiLocation ? readBusCoordinates(stop.apiLocation.lat, stop.apiLocation.lon) : apiPoint;
     const point = verified ? snapshotPoint : apiPoint || snapshotPoint;
     const lat = point?.lat, lon = point?.lon;
     const hasCoords = Boolean(point);
@@ -173,6 +174,8 @@ function formatPksStops(data: any, snapshot: any): StopsMap {
 
     compressedMap[String(stop.stop_point_id)] = correctPksStop({
       n: formattedName,
+      apiLat: sourcePoint?.lat ?? null,
+      apiLon: sourcePoint?.lon ?? null,
       lat: hasCoords ? lat : undefined,
       lon: hasCoords ? lon : undefined,
       areaId: String(stop.stop_area_id),

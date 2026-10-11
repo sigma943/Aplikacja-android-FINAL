@@ -1,4 +1,5 @@
 'use client';
+import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
 import BusDetailsPanel from '@/components/BusDetailsPanel';
 
 import {toggleStopFavoriteIds} from '@/lib/stop-identity';
@@ -175,7 +176,7 @@ export default function Home() {
     if (activeTab === 'map' && isMapTabDisabled) setActiveTab('stops');
     if (activeTab === 'stops' && isStopsTabDisabled) setActiveTab('map');
   }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled]);
-  const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, lat?: number, lon?: number}[]>([]);
+  const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, apiLat?: number | null, apiLon?: number | null, lat?: number, lon?: number}[]>([]);
   const mapStops=useMapStops(showMapStops,stopsList);
   const [stopsLoadError, setStopsLoadError] = useState(false);
   const stopsLoadPendingRef = useRef(false);
@@ -821,6 +822,8 @@ export default function Home() {
            name: val.n, 
            areaId: val.areaId, 
            code: val.code,
+           apiLat: val.apiLat,
+           apiLon: val.apiLon,
            lat: val.lat,
            lon: val.lon
       })).sort((a,b) => a.name.localeCompare(b.name));
@@ -885,12 +888,15 @@ export default function Home() {
     const map: Record<string, any> = {};
     stopsList.forEach(s => {
       if (s.lat !== undefined && s.lon !== undefined) {
-         map[String(s.id)] = { n: s.name, lat: s.lat, lon: s.lon };
+         map[String(s.id)] = { n: s.name, lat: s.lat, lon: s.lon, apiLat: s.apiLat, apiLon: s.apiLon, code: s.code };
       }
     });
     if (selectedExternalStop?.lat !== undefined && selectedExternalStop.lon !== undefined) {
       map[String(selectedExternalStop.id)] = {
         n: selectedExternalStop.name,
+        apiLat: selectedExternalStop.apiLat,
+        apiLon: selectedExternalStop.apiLon,
+        code: selectedExternalStop.code,
         lat: selectedExternalStop.lat,
         lon: selectedExternalStop.lon,
       };
@@ -997,7 +1003,7 @@ export default function Home() {
     const provider=selectedBus?.provider||'pks';
     const known=provider==='pks'?stopsList.find(stop=>stop.id===stopId):undefined;
     const name=known?.name||point?.name||('Przystanek '+stopId);
-    const external: StopsPanelStop = {id:stopId,name,type:'bus',carriers:[],lines:selectedBus?.routeShortName?[selectedBus.routeShortName]:[],isFavorite:false,lat:point?.lat??known?.lat,lon:point?.lon??known?.lon,areaId:known?.areaId,code:known?.code,sourceProviderIds:[provider],providerStopIds:{[provider]:stopId}};
+    const external: StopsPanelStop = {id:stopId,name,type:'bus',carriers:[],lines:selectedBus?.routeShortName?[selectedBus.routeShortName]:[],isFavorite:false,lat:point?.lat??known?.lat,lon:point?.lon??known?.lon,areaId:known?.areaId,code:known?.code,apiLat:known?.apiLat,apiLon:known?.apiLon,sourceProviderIds:[provider],providerStopIds:{[provider]:stopId}};
     if(provider==='pks')external.pksStopPoints=[{id:stopId,areaId:known?.areaId,code:known?.code}];
     if(provider==='marcel') {
       const [city,...place]=name.split(' - ');
@@ -1404,10 +1410,16 @@ export default function Home() {
                onRetry={loadStops}
                onClose={() => { if (!isMapTabDisabled) setActiveTab('map'); }}
                onToggleFavorite={toggleFavoriteStop}
-               onShowOnMap={(stop) => {
+               onShowOnMap={async (stop) => {
                   if (stop.type !== 'train' && !readBusCoordinates(stop.lat,stop.lon)) return;
                   mapStopReturnTab.current = 'stops';
                   if (isMapTabDisabled) return;
+                  if (stop.type !== 'train') {
+                     await loadStopPlatforms();
+                     const point=platformPosition(stop);
+                     if(!point)return;
+                     stop={...stop,...point};
+                  }
                   if (stop.lat !== undefined && stop.lon !== undefined) {
                      setMapCenter([stop.lat, stop.lon]);
                   }

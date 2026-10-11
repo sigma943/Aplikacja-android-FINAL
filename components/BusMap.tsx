@@ -121,6 +121,7 @@ export default function BusMap({
     for (const stop of routeStopsSource) {
       if (selectedVehicle?.provider === 'pkp_intercity' ? Number.isFinite(stop.lat) && Number.isFinite(stop.lon) : readBusCoordinates(stop.lat,stop.lon)) {
         next[String(stop.id)] = {
+          ...next[String(stop.id)],
           n: stop.name,
           lat: Number(stop.lat),
           lon: Number(stop.lon),

@@ -34,3 +34,57 @@ test('named Mochnackiego platforms accept the provider abbreviation but never th
   assert.deepEqual(resolve(stop),{lat:point.lat,lon:point.lon});
   assert.equal(resolve({...stop,name:'Rzeszów, Lisa Kuli/Mochn. 04'}),null);
 });
+
+test('a matched map platform wins and a missing or ambiguous match falls back to original API coordinates',()=>{
+  const {positionWithPlatforms}=load('lib/stop-platform-position.ts');
+  const stop={name:'Gwoźnica Dolna 12',lat:49.8373126,lon:21.9552326,apiLat:49.837199,apiLon:21.95569};
+  const platform={id:'node/13049729714',name:stop.name,lat:stop.lat,lon:stop.lon};
+  assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver([platform])),{lat:platform.lat,lon:platform.lon});
+  for(const points of [[],[{...platform,name:'Gwoźnica Dolna 11'}],[platform,{...platform,id:'duplicate'}]]){
+    assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver(points)),{lat:stop.apiLat,lon:stop.apiLon});
+  }
+  assert.equal(stop.lat,platform.lat,'presentation must not replace routing coordinates');
+});
+
+test('missing API coordinates cannot reuse GTFS as an unconfirmed map position',()=>{
+  const {positionWithPlatforms}=load('lib/stop-platform-position.ts');
+  const stop={name:'Unknown 01',lat:50.1,lon:22.1,apiLat:null,apiLon:null};
+  assert.equal(positionWithPlatforms(stop,createPlatformResolver([])),null);
+  assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver([{id:'verified',name:stop.name,lat:50.1,lon:22.1}])),{lat:50.1,lon:22.1});
+  // Other providers already expose their API position directly.
+  assert.deepEqual(positionWithPlatforms({name:'Other 01',lat:50.1,lon:22.1},createPlatformResolver([])),{lat:50.1,lon:22.1});
+});
+
+test('live and bundled PKS records keep API coordinates separately from verified GTFS geometry',()=>{
+  const client=load('lib/providers/pks-stops.ts');
+  const snapshot=require('../public/data/pks-stop-points.json');
+  const point=snapshot.stops['10689'];
+  const item={stop_point_id:10689,stop_area_id:2364,stop_point_code:'12',stop_area_name:'GWOŹNICA DOLNA',
+    location:{lat:49.837199,lon:21.95569}};
+  const live=client.formatPksStops({items:[item]},snapshot)['10689'];
+  const local=client.formatPksStops({items:client.snapshotStopItems({stops:{'10689':point}})},snapshot)['10689'];
+  assert.deepEqual(live,local);
+  assert.deepEqual([live.lat,live.lon],[49.8373126,21.9552326]);
+  assert.deepEqual([live.apiLat,live.apiLon],[49.837199,21.95569]);
+});
+
+test('both catalog surfaces retain API fallback and cache signatures notice an API position change',()=>{
+  const {buildStopsCatalog}=load('lib/stops-catalog.ts',{'@/lib/pks-client':{}});
+  const {stopCollectionSignature}=load('components/stops-panel/stop-domain.ts',{'@/lib/pks-client':{}});
+  const raw={id:'10689',name:'Gwoźnica Dolna 12',areaId:'2364',code:'12',lat:49.8373126,lon:21.9552326,
+    apiLat:49.837199,apiLon:21.95569,lines:['108']};
+  for(const physical of [false,true]){
+    const stop=buildStopsCatalog([raw],[],[],'api-fallback',physical)[0];
+    assert.deepEqual([stop.apiLat,stop.apiLon],[raw.apiLat,raw.apiLon]);
+    assert.deepEqual(stop.providerStopIds,{pks:'10689',pksNames:raw.name,pksAreaIds:'2364',pksCodes:'12'});
+  }
+  assert.notEqual(stopCollectionSignature([raw]),stopCollectionSignature([{...raw,apiLat:49.8372}]));
+});
+
+test('viewport filtering uses the displayed API position and hides stops with no usable position',()=>{
+  const {visibleMapStops}=load('lib/map-stop-markers.ts');
+  const stop={id:'test',name:'Unmapped 01',type:'bus',lat:50.2,lon:22.2,apiLat:50,apiLon:22};
+  assert.equal(visibleMapStops([stop],[21.99,49.99,22.01,50.01],18).length,1);
+  assert.equal(visibleMapStops([stop],[22.19,50.19,22.21,50.21],18).length,0);
+  assert.equal(visibleMapStops([{...stop,apiLat:null,apiLon:null}],[22.19,50.19,22.21,50.21],18).length,0);
+});

@@ -38,7 +38,7 @@ for(const [provider,url] of [['pks','https://www.mpkrzeszow.pl/gtfs-pks/latest.z
   const canonicalIds=new Map(gtfsStops.map(stop=>[stop.stop_id,stop.stop_id]));
   if(provider==='pks') {
     const names=new Map();for(const point of pksPoints){for(const name of new Set([point.name,point.stop_area_name].map(normalize))){const key=name+String(Number(point.stop_point_code));const list=names.get(key)||[];list.push(point);names.set(key,list);}}
-    const snapshots=Object.fromEntries(pksPoints.map(point=>[String(point.stop_point_id),{n:point.stop_area_name||point.name,code:point.stop_point_code,areaId:String(point.stop_area_id),lat:point.location?.lat,lon:point.location?.lon}]));
+    const snapshots=Object.fromEntries(pksPoints.map(point=>[String(point.stop_point_id),{n:point.stop_area_name||point.name,code:point.stop_point_code,areaId:String(point.stop_area_id),apiLat:point.location?.lat,apiLon:point.location?.lon,lat:point.location?.lat,lon:point.location?.lon}]));
     for(const stop of gtfsStops){
       const code=stop.stop_name.match(/\s(\d+)$/)?.[1];
       const key=normalize(stop.stop_name.replace(/\s\d+$/,''))+String(Number(code));

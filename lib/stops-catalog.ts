@@ -22,7 +22,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       const points = canonical.map(stop => {
         const precise = String(stop.providerStopIds?.mpk_rzeszow || '').split(',')
           .map(id => mpkById.get(id.trim())).find(point => readBusCoordinates(point?.lat, point?.lon));
-        return precise ? {...stop, lat: precise.lat, lon: precise.lon} : stop;
+        return precise ? {...stop, lat: precise.lat, lon: precise.lon, apiLat: precise.lat, apiLon: precise.lon} : stop;
       });
       MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, points);
       if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {
@@ -119,6 +119,8 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       name: string;
       areaId?: string;
       code?: string;
+      apiLat?: number | null;
+      apiLon?: number | null;
       lat?: number;
       lon?: number;
       provider: string;
@@ -139,6 +141,8 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         isFavorite: false,
         areaId: raw.areaId,
         code: raw.code,
+        apiLat: raw.apiLat,
+        apiLon: raw.apiLon,
         lat: raw.lat,
         lon: raw.lon,
         sourceProviderIds: [raw.provider],
@@ -160,6 +164,8 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       name: string;
       areaId?: string;
       code?: string;
+      apiLat?: number | null;
+      apiLon?: number | null;
       lat?: number;
       lon?: number;
       provider: string;

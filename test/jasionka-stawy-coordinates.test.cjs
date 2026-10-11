@@ -69,5 +69,5 @@ test('old merged catalog is invalidated so the false MPK alias is not restored',
   const snapshot={version:2,pks:[raw],mpk:[fixture.mpk],marcel:[],lines:{},
     stops:[{id:raw.id,name:raw.name,lines:['10','35'],carriers:[],providerStopIds:{pks:raw.id,mpk_rzeszow:'246'}}]};
   assert.equal(validCatalogSnapshot(snapshot),false);
-  assert.equal(validCatalogSnapshot({...snapshot,version:3}),true);
+  assert.equal(validCatalogSnapshot({...snapshot,version:4}),true);
 });

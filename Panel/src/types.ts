@@ -19,6 +19,8 @@ export interface Stop {
   isFavorite: boolean;
   areaId?: string;
   code?: string;
+  apiLat?: number | null;
+  apiLon?: number | null;
   lat?: number;
   lon?: number;
   sourceProviderIds?: string[];

@@ -1,6 +1,6 @@
 
 
-type StopsMap = Record<string, {n: string; lat?: number; lon?: number; areaId?: string; code?: string}>;
+type StopsMap = Record<string, {n: string; lat?: number; lon?: number; apiLat?: number | null; apiLon?: number | null; areaId?: string; code?: string}>;
 
 type FullStopRecord = { id?: string; name?: string; areaId?: string; code?: string };
 

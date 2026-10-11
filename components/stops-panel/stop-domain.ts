@@ -14,6 +14,8 @@ type RawStop = {
   name: string;
   areaId?: string;
   code?: string;
+  apiLat?: number | null;
+  apiLon?: number | null;
   lat?: number;
   lon?: number;
   lines?: string[];
@@ -243,6 +245,8 @@ function stopCollectionSignature(items: unknown) {
       record.matchKey,
       record.areaId,
       record.code,
+      record.apiLat,
+      record.apiLon,
       Number.isFinite(lat) ? lat.toFixed(5) : '',
       Number.isFinite(lon) ? lon.toFixed(5) : '',
       lines,

@@ -6,7 +6,8 @@ if(!source)throw Error('Pass an Overpass JSON export containing passenger platfo
 const data=JSON.parse(await fs.readFile(source,'utf8'));
 const points=(data.elements||[]).flatMap(element=>{
   const tags=element.tags||{},position=element.center||element;
-  if(tags.public_transport!=='platform'||!tags.name?.trim()||!Number.isFinite(position.lat)||!Number.isFinite(position.lon)
+  const passengerPlatform=tags.public_transport==='platform'||(tags.highway==='bus_stop'&&tags.public_transport!=='stop_position');
+  if(!passengerPlatform||!tags.name?.trim()||!Number.isFinite(position.lat)||!Number.isFinite(position.lon)
     ||position.lat<48||position.lat>56||position.lon<14||position.lon>25)return [];
   return [{id:element.type+'/'+element.id,name:tags.name.trim(),code:tags.local_ref||'',lat:position.lat,lon:position.lon}];
 });

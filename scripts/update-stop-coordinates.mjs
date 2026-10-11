@@ -20,7 +20,7 @@ if(process.argv.includes('--audit')){
   process.exit(summary.distant.length?1:0);
 }
 if(summary.distant.length)throw Error('Unreviewed distant stop matches; run with --audit before replacing the catalog.');
-const snapshot=Object.fromEntries(data.items.map(s=>{const correction=matched.stops[s.stop_point_id];return [String(s.stop_point_id),{n:s.stop_area_name||s.name,code:s.stop_point_code,areaId:String(s.stop_area_id),lat:correction?.lat??s.location?.lat,lon:correction?.lon??s.location?.lon,...(correction?{coordinateSource:'gtfs',gtfsStopId:correction.gtfsStopId}:{})}];}));
+const snapshot=Object.fromEntries(data.items.map(s=>{const correction=matched.stops[s.stop_point_id];return [String(s.stop_point_id),{n:s.stop_area_name||s.name,code:s.stop_point_code,areaId:String(s.stop_area_id),apiLat:s.location?.lat,apiLon:s.location?.lon,lat:correction?.lat??s.location?.lat,lon:correction?.lon??s.location?.lon,...(correction?{coordinateSource:'gtfs',gtfsStopId:correction.gtfsStopId}:{})}];}));
 await fs.writeFile('public/data/pks-stop-points.json',JSON.stringify({source:'http://einfo.zgpks.rzeszow.pl/api/stop-point',coordinateSource:source,updatedAt:new Date().toISOString(),stops:snapshot}));
 console.log(JSON.stringify({total:api.length,verified:Object.keys(matched.stops).length,changedOver10m:api.filter(s=>matched.stops[s.id]&&meters(s,matched.stops[s.id])>10).length,unmatched:matched.rejected.length}));
 for(const id of ['11028','11029'])console.log(id,snapshot[id]);
