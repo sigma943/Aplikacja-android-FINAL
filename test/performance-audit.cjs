@@ -73,6 +73,15 @@ async function browserAudit() {
     const cdp=await page.createCDPSession();await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});await cdp.send('Performance.enable');await cdp.send('Profiler.enable');
     await page.evaluateOnNewDocument(()=>{
       localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17}));localStorage.setItem('mks_show_map_stops','true');
+      window.auditCatalogJobs=[];window.auditCatalogWorkerErrors=[];
+      const NativeWorker=window.Worker;
+      if(NativeWorker)window.Worker=class extends NativeWorker {
+        constructor(...args){super(...args);this.auditRequests=new Map();
+          this.addEventListener('message',event=>{const input=this.auditRequests.get(event.data?.id);if(input&&Array.isArray(event.data.list)&&Array.isArray(event.data.physical))window.auditCatalogJobs.push({input,result:event.data});});
+          this.addEventListener('error',event=>window.auditCatalogWorkerErrors.push(event.message));
+        }
+        postMessage(input,...args){if(input?.pks&&input?.key)this.auditRequests.set(input.id,input);return super.postMessage(input,...args);}
+      };
       window.auditLongTasks=[];new PerformanceObserver(list=>window.auditLongTasks.push(...list.getEntries().map(e=>({start:e.startTime,duration:e.duration})))).observe({type:'longtask',buffered:true});
       window.auditFrames=[];let last;function frame(now){if(last!==undefined)window.auditFrames.push({start:last,duration:now-last});last=now;requestAnimationFrame(frame);}requestAnimationFrame(frame);
     });
@@ -120,6 +129,18 @@ async function browserAudit() {
     const button=async label=>page.evaluate(text=>{const b=[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text);if(!b)throw new Error('Missing button '+text);b.click();},label);
     await measure('stop-list-search',async()=>{await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');await page.type('input[placeholder*="Babica"]','Rzeszów',{delay:100});await page.waitForSelector('[data-stop-card-id]');await pause(1000);});
     await measure('stop-panel',async()=>{await page.evaluate(()=>document.querySelector('[data-stop-card-id]').click());await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');await pause(1500);});
+    const workerJobs=await page.evaluate(()=>window.auditCatalogJobs);
+    report.catalogWorker={jobs:workerJobs.length,errors:await page.evaluate(()=>window.auditCatalogWorkerErrors)};
+    if(fs.existsSync('lib/stops-catalog.worker.ts')) {
+      require('node:assert/strict').ok(workerJobs.length>0,'Actual browser must use the worker, not silently fall back');
+      require('node:assert/strict').deepEqual(report.catalogWorker.errors,[]);
+      const catalog=load('lib/stops-catalog.ts',{'@/lib/pks-client':{}});
+      const clean=value=>JSON.parse(JSON.stringify(value));
+      for(const {input,result} of workerJobs) {
+        require('node:assert/strict').deepEqual(result.list,clean(catalog.buildStopsCatalog(input.pks,input.mpk,input.marcel,input.key)));
+        require('node:assert/strict').deepEqual(result.physical,clean(catalog.buildStopsCatalog(input.pks,input.mpk,input.marcel,input.key,true)));
+      }
+    }
     report.browserErrors=errors;if(errors.length)throw new Error('Browser errors: '+errors.join('; '));
   } finally {if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));fixture.cleanup();}
 }

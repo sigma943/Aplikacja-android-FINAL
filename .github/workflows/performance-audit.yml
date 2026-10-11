@@ -11,6 +11,11 @@ on:
       - 'lib/stops-catalog.ts'
       - 'lib/stop-text-cache.ts'
       - 'lib/shared-inflight.ts'
+      - 'lib/stops-catalog-async.ts'
+      - 'lib/stops-catalog.worker.ts'
+      - 'lib/stops-catalog-worker-factory.ts'
+      - 'lib/use-map-stops.ts'
+      - 'components/stops-panel/StopsPanel.tsx'
       - 'lib/pks-client.ts'
       - 'components/stops-panel/stop-domain.ts'
 jobs:
@@ -20,7 +25,7 @@ jobs:
     permissions:
       contents: read
     env:
-      PERF_BASELINE_SHA: b8543b001360de94f2d6b7b3ad512d3cc477d264
+      PERF_BASELINE_SHA: f2e85f885e8c9687e9396067eff12ff1c395fb42
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

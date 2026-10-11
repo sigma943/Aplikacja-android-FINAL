@@ -2,14 +2,14 @@
 import {readBusCoordinates} from './bus-coordinates';
 import {useEffect,useState} from 'react';
 import type {Stop} from '@/Panel/src/types';
-import {buildStopsCatalog} from './stops-catalog';
+import {buildStopsCatalogAsync} from './stops-catalog-async';
 import {readStopsCatalogCache,peekStopsCatalogCache,type CatalogSnapshot} from './stops-catalog-cache';
 import {fetchMpkRzeszowStopsClient} from './pks-client';
 import {ensureMpkCityPrefix,stopCollectionSignature} from '@/components/stops-panel/stop-domain';
 import type {RawStop} from '@/components/stops-panel/stop-domain';
 
 function physicalCatalog(pks:RawStop[],mpk:CatalogSnapshot['mpk'],marcel:CatalogSnapshot['marcel']){
-  return buildStopsCatalog(pks,mpk,marcel,[pks,mpk,marcel].map(stopCollectionSignature).join('|'),true);
+  return buildStopsCatalogAsync(pks,mpk,marcel,[pks,mpk,marcel].map(stopCollectionSignature).join('|'),true);
 }
 
 /** Load only the stop catalog when enabled; departures are fetched after selection. */
@@ -20,9 +20,13 @@ export function useMapStops(enabled:boolean,pks:RawStop[]){
     let active=true;
     const controller=new AbortController();
     let scheduled = 0;
+    let generation = 0;
     const apply=(p:RawStop[],m:CatalogSnapshot['mpk'],r:CatalogSnapshot['marcel'])=>{
       window.clearTimeout(scheduled);
-      scheduled=window.setTimeout(()=>{if(active)setStops(physicalCatalog(p,m,r));},40);
+      const version=++generation;
+      scheduled=window.setTimeout(()=>{
+        if(active)void physicalCatalog(p,m,r).then(stops=>{if(active&&version===generation)setStops(stops);});
+      },40);
     };
     const refresh=async()=>{
       const cached=await readStopsCatalogCache();

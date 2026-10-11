@@ -4,7 +4,7 @@ import {isMpkPassengerLine} from '@/lib/mpk-passenger-lines';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {useAppBack} from '@/lib/use-app-back';
 import { motion, useReducedMotion } from 'motion/react';
-import { buildStopsCatalog } from '@/lib/stops-catalog';
+import { buildStopsCatalogAsync } from '@/lib/stops-catalog-async';
 import {stopIdentityIds} from '@/lib/stop-identity';
 import { loadStopDepartures } from '@/lib/stop-departures';
 import { peekStopsCatalogCache, readStopsCatalogCache, writeStopsCatalogCache, type MpkCatalogStop } from '@/lib/stops-catalog-cache';
@@ -72,7 +72,7 @@ export default function StopsPanel({
 
   useEffect(() => {
     let active = true;
-    void readStopsCatalogCache().then(snapshot => {
+    void readStopsCatalogCache().then(async snapshot => {
       if (!active) return;
       if (snapshot) {
         setCachedPksStops(snapshot.pks);
@@ -81,8 +81,10 @@ export default function StopsPanel({
         setPksLinesByStopId(snapshot.lines);
         // Rebuild identities from cached raw catalogs after a matching upgrade.
         // Preserve offline data instead of displaying obsolete saved groups.
-        setMergedStopsBase(buildStopsCatalog(snapshot.pks,snapshot.mpk,snapshot.marcel,
-          [stopCollectionSignature(snapshot.pks),stopCollectionSignature(snapshot.mpk),stopCollectionSignature(snapshot.marcel)].join('|')));
+        const merged = await buildStopsCatalogAsync(snapshot.pks,snapshot.mpk,snapshot.marcel,
+          [stopCollectionSignature(snapshot.pks),stopCollectionSignature(snapshot.mpk),stopCollectionSignature(snapshot.marcel)].join('|'));
+        if (!active) return;
+        setMergedStopsBase(merged);
         setRenderedCatalogKey([stopCollectionSignature(snapshot.pks), stopCollectionSignature(snapshot.mpk), stopCollectionSignature(snapshot.marcel)].join('|'));
       }
       setCacheReady(true);
@@ -169,11 +171,11 @@ export default function StopsPanel({
     });
   }, []);
 
-  const buildMergedStopsBase = useCallback(()=>buildStopsCatalog(catalogPksStops,mpkStops,marcelStops,mergedStopsCacheKey),[catalogPksStops,mpkStops,marcelStops,mergedStopsCacheKey]);
+  const buildMergedStopsBase = useCallback(()=>buildStopsCatalogAsync(catalogPksStops,mpkStops,marcelStops,mergedStopsCacheKey),[catalogPksStops,mpkStops,marcelStops,mergedStopsCacheKey]);
 
   useEffect(() => {
     if (!cacheReady || renderedCatalogKey === mergedStopsCacheKey) return;
-    const cached = MERGED_STOPS_RUNTIME_CACHE.get(mergedStopsCacheKey);
+    const cached = MERGED_STOPS_RUNTIME_CACHE.get('list:'+mergedStopsCacheKey);
     if (cached) {
       const timer = window.setTimeout(()=>{setMergedStopsBase(cached);setRenderedCatalogKey(mergedStopsCacheKey);setIsPreparingStops(false);},0);
       return ()=>window.clearTimeout(timer);
@@ -184,9 +186,9 @@ export default function StopsPanel({
       if (!cancelled) setIsPreparingStops(true);
     }, 0);
 
-    const applyMerge = () => {
+    const applyMerge = async () => {
       if (cancelled) return;
-      const merged = buildMergedStopsBase();
+      const merged = await buildMergedStopsBase();
       if (cancelled) return;
       // The input key already avoids redundant merges; replace all provider references too.
       setMergedStopsBase(merged);
