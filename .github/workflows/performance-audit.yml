@@ -1,0 +1,37 @@
+name: Performance audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/performance-audit.yml'
+      - 'test/performance-audit.cjs'
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:android:web
+      - name: Measure CPU, map, refresh and panels
+        run: node test/performance-audit.cjs
+      - name: Publish report summary
+        if: always()
+        run: |
+          if [ -f test/performance-results/report.md ]; then
+            cat test/performance-results/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-report
+          path: test/performance-results/
+          if-no-files-found: warn
