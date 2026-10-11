@@ -102,17 +102,20 @@ async function browserAudit() {
       const before=await metrics(), start=name.startsWith('startup-')?0:await page.evaluate(()=>performance.now());
       await cdp.send('Profiler.start');await action();
       const {profile}=await cdp.send('Profiler.stop');fs.writeFileSync(path.join(directory,name+'.cpuprofile'),JSON.stringify(profile));
+      const hits=new Map();for(const id of profile.samples||[])hits.set(id,(hits.get(id)||0)+1);
+      const topSamples=profile.nodes.filter(n=>hits.has(n.id)).map(n=>({function:n.callFrame.functionName||'(anonymous)',file:n.callFrame.url.replace(origin,'fixture'),line:n.callFrame.lineNumber+1,column:n.callFrame.columnNumber+1,samples:hits.get(n.id)})).sort((a,b)=>b.samples-a.samples).slice(0,8);
       const after=await metrics();const stats=await page.evaluate(start=>{
         const tasks=window.auditLongTasks.filter(t=>t.start>=start), frames=window.auditFrames.filter(t=>t.start>=start);
         return {durationMs:performance.now()-start,longTasks:tasks.map(t=>t.duration),frames:frames.map(t=>t.duration),markers:document.querySelectorAll('.leaflet-marker-icon').length};
       },start);
-      report.browser.push({name,durationMs:round(stats.durationMs),scriptMs:round((after.ScriptDuration-before.ScriptDuration)*1000),layoutMs:round((after.LayoutDuration-before.LayoutDuration)*1000),longTasks:stats.longTasks.length,longTaskTotalMs:round(stats.longTasks.reduce((a,b)=>a+b,0)),maxLongTaskMs:round(Math.max(0,...stats.longTasks)),frameGapP95Ms:round(percentile(stats.frames,.95)),frameGapsOver50Ms:stats.frames.filter(v=>v>50).length,heapMB:round(after.JSHeapUsedSize/1024/1024),markers:stats.markers,feedRequests});
+      report.browser.push({name,durationMs:round(stats.durationMs),scriptMs:round((after.ScriptDuration-before.ScriptDuration)*1000),layoutMs:round((after.LayoutDuration-before.LayoutDuration)*1000),longTasks:stats.longTasks.length,longTaskTotalMs:round(stats.longTasks.reduce((a,b)=>a+b,0)),maxLongTaskMs:round(Math.max(0,...stats.longTasks)),frameGapP95Ms:round(percentile(stats.frames,.95)),frameGapsOver50Ms:stats.frames.filter(v=>v>50).length,heapMB:round(after.JSHeapUsedSize/1024/1024),markers:stats.markers,feedRequests,topSamples});
+      console.log('Completed performance scenario: '+name);
     }
     await measure('startup-100-vehicles',async()=>{await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.mks-bus-marker');await page.waitForSelector('.map-catalog-stop');await pause(2000);});
     await measure('idle-100-vehicles',()=>pause(4000));
     await measure('pan-map-100-vehicles',async()=>{for(let i=0;i<6;i++){await page.mouse.move(190,460);await page.mouse.down();await page.mouse.move(i%2?240:140,i%2?420:500,{steps:20});await page.mouse.up();await pause(400);}await pause(1000);});
     await measure('refresh-250-vehicles',async()=>{fleetSize=250;const before=feedRequests;await page.waitForFunction(()=>document.querySelectorAll('.mks-bus-marker').length>=200,{timeout:30000});if(feedRequests<=before)throw new Error('Fleet refresh was not observed');await pause(2000);});
-    await measure('bus-panel',async()=>{await page.evaluate(()=>document.querySelector('.mks-bus-marker').click());await page.waitForSelector('[data-map-bus-sheet]');await page.click('[aria-label="Rozwiń panel autobusu"]');await pause(1500);});
+    await measure('bus-panel',async()=>{await page.click('.mks-bus-marker');await page.waitForSelector('[data-map-bus-sheet]');await page.click('[aria-label="Rozwiń panel autobusu"]');await pause(1500);});
     const button=async label=>page.evaluate(text=>{const b=[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text);if(!b)throw new Error('Missing button '+text);b.click();},label);
     await measure('stop-list-search',async()=>{await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');await page.type('input[placeholder*="Babica"]','Rzeszów',{delay:100});await page.waitForSelector('[data-stop-card-id]');await pause(1000);});
     await measure('stop-panel',async()=>{await page.evaluate(()=>document.querySelector('[data-stop-card-id]').click());await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');await pause(1500);});
