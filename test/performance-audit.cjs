@@ -79,6 +79,7 @@ async function browserAudit() {
     await page.setRequestInterception(true);
     page.on('request',request=>{
       const url=request.url();const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
+      if(url.startsWith('https://www.gstatic.com/generate_204'))return request.respond({status:204,body:''});
       if(url.includes('/pks/get_vehicles.php')) {
         feedRequests++;
         const date=new Date().toLocaleString('sv-SE',{timeZone:'Europe/Warsaw'});
