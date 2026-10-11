@@ -85,18 +85,17 @@ try{
  },{},lisa03);
  await page.click(lisa03);await page.waitForSelector('.map-stop-ring.is-selected');
  assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/Lisa.*Mochn.*03/i);
- // Rzeszów D.A.: numbers belong on icons and list cards, not the bottom panel.
+ // Rzeszów D.A.: numbers belong in the stop panel and list cards, not on icons.
  // Set the camera in the new document: an outgoing map animation can still save its old center.
  const terminalCamera=await page.evaluateOnNewDocument(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.042372,lng:22.003212},zoom:19})));
  await page.reload({waitUntil:'domcontentloaded'});
  await page.removeScriptToEvaluateOnNewDocument(terminalCamera.identifier);
  const terminal='.map-catalog-stop[title="Rzeszów D.A. st. 5"]';
- try{await page.waitForSelector(terminal+' .map-stop-platform');}catch(error){console.error('Terminal map diagnostics',await page.evaluate(()=>({camera:localStorage.getItem('mks_map_state'),titles:[...document.querySelectorAll('.map-catalog-stop')].map(el=>el.title)})));throw error;}
- assert.equal(await page.$eval(terminal+' .map-stop-platform',el=>el.textContent),'5');
- assert.equal(await page.$eval(terminal+' .map-stop-platform',el=>getComputedStyle(el).fontSize),'11px');
- await page.click(terminal);await page.waitForSelector('.map-stop-ring.is-selected .map-stop-platform');
- await page.waitForSelector('[data-map-stop-sheet]');
- assert.doesNotMatch(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/st\. 5/);
+ try{await page.waitForSelector(terminal);}catch(error){console.error('Terminal map diagnostics',await page.evaluate(()=>({camera:localStorage.getItem('mks_map_state'),titles:[...document.querySelectorAll('.map-catalog-stop')].map(el=>el.title)})));throw error;}
+ assert.equal(await page.$$('.map-stop-platform').then(rows=>rows.length),0,'icons have no platform badge');
+ await page.click(terminal);await page.waitForSelector('.map-stop-ring.is-selected');
+ await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]')?.textContent.includes('Rzeszów D.A. st. 5'));
+ assert.equal(await page.$$('.map-stop-platform').then(rows=>rows.length),0);
  await page.screenshot({path:path.resolve('test/ui-previews/map-terminal-platforms.png')});
  await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
  await page.type('input[placeholder*="Babica"]','Rzeszów D');

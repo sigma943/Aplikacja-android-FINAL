@@ -34,9 +34,6 @@ export function visibleMapStops(stops:Stop[],bbox:[number,number,number,number],
   return stops.filter(stop=>stop.type!=='train'&&readBusCoordinates(stop.lat,stop.lon)&&stop.lat!>=south&&stop.lat!<=north&&stop.lon!>=west&&stop.lon!<=east)
     .sort((a,b)=>a.id===selected?-1:b.id===selected?1:Math.hypot(a.lat!-(south+north)/2,a.lon!-(west+east)/2)-Math.hypot(b.lat!-(south+north)/2,b.lon!-(west+east)/2)).slice(0,300);
 }
-export function mapStopPlatformBadge(platform?:string|null){
-  return platform&&/^\d+[a-z]?$/i.test(platform)?`<span class="map-stop-platform">${platform}</span>`:'';
-}
-export function mapStopIconHtml(color:string,selected:boolean,platform?:string|null){
-  return `<span class="map-stop-ring${selected?' is-selected':''}" style="--stop-color:${color}"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7 2h10a4 4 0 0 1 4 4v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a4 4 0 0 1 4-4Zm3 1.5a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5h-4ZM6.5 6A1.5 1.5 0 0 0 5 7.5v5A1.5 1.5 0 0 0 6.5 14h11a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 17.5 6h-11ZM8 17.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Zm11 0a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z"/><path d="M5 19h4v2.5a1.5 1.5 0 0 1-1.5 1.5h-1A1.5 1.5 0 0 1 5 21.5V19Zm10 0h4v2.5a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5V19Z"/></svg>${mapStopPlatformBadge(platform)}</span>`;
+export function mapStopIconHtml(color:string,selected:boolean){
+  return `<span class="map-stop-ring${selected?' is-selected':''}" style="--stop-color:${color}"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7 2h10a4 4 0 0 1 4 4v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a4 4 0 0 1 4-4Zm3 1.5a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5h-4ZM6.5 6A1.5 1.5 0 0 0 5 7.5v5A1.5 1.5 0 0 0 6.5 14h11a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 17.5 6h-11ZM8 17.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Zm11 0a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z"/><path d="M5 19h4v2.5a1.5 1.5 0 0 1-1.5 1.5h-1A1.5 1.5 0 0 1 5 21.5V19Zm10 0h4v2.5a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5V19Z"/></svg></span>`;
 }

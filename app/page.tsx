@@ -1371,6 +1371,7 @@ export default function Home() {
                   <MapStopSheet
                     key="stop-panel-map"
                     name={selectedExternalStop?.name || stopsList.find(s => s.id === selectedStopId)?.name || 'Przystanek'}
+                    code={selectedExternalStop?.code || stopsList.find(s => s.id === selectedStopId)?.code}
                     expanded={isStopPanelExpanded}
                     onExpandedChange={setIsStopPanelExpanded}
                     transparent={transparentUI}

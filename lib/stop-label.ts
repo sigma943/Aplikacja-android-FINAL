@@ -3,7 +3,7 @@ export function displayStopLabel(value:unknown):string {
   return String(value??'').trim().replace(/(?<!\p{L})D\s*\.?\s*A\s*\.?(?:\s*[,/-]?\s*(?:st(?:anowisko)?\.?\s*)?\d+[a-z]?)?\s*$/iu,'D.A.');
 }
 
-/** Terminal platforms are shown in the stop catalog and on map icons only. */
+/** Terminal platforms are shown in stop labels; vehicle panel labels stay compact. */
 export function rzeszowTerminalPlatform(value:unknown,code?:unknown):string|null {
   const match=/^Rzesz[oó]w\s*,?\s+D\s*\.?\s*A\s*\.?(?:\s*[,/-]?\s*(?:st(?:anowisko)?\.?\s*)?(\d+[a-z]?))?\s*$/iu.exec(String(value??'').trim());
   if(!match)return null;
