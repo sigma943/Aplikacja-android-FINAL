@@ -86,10 +86,12 @@ try{
  await page.click(lisa03);await page.waitForSelector('.map-stop-ring.is-selected');
  assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/Lisa.*Mochn.*03/i);
  // Rzeszów D.A.: numbers belong on icons and list cards, not the bottom panel.
- await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.042372,lng:22.003212},zoom:19})));
+ // Set the camera in the new document: an outgoing map animation can still save its old center.
+ const terminalCamera=await page.evaluateOnNewDocument(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.042372,lng:22.003212},zoom:19})));
  await page.reload({waitUntil:'domcontentloaded'});
+ await page.removeScriptToEvaluateOnNewDocument(terminalCamera.identifier);
  const terminal='.map-catalog-stop[title="Rzeszów D.A. st. 5"]';
- await page.waitForSelector(terminal+' .map-stop-platform');
+ try{await page.waitForSelector(terminal+' .map-stop-platform');}catch(error){console.error('Terminal map diagnostics',await page.evaluate(()=>({camera:localStorage.getItem('mks_map_state'),titles:[...document.querySelectorAll('.map-catalog-stop')].map(el=>el.title)})));throw error;}
  assert.equal(await page.$eval(terminal+' .map-stop-platform',el=>el.textContent),'5');
  assert.equal(await page.$eval(terminal+' .map-stop-platform',el=>getComputedStyle(el).fontSize),'11px');
  await page.click(terminal);await page.waitForSelector('.map-stop-ring.is-selected .map-stop-platform');
