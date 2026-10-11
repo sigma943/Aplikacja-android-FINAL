@@ -54,12 +54,13 @@ let resolve=createPlatformResolver([]);
 let loading:Promise<void>|null=null;
 let revision=0;
 export function stopPlatformRevision(){return revision;}
-/** A confirmed map platform wins; otherwise retain the original provider API position. */
+/** A confirmed platform wins; retain the established catalog geometry otherwise. */
 export function positionWithPlatforms(stop:StopPoint,resolver:ReturnType<typeof createPlatformResolver>){
   const platform=resolveReviewed(stop)||resolver(stop);
   if(platform)return platform;
-  if(stop.apiLat===null||stop.apiLon===null)return null;
-  return readBusCoordinates(stop.apiLat,stop.apiLon)||readBusCoordinates(stop.lat,stop.lon);
+  // lat/lon already includes verified GTFS and precise MPK platform coordinates.
+  // Replacing it with raw apiLat/apiLon undoes those corrections (e.g. Lisa-Kuli 03).
+  return readBusCoordinates(stop.lat,stop.lon);
 }
 export function platformPosition(stop:StopPoint){return positionWithPlatforms(stop,resolve);}
 export function loadStopPlatforms(){

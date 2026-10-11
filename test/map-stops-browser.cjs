@@ -8,7 +8,7 @@ try{
  await page.evaluateOnNewDocument(()=>{const Original=Date;window.Date=class extends Original{constructor(...args){super(...(args.length?args:[Original.parse('2026-10-07T11:45:20Z')]));}static now(){return Original.parse('2026-10-07T11:45:20Z');}};if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17}));});
  await page.setRequestInterception(true);
  page.on('request',request=>{const url=request.url();const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:'03'},'3795':{n:'RZESZÓW, PODKARP.MATUSZCZAKA',lat:50.01679,lon:21.9753,areaId:'1945',code:'03'},...Object.fromEntries(['1365','9026','11462','10694','10695'].map(id=>[id,require('../public/data/pks-stop-points.json').stops[id]]))}});
+  if(url.endsWith('/data/pks-stop-points.json'))return json({stops:{'900002':{n:'Boguchwała TestMap',lat:49.9822,lon:21.94,areaId:'1',code:'01'},'900003':{n:'Rzeszów TestMap',lat:50.04025,lon:22,areaId:'2',code:'03'},'3795':{n:'RZESZÓW, PODKARP.MATUSZCZAKA',lat:50.01679,lon:21.9753,areaId:'1945',code:'03'},...Object.fromEntries(['1365','9026','11462','11461','10694','10695'].map(id=>[id,require('../public/data/pks-stop-points.json').stops[id]]))}});
   if(url.includes('api-site.marcel-bus.pl/client/api/search/trasy?'))return json([{idTr:18,nazTr:'Jasło-Rzeszów'},{idTr:3,nazTr:'Rzeszów-Jasło'}]);
   if(url.includes('api-site.marcel-bus.pl/client/api/search/wariantTrasy/kusy?'))return json([{idKu:new URL(url).searchParams.get('idTr')==='18'?1181798:1182201}]);
   if(url.includes('api-site.marcel-bus.pl/client/api/trasy/kurs/'))return json([require('./fixtures/babica-dps-providers.json').marcel[url.includes('/1181798?')?0:1],{nazMi:'Babica',nazPr:'(81) za torami',szGps:null,dlGps:null,kol:69,godz:'16:01'}]);
@@ -73,13 +73,25 @@ try{
  });
  assert.ok(schoolSides.side19*schoolSides.schoolSide>0,'school 19 is displayed on the school side');
  assert.ok(schoolSides.side19*schoolSides.side20<0,'school 19 and 20 are displayed on opposite sides of the road');
+ // Regression: the raw PKS API point for Lisa-Kuli 03 is ~130 m south;
+ // the catalog and selected marker must retain its established GTFS platform.
+ await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.035944,lng:21.99708},zoom:19})));
+ await page.reload({waitUntil:'domcontentloaded'});
+ const lisa03='.map-catalog-stop[title*="Lisa" i][title*="Mochn" i][title$="03"]';
+ await page.waitForSelector(lisa03);
+ await page.waitForFunction(selector=>{
+  const dot=document.querySelector(selector)?.getBoundingClientRect(),map=document.querySelector('.leaflet-container')?.getBoundingClientRect();
+  return dot&&map&&Math.abs(dot.x+dot.width/2-map.x-map.width/2)<2&&Math.abs(dot.y+dot.height/2-map.y-map.height/2)<2;
+ },{},lisa03);
+ await page.click(lisa03);await page.waitForSelector('.map-stop-ring.is-selected');
+ assert.match(await page.$eval('[data-map-stop-sheet]',el=>el.textContent),/Lisa.*Mochn.*03/i);
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.03651,lng:21.99752},zoom:19})));
  await page.reload({waitUntil:'domcontentloaded'});
- await page.waitForSelector('.map-catalog-stop[title*="Lisa" i]');
- await page.waitForFunction(()=>document.querySelectorAll('.map-catalog-stop[title*="Lisa" i]').length===1);
+ await page.waitForSelector('.map-catalog-stop[title*="Moniuszki" i]');
+ await page.waitForFunction(()=>document.querySelectorAll('.map-catalog-stop[title*="Moniuszki" i]').length===1);
  await page.screenshot({path:path.resolve('test/ui-previews/map-lisa-kuli-provider-alias.png')});
  await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
- await page.type('input[placeholder*="Babica"]','Lisa');
+ await page.type('input[placeholder*="Babica"]','Moniuszki');
  await page.waitForFunction(()=>{const rows=[...document.querySelectorAll('[data-stop-card-id]')];return rows.length===1&&/lisa/i.test(rows[0].textContent);});
  const lisaId=await page.$eval('[data-stop-card-id]',el=>el.dataset.stopCardId);
  for(const provider of ['PKS Rzeszów','MPK Rzeszów']){

@@ -5,8 +5,10 @@
 Znacznik, wybrany przystanek i punkty przystankowe na trasie korzystają ze wspólnej
 reguły: ręcznie zweryfikowany punkt podkładu Google ma pierwszeństwo, następnie
 jednoznacznie dopasowane, nazwane stanowisko OSM.
-Bez takiego dopasowania używana jest oryginalna pozycja API danego przewoźnika.
-Brak obu źródeł oznacza brak znacznika. Geometria tras nadal korzysta ze swoich
+Bez takiego dopasowania zachowywana jest dotychczasowa pozycja `lat`/`lon`
+z katalogu, uwzględniająca wcześniejsze korekty GTFS i dokładne stanowiska MPK.
+Surowe `apiLat`/`apiLon` nie zastępują poprawnej geometrii.
+Brak poprawnej pozycji katalogu oznacza brak znacznika. Geometria tras nadal korzysta ze swoich
 współrzędnych, niezależnie od pozycji ikony przystanku.
 
 Katalog mapowy pochodzi z OpenStreetMap. Dopasowanie wymaga zgodnej nazwy,
@@ -23,17 +25,20 @@ cache PKS v9 odrzucają starsze rekordy, które utraciły tę informację.
 Odświeżenie mapowych stanowisk aktualizuje też widoczność znaczników przy
 krawędziach widoku. Wyśrodkowanie mapy używa tej samej pozycji co znacznik.
 
-## Kontrola katalogu — 2026-10-11
+## Cofnięcie regresji Lisa-Kuli / Mochnackiego 03 — 2026-10-11
 
-Ponowna kontrola obejmuje wszystkie 1800 wpisów dołączonego katalogu PKS,
-formatowane tą samą funkcją co API i katalog offline:
+Zmiana fallbacku na surowe API niepotrzebnie przesuwała także poprawne,
+nieobjęte zgłoszeniem przystanki. Dla PKS 11461 (Lisa Kuli/Mochn. 03) katalog
+zawiera zweryfikowane GTFS 50.035944, 21.99708, a surowe API wskazuje
+50.034968, 21.998124, około 130 m dalej. Gdy OSM nie zawierał zgodnego stanowiska,
+nowy fallback wybierał błędne API. Przywrócono zachowanie sprzed tej zmiany:
+`resolve(stop) || readBusCoordinates(stop.lat, stop.lon)`.
 
-| Wynik | Liczba |
-| --- | ---: |
-| Zweryfikowany punkt Google z potwierdzoną stroną drogi | 5 |
-| Jednoznaczne stanowisko OSM | 1042 |
-| Brak takiego dopasowania, poprawna pozycja API | 662 |
-| Brak obu potwierdzonych pozycji | 91 |
+Regresja obejmuje porównanie wszystkich 1795 wpisów PKS spoza pięciu jawnych
+korekt Google ze wcześniejszą regułą: wszystkie zachowują tę samą pozycję,
+wliczając brak znacznika dla nieprawidłowych współrzędnych. Nie dodano nowych
+korekt MPK ani nowych dopasowań nazw. Lisa-Kuli 03 jest sprawdzany w katalogu,
+wybranym punkcie trasy oraz w rzeczywiście renderowanym znaczniku przeglądarki.
 
 ## Korekta przypisań po zgłoszeniu strony drogi — 2026-10-11
 
@@ -63,7 +68,8 @@ odrzucony punkt szkoły oraz odcinki osi drogi i linki źródłowe OSM.
 Resolver dla tego rejestru wymaga teraz zgodnej nazwy/kodu, odległości do 120 m
 oraz pozycji po tej samej stronie zweryfikowanego odcinka drogi.
 Brak takiego odcinka lub położenie na osi/przeciwnej stronie odrzuca korektę.
-Wówczas używane jest zgodne numerowane stanowisko OSM, a bez niego oryginalne API.
+Wówczas używane jest zgodne numerowane stanowisko OSM, a bez niego
+dotychczasowa pozycja katalogu.
 Rejestr działa offline; sprawdzanie strony drogi nie wymaga pobierania mapy.
 
 Osie dróg sprawdzono z bieżącego eksportu API OSM. To kontrola ostatnich sześciu
@@ -80,5 +86,6 @@ Geometria tras i identyfikatory rozkładów pozostają niezależne od pozycji ik
 Regresje: `test/stop-platform-position.test.cjs`. Testują pięć dopuszczonych
 punktów Google, odrzucenie przejścia przez drogę, przeciwne strony 11/12 i 19/20
 oraz pierwszeństwo punktu
-mapowego, powrót do API, brak GPS, dane offline, odświeżenie źródła, zachowanie
+mapowego, zachowanie wcześniejszych pozycji katalogu, brak GPS, dane offline,
+odświeżenie źródła, zachowanie
 identyfikatorów oraz filtrowanie widoku według pozycji widocznego znacznika.

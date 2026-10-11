@@ -35,13 +35,13 @@ test('named Mochnackiego platforms accept the provider abbreviation but never th
   assert.equal(resolve({...stop,name:'Rzeszów, Lisa Kuli/Mochn. 04'}),null);
 });
 
-test('a matched map platform wins and a missing or ambiguous match falls back to original API coordinates',()=>{
+test('a matched map platform wins and a missing or ambiguous match preserves established catalog coordinates',()=>{
   const {positionWithPlatforms}=load('lib/stop-platform-position.ts');
   const stop={name:'Example school 12',lat:49.8373126,lon:21.9552326,apiLat:49.837199,apiLon:21.95569};
   const platform={id:'example/12',name:stop.name,lat:stop.lat,lon:stop.lon};
   assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver([platform])),{lat:platform.lat,lon:platform.lon});
   for(const points of [[],[{...platform,name:'Example school 11'}],[platform,{...platform,id:'duplicate'}]]){
-    assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver(points)),{lat:stop.apiLat,lon:stop.apiLon});
+    assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver(points)),{lat:stop.lat,lon:stop.lon});
   }
   assert.equal(stop.lat,platform.lat,'presentation must not replace routing coordinates');
 });
@@ -79,8 +79,8 @@ test('an unnumbered Google point must not take a numbered stop across the road',
   assert.equal(hasSameRoadside(stops['10695'],school),false);
   assert.equal(createPlatformResolver([school],true)(stops['10695']),null);
   assert.deepEqual(positionWithPlatforms(stops['10695'],createPlatformResolver([school],true)),
-    {lat:49.829998,lon:21.997718},'rejected Google coordinates fall back to the original API');
-  assert.deepEqual(platformPosition(stops['10695']),{lat:49.829998,lon:21.997718},'before OSM loads the correct API side survives');
+    {lat:49.8300183,lon:21.9977235},'rejected Google coordinates retain the established platform');
+  assert.deepEqual(platformPosition(stops['10695']),{lat:49.8300183,lon:21.9977235},'before OSM loads the correct catalog side survives');
   assert.equal(hasSameRoadside(stops['10694'],{...stops['10695'],roadBoundary:school.roadBoundary}),false,'19 and 20 are opposite sides');
   assert.equal(hasSameRoadside(stops['10688'],dolna),true);
   assert.equal(hasSameRoadside(stops['10689'],dolna),false,'the closer Dolna 12 is on the wrong side for this Google point');
@@ -102,10 +102,10 @@ test('reviewed positions reach both canonical catalog surfaces and the route sto
   assert.equal(raw.lat,49.8373085,'routing geometry retains its own coordinates');
 });
 
-test('missing API coordinates cannot reuse GTFS as an unconfirmed map position',()=>{
+test('missing raw API coordinates do not hide a valid established GTFS platform',()=>{
   const {positionWithPlatforms}=load('lib/stop-platform-position.ts');
   const stop={name:'Unknown 01',lat:50.1,lon:22.1,apiLat:null,apiLon:null};
-  assert.equal(positionWithPlatforms(stop,createPlatformResolver([])),null);
+  assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver([])),{lat:50.1,lon:22.1});
   assert.deepEqual(positionWithPlatforms(stop,createPlatformResolver([{id:'verified',name:stop.name,lat:50.1,lon:22.1}])),{lat:50.1,lon:22.1});
   // Other providers already expose their API position directly.
   assert.deepEqual(positionWithPlatforms({name:'Other 01',lat:50.1,lon:22.1},createPlatformResolver([])),{lat:50.1,lon:22.1});
@@ -137,10 +137,48 @@ test('both catalog surfaces retain API fallback and cache signatures notice an A
   assert.notEqual(stopCollectionSignature([raw]),stopCollectionSignature([{...raw,apiLat:49.8372}]));
 });
 
-test('viewport filtering uses the displayed API position and hides stops with no usable position',()=>{
+test('viewport filtering uses the established displayed position and hides only invalid geometry',()=>{
   const {visibleMapStops}=load('lib/map-stop-markers.ts');
   const stop={id:'test',name:'Unmapped 01',type:'bus',lat:50.2,lon:22.2,apiLat:50,apiLon:22};
-  assert.equal(visibleMapStops([stop],[21.99,49.99,22.01,50.01],18).length,1);
-  assert.equal(visibleMapStops([stop],[22.19,50.19,22.21,50.21],18).length,0);
-  assert.equal(visibleMapStops([{...stop,apiLat:null,apiLon:null}],[22.19,50.19,22.21,50.21],18).length,0);
+  assert.equal(visibleMapStops([stop],[21.99,49.99,22.01,50.01],18).length,0);
+  assert.equal(visibleMapStops([stop],[22.19,50.19,22.21,50.21],18).length,1);
+  assert.equal(visibleMapStops([{...stop,apiLat:null,apiLon:null}],[22.19,50.19,22.21,50.21],18).length,1);
+  assert.equal(visibleMapStops([{...stop,lat:NaN,lon:0}],[21.99,49.99,22.01,50.01],18).length,0);
+});
+
+test('Lisa-Kuli Mochnackiego 03 retains its verified position on the catalog and selected route surfaces',()=>{
+  const {platformPosition}=load('lib/stop-platform-position.ts');
+  const {visibleMapStops}=load('lib/map-stop-markers.ts');
+  const {buildStopsCatalog}=load('lib/stops-catalog.ts',{'@/lib/pks-client':{}});
+  const {formatPksStops,snapshotStopItems}=load('lib/providers/pks-stops.ts');
+  const snapshot=require('../public/data/pks-stop-points.json');
+  const point=formatPksStops({items:snapshotStopItems({stops:{'11461':snapshot.stops['11461']}})},snapshot)['11461'];
+  const expected={lat:50.035944,lon:21.99708};
+  assert.deepEqual(platformPosition(point),expected,'selected PKS route stop');
+  assert.notDeepEqual(expected,{lat:point.apiLat,lon:point.apiLon},'the old API position is the reported regression');
+  const raw={...point,id:'11461',name:point.n,lines:['232']};
+  for(const physical of [false,true]){
+    const stop=buildStopsCatalog([raw],[],[],'lisa-03-position-regression',physical)[0];
+    assert.deepEqual(platformPosition(stop),expected);
+    assert.equal(visibleMapStops([stop],[21.9969,50.0358,21.9973,50.0361],19).length,1);
+    assert.equal(visibleMapStops([stop],[21.9980,50.0348,21.9983,50.0351],19).length,0);
+  }
+});
+
+test('all 1795 PKS stops outside the reviewed registry retain the pre-regression positions',()=>{
+  const {positionWithPlatforms}=load('lib/stop-platform-position.ts');
+  const {readBusCoordinates}=load('lib/bus-coordinates.ts');
+  const {formatPksStops,snapshotStopItems}=load('lib/providers/pks-stops.ts');
+  const snapshot=require('../public/data/pks-stop-points.json');
+  const reviewed=new Set(require('../lib/reviewed-map-platforms.json').points.map(p=>p.id.slice(4)));
+  const osm=createPlatformResolver(require('../public/data/stop-platforms.json').points);
+  let checked=0;
+  for(const [id,stop] of Object.entries(formatPksStops({items:snapshotStopItems(snapshot)},snapshot))){
+    if(reviewed.has(id))continue;
+    const previous=osm(stop)||readBusCoordinates(stop.lat,stop.lon);
+    assert.deepEqual(positionWithPlatforms(stop,osm),previous,id+' '+stop.n);
+    checked++;
+  }
+  assert.equal(checked,Object.keys(snapshot.stops).length-reviewed.size);
+  assert.equal(checked,1795);
 });
