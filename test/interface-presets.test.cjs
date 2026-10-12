@@ -4,8 +4,8 @@ const load=require('./load-ts.cjs');
 const {INTERFACE_PRESETS,matchesInterfacePreset}=load('lib/interface-presets.ts');
 const {normalizeInterfaceAppearance}=load('lib/interface-appearance.ts');
 
-test('all four complete presets survive saved-setting normalization unchanged',()=>{
- assert.deepEqual(INTERFACE_PRESETS.map(p=>p.name),['Spokojny','Nocny','Czytelny','Minimalny']);
+test('all complete presets survive saved-setting normalization unchanged',()=>{
+ assert.deepEqual(INTERFACE_PRESETS.map(p=>p.name),['Różowy','Spokojny','Nocny','Czytelny','Minimalny']);
  for(const preset of INTERFACE_PRESETS){
   const saved=normalizeInterfaceAppearance(JSON.parse(JSON.stringify(preset.appearance)));
   assert.deepEqual(saved,preset.appearance);
@@ -17,4 +17,16 @@ test('glowing presets coordinate their accents while the readable preset preserv
  for(const preset of INTERFACE_PRESETS.filter(p=>p.glow))assert.equal(preset.appearance.glowColor,preset.accent);
  const readable=INTERFACE_PRESETS.find(p=>p.name==='Czytelny');
  assert.equal(readable.glass,false);assert.equal(readable.glow,false);assert.equal(readable.appearance.textContrast,'strong');
+});
+
+test('pink theme retains default geometry and survives profile storage with readable colours',()=>{
+ const {normalizeProfiles}=load('lib/personalization-profiles.ts');
+ const {DEFAULT_INTERFACE_APPEARANCE,interfaceAppearanceVariables}=load('lib/interface-appearance.ts');
+ const pink=INTERFACE_PRESETS.find(p=>p.name==='Różowy');
+ assert.deepEqual(pink.appearance,DEFAULT_INTERFACE_APPEARANCE);
+ const saved=normalizeProfiles([{...pink,id:'pink',updatedAt:1}])[0];
+ assert.equal(saved.theme,'dark-pink');
+ assert.equal(interfaceAppearanceVariables(pink.appearance,true,pink.accent,false,pink.theme)['--personal-surface'],'rgb(53,32,45)');
+ const luminance=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0);
+ assert.ok((luminance('#dfbccf')+.05)/(luminance('#492d3d')+.05)>4.5);
 });

@@ -26,6 +26,7 @@ function themeBackground(themeMode: string) {
   if (themeMode === 'light') return '#f8fafc';
   if (themeMode === 'light-warm') return '#f2ede1';
   if (themeMode === 'dark-oled') return '#000000';
+  if (themeMode === 'dark-pink') return '#21121b';
   if (themeMode === 'dark-aurora') return '#06130f';
   return '#111027';
 }
@@ -89,6 +90,15 @@ function themeShell(themeMode = getStoredThemeMode()) {
       mainStyle,
       sub: 'text-slate-400',
       spinner: '#22d3ee',
+    };
+  }
+
+  if (themeMode === 'dark-pink') {
+    return {
+      page: 'bg-[#21121b] text-[#fff2f8]', pageStyle,
+      glow: '', grid: '',
+      card: 'border-pink-300/18 bg-[#35202d]/86 shadow-black/30',
+      main: 'text-[#fff2f8]', mainStyle, sub: 'text-[#dfbccf]', spinner: '#f9a8d4',
     };
   }
 
@@ -222,7 +232,9 @@ function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Pr
   const isOled = themeMode === 'dark-oled';
   const isAurora = themeMode === 'dark-aurora';
 
-  const theme = isWarm
+  const theme = themeMode === 'dark-pink'
+    ? {page:'bg-[#21121b] text-[#fff2f8]',glow:'',grid:'',card:'border-pink-300/18 bg-[#35202d]/86 shadow-black/30',icon:'border-pink-300/20 bg-pink-300/10 text-pink-200',sub:'text-[#dfbccf]',button:'border-pink-300/30 bg-pink-300/10 text-pink-100 hover:bg-pink-300/15'}
+    : isWarm
     ? {
         page: 'bg-[#f2ede1] text-[#272116]',
         glow: 'bg-[radial-gradient(circle_at_50%_12%,rgba(245,158,11,0.18),transparent_38%),radial-gradient(circle_at_16%_80%,rgba(0,163,162,0.09),transparent_34%)]',

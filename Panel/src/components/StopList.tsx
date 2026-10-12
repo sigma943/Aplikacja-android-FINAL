@@ -169,7 +169,7 @@ export default function StopList({
     () =>
       sortedStops.map((stop) => ({
         stop,
-        normalizedName: normalizeSearchText(stop.name),
+        normalizedName: normalizeSearchText(stop.name + " " + displayStopCatalogLabel(stop.name,stop.code)),
         carrierIds: new Set([
           ...stop.carriers.map((carrier) => carrier.id),
           ...((stop.sourceProviderIds || []).map((provider) => (provider === 'mpk_rzeszow' ? 'mpk' : provider))),

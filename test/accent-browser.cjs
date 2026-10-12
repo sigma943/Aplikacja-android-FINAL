@@ -101,6 +101,20 @@ const server=http.createServer((req,res)=>{
     await page.click('[data-carrier-grid] button[aria-label="PKS Rzeszów"]');
     assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
+    const beforePink=await page.evaluate(()=>({...localStorage}));
+    await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+    await page.$eval('[aria-label="Zestaw: Różowy"]',el=>el.click());
+    await page.waitForSelector('[data-ui-theme="dark-pink"]');
+    await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()==='#f9a8d4');
+    assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-surface').trim()),'#35202d');
+    assert.equal(await page.$eval('[data-options-sheet]',el=>el.scrollWidth>el.clientWidth+1),false,'pink theme fits a phone');
+    await screenshot('personalization-pink');
+    await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-ui-theme="dark-pink"]');
+    await page.click('[aria-label="Przewoźnicy"]');await page.waitForSelector('[data-carrier-sheet]');
+    assert.ok(await page.$eval('[data-carrier-sheet]',el=>getComputedStyle(el).backgroundColor.includes('53, 32, 45')),'carrier panel uses pink theme');
+    await screenshot('carriers-pink');
+    await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforePink);
     // Check saved theme in a fresh document, preserving the browser context's
     // storage. Page.reload sporadically times out at this animated-view boundary.
     await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));

@@ -41,6 +41,16 @@
   --ui-text: #f6f0ff;
   --ui-edge: rgb(216 180 254 / 16%);
 }
+.pks-theme-root[data-ui-theme='dark-pink'] {
+  --ui-canvas: #21121b;
+  --ui-surface: #35202d;
+  --ui-raised: #492d3d;
+  --ui-glass: rgb(53 32 45 / 64%);
+  --ui-glass-row: rgb(73 45 61 / 36%);
+  --ui-muted: #dfbccf;
+  --ui-text: #fff2f8;
+  --ui-edge: rgb(249 168 212 / 18%);
+}
 .pks-theme-root[data-ui-theme='light-warm'] {
   --ui-canvas: #f2ede1;
   --ui-surface: #faf7ef;

@@ -10,7 +10,7 @@ export function normalizeProfiles(input:unknown):VisualProfile[]{
  const ids=new Set<string>();
  return input.filter((p)=>p&&typeof p.id==='string'&&typeof p.name==='string').slice(0,8).flatMap(p=>{
   const id=p.id.trim().slice(0,80);if(!id||ids.has(id)||!p.name.trim())return [];ids.add(id);
-  return [{id,name:p.name.trim().slice(0,40),updatedAt:Number.isFinite(p.updatedAt)?p.updatedAt:0,appearance:normalizeInterfaceAppearance(p.appearance),theme:['light','light-warm','dark','dark-oled','dark-aurora','system'].includes(p.theme)?p.theme:'dark-oled',accent:/^#[\da-f]{6}$/i.test(p.accent)?p.accent.toLowerCase():'#00a3a2',glass:typeof p.glass==='boolean'?p.glass:true,glow:p.glow===true,glowStrength:panelGlowStrength(p.glowStrength)}];
+  return [{id,name:p.name.trim().slice(0,40),updatedAt:Number.isFinite(p.updatedAt)?p.updatedAt:0,appearance:normalizeInterfaceAppearance(p.appearance),theme:['light','light-warm','dark','dark-oled','dark-aurora','dark-pink','system'].includes(p.theme)?p.theme:'dark-oled',accent:/^#[\da-f]{6}$/i.test(p.accent)?p.accent.toLowerCase():'#00a3a2',glass:typeof p.glass==='boolean'?p.glass:true,glow:p.glow===true,glowStrength:panelGlowStrength(p.glowStrength)}];
  });
 }
 export function normalizeSchedule(input:unknown):VisualSchedule{

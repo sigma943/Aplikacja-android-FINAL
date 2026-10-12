@@ -144,7 +144,7 @@ export default function Home() {
   const [showMapStops,setShowMapStops]=useState(false);
   // Match the exported HTML first; restore preferences after hydration so React
   // updates theme classes rather than retaining mismatched server attributes.
-  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'>('dark-oled');
+  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'|'dark-pink'>('dark-oled');
   const [systemIsDark, setSystemIsDark] = useState(false);
   const [transparentUI, setTransparentUI] = useState(true);
   const [lightEffects,setLightEffects]=useState(false);
@@ -324,7 +324,7 @@ export default function Home() {
     const sAppTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
     if (['amoled', 'oled', 'dark_oled', 'darkoled'].includes(sAppTheme)) setAppTheme('dark-oled');
     else if (sAppTheme === 'system') setAppTheme('system');
-    else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora') setAppTheme(sAppTheme);
+    else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora' || sAppTheme === 'dark-pink') setAppTheme(sAppTheme);
     const sTrans = localStorage.getItem('mks_transparent');
     setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');
     setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
@@ -348,7 +348,7 @@ export default function Home() {
   useEffect(()=>{
     const update=()=>{
       try{setInterfaceAppearance(normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')));}catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
-      const theme=localStorage.getItem('mks_app_theme')||'dark-oled';if(['light','light-warm','dark','dark-oled','dark-aurora','system'].includes(theme))setAppTheme(theme as typeof appTheme);setThemeColor(localStorage.getItem('mks_theme')||'#00a3a2');
+      const theme=localStorage.getItem('mks_app_theme')||'dark-oled';if(['light','light-warm','dark','dark-oled','dark-aurora','dark-pink','system'].includes(theme))setAppTheme(theme as typeof appTheme);setThemeColor(localStorage.getItem('mks_theme')||'#00a3a2');
       setTransparentUI(localStorage.getItem('mks_transparent')!=='false');setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
     };
     window.addEventListener('pks-profile-applied',update);return()=>window.removeEventListener('pks-profile-applied',update);
@@ -368,7 +368,9 @@ export default function Home() {
           ? '#f2ede1'
           : actual === 'dark-oled'
             ? '#000000'
-            : actual === 'dark-aurora'
+            : actual === 'dark-pink'
+              ? '#21121b'
+              : actual === 'dark-aurora'
               ? '#06130f'
               : '#111027';
     const text = actual === 'light'
@@ -917,13 +919,14 @@ export default function Home() {
   const actualTheme = appTheme === 'system' ? (systemIsDark ? 'dark' : 'light') : appTheme;
   const isDark = actualTheme.startsWith('dark');
   const isOled = actualTheme === 'dark-oled';
+  const isPink = actualTheme === 'dark-pink';
   const isAurora = actualTheme === 'dark-aurora';
   const isWarm = actualTheme === 'light-warm';
 
-  const bgMain = isDark ? (isOled ? 'bg-black' : isAurora ? 'bg-[#120f24]' : 'bg-slate-900') : (isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
+  const bgMain = isDark ? (isOled ? 'bg-black' : isPink ? 'bg-[#21121b]' : isAurora ? 'bg-[#120f24]' : 'bg-slate-900') : (isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
   const bgCard = transparentUI 
-     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : 'bg-white/90 backdrop-blur-md border-slate-100/50')
-     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : 'bg-white border-slate-200');
+     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isPink ? 'bg-[#35202d]/84 backdrop-blur-xl border-pink-300/20' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : 'bg-white/90 backdrop-blur-md border-slate-100/50')
+     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isPink ? 'bg-[#35202d] border-pink-300/20' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : 'bg-white border-slate-200');
   const mapGlassPanel = `pks-map-surface ${transparentUI ? 'pks-glass' : ''}`;
   const mapGlassInput = transparentUI
      ? (isDark
@@ -954,7 +957,7 @@ export default function Home() {
     }
   }, [themeColor, isDark]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
-  const textSub = isDark ? (isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
+  const textSub = isDark ? (isPink ? 'text-pink-100/75' : isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
     selectedBus?.status === 'break'
       ? (Number.isFinite(selectedBus.nextTripStartAtMs)

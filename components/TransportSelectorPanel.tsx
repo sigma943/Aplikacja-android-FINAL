@@ -51,6 +51,15 @@ function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) 
     };
   }
 
+  if (themeMode === 'dark-pink') {
+    return {
+      shell: `border-pink-300/18 ${transparentUI ? 'bg-[#35202d]/64' : 'bg-[#35202d]/98'} text-[#fff2f8] ${glass}`,
+      header: 'border-pink-300/18', sub: 'text-[#dfbccf]', cardBase: 'bg-white/[0.045]',
+      cardIdle: 'border-pink-200/14 hover:bg-white/[0.075]', close: 'bg-white/10 text-pink-100 hover:bg-white/15',
+      section: 'text-pink-50', footer: 'border-pink-300/18',
+    };
+  }
+
   if (themeMode === 'dark-aurora') {
     return {
       shell: `border-fuchsia-300/16 ${transparentUI ? 'bg-[#211b36]/60' : 'bg-[#111026]/96'} text-white ${glass}`,

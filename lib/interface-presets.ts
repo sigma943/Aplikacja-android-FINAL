@@ -9,6 +9,11 @@ const appearance=(changes:Partial<InterfaceAppearance>):InterfaceAppearance=>({.
 
 export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   {
+    name:'Różowy',description:'Pudrowy róż na głębokim śliwkowym tle',theme:'dark-pink',accent:'#f9a8d4',glass:true,glow:false,glowStrength:40,
+    appearance:appearance({}),
+    preview:{background:'#21121b',surface:'#35202d',text:'#fff2f8'},
+  },
+  {
     name:'Spokojny',description:'Piaskowe tło i delikatny turkus',theme:'light-warm',accent:'#00a3a2',glass:true,glow:true,glowStrength:30,
     appearance:appearance({panelRadius:26,cardRadius:20,shadowStrength:15,glassOpacity:86,glassBlur:14,surfaceTint:'warm',panelTintStrength:10,cardStyle:'original',navIndicator:'pill',glowStyle:'accent',glowColor:'#00a3a2',glowSpread:95,glowPlacement:'diagonal',titleWeight:600}),
     preview:{background:'#f2ede1',surface:'#faf7ef',text:'#272116'},
