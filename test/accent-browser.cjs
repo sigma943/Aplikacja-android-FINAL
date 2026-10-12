@@ -211,7 +211,7 @@ const server=http.createServer((req,res)=>{
           if(!el)return [255,255,255];
           return blend(rgba(getComputedStyle(el).backgroundColor),background(el.parentElement));
         };
-        const luminance=rgb=>rgb.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+        const luminance=rgb=>rgb.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
         const ratio=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
         const nodes=[...document.querySelectorAll('[data-stop-card-id] h3,[data-stop-card-id] .text-slate-600,[data-stop-line-badges] span')];
         const input=document.querySelector('input[placeholder*="Babica"]');
