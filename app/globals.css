@@ -59,7 +59,7 @@
   background-image:var(--pink-hearts) !important;
   background-repeat:no-repeat !important;
   background-size:12px 64px !important;
-  background-position:right 5px center !important;
+  background-position:right 0 center !important;
   background-origin:padding-box;
   background-clip:padding-box;
 }
