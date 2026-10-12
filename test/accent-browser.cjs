@@ -140,6 +140,14 @@ const server=http.createServer((req,res)=>{
     });
     assert.ok(carrierPink.rgba.slice(0,3).every((value,i)=>Math.abs(value-[255,184,219][i])<=1),'carrier panel uses pink theme: '+carrierPink.color);
     await screenshot('carriers-pink');
+    await page.click('[aria-label="Zamknij panel przewoźników"]');
+    await button('Przystanki');await page.waitForSelector('.transit-surface');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.transit-surface')).backgroundImage.includes('svg'));
+    const pinkStops=await page.$eval('.transit-surface',el=>({pattern:getComputedStyle(el).backgroundImage,surface:getComputedStyle(el).backgroundColor,canvas:getComputedStyle(el.closest('.transit-view')).getPropertyValue('--transit-canvas').trim()}));
+    assert.ok(decodeURIComponent(pinkStops.pattern).includes("fill='#000000'"),'pink stop panels have black hearts');
+    assert.equal(pinkStops.canvas,'#ffd1e8');assert.notEqual(pinkStops.surface,'rgb(255, 255, 255)');
+    await screenshot('stops-pink-hearts');
+
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforePink);
     // Check saved theme in a fresh document, preserving the browser context's
     // storage. Page.reload sporadically times out at this animated-view boundary.
@@ -657,10 +665,21 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.evaluate(()=>window.__startupTest.profile()?.verified),false);
     console.log('Browser: deleting both admin device and installation revokes admin immediately and re-registers as an unverified user without a stuck loading screen.');
     console.log('Browser: real FirebaseProvider recovers after startup deadline and restores owner despite old Firestore rules without reload or downgrade.');
+    await page.evaluate(()=>localStorage.setItem('mks_app_theme','dark'));
     await page.goto(`${origin}/startup-home/`,{waitUntil:'domcontentloaded'});
     await page.waitForSelector('.pks-navigation [data-nav-item="admin"]');
     await page.click('.pks-navigation [data-nav-item="admin"]');
     await page.waitForSelector('.admin-topbar');
+    const adminBeforePink=await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundColor);
+    await page.evaluate(()=>{localStorage.setItem('mks_app_theme','light-pink');window.dispatchEvent(new Event('pks-profile-applied'));});
+    await page.waitForSelector('[data-ui-theme="light-pink"]');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor==='rgb(255, 184, 219)');
+    assert.ok(decodeURIComponent(await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundImage)).includes("fill='#000000'"));
+    assert.equal(await page.$eval('.admin-light .pks-personal-card',el=>getComputedStyle(el).backgroundColor),'rgb(255, 184, 219)');
+    await screenshot('admin-pink-hearts');
+    await page.evaluate(()=>{localStorage.setItem('mks_app_theme','dark');window.dispatchEvent(new Event('pks-profile-applied'));});
+    await page.waitForSelector('[data-ui-theme="dark"]');
+    await page.waitForFunction(color=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor===color,{},adminBeforePink);
     await page.evaluate(()=>window.__startupTest.revoke());
     await page.waitForSelector('.admin-topbar',{hidden:true});
     await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
