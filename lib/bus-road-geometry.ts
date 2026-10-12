@@ -1,3 +1,4 @@
+import {roadRouteAvoidsKnownBuildings} from './road-building-guard';
 type Point=[number,number];
 export function validRoadPoint(point: unknown): point is Point {
   return Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]) && Math.abs(point[0]) <= 90 && Math.abs(point[1]) <= 180;
@@ -14,6 +15,7 @@ function segmentProjection(point: Point, start: Point, end: Point) {
 /** Check coordinates, endpoints and the ordered stops, including return legs. */
 export function roadRouteMatchesStops(route: Point[], stops: Point[], tolerance=120) {
   if (route.length < 2 || !route.every(validRoadPoint) || !stops.every(validRoadPoint)) return false;
+  if (!roadRouteAvoidsKnownBuildings(route)) return false;
   if (!stops.length) return true;
   if (roadDistance(route[0],stops[0])>tolerance || roadDistance(route.at(-1)!,stops.at(-1)!)>tolerance) return false;
   let cursor=0;

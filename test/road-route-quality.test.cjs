@@ -85,3 +85,40 @@ test('corridor selection preserves distant stop visits, reverse legs and endpoin
  assert.equal(preferRoadCorridor(detour,[middle,end],[start,middle,end]),detour);
  assert.equal(roadRoutingLocations([start,middle,end],true)[0].radius,35);
 });
+
+test('actual Galeria Rzeszow routing anomaly rejects building-crossing chords and falls back to the road route',async()=>{
+  const fs=require('node:fs');
+  const fixture=require('./fixtures/gallery-road-routing.json');
+  const {decodePolyline}=loadTs('lib/bus-road-geometry.ts');
+  const {roadRouteAvoidsKnownBuildings}=loadTs('lib/road-building-guard.ts');
+  const bad=fixture.primary.trip.legs.flatMap(leg=>decodePolyline(leg.shape));
+  const good=fixture.secondary.routes[0].geometry.coordinates.map(([lon,lat])=>[lat,lon]);
+  assert.equal(roadRouteAvoidsKnownBuildings(bad),false);
+  assert.equal(roadRouteMatchesStops(bad,fixture.stops,150),false);
+  assert.equal(roadRouteAvoidsKnownBuildings(good),true);
+  assert.equal(roadRouteMatchesStops(good,fixture.stops,150),true);
+  // Reject a crossing even if neither end of that segment is in the building.
+  assert.equal(roadRouteAvoidsKnownBuildings([[50.0424,21.994],[50.0424,22.001]]),false);
+  assert.equal(roadRouteAvoidsKnownBuildings([[50.044,21.994],[50.044,22.001]]),true);
+  const previous=global.fetch,calls=[];
+  global.fetch=async url=>{
+    calls.push(String(url));
+    return new Response(JSON.stringify(String(url).includes('valhalla')?fixture.primary:fixture.secondary));
+  };
+  try {
+    const client=loadTs('lib/pks-client.ts',native);
+    const request={carrier:'pks',line:'202',direction:'Rzeszów D.A.',mode:'road',stops:fixture.stops.map(([lat,lon],id)=>({id,lat,lon}))};
+    const result=await client.fetchRouteGeometryClient(request);
+    assert.deepEqual(result.geometry.coordinates,fixture.secondary.routes[0].geometry.coordinates);
+    assert.equal(calls.length,2);
+    await client.fetchRouteGeometryClient(request);
+    assert.equal(calls.length,2,'only the validated road route is cached');
+  } finally {global.fetch=previous;}
+  // Every existing PKS and MPK bundled route remains accepted by this guard.
+  for (const provider of ['pks','mpk_rzeszow']) {
+    for (const file of fs.readdirSync('public/data/bus-routes/'+provider)) {
+      const points=JSON.parse(fs.readFileSync('public/data/bus-routes/'+provider+'/'+file));
+      assert.equal(roadRouteAvoidsKnownBuildings(points),true,provider+'/'+file);
+    }
+  }
+});
