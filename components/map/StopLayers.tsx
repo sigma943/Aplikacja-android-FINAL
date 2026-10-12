@@ -1,5 +1,5 @@
-import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
 'use client';
+import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
 
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
