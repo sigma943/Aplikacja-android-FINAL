@@ -17,10 +17,10 @@ function useStartupThemeMode(){
   const [mode,setMode]=useState('dark-oled');
   useEffect(()=>{
     const update=()=>setMode(getStoredThemeMode());update();
-    window.addEventListener('storage',update);window.addEventListener('pks-profile-applied',update);
+    window.addEventListener('storage',update);window.addEventListener('pks-profile-applied',update);window.addEventListener('pks-interface-appearance',update);
     let media:MediaQueryList|undefined;
     try{media=window.matchMedia('(prefers-color-scheme: dark)');media.addEventListener('change',update);}catch{}
-    return()=>{window.removeEventListener('storage',update);window.removeEventListener('pks-profile-applied',update);try{media?.removeEventListener('change',update);}catch{}};
+    return()=>{window.removeEventListener('storage',update);window.removeEventListener('pks-profile-applied',update);window.removeEventListener('pks-interface-appearance',update);try{media?.removeEventListener('change',update);}catch{}};
   },[]);
   return mode;
 }

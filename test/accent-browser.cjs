@@ -119,7 +119,7 @@ const server=http.createServer((req,res)=>{
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
       assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-canvas').trim()),canvas);
       assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),'true');
-      const pattern=decodeURIComponent(await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage));
+      const pattern=await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage);
       assert.ok(pattern.includes('svg')&&pattern.includes('radial-gradient'),'decoration and glow are both present');
       await screenshot('personalization-'+mode);
       await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
@@ -138,7 +138,7 @@ const server=http.createServer((req,res)=>{
     await page.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
     for(const dark of [false,true]){
       await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:dark?'dark':'light'}]);
-      await page.evaluate(()=>{localStorage.setItem('mks_app_theme','damaged-theme');window.dispatchEvent(new Event('pks-profile-applied'));});
+      await page.evaluate(()=>{localStorage.setItem('mks_app_theme','damaged-theme');window.dispatchEvent(new Event('pks-interface-appearance'));});
       await page.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
       await page.evaluate(()=>{window.__themeGetItem=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key==='mks_app_theme')throw new Error('Blocked theme storage');return window.__themeGetItem.call(this,key);};window.dispatchEvent(new Event('pks-profile-applied'));});
       await page.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
