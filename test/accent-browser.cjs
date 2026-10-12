@@ -115,13 +115,33 @@ const server=http.createServer((req,res)=>{
     assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
     const beforeNewThemes=await page.evaluate(()=>({...localStorage}));
-    for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff']]){
+    for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff'],['Kosmos','dark-cosmos','#000000']]){
       await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
       assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-canvas').trim()),canvas);
-      assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),'true');
+      assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),mode==='dark-cosmos'?'off':'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),mode==='dark-cosmos'?'false':'true');
       const pattern=await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage);
-      assert.ok(pattern.includes('svg')&&pattern.includes('radial-gradient'),'decoration and glow are both present');
+      assert.ok(pattern.includes('svg'),'selected theme has static decorations');if(mode!=='dark-cosmos')assert.ok(pattern.includes('radial-gradient'),'decoration and glow are both present');
+      if(mode==='dark-cosmos'){
+        assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Aurora')),false);
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        await page.waitForFunction(()=>document.querySelector('[data-cosmic-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:12000,polling:25});
+        assert.equal(await page.$$eval('[data-cosmic-meteor]',els=>els.length),1);
+        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
+        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        await page.evaluate(()=>{localStorage.setItem('mks_light_effects','true');window.dispatchEvent(new Event('pks-interface-appearance'));});
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        await page.evaluate(()=>{localStorage.setItem('mks_light_effects','false');window.dispatchEvent(new Event('pks-interface-appearance'));});
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        const idleTab=await browser.newPage();await idleTab.bringToFront();
+        await page.waitForFunction(()=>document.hidden&&document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
+        await idleTab.close();await page.bringToFront();
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+      }
       await screenshot('personalization-'+mode);
       await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
       await button('Przystanki');await page.waitForSelector('.transit-surface');await screenshot('stops-'+mode);await button('Mapa');
@@ -132,9 +152,9 @@ const server=http.createServer((req,res)=>{
       for(const kind of ['loading','error','maintenance','ban','silent']){
         await screens.click(`[data-screen-kind="${kind}"]`);await screens.waitForSelector(`[data-startup-theme="${mode}"]`);
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
-        assert.equal(background,mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
+        assert.equal(background,mode==='dark-cosmos'?'rgb(0, 0, 0)':mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
         const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
-        if(kind==='loading')assert.equal(decoration,'none','loading screen has a uniform theme background');
+        if(kind==='loading'){assert.equal(decoration,'none','loading screen has a uniform theme background');if(mode==='dark-cosmos')assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');}
         else assert.ok(decoration.includes('svg'));
         if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
         if(kind==='ban'||kind==='loading')await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
@@ -755,7 +775,7 @@ const server=http.createServer((req,res)=>{
     await page.click('.pks-navigation [data-nav-item="admin"]');
     await page.waitForSelector('.admin-topbar');
 
-    for(const [mode,color] of [['dark-forest','rgb(25, 67, 51)'],['light-sky','rgb(174, 219, 250)']]){
+    for(const [mode,color] of [['dark-forest','rgb(25, 67, 51)'],['light-sky','rgb(174, 219, 250)'],['dark-cosmos','rgb(8, 10, 18)']]){
       await page.evaluate(mode=>{localStorage.setItem('mks_app_theme',mode);window.dispatchEvent(new Event('pks-profile-applied'));},mode);
       await page.waitForSelector(`[data-ui-theme="${mode}"]`);await page.waitForFunction(color=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor===color,{},color);
       if(mode==='dark-forest')assert.equal(await page.$eval('.pks-panel-scope input[placeholder="Szukaj..."]',el=>getComputedStyle(el,'::placeholder').color),'rgb(183, 216, 195)','forest admin hints use the readable muted palette');
@@ -808,7 +828,7 @@ const server=http.createServer((req,res)=>{
     await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
     // Admin statistics keeps solid surfaces even with personalised glass enabled.
     await page.evaluate(()=>{document.documentElement.dataset.personalGlass='true';document.documentElement.style.setProperty('--personal-glass','rgba(255,255,255,.2)');});
-    for(const theme of ['dark-forest','light-sky','light-pink']){
+    for(const theme of ['dark-forest','light-sky','light-pink','dark-cosmos']){
       await page.click(`[data-statistics-theme="${theme}"]`);
       await page.waitForSelector(`[data-ui-theme="${theme}"]`);
       const surfaces=await page.$eval('[data-statistics-view]',el=>{

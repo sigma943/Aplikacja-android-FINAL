@@ -1,0 +1,26 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),load=require('./load-ts.cjs');
+const {COSMIC_METEOR_INTERVAL,COSMIC_METEOR_DURATION,cosmicMotionAllowed,cosmicMeteorScheduler}=load('lib/cosmic-effects.ts');
+const normal={theme:'dark-cosmos',hidden:false,nativeActive:true,reducedMotion:false,lightEffects:false};
+test('cosmic motion stops for hidden/native background apps, both reduced motion preferences, light effects and other themes',()=>{
+ assert.equal(cosmicMotionAllowed(normal),true);
+ for(const change of [{hidden:true},{nativeActive:false},{reducedMotion:true},{lightEffects:true},{theme:'dark-oled'}])assert.equal(cosmicMotionAllowed({...normal,...change}),false);
+ assert.ok(COSMIC_METEOR_DURATION<=800);assert.ok(COSMIC_METEOR_INTERVAL>=8000);
+});
+test('meteor scheduler is idle between short effects and has zero wakeups when disabled; resume creates only one timer',()=>{
+ let enabled=true,next=1,runs=0;const timers=new Map();const clock={set:(fn,ms)=>{assert.equal(ms,COSMIC_METEOR_INTERVAL);const id=next++;timers.set(id,fn);return id;},clear:id=>timers.delete(id)};
+ const scheduler=cosmicMeteorScheduler(()=>enabled,()=>runs++,clock);scheduler.refresh();scheduler.refresh();assert.equal(timers.size,1);
+ const fire=()=>{const [id,fn]=timers.entries().next().value;timers.delete(id);fn();};fire();assert.equal(runs,1);assert.equal(timers.size,1);
+ enabled=false;scheduler.refresh();assert.equal(timers.size,0);
+ enabled=true;scheduler.refresh();fire();assert.equal(runs,2);assert.equal(timers.size,1);
+ scheduler.stop();assert.equal(timers.size,0);scheduler.refresh();assert.equal(timers.size,0);
+});
+test('visibility loss just before a timer fires cannot start a meteor',()=>{
+ let allowed=true,callback,runs=0;const scheduler=cosmicMeteorScheduler(()=>allowed,()=>runs++,{set:fn=>{callback=fn;return 1;},clear:()=>{}});scheduler.refresh();allowed=false;callback();assert.equal(runs,0);scheduler.stop();
+});
+test('Kosmos replaces Aurora, stays black at first paint, survives backups and uses a small static vector atlas',()=>{
+ const {THEME_MODES,normalizeAppTheme,THEME_SCREEN_COLORS,themeDecoration}=load('lib/app-theme.ts');
+ assert.ok(THEME_MODES.includes('dark-cosmos'));assert.equal(THEME_MODES.includes('dark-aurora'),false);assert.equal(normalizeAppTheme('dark-aurora'),'dark-cosmos');assert.equal(THEME_SCREEN_COLORS['dark-cosmos'].background,'#000000');
+ const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),preset=INTERFACE_PRESETS.find(p=>p.name==='Kosmos');assert.equal(preset.glass,false);assert.equal(preset.glow,false);assert.equal(preset.appearance.glassBlur,0);
+ const {exportAppearanceBackup,parseAppearanceBackup}=load('lib/appearance-backup.ts');const profile={...preset,id:'current',updatedAt:1};assert.equal(parseAppearanceBackup(exportAppearanceBackup(profile,[],{},false)).current.theme,'dark-cosmos');
+ const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<6000);assert.match(atlas,/id="violet"/);assert.match(atlas,/id="blue"/);assert.match(atlas,/id="rust"/);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
+});

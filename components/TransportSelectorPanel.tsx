@@ -38,7 +38,7 @@ const providerMeta: Record<string, { name: string; image: string }> = {
 function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) {
   const glass = transparentUI ? 'backdrop-blur-2xl backdrop-saturate-150' : '';
 
-  if (themeMode === 'dark-oled') {
+  if (themeMode === 'dark-oled' || themeMode === 'dark-cosmos') {
     return {
       shell: `border-white/10 ${transparentUI ? 'bg-[#141d26]/62' : 'bg-[#080c10]/98'} text-white ${glass}`,
       header: 'border-white/10',
@@ -60,19 +60,6 @@ function panelTheme(isDark: boolean, themeMode?: string, transparentUI = false) 
       header: 'border-pink-300/18', sub: 'text-[#dfbccf]', cardBase: 'bg-white/[0.045]',
       cardIdle: 'border-pink-200/14 hover:bg-white/[0.075]', close: 'bg-white/10 text-pink-100 hover:bg-white/15',
       section: 'text-pink-50', footer: 'border-pink-300/18',
-    };
-  }
-
-  if (themeMode === 'dark-aurora') {
-    return {
-      shell: `border-fuchsia-300/16 ${transparentUI ? 'bg-[#211b36]/60' : 'bg-[#111026]/96'} text-white ${glass}`,
-      header: 'border-fuchsia-300/14',
-      sub: 'text-violet-200/76',
-      cardBase: 'bg-white/[0.045]',
-      cardIdle: 'border-violet-200/14 hover:bg-white/[0.075]',
-      close: 'bg-white/10 text-violet-100 hover:bg-white/15',
-      section: 'text-violet-50',
-      footer: 'border-fuchsia-300/14',
     };
   }
 
