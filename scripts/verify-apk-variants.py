@@ -12,13 +12,20 @@ def output(*command):
     return subprocess.check_output(command, text=True, stderr=subprocess.STDOUT)
 
 
-def inspect(apk, aapt, apksigner, signed=True):
-    badging = output(aapt, 'dump', 'badging', apk)
+def package_identity(badging):
     package_line = next(line for line in badging.splitlines() if line.startswith('package:'))
-    identity = dict(re.findall(r"(name|versionCode|versionName)='([^']*)'", package_line))
+    identity = dict(re.findall(r"(?:^|\s)(name|versionCode|versionName)='([^']*)'", package_line))
+    if not {'name', 'versionCode', 'versionName'}.issubset(identity):
+        raise RuntimeError('APK package identity is incomplete')
     for field in ('sdkVersion', 'targetSdkVersion'):
         match = re.search(r"^" + field + r":'([^']*)'", badging, re.MULTILINE)
         identity[field] = match.group(1) if match else None
+    return identity
+
+
+def inspect(apk, aapt, apksigner, signed=True):
+    badging = output(aapt, 'dump', 'badging', apk)
+    identity = package_identity(badging)
     manifest = output(aapt, 'dump', 'xmltree', apk, 'AndroidManifest.xml')
     flag = re.search(r'android:debuggable[^\n]*\(type 0x12\)(0x[0-9a-fA-F]+)', manifest)
     debuggable = bool(flag and int(flag.group(1), 16))
