@@ -16,6 +16,7 @@ function getStoredThemeMode() {
     savedTheme === 'amoled' || savedTheme === 'oled' || savedTheme === 'dark_oled' || savedTheme === 'darkoled'
       ? 'dark-oled'
       : savedTheme;
+  if (normalizedTheme === 'dark-pink') return 'light-pink';
   if (normalizedTheme === 'system') {
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }

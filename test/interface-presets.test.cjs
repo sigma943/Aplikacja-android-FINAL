@@ -30,3 +30,8 @@ test('pink theme retains default geometry and survives profile storage with read
  const luminance=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0);
  assert.ok((luminance('#ffe1ef')+.05)/(luminance('#85365f')+.05)>4.5);
 });
+
+test('older pink saved profiles upgrade to the requested light pink theme while preserving custom accents',()=>{
+ const {normalizeProfiles}=load('lib/personalization-profiles.ts');const old={id:'old',name:'Różowy',theme:'dark-pink',accent:'#f9a8d4'};
+ assert.equal(normalizeProfiles([old])[0].theme,'light-pink');assert.equal(normalizeProfiles([old])[0].accent,'#c02674');assert.equal(normalizeProfiles([{...old,accent:'#3b82f6'}])[0].accent,'#3b82f6');
+});

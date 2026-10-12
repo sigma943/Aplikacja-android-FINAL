@@ -322,7 +322,12 @@ export default function Home() {
     setShowMapStops(localStorage.getItem('mks_show_map_stops')==='true');
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
-    const sAppTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
+    const storedAppTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
+    const sAppTheme = storedAppTheme === 'dark-pink' ? 'light-pink' : storedAppTheme;
+    if(storedAppTheme==='dark-pink'){
+      localStorage.setItem('mks_app_theme','light-pink');
+      if((localStorage.getItem('mks_theme')||'').toLowerCase()==='#f9a8d4'){localStorage.setItem('mks_theme','#c02674');setThemeColor('#c02674');}
+    }
     if (['amoled', 'oled', 'dark_oled', 'darkoled'].includes(sAppTheme)) setAppTheme('dark-oled');
     else if (sAppTheme === 'system') setAppTheme('system');
     else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora' || sAppTheme === 'dark-pink' || sAppTheme === 'light-pink') setAppTheme(sAppTheme);
