@@ -495,7 +495,8 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>{localStorage.setItem('mks_panel_glow','true');localStorage.setItem('mks_panel_glow_strength','70');});
     showFixtureBus=true;
     await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.14922,lng:21.95757},zoom:12})));
-    await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
+    // A fresh document preserves storage without Chrome's occasional animated reload timeout.
+    await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.leaflet-marker-icon.mks-bus-marker');
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on'&&localStorage.getItem('mks_panel_glow_strength')==='70');
     assert.deepEqual(await page.$eval('.mks-bus-marker svg[data-bus-glyph]',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))])),carrierGeometry,'map and carrier picker use exactly the same bus geometry');
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
