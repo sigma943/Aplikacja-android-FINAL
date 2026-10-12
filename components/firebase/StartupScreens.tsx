@@ -194,6 +194,18 @@ function startupFailureMessage(error:unknown) {
   return 'Nie udało się połączyć z Firebase. Sprawdź internet; aplikacja ponowi połączenie automatycznie.';
 }
 
+function LoginBlockedScreen(){
+  const mode=useStartupThemeMode(),theme=themeShell(mode);
+  return <div data-login-blocked data-startup-theme={mode} style={theme.pageStyle} className={`min-h-screen ${theme.page} flex items-center justify-center p-6 font-sans`}>
+    <div className={`w-full max-w-md rounded-3xl border ${theme.card} p-7 text-center shadow-xl`}>
+      <ShieldAlert className={`mx-auto mb-5 h-12 w-12 ${theme.main}`} aria-hidden="true"/>
+      <h1 className={`text-xl font-bold ${theme.main}`}>Oczekiwanie na dostęp</h1>
+      <p className={`mt-4 text-sm leading-relaxed ${theme.sub}`}>Nowe logowania są wyłączone. Administrator musi zatwierdzić Twoje urządzenie.</p>
+      <p className={`mt-3 text-xs leading-relaxed ${theme.sub}`}>Aplikacja otworzy się automatycznie po nadaniu dostępu.</p>
+    </div>
+  </div>;
+}
+
 function ConnectionTimeoutScreen({ timeout = false,errorMessage }: { timeout?: boolean;errorMessage?:string }) {
   const themeMode=useStartupThemeMode();
   const theme=themeShell(themeMode);
@@ -390,3 +402,5 @@ export {startupFailureMessage};
 export {ConnectionTimeoutScreen};
 export {MaintenanceScreen};
 export {BanScreen};
+
+export {LoginBlockedScreen};

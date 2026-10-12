@@ -14,6 +14,7 @@ export interface DeviceData {
   firstLogin: string;
   status: 'active' | 'banned';
   verified?: boolean;
+  loginApproved?: boolean;
   permissions?: ReturnType<typeof buildDevicePermissions>;
   banDetails?: {
     expiresAt: string;
@@ -38,6 +39,7 @@ interface InstallationProfile {
   deviceName?: string;
   status?: 'active' | 'banned';
   verified?: boolean;
+  loginApproved?: boolean;
   banDetails?: DeviceData['banDetails'];
 }
 

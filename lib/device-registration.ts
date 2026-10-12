@@ -1,12 +1,13 @@
+import {newLoginsEnabled,registrationLoginApproved} from './login-policy';
 import {doc,getDoc,setDoc,deleteDoc,runTransaction,serverTimestamp,type Firestore} from 'firebase/firestore';
 import {buildDevicePermissions,type DeviceRole} from './admin/rbac';
 
 type Profile=Record<string,any>;
-export function restoredDevicePayload(profile:Profile,previous:Profile,installationId:string,deviceInfo:string,autoBan:boolean,banDetails:Profile) {
+export function restoredDevicePayload(profile:Profile,previous:Profile,installationId:string,deviceInfo:string,autoBan:boolean,banDetails:Profile,loginEnabled=true) {
   const role:DeviceRole=profile.role==='owner'||profile.role==='admin'?profile.role:'user';
   const verified=role!=='user'||profile.verified===true;
   const banned=profile.status==='banned'||(!profile.status&&role==='user'&&!verified&&autoBan);
-  const payload:Profile={installationId,identityVersion:3,deviceInfo,role,permissions:profile.permissions&&typeof profile.permissions==='object'?profile.permissions:buildDevicePermissions(role),verified,status:banned?'banned':'active',firstLogin:previous.firstLogin||profile.firstLogin||new Date().toISOString()};
+  const payload:Profile={loginApproved:registrationLoginApproved(profile,previous,loginEnabled),installationId,identityVersion:3,deviceInfo,role,permissions:profile.permissions&&typeof profile.permissions==='object'?profile.permissions:buildDevicePermissions(role),verified,status:banned?'banned':'active',firstLogin:previous.firstLogin||profile.firstLogin||new Date().toISOString()};
   if(profile.banDetails)payload.banDetails=profile.banDetails;
   else if(banned)payload.banDetails=banDetails;
   if(typeof profile.displayName==='string'&&profile.displayName.trim())payload.displayName=profile.displayName.trim().slice(0,120);
@@ -15,9 +16,9 @@ export function restoredDevicePayload(profile:Profile,previous:Profile,installat
 }
 
 /** Atomically transfer the existing physical-device record to the new Auth UID. */
-export async function registerRestoredDevice(db:Firestore,uid:string,installationId:string,deviceInfo:string,autoBan:boolean,banDetails:Profile) {
+export async function registerRestoredDevice(db:Firestore,uid:string,installationId:string,deviceInfo:string,autoBan:boolean,banDetails:Profile,loginEnabled=true) {
   try {
-    await transferDevice(db,uid,installationId,deviceInfo,autoBan,banDetails);
+    await transferDevice(db,uid,installationId,deviceInfo,autoBan,banDetails,loginEnabled);
   } catch(error) {
     const code=String((error as {code?:string})?.code||'');
     if(code!=='permission-denied'&&code!=='firestore/permission-denied')throw error;
@@ -27,7 +28,9 @@ export async function registerRestoredDevice(db:Firestore,uid:string,installatio
     if((await getDoc(currentRef)).exists())return;
     const snapshot=await getDoc(profileRef);
     const profile=snapshot.exists()?snapshot.data():{};
-    const payload=restoredDevicePayload(profile,{},installationId,deviceInfo,autoBan,banDetails);
+    const security=Object.keys(profile).length?null:await getDoc(doc(db,'admin_settings','security'));
+    const enabled=security?.exists()?newLoginsEnabled(security.data().loginEnabled):loginEnabled;
+    const payload=restoredDevicePayload(profile,{},installationId,deviceInfo,autoBan,banDetails,enabled);
     await setDoc(currentRef,{...payload,lastSeenAt:serverTimestamp(),updatedAt:serverTimestamp()});
     await setDoc(profileRef,{...payload,installationId,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
     if(payload.role==='owner'&&typeof profile.lastUid==='string'&&profile.lastUid!==uid&&/^[\w-]{6,128}$/.test(profile.lastUid)) {
@@ -38,7 +41,7 @@ export async function registerRestoredDevice(db:Firestore,uid:string,installatio
   }
 }
 
-async function transferDevice(db:Firestore,uid:string,installationId:string,deviceInfo:string,autoBan:boolean,banDetails:Profile) {
+async function transferDevice(db:Firestore,uid:string,installationId:string,deviceInfo:string,autoBan:boolean,banDetails:Profile,loginEnabled=true) {
   return runTransaction(db,async tx=>{
     const currentRef=doc(db,'devices',uid),profileRef=doc(db,'installations',installationId);
     const current=await tx.get(currentRef);
@@ -49,7 +52,9 @@ async function transferDevice(db:Firestore,uid:string,installationId:string,devi
     const previousRef=previousUid?doc(db,'devices',previousUid):null;
     const previous=previousRef?await tx.get(previousRef):null;
     const previousData=previous?.exists()&&previous.data().installationId===installationId?previous.data():{};
-    const payload=restoredDevicePayload(profile,previousData,installationId,deviceInfo,autoBan,banDetails);
+    const security=Object.keys(profile).length||Object.keys(previousData).length?null:await tx.get(doc(db,'admin_settings','security'));
+    const enabled=security?.exists()?newLoginsEnabled(security.data().loginEnabled):loginEnabled;
+    const payload=restoredDevicePayload(profile,previousData,installationId,deviceInfo,autoBan,banDetails,enabled);
     tx.set(currentRef,{...payload,lastSeenAt:serverTimestamp(),updatedAt:serverTimestamp()});
     tx.set(profileRef,{...payload,installationId,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
     if(previousRef&&previous?.exists()&&previous.data().installationId===installationId)tx.delete(previousRef);

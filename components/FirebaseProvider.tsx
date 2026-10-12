@@ -1,6 +1,7 @@
 'use client';
 
 import {createContext, useContext, useEffect, useState} from 'react';
+import {isNewLoginBlocked,loginExempt,newLoginsEnabled} from '@/lib/login-policy';
 import {preloadMapCode} from '@/lib/map-startup-code';
 import {Capacitor, registerPlugin} from '@capacitor/core';
 import {auth, db, functions} from '@/lib/firebase';
@@ -16,7 +17,7 @@ import {agentLog} from '@/lib/debug-agent-log';
 export type { DeviceRole };
 
 import {type DeviceData, type FirebaseContextType, type NavigatorWithUAData} from '@/components/firebase/types';
-import {LoadingScreen, startupFailureMessage, ConnectionTimeoutScreen, MaintenanceScreen, BanScreen} from '@/components/firebase/StartupScreens';
+import {LoadingScreen, LoginBlockedScreen, startupFailureMessage, ConnectionTimeoutScreen, MaintenanceScreen, BanScreen} from '@/components/firebase/StartupScreens';
 
 const StableDeviceId = registerPlugin<{ getId: () => Promise<{ identifier?: string }> }>('StableDeviceId');
 
@@ -131,6 +132,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceLatched, setMaintenanceLatched] = useState(false);
   const [autoBanUnverified, setAutoBanUnverified] = useState(false);
+  const [loginEnabled,setLoginEnabled]=useState(true);
+  const [loginPolicyReady,setLoginPolicyReady]=useState(false);
   const [localLastSeenMs, setLocalLastSeenMs] = useState<number | null>(null);
   const [hiddenProviderIds, setHiddenProviderIds] = useState<string[]>(() => readHiddenProviderIdsCache());
 
@@ -315,7 +318,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         if (!existing.exists()) {
           const securitySnap=await getDoc(doc(db,'admin_settings','security')).catch(()=>null);
           await registerRestoredDevice(db,user.uid,instId,deviceInfo,
-            Boolean(securitySnap?.exists()?securitySnap.data()?.autoBan:false),buildAutoBanDetails());
+            Boolean(securitySnap?.exists()?securitySnap.data()?.autoBan:false),buildAutoBanDetails(),newLoginsEnabled(securitySnap?.data()?.loginEnabled));
         } else {
           // Existing device docs can only update allowed heartbeat fields from client rules.
           await updateDoc(deviceRef, { lastSeenAt: serverTimestamp(), deviceInfo }).catch(async () => {
@@ -336,6 +339,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               permissions: perms,
               status: existingData.status || 'active',
               verified,
+              loginApproved:existingData.loginApproved!==false,
               ...(existingData.banDetails ? { banDetails: existingData.banDetails } : {}),
               ...(existingData.displayName ? { displayName: existingData.displayName } : {}),
               updatedAt: serverTimestamp(),
@@ -399,6 +403,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         // must not rewrite the saved profile, and UI defaults must not alter grants.
         if(data.installationId&&data.permissions) {
           const access={installationId:data.installationId,role:data.role,permissions:data.permissions,status:data.status||'active',verified:data.verified===true,
+            ...(typeof data.loginApproved==='boolean'?{loginApproved:data.loginApproved}:{}),
             ...(data.banDetails?{banDetails:data.banDetails}:{}),...(data.displayName?{displayName:data.displayName}:{}),...(data.deviceName?{deviceName:data.deviceName}:{}),...(typeof data.firstLogin==='string'?{firstLogin:data.firstLogin}:{})};
           const signature=JSON.stringify(access);
           if(signature!==mirroredAccess) {
@@ -492,6 +497,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     setSettingsLoading(true);
+    setLoginPolicyReady(false);
     const timeout = window.setTimeout(() => setSettingsLoading(false), 1500);
 
     const unsub = onSnapshot(
@@ -501,6 +507,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const data = snapshot.exists() ? snapshot.data() : {};
         const enabled = Boolean(data.maintenanceMode);
         setAutoBanUnverified(Boolean(data.autoBan));
+        setLoginEnabled(newLoginsEnabled(data.loginEnabled));
+        setLoginPolicyReady(true);
         const hiddenIds = normalizeHiddenProviderIds((data as any).hiddenProviderIds);
         setHiddenProviderIds(hiddenIds);
         persistHiddenProviderIdsCache(hiddenIds);
@@ -565,9 +573,11 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const isBanned = device?.status === 'banned';
   const isPrivilegedDevice = device?.role === 'owner' || device?.role === 'admin';
   const shouldShowMaintenance = (maintenanceMode || maintenanceLatched) && device?.role === 'user';
+  const waitingForLoginPolicy=device?.loginApproved===false&&!loginExempt(device)&&!loginPolicyReady&&device.status!=='banned';
+  const loginBlocked=isNewLoginBlocked(device,loginEnabled);
   const shouldShowInitialOffline = !initialRenderReleased && networkStatusReady && browserOffline;
   const shouldHoldInitialRender =
-    !initialRenderReleased && (!networkStatusReady || browserOffline || loading || (!isPrivilegedDevice && settingsLoading));
+    !initialRenderReleased && (!networkStatusReady || browserOffline || loading || waitingForLoginPolicy || (!isPrivilegedDevice && settingsLoading));
 
   useEffect(() => {
     if (!shouldHoldInitialRender && !initialRenderReleased) {
@@ -619,8 +629,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         <ConnectionTimeoutScreen />
       ) : shouldHoldInitialRender ? (
         <LoadingScreen />
+      ) : waitingForLoginPolicy ? (
+        <LoadingScreen />
       ) : isBanned && device ? (
         <BanScreen device={device} />
+      ) : loginBlocked ? (
+        <LoginBlockedScreen />
       ) : shouldShowMaintenance ? (
         <MaintenanceScreen onRefresh={refreshMaintenanceStatus} checking={checkingMaintenance} />
       ) : (

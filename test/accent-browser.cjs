@@ -874,6 +874,32 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[role="dialog"]',{hidden:true});
     assert.deepEqual(errors,[]);
     console.log('Browser: widget advanced options start collapsed; transparency, custom accents, corners, density, text, direction/delay toggles, defaults and light theme update the preview without mobile overflow.');
+    await page.goto(origin+'/login-fixture/',{waitUntil:'networkidle0'});
+    await page.waitForSelector('[data-login-open]',{timeout:15000});
+    await page.evaluate(()=>window.__startupTest.loginPolicy(false));
+    await page.waitForSelector('[data-login-blocked]');
+    assert.equal(await page.$('[data-login-open]'),null);
+    for(const [role,verified] of [['user',true],['admin',false],['owner',false]]){
+      await page.evaluate((role,verified)=>window.__startupTest.loginPolicy(false,role,verified),role,verified);
+      await page.waitForSelector('[data-login-open]');
+      assert.equal(await page.$('[data-login-blocked]'),null);
+      await page.evaluate(()=>window.__startupTest.loginPolicy(false));
+      await page.waitForSelector('[data-login-blocked]');
+    }
+    await page.evaluate(()=>window.__startupTest.loginPolicy(true));
+    await page.waitForSelector('[data-login-open]');
+    await page.evaluate(()=>window.__startupTest.loginPolicy(false,'user',false,true));
+    await page.waitForSelector('[data-login-open]');
+    for(const width of [320,393,1024]){
+      await page.setViewport({width,height:800,deviceScaleFactor:1});
+      const pending=await page.evaluate(()=>[...document.querySelectorAll('[data-login-pending]')].filter(el=>el.getBoundingClientRect().width>0).map(el=>({text:el.textContent,right:el.getBoundingClientRect().right,left:el.getBoundingClientRect().left,overflow:el.scrollWidth>el.clientWidth+1})));
+      assert.ok(pending.length>0);
+      for(const label of pending){assert.equal(label.text,'Oczekuje na dostęp');assert.ok(label.left>=0&&label.right<=width);assert.equal(label.overflow,false);}
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+    }
+    await screenshot('login-pending-device');
+    assert.deepEqual(errors,[]);
+    console.log('Browser: closed new logins wait for approval; verification and admin/owner roles unblock immediately; existing admission is preserved; pending device label fits phone and desktop.');
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
     console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');
     console.log('Browser: full list replaces the preview, 40 and 80 cards do not overlap, scrolling works, closing restores position, and map and carrier SVG geometry is identical.');

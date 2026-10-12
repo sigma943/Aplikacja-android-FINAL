@@ -22,6 +22,12 @@ export const signInAnonymously=async()=>({user});
 export function httpsCallable<T=any,R=any>(..._:any[]){return async(_:T)=>({data:{} as R});}
 
 if(typeof window!=='undefined')(window as any).__startupTest={
+  loginPolicy:async(enabled:boolean,role='user',verified=false,approved:boolean|undefined=false)=>{
+    await setDoc('admin_settings/security',{loginEnabled:enabled});
+    const current={...records.get('devices/restored-owner-uid'),role,verified,permissions:role==='user'?{}:ownerPermissions};
+    if(approved===undefined)delete current.loginApproved;else current.loginApproved=approved;
+    await setDoc('devices/restored-owner-uid',current);
+  },
   revoke:async()=>setDoc('devices/restored-owner-uid',{role:'user',permissions:{}},{merge:true}),
   grants:async()=>setDoc('devices/restored-owner-uid',{role:'admin',permissions:{monitor:true,canBan:false}},{merge:true}),
   heartbeat:async()=>updateDoc('devices/restored-owner-uid',{lastSeenAt:'heartbeat'}),
