@@ -248,6 +248,18 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
   const logsData = useMemo(() => enrichAdminLogsForUi(adminLogRaws, devicesData), [adminLogRaws, devicesData]);
 
+  useEffect(() => {
+    if (!globalSettings.autoBan) return;
+    if (loading || !currentDevice || !canAccessAdminDashboard(currentDevice.role, currentDevice.permissions)) return;
+    const caps = effectiveAdminPermissionsForDisplay(currentDevice.role, currentDevice.permissions);
+    if (currentDevice.role !== 'owner' && !caps.globalSettingsEdit) return;
+    enforceAutoBanForUnverifiedDevices().catch((err) => {
+      console.error('Auto-ban enforcement failed', err);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalSettings.autoBan, devicesData.length, loading, currentDevice?.role, currentDevice?.permissions?.globalSettingsEdit]);
+
+
   const banStats = computeBanStats(devicesData);
 
   if (loading) {
@@ -563,14 +575,6 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     await commitIfNeeded(true);
   };
 
-  useEffect(() => {
-    if (!globalSettings.autoBan) return;
-    if (currentDevice.role !== 'owner' && !globalSettingsCanSave) return;
-    enforceAutoBanForUnverifiedDevices().catch((err) => {
-      console.error('Auto-ban enforcement failed', err);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalSettings.autoBan, devicesData.length]);
 
   const saveDeviceModelAlias = async (device: Device, label: string) => {
     if (currentDevice.role !== 'owner') {

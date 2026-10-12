@@ -1,3 +1,4 @@
+import {readBanImage,banImageAddress} from '@/lib/ban-image';
 import {AdminModalPortal} from './AdminModalPortal';
 import { X, Lock, Upload, Image as ImageIcon, EyeOff } from 'lucide-react';
 import { Device } from '../types';
@@ -15,23 +16,28 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
   const [includeImage, setIncludeImage] = useState(false);
   const [silentBan, setSilentBan] = useState(false);
   const [imageError, setImageError] = useState('');
+  const [imageLoading,setImageLoading]=useState(false);
+  const [imageAddress,setImageAddress]=useState('');
+  const imageGeneration=useRef(0);
   const [reason, setReason] = useState('Zbyt dużo lagów na czacie');
   const [expiryDate, setExpiryDate] = useState('');
   const [isPermanent, setIsPermanent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageError('');
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setGifUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file=e.target.files?.[0];
+    e.target.value='';
+    if(!file)return;
+    const generation=++imageGeneration.current;
+    setImageLoading(true);setImageError('');setGifUrl('');setImageAddress('');
+    try{const image=await readBanImage(file);if(generation===imageGeneration.current)setGifUrl(image);}
+    catch(error){if(generation===imageGeneration.current)setImageError(error instanceof Error?error.message:'Nie udało się odczytać obrazka.');}
+    finally{if(generation===imageGeneration.current)setImageLoading(false);}
+  };
+
+  const changeImageAddress=(address:string)=>{
+    imageGeneration.current++;setImageLoading(false);setImageAddress(address);setImageError('');
+    try{setGifUrl(banImageAddress(address));}catch(error){setGifUrl('');setImageError((error as Error).message);}
   };
 
   const togglePermanent = () => {
@@ -43,6 +49,7 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
   };
 
   const handleBan = () => {
+    if (!silentBan && includeImage && (imageLoading || imageError)) return;
     if (!silentBan && includeImage && !gifUrl) {
       setImageError('Dodaj obrazek albo wyłącz tę opcję.');
       return;
@@ -185,6 +192,7 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
               setIncludeImage((prev) => {
                 const next = !prev;
                 if (!next) {
+                  imageGeneration.current++;setImageLoading(false);setImageAddress('');
                   setGifUrl('');
                   setImageError('');
                   if (fileInputRef.current) fileInputRef.current.value = '';
@@ -229,7 +237,7 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
           {includeImage && !silentBan && (
             <div className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest px-1">Media dla blokady (GIF/JPG)</label>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest px-1">Obrazek blokady (GIF, JPG, PNG i inne)</label>
                 <input
                   type="file"
                   accept="image/*"
@@ -243,15 +251,19 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
                   className="w-full flex items-center justify-center gap-2 bg-[#151B28] hover:bg-[#1c2435] border border-white/10 rounded-xl py-3 px-4 text-sm text-slate-300 transition-all group cursor-pointer"
                 >
                   <Upload size={16} className="group-hover:text-white" />
-                  <span>{gifUrl ? 'Zmień obrazek' : 'Wybierz plik z komputera'}</span>
+                  <span>{gifUrl ? 'Zmień obrazek' : 'Wybierz obrazek lub GIF'}</span>
                 </button>
+                <label className="mt-3 block text-xs text-slate-400">Lub bezpośredni adres obrazka (dla większych plików)
+                  <input type="url" value={imageAddress} onChange={event=>changeImageAddress(event.target.value)} placeholder="https://…" className="mt-1 w-full rounded-xl border border-white/10 bg-[#111623] p-3 text-sm text-slate-200" />
+                </label>
+                {imageLoading && <p className="mt-2 text-xs text-slate-400">Wczytywanie obrazka…</p>}
                 {imageError && <p className="mt-2 px-1 text-xs font-semibold text-rose-300">{imageError}</p>}
               </div>
 
               {gifUrl && (
                 <div className="relative group">
                   <div className="w-full h-40 rounded-2xl border border-white/5 overflow-hidden bg-black/40 flex items-center justify-center">
-                    <img src={gifUrl} alt="Ban GIF preview" className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" />
+                    <img src={gifUrl} alt="Podgląd obrazka blokady" onError={()=>setImageError('Nie można wyświetlić obrazka. Sprawdź format pliku lub adres.')} onLoad={()=>setImageError('')} className="w-full h-full object-contain" />
                   </div>
                   <div className="absolute inset-x-0 bottom-0 rounded-b-2xl bg-gradient-to-t from-black/80 to-transparent px-3 py-2 text-[10px] font-medium text-white/70">
                     Podgląd obrazka blokady

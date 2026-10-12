@@ -1,6 +1,14 @@
 import {normalizeUiAccent} from './ui-accent';
 import {withAlpha} from './home/vehicle-display';
-export function vehicleHeaderStyle(color:string,glass:boolean){return {background:glass?`linear-gradient(135deg, ${withAlpha(color,0.48)}, ${withAlpha(color,0.28)})`:color};}
+export function vehicleHeaderStyle(color:string,glass:boolean,isDark=true){
+  // An opaque, pale carrier tint keeps dark text readable over any bright map.
+  if(!isDark){
+    const hex=normalizeUiAccent(color);
+    const tint='#'+[1,3,5].map(i=>Math.round(parseInt(hex.slice(i,i+2),16)*0.18+255*0.82).toString(16).padStart(2,'0')).join('');
+    return {background:tint};
+  }
+  return {background:glass?`linear-gradient(135deg, ${withAlpha(color,0.48)}, ${withAlpha(color,0.28)})`:color};
+}
 
 export const NAV_ITEMS=['map','stops','admin','options'] as const;
 export type NavItem=typeof NAV_ITEMS[number];

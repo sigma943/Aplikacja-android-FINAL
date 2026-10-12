@@ -23,6 +23,9 @@ module.exports=function buildAccentFixture(){
   fs.mkdirSync(path.join(fixture,'app/dialog-fixture'));
   fs.writeFileSync(path.join(fixture,'app/dialog-fixture/page.tsx'),`'use client';import {useState} from 'react';import {RolesModal} from '@/app/admin/components/RolesModal';import {BanModal} from '@/app/admin/components/BanModal';
   export default function Page(){const [open,setOpen]=useState('roles');const device:any={id:'test-device',name:'Windows 19.0.0',deviceInfo:'Windows 19.0.0',rawRole:'admin',role:'Administrator',verified:true,permissions:{monitor:true}};return <div className="pks-theme-root" data-ui-theme="dark-oled"><div className="pks-panel-scope" data-panel-theme="amoled" data-glass="on" style={{transform:'translateX(0)',height:200,overflow:'hidden'}}><button onClick={()=>setOpen('roles')}>Role</button><button onClick={()=>setOpen('ban')}>Ban</button>{open==='roles'&&<RolesModal device={device} onClose={()=>setOpen('')} onUpdateUser={()=>{}} onSave={(role,permissions)=>{(window as any).__savedRole={role,permissions};setOpen('');}} canAssignOwner canManageTabAccess canManageVerification/>}{open==='ban'&&<BanModal device={device} onClose={()=>setOpen('')} onConfirm={()=>setOpen('')}/>}</div><nav id="fixture-nav" style={{position:'fixed',bottom:0,height:80,width:'100%',background:'black',zIndex:11000}}>Navigation</nav></div>}`);
+  fs.mkdirSync(path.join(fixture,'app/light-dialog-fixture'));
+  const adminStyle=fs.readFileSync(path.join(source,'app/admin/AdminDashboard.tsx'),'utf8').match(/<style>\{`[\s\S]*?`\}<\/style>/)[0];
+  fs.writeFileSync(path.join(fixture,'app/light-dialog-fixture/page.tsx'),`'use client';import {RolesModal} from '@/app/admin/components/RolesModal';import {BanModal} from '@/app/admin/components/BanModal';import {useState} from 'react';import {uiAccentVariables} from '@/lib/ui-accent';export default function Page(){const [open,setOpen]=useState('roles');const device:any={id:'test',name:'Test',rawRole:'owner',role:'WŁAŚCICIEL',permissions:{}};return <div className="pks-theme-root" data-ui-theme="light"><div className="pks-panel-scope admin-light" data-panel-theme="light" data-glass="on" style={uiAccentVariables('#c02674',false)}>${adminStyle}<button onClick={()=>setOpen('ban')}>Ban</button>{open==='roles'&&<RolesModal device={device} onClose={()=>setOpen('')} onUpdateUser={()=>{}} onSave={()=>{}} canAssignOwner canManageTabAccess/>}{open==='ban'&&<BanModal device={device} onClose={()=>setOpen('')} onConfirm={(_,reason,expiry,url)=>{(window as any).__banUrl=url;}}/>}</div></div>}`);
   fs.mkdirSync(path.join(fixture,'app/startup-fixture'));
   const startup=fs.readFileSync(path.join(source,'components/FirebaseProvider.tsx'),'utf8')
     .replaceAll("from '@/lib/firebase'","from './sdk'")
@@ -38,8 +41,16 @@ module.exports=function buildAccentFixture(){
   fs.mkdirSync(path.join(fixture,'app/startup-home'));
   const gatedHome=fs.readFileSync(path.join(source,'app/page.tsx'),'utf8')
     .replace("import {useFirebase} from '@/components/FirebaseProvider';","import {FirebaseProvider,useFirebase} from '../startup-fixture/Provider';")
+    .replace("import('@/app/admin/AdminDashboard')","import('./AdminDashboard')")
     .replace('export default function Home()', 'function Home()');
   fs.writeFileSync(path.join(fixture,'app/startup-home/page.tsx'),gatedHome+`\nexport default function GatedHome(){return <FirebaseProvider><Home/></FirebaseProvider>;}`);
+  const dashboard=fs.readFileSync(path.join(source,'app/admin/AdminDashboard.tsx'),'utf8')
+    .replaceAll("from './components/","from '@/app/admin/components/")
+    .replace("from './types'","from '@/app/admin/types'")
+    .replace("from '@/components/FirebaseProvider'","from '../startup-fixture/Provider'")
+    .replaceAll("from 'firebase/firestore'","from '../startup-fixture/sdk'")
+    .replace("from '@/lib/firebase'","from '../startup-fixture/sdk'");
+  fs.writeFileSync(path.join(fixture,'app/startup-home/AdminDashboard.tsx'),dashboard);
   fs.mkdirSync(path.join(fixture,'app/ban-fixture'));
   fs.writeFileSync(path.join(fixture,'app/ban-fixture/page.tsx'),`'use client';import {useState} from 'react';import {BanScreen} from '@/components/firebase/StartupScreens';
   export default function Page(){const [kind,setKind]=useState('wide');const tall=kind==='tall';const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="'+(tall?400:1600)+'" height="'+(tall?1600:400)+'"><rect width="100%" height="100%" fill="#f9a8d4"/><rect x="4" y="4" width="'+(tall?392:1592)+'" height="'+(tall?1592:392)+'" fill="none" stroke="#4a1735" stroke-width="8"/><text x="30" y="80" font-size="40">Cały obraz</text></svg>');return <><div style={{position:'fixed',zIndex:10000,top:0}}>{['wide','tall','silent','none'].map(k=><button data-ban-kind={k} key={k} onClick={()=>setKind(k)}>{k}</button>)}</div><BanScreen device={{id:'fixture-ban',status:'banned',role:'user',banDetails:{reason:'Przykładowy powód blokady – sprawdzenie czytelności i zawijania tekstu.',expiresAt:'2026-10-20T12:00:00Z',silent:kind==='silent',gifUrl:kind==='none'?'':image}} as any}/></>;}`);

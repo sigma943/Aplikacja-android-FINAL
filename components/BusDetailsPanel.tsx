@@ -66,6 +66,7 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                      aria-label={isBusPanelExpanded ? 'Zwiń panel autobusu' : 'Rozwiń panel autobusu'}
                      aria-expanded={isBusPanelExpanded}
                      onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();setIsBusPanelExpanded(value => !value);}}}
+                     data-vehicle-header data-ui-mode={isDark ? 'dark' : 'light'}
                      className="p-3 pb-5 md:p-6 md:pb-8 text-white relative shrink-0 cursor-pointer touch-none overflow-hidden" 
                      style={selectedBusHeaderStyle}
                      {...busDrag.handle}
@@ -83,7 +84,7 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                          {selectedVehicleIsTrain ? 'Relacja' : 'Kierunek'}: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
                        </h2>
                        {selectedBus.provider === 'marcel' && selectedBusStatusLabel && (
-                         <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? 'bg-indigo-500/80 text-white' : 'bg-white/[0.18] text-white'}`}>
+                         <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? (isDark ? 'bg-indigo-500/80 text-white' : 'bg-indigo-100 text-indigo-900') : 'bg-white/[0.18] text-white'}`}>
                            {normalizeVehicleText(selectedBusStatusLabel)}
                          </span>
                        )}
@@ -95,7 +96,7 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                           </span>
                         )}
                         {selectedBus.provider !== 'marcel' && selectedBusStatusLabel && (
-                          <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? 'bg-indigo-500/80 text-white' : 'bg-white/[0.18] text-white'}`}>
+                          <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? (isDark ? 'bg-indigo-500/80 text-white' : 'bg-indigo-100 text-indigo-900') : 'bg-white/[0.18] text-white'}`}>
                             {normalizeVehicleText(selectedBusStatusLabel)}
                           </span>
                         )}

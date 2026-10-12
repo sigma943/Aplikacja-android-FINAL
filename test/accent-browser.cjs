@@ -121,6 +121,14 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-surface').trim()),'#ffd1e8');
     assert.equal(await page.$eval('[data-options-sheet]',el=>el.scrollWidth>el.clientWidth+1),false,'pink theme fits a phone');
     await screenshot('personalization-pink');
+    await page.click('[aria-label="Podgląd: Autobus"]');
+    await page.waitForSelector('[data-vehicle-header][data-ui-mode="light"]');
+    const readableHeader=await page.$eval('[data-vehicle-header]',el=>({background:getComputedStyle(el).backgroundColor,text:getComputedStyle(el.querySelector('h2')).color,gps:getComputedStyle(el.querySelector('.text-white')).color}));
+    assert.equal(readableHeader.text,'rgb(23, 37, 54)');assert.equal(readableHeader.gps,readableHeader.text);
+    assert.ok(!readableHeader.background.startsWith('rgba'),'light vehicle header is opaque over the map');
+    await screenshot('bus-header-pink');
+    await page.click('[aria-label="Podgląd: Mapa"]');
+
     await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.click('[aria-label="Przewoźnicy"]');await page.waitForSelector('[data-carrier-sheet]');
@@ -617,6 +625,20 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>{const body=document.querySelector('.admin-modal-overlay .overflow-y-auto');body.scrollTop=body.scrollHeight;});
     await button('ZABLOKUJ URZĄDZENIE');await page.waitForFunction(()=>!document.querySelector('.admin-modal-overlay'));
     console.log('Browser: real role, ban and history dialogs escape transformed parents, fit small phones and keyboard height, stay above navigation and keep the shield square.');
+    await page.goto(`${origin}/light-dialog-fixture/`,{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-permission="statistics"]');
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>getComputedStyle(el).opacity),'1');
+    assert.equal(await page.$eval('[data-permission="statistics"]',el=>getComputedStyle(el).filter),'none');
+    await screenshot('admin-roles-light');
+    await page.$eval('[aria-label="Edycja uprawnień"] button',el=>el.click());
+    await button('Ban');await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Dodaj obrazek')).click());await page.waitForSelector('input[type="file"]');
+    const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64');
+    const gifPath=path.join('test/ui-previews','ban-test.gif');fs.writeFileSync(gifPath,gif);
+    await (await page.$('input[type="file"]')).uploadFile(gifPath);
+    await page.waitForFunction(()=>document.querySelector('img[alt="Podgląd obrazka blokady"]')?.complete);
+    assert.equal(await page.$eval('img[alt="Podgląd obrazka blokady"]',el=>el.src),'data:image/gif;base64,'+gif.toString('base64'));
+    await button('ZABLOKUJ URZĄDZENIE');
+    assert.equal(await page.evaluate(()=>window.__banUrl),'data:image/gif;base64,'+gif.toString('base64'),'saved ban retains the original GIF');
     await page.evaluateOnNewDocument(()=>{const original=window.setTimeout.bind(window);window.setTimeout=((callback,delay,...args)=>original(callback,delay===30000?100:delay,...args));});
     await page.goto(`${origin}/startup-fixture/`,{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>document.body.innerText.includes('Przekroczono czas połączenia'));
@@ -634,6 +656,16 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.evaluate(()=>window.__startupTest.profile()?.verified),false);
     console.log('Browser: deleting both admin device and installation revokes admin immediately and re-registers as an unverified user without a stuck loading screen.');
     console.log('Browser: real FirebaseProvider recovers after startup deadline and restores owner despite old Firestore rules without reload or downgrade.');
+    await page.goto(`${origin}/startup-home/`,{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('.pks-navigation [data-nav-item="admin"]');
+    await page.click('.pks-navigation [data-nav-item="admin"]');
+    await page.waitForSelector('.admin-topbar');
+    await page.evaluate(()=>window.__startupTest.revoke());
+    await page.waitForSelector('.admin-topbar',{hidden:true});
+    await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
+    assert.equal(await page.$('.pks-navigation [data-nav-item="admin"]'),null,'revoked admin tab disappears');
+    await screenshot('admin-revoked-map');
+
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.evaluate(()=>localStorage.setItem('pks-live:api-statistics:v1',JSON.stringify({version:1,startedAt:Date.now(),days:[{date:'2026-10-06',providers:{pks:{requests:80,errors:2,latencyMs:16000},mpk_rzeszow:{requests:15,errors:1,latencyMs:3000},marcel:{requests:5,errors:0,latencyMs:1000}}}]})));
     await page.goto(`${origin}/statistics-fixture/`,{waitUntil:'domcontentloaded'});

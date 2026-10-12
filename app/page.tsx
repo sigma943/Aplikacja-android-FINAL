@@ -1031,7 +1031,7 @@ export default function Home() {
     setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);
   },[selectedBus,stopsList]);
   const selectMapCatalogStop=useCallback((stop:StopsPanelStop)=>{mapStopReturnTab.current=null;setSelectedBus(null);setSelectedExternalStop(stop);setSelectedStopId(stop.id);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);},[]);
-  const selectedBusHeaderStyle=vehicleHeaderStyle(selectedVehicleColor,transparentUI);
+  const selectedBusHeaderStyle=vehicleHeaderStyle(selectedVehicleColor,transparentUI,isDark);
   const showAlertDot = Boolean(error || isOffline);
 
   const transportOptions = useMemo<TransportOption[]>(() => {

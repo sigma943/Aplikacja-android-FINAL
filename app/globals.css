@@ -609,3 +609,20 @@ html[data-personal-departures='simple'] [data-departure-row].map-detail-row { ma
 .marker-train-carrier { top:4px; color:#1d4ed8; background:white; border-radius:3px; left:5px; right:5px; }
 html[data-personal-marker='carrier'] .marker-carrier-label { display:block; }
 html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus-marker :is(.bus-front-svg text,.marker-train-line,.marker-number) { display:none; }
+
+/* Light-mode readability only; carrier markers and route colours are untouched. */
+[data-vehicle-header][data-ui-mode='light'],
+[data-vehicle-header][data-ui-mode='light'] [class*='text-white'] { color:#172536; }
+[data-vehicle-header][data-ui-mode='light'] { text-shadow:none; }
+[data-vehicle-header][data-ui-mode='light'] > div:first-child { background:rgb(23 37 54 / 24%); }
+.admin-light .text-sky-300, .admin-light .text-sky-400, .admin-light .text-cyan-300, .admin-light .text-cyan-400 { color:#075985 !important; }
+.admin-light .text-rose-300 { color:#9f1239 !important; }
+.admin-light .text-emerald-400 { color:#047857 !important; }
+.admin-light .text-amber-400 { color:#92400e !important; }
+.admin-light .text-indigo-400, .admin-light .text-blue-400 { color:#3730a3 !important; }
+.admin-light button[data-permission]:disabled { opacity:1; filter:none; }
+.admin-light button[data-permission]:disabled { border-style:dashed; }
+.admin-light input::placeholder, .theme-warm .admin-light input::placeholder { color:#475569 !important; }
+
+.admin-light[data-panel-theme='light'] .text-slate-400,
+.admin-light[data-panel-theme='light'] .text-slate-500 { color:#334155 !important; }
