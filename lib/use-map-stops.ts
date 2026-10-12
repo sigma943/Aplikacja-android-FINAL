@@ -50,8 +50,10 @@ export function useMapStops(enabled:boolean,pks:RawStop[],loadMarcel=false){
     };
     void refresh();
     const updated=()=>{const cached=peekStopsCatalogCache();if(active&&cached)apply(cached.pks,cached.mpk,marcelSnapshot.current.length?marcelSnapshot.current:cached.marcel);};
+    const mpkUpdated=()=>{void refresh();};
+    window.addEventListener('pks-live:mpk-stops-updated',mpkUpdated);
     window.addEventListener('pks-live:catalog-updated',updated);
-    return()=>{active=false;window.clearTimeout(scheduled);controller.abort();window.removeEventListener('pks-live:catalog-updated',updated);};
+    return()=>{active=false;window.clearTimeout(scheduled);controller.abort();window.removeEventListener('pks-live:catalog-updated',updated);window.removeEventListener('pks-live:mpk-stops-updated',mpkUpdated);};
   },[enabled,pks,loadMarcel]);
   return enabled?stops:[];
 }

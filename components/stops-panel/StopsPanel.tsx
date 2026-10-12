@@ -143,11 +143,13 @@ export default function StopsPanel({
     };
 
     loadMpkStopsSnapshot();
+    window.addEventListener('pks-live:mpk-stops-updated',loadMpkStopsSnapshot);
     loadMarcelStopsSnapshot();
 
     return () => {
       active = false;
       controller.abort();
+      window.removeEventListener('pks-live:mpk-stops-updated',loadMpkStopsSnapshot);
     };
   }, [catalogAttempt, cacheReady]);
 

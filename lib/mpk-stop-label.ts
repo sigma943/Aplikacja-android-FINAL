@@ -16,7 +16,7 @@ export function mpkCatalogDisplayName(stop:Pick<Stop,'name'|'providerStopIds'>):
  const live=String(stop.providerStopIds?.mpk_rzeszowNames||'').split(' | ').filter(Boolean);
  const values=live.length?live:ids.map(id=>ambiguous.has(id)?'':names.get(id.trim())||'');
  const unique=[...new Set(values.filter(Boolean))];
- return unique.length===1?unique[0].replace(/^Rzesz[oó]w\s*,?\s+/i,''):stop.name;
+ return unique.length===1?'Rzeszów '+unique[0].replace(/^Rzesz[oó]w\s*,?\s+/i,''):stop.name;
 }
 /** Other carriers keep their original labels, including the vehicle's own names. */
 export function mpkVehicleDisplayName(provider:string|undefined,stop:{id?:unknown;name?:string},apiNames?:ReadonlyMap<string,string>):string {
