@@ -195,7 +195,10 @@ const server=http.createServer((req,res)=>{
         window.dispatchEvent(new Event('pks-profile-applied'));
       },{mode,glass});
       await page.waitForSelector(`[data-ui-theme="${mode}"]`);
-      await page.waitForSelector(`[data-stop-line-overflow]`);
+      await page.click('input[placeholder*="Babica"]');
+      await page.keyboard.down('Control');await page.keyboard.press('KeyA');await page.keyboard.up('Control');
+      await page.type('input[placeholder*="Babica"]','Boguchwała');
+      await page.waitForSelector('[data-stop-line-overflow]');
       const contrasts=await page.evaluate(()=>{
         const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
         const context=canvas.getContext('2d',{willReadFrequently:true});
@@ -210,7 +213,7 @@ const server=http.createServer((req,res)=>{
         };
         const luminance=rgb=>rgb.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
         const ratio=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
-        const nodes=[...document.querySelectorAll('[data-stop-card-id] h3,[data-stop-card-id] p,[data-stop-line-badges] span')];
+        const nodes=[...document.querySelectorAll('[data-stop-card-id] h3,[data-stop-card-id] .text-slate-600,[data-stop-line-badges] span')];
         const input=document.querySelector('input[placeholder*="Babica"]');
         return [...nodes.map(el=>({label:el.textContent,ratio:ratio(luminance(blend(rgba(getComputedStyle(el).color),background(el))),luminance(background(el)))})),
           {label:'search placeholder',ratio:ratio(luminance(rgba(getComputedStyle(input,'::placeholder').color)),luminance(background(input)))}];
