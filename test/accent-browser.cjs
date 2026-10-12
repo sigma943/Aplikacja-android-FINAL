@@ -629,6 +629,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[data-permission="statistics"]');
     assert.equal(await page.$eval('[data-permission="statistics"]',el=>getComputedStyle(el).opacity),'1');
     assert.equal(await page.$eval('[data-permission="statistics"]',el=>getComputedStyle(el).filter),'none');
+    assert.equal(await page.$eval('[aria-label="Edycja uprawnień"] input',el=>getComputedStyle(el,'::placeholder').color),'rgb(71, 85, 105)');
     await screenshot('admin-roles-light');
     await page.$eval('[aria-label="Edycja uprawnień"] button',el=>el.click());
     await button('Ban');await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Dodaj obrazek')).click());await page.waitForSelector('input[type="file"]');

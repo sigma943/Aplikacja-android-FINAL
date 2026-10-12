@@ -622,7 +622,7 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .admin-light .text-indigo-400, .admin-light .text-blue-400 { color:#3730a3 !important; }
 .admin-light button[data-permission]:disabled { opacity:1; filter:none; }
 .admin-light button[data-permission]:disabled { border-style:dashed; }
-.admin-light input::placeholder, .theme-warm .admin-light input::placeholder { color:#475569 !important; }
+.admin-light[data-panel-theme='light'][data-glass] input::placeholder { color:#475569 !important; }
 
-.admin-light[data-panel-theme='light'] .text-slate-400,
-.admin-light[data-panel-theme='light'] .text-slate-500 { color:#334155 !important; }
+.admin-light[data-panel-theme='light'][data-glass] .text-slate-400,
+.admin-light[data-panel-theme='light'][data-glass] .text-slate-500 { color:#334155 !important; }
