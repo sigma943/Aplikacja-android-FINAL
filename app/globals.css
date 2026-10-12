@@ -6,7 +6,7 @@
   --ui-raised: #fff;
   --ui-glass: rgb(247 250 252 / 64%);
   --ui-glass-row: rgb(255 255 255 / 42%);
-  --ui-muted: #586b80;
+  --ui-muted: #334155;
   --ui-text: #172536;
   --ui-edge: rgb(15 23 42 / 10%);
   background: var(--ui-canvas);
@@ -658,7 +658,7 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-theme-root[data-ui-theme='light-sky'] {
   --ui-canvas:#d5efff; --ui-surface:#d5efff; --ui-raised:#aedbfa;
   --ui-glass:rgb(174 219 250 / 88%); --ui-glass-row:rgb(174 219 250 / 80%);
-  --ui-text:#103750; --ui-muted:#315f7d; --ui-edge:rgb(36 101 151 / 26%);
+  --ui-text:#103750; --ui-muted:#244761; --ui-edge:rgb(36 101 151 / 26%);
   background-color:var(--ui-canvas) !important;
 }
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) {
@@ -704,16 +704,16 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 /* Neutral labels use the active palette in every light theme, including glass.
    Solid accent buttons retain their separately computed foreground colour. */
 .pks-theme-root[data-ui-theme^='light'] :is(
-  .transit-view,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope
+  .transit-view,.map-detail-shell,.pks-map-surface,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope
 ) :is(.text-slate-100,.text-slate-200,.text-slate-300,.text-gray-100,.text-gray-200,.text-gray-300,[data-stop-line-overflow]) {
   color:var(--ui-text) !important;
 }
 .pks-theme-root[data-ui-theme^='light'] :is(
-  .transit-view,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope
+  .transit-view,.map-detail-shell,.pks-map-surface,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope
 ) :is(.text-slate-400,.text-slate-500,.text-slate-600,.text-gray-400,.text-gray-500,.text-gray-600,.map-detail-muted) {
   color:var(--ui-muted) !important;
 }
-.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope) :is(input,textarea)::placeholder {
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-map-surface,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope) :is(input,textarea)::placeholder {
   color:var(--ui-muted) !important;
   opacity:1;
 }
@@ -729,3 +729,5 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-rose-300,.text-rose-400,.text-red-400) { color:#881337 !important; }
 
 .stop-line-overflow { color:var(--ui-text,#cbd5e1); }
+
+.pks-theme-root[data-ui-theme^='light'] .personal-note { color:var(--ui-muted); opacity:1; }
