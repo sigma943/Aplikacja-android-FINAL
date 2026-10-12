@@ -13,3 +13,10 @@ test('outside Rzeszów and ambiguous combined platforms preserve their original 
  assert.equal(mpkCatalogDisplayName(stop),stop.name);assert.equal(mpkVehicleDisplayName('mpk_rzeszow',{id:foreign[0],name:stop.name}),stop.name);
  assert.equal(mpkCatalogDisplayName({name:'Rzeszów grupa',providerStopIds:{mpk_rzeszow:'295,214',mpk_rzeszowNames:'Rzeszów Podkarpacka / Wetlińska 05 nż | Rzeszów Podkarpacka / Wetlińska 06 nż'}}),'Rzeszów grupa');
 });
+
+test('live MPK API name takes priority over the offline API catalogue, only for MPK city stops',()=>{
+ const current=new Map([['295','Podkarpacka / Wetlińska 05 nż – API'],['999999','Poza miastem']]);
+ assert.equal(mpkVehicleDisplayName('mpk_rzeszow',{id:295,name:'Dawna nazwa'},current),'Podkarpacka / Wetlińska 05 nż – API');
+ assert.equal(mpkVehicleDisplayName('pks',{id:295,name:'Nazwa PKS'},current),'Nazwa PKS');
+ assert.equal(mpkVehicleDisplayName('mpk_rzeszow',{id:999999,name:'Oryginalna nazwa'},current),'Oryginalna nazwa');
+});

@@ -6,6 +6,7 @@ import {toggleStopFavoriteIds} from '@/lib/stop-identity';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {onWidgetOpen} from '@/lib/stop-widget';
 
+import {useMpkStopNames} from '@/lib/use-mpk-stop-names';
 import {useMapStops} from '@/lib/use-map-stops';
 import {useStopDepartures} from '@/Panel/src/components/useStopDepartures';
 import {mapStopDepartureRows} from '@/lib/map-stop-departures';
@@ -117,6 +118,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [selectedBus, setSelectedBus] = useState<Vehicle | null>(null);
   const [selectedBusDetailsLoading, setSelectedBusDetailsLoading] = useState(false);
+  const mpkStopNames=useMpkStopNames(selectedBus?.provider==='mpk_rzeszow');
   const [isBusPanelExpanded, setIsBusPanelExpanded] = useState(false);
   const busHeaderRef=useRef<HTMLDivElement>(null);
   const [busSizes,setBusSizes]=useState({compact:180,full:480});
@@ -1349,6 +1351,7 @@ export default function Home() {
                 />
               ) : selectedBus && (
                 <BusDetailsPanel
+                  mpkStopNames={mpkStopNames}
                   key="bus-panel-map"
                   selectedBus={selectedBus}
                   busDrag={busDrag}
