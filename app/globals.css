@@ -686,3 +686,6 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-loading-screen[data-startup-theme='dark-forest'],.pks-loading-screen[data-startup-theme='light-sky'] { background-image:var(--startup-decoration) !important; }
 [data-startup-theme^='light'] :is(.text-red-400,.text-rose-400) { color:#be123c; }
 [data-startup-theme^='light'] .text-emerald-50 { color:#065f46; }
+.pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] :is(.text-slate-400,.text-slate-500,.text-slate-600),
+.pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] input::placeholder,
+.pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] textarea::placeholder { color:var(--ui-muted); }
