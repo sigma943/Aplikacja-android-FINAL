@@ -6,6 +6,11 @@ on:
     paths:
       - '.github/workflows/performance-audit.yml'
       - 'test/performance-audit.cjs'
+      - 'app/page.tsx'
+      - 'components/FirebaseProvider.tsx'
+      - 'lib/map-startup-code.ts'
+      - 'test/build-accent-fixture.cjs'
+      - 'test/startup-ui-stub.ts'
       - 'test/compare-performance.cjs'
       - 'test/catalog-optimization-equivalence.cjs'
       - 'lib/stops-catalog.ts'
@@ -25,7 +30,7 @@ jobs:
     permissions:
       contents: read
     env:
-      PERF_BASELINE_SHA: f2e85f885e8c9687e9396067eff12ff1c395fb42
+      PERF_BASELINE_SHA: 5ae88fbdf3a869637c0c793645d190cc8ea47efe
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,6 +47,8 @@ jobs:
           git worktree add --detach "$PERF_BASELINE_ROOT" "$PERF_BASELINE_SHA"
           ln -s "$GITHUB_WORKSPACE/node_modules" "$PERF_BASELINE_ROOT/node_modules"
           cp test/performance-audit.cjs "$PERF_BASELINE_ROOT/test/performance-audit.cjs"
+          cp test/build-accent-fixture.cjs "$PERF_BASELINE_ROOT/test/build-accent-fixture.cjs"
+          cp test/startup-ui-stub.ts "$PERF_BASELINE_ROOT/test/startup-ui-stub.ts"
       - name: Verify identical catalogs, names, aliases, coordinates and visible markers
         run: node test/catalog-optimization-equivalence.cjs
       - name: Build and measure pre-optimization version

@@ -16,7 +16,7 @@ export async function setDoc(ref:string,data:any,options?:any){if(ref.startsWith
 export async function updateDoc(ref:string,data:any){if(!records.has(ref))throw Object.assign(Error('Missing device'),{code:'not-found'});await setDoc(ref,data,{merge:true});}
 export async function deleteDoc(ref:string){records.delete(ref);listeners.forEach(fn=>fn());}
 export async function runTransaction(){throw Object.assign(Error('Old rules'),{code:'permission-denied'});}
-export function onSnapshot(ref:string,callback:any){const send=()=>callback(snapshot(ref));listeners.add(send);setTimeout(send,0);return()=>{listeners.delete(send);};}
+export function onSnapshot(ref:string,callback:any){const send=()=>{if(ref.startsWith('devices/')&&records.has(ref)&&typeof window!=='undefined'&&!(window as any).__startupDeviceReadyAt)(window as any).__startupDeviceReadyAt=performance.now();callback(snapshot(ref));};listeners.add(send);setTimeout(send,0);return()=>{listeners.delete(send);};}
 export function onAuthStateChanged(_:any,callback:any){auth.currentUser=user;setTimeout(()=>callback(user),0);return()=>{};}
 export const signInAnonymously=async()=>({user});
 export function httpsCallable<T=any,R=any>(..._:any[]){return async(_:T)=>({data:{} as R});}

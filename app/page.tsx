@@ -33,6 +33,7 @@ import type {Vehicle} from '@/components/BusMap';
 import MapStopSheet from '@/components/MapStopSheet';
 import OptionsSheet from '@/components/OptionsSheet';
 import OptionsContent from '@/components/OptionsContent';
+import {loadMapCode} from '@/lib/map-startup-code';
 import TransportSelectorPanel, {type TransportOption} from '@/components/TransportSelectorPanel';
 import TrainDetailsPanel from '@/components/TrainDetailsPanel';
 import {warsawDateIso} from '@/lib/transit-time';
@@ -54,7 +55,7 @@ const PKP_INTERCITY_COLOR = '#1d4ed8';
 
 const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false });
 
-const BusMap = dynamic(() => import('@/components/BusMap'), {
+const BusMap = dynamic(loadMapCode, {
   ssr: false,
   loading: () => (
     <div className="pks-map-loading-screen h-full w-full flex items-center justify-center">

@@ -73,6 +73,9 @@ async function browserAudit(fixture, runIndex) {
     const cdp=await page.createCDPSession();await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});await cdp.send('Performance.enable');await cdp.send('Profiler.enable');
     await page.evaluateOnNewDocument(()=>{
       localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17}));localStorage.setItem('mks_show_map_stops','true');
+      window.auditEarlyTransportRequests=[];
+      const originalFetch=window.fetch;
+      window.fetch=function(...args){const url=String(args[0]?.url||args[0]);if(/get_vehicles.php|\/api\/pks\/vehicles|stopscache|api-site.marcel/.test(url)&&!window.__startupDeviceReadyAt)window.auditEarlyTransportRequests.push(url);return originalFetch.apply(this,args);};
       window.auditCatalogJobs=[];window.auditCatalogWorkerErrors=[];
       const NativeWorker=window.Worker;
       if(NativeWorker)window.Worker=class extends NativeWorker {
@@ -121,7 +124,7 @@ async function browserAudit(fixture, runIndex) {
       report.browser.push({name,durationMs:round(stats.durationMs),scriptMs:round((after.ScriptDuration-before.ScriptDuration)*1000),layoutMs:round((after.LayoutDuration-before.LayoutDuration)*1000),longTasks:stats.longTasks.length,longTaskTotalMs:round(stats.longTasks.reduce((a,b)=>a+b,0)),maxLongTaskMs:round(Math.max(0,...stats.longTasks)),frameGapP95Ms:round(percentile(stats.frames,.95)),frameGapsOver50Ms:stats.frames.filter(v=>v>50).length,heapMB:round(after.JSHeapUsedSize/1024/1024),markers:stats.markers,feedRequests,topSamples,...details});
       console.log('Completed performance scenario: '+name);
     }
-    await measure('startup-100-vehicles',async()=>{await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.mks-bus-marker');await page.waitForSelector('.map-catalog-stop');const readyMs=await page.evaluate(()=>performance.now());await pause(2000);return {readyMs:round(readyMs)};});
+    await measure('startup-100-vehicles',async()=>{await page.goto(origin+'/startup-home/',{waitUntil:'domcontentloaded'});await page.waitForSelector('.mks-bus-marker');await page.waitForSelector('.map-catalog-stop');const gateReadyMs=await page.evaluate(()=>window.__startupDeviceReadyAt);if(!gateReadyMs)throw Error('Startup gate was not measured');const readyMs=await page.evaluate(()=>performance.now());await pause(2000);return {readyMs:round(readyMs),gateReadyMs:round(gateReadyMs),afterGateMs:round(readyMs-gateReadyMs)};});
     await measure('idle-100-vehicles',()=>pause(4000));
     await measure('pan-map-100-vehicles',async()=>{for(let i=0;i<6;i++){await page.mouse.move(190,460);await page.mouse.down();await page.mouse.move(i%2?240:140,i%2?420:500,{steps:20});await page.mouse.up();await pause(400);}await pause(1000);});
     await measure('refresh-250-vehicles',async()=>{fleetSize=250;const before=feedRequests;await page.waitForFunction(()=>document.querySelectorAll('.mks-bus-marker').length>=200,{timeout:30000});if(feedRequests<=before)throw new Error('Fleet refresh was not observed');await pause(2000);});
@@ -142,6 +145,7 @@ async function browserAudit(fixture, runIndex) {
         require('node:assert/strict').deepEqual(result.physical,clean(catalog.buildStopsCatalog(input.pks,input.mpk,input.marcel,input.key,true)));
       }
     }
+    report.earlyTransportRequests=await page.evaluate(()=>window.auditEarlyTransportRequests);require('node:assert/strict').deepEqual(report.earlyTransportRequests,[],'Transport requests must remain behind access verification');
     report.browserErrors=errors;if(errors.length)throw new Error('Browser errors: '+errors.join('; '));
   } finally {if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
@@ -192,7 +196,7 @@ async function overlappingFeedAudit() {
   }
   finally {
     fs.writeFileSync(path.join(directory,'report.json'),JSON.stringify(report,null,2));
-    const md=['# Performance audit','', 'Diagnostic measurements, not phone FPS. Browser scenarios report medians of three fresh-browser runs. Main-thread CPU is throttled 4x; worker CPU speed is not independently calibrated. This is not a model of an entire old phone. Network uses fixtures; map tile loading, Firebase authentication, Android GPU and device temperature are excluded. CPU microbenchmarks use unthrottled Node and cannot be compared directly with Chrome. PKS and MPK catalogs are complete; Marcel fleet is not measured.','', '| Operation | Median ms | P95 ms |','|---|---:|---:|',...report.cpu.map(r=>`| ${r.name} | ${r.medianMs} | ${r.p95Ms} |`),'', '| Browser scenario | JS ms | Layout ms | Tasks >50ms | Max task ms | Frame gap P95 ms |','|---|---:|---:|---:|---:|---:|',...report.browser.map(r=>`| ${r.name} | ${r.scriptMs} | ${r.layoutMs} | ${r.longTasks} | ${r.maxLongTaskMs} | ${r.frameGapP95Ms} |`),'','Raw CPU profiles can be opened in Chrome DevTools Performance. Startup includes code loading and hydration. Refresh includes waiting for the unchanged normal polling interval. Different scenario durations mean totals are not rankings.'];
+    const md=['# Performance audit','', 'Diagnostic measurements, not phone FPS. Browser scenarios report medians of three fresh-browser runs. Main-thread CPU is throttled 4x; worker CPU speed is not independently calibrated. This is not a model of an entire old phone. Network uses fixtures; map tile loading, real Firebase network latency (a fixed 1800ms restored-device fixture is used), Android GPU and device temperature are excluded. CPU microbenchmarks use unthrottled Node and cannot be compared directly with Chrome. PKS and MPK catalogs are complete; Marcel fleet is not measured.','', '| Operation | Median ms | P95 ms |','|---|---:|---:|',...report.cpu.map(r=>`| ${r.name} | ${r.medianMs} | ${r.p95Ms} |`),'', '| Browser scenario | JS ms | Layout ms | Tasks >50ms | Max task ms | Frame gap P95 ms |','|---|---:|---:|---:|---:|---:|',...report.browser.map(r=>`| ${r.name} | ${r.scriptMs} | ${r.layoutMs} | ${r.longTasks} | ${r.maxLongTaskMs} | ${r.frameGapP95Ms} |`),'','Raw CPU profiles can be opened in Chrome DevTools Performance. Startup includes code loading and hydration. Refresh includes waiting for the unchanged normal polling interval. Different scenario durations mean totals are not rankings.'];
     fs.writeFileSync(path.join(directory,'report.md'),md.join('\n'));
     console.log('PERFORMANCE_REPORT_JSON='+JSON.stringify(report));
   }

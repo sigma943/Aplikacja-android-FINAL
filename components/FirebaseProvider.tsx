@@ -1,6 +1,7 @@
 'use client';
 
 import {createContext, useContext, useEffect, useState} from 'react';
+import {preloadMapCode} from '@/lib/map-startup-code';
 import {Capacitor, registerPlugin} from '@capacitor/core';
 import {auth, db, functions} from '@/lib/firebase';
 import {registerRestoredDevice, stableAndroidInstallationId} from '@/lib/device-registration';
@@ -114,6 +115,7 @@ async function getClientDeviceInfo(): Promise<string> {
 }
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
+  useEffect(() => { preloadMapCode(); }, []);
   const [user, setUser] = useState<User | null>(null);
   const [device, setDevice] = useState<DeviceData | null>(null);
   const [loading, setLoading] = useState(true);

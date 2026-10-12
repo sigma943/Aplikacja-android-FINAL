@@ -10,6 +10,7 @@ function compare(section,name,metric,label) {
 }
 for(const name of ['catalog first build','catalog cold: PKS + MPK','catalog cache hit: PKS + MPK','physical map catalog cache hit','collection signature: full PKS'])compare('cpu',name,'medianMs',name);
 compare('browser','startup-100-vehicles','readyMs','Startup: vehicles and stop icons ready (Chrome CPU 4x)');
+compare('browser','startup-100-vehicles','afterGateMs','Time from device restoration to ready map');
 compare('browser','startup-100-vehicles','maxLongTaskMs','Startup: longest blocking task (Chrome CPU 4x)');
 compare('browser','stop-list-open','scriptMs','Stop list opening: total JS work (Chrome CPU 4x)');
 compare('browser','stop-list-search','scriptMs','Search in ready stop list: total JS work (Chrome CPU 4x)');
