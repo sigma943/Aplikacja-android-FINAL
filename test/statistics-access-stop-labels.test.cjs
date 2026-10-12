@@ -43,7 +43,7 @@ test('statistics access remains outside stored device and installation permissio
 test('Wetlińska 05 display alias preserves raw stop data and every unrelated platform',()=>{
  const stop={id:'5320',name:'Rzeszów, Podkarpacka Kolonia 05',lat:50.01231,lon:21.96892,code:'05'};
  const original=structuredClone(stop);
- assert.equal(displayStopCatalogLabel(stop.name,stop.code),'Rzeszów, Podkarpacka / Wetlińska 05 nż');
+ assert.equal(displayStopCatalogLabel(stop.name,stop.code),stop.name);
  assert.deepEqual(stop,original);
  for(const name of ['Rzeszów, Podkarpacka Kolonia 06','Rzeszów, Podkarpacka kościół 05','Podkarpacka Kolonia 05','Rzeszów, Podkarpacka / Wetlińska 05 nż'])assert.equal(displayStopCatalogLabel(name),name);
 });

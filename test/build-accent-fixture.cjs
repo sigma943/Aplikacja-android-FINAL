@@ -40,6 +40,9 @@ module.exports=function buildAccentFixture(){
     .replace("import {useFirebase} from '@/components/FirebaseProvider';","import {FirebaseProvider,useFirebase} from '../startup-fixture/Provider';")
     .replace('export default function Home()', 'function Home()');
   fs.writeFileSync(path.join(fixture,'app/startup-home/page.tsx'),gatedHome+`\nexport default function GatedHome(){return <FirebaseProvider><Home/></FirebaseProvider>;}`);
+  fs.mkdirSync(path.join(fixture,'app/ban-fixture'));
+  fs.writeFileSync(path.join(fixture,'app/ban-fixture/page.tsx'),`'use client';import {useState} from 'react';import {BanScreen} from '@/components/firebase/StartupScreens';
+  export default function Page(){const [kind,setKind]=useState('wide');const tall=kind==='tall';const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="'+(tall?400:1600)+'" height="'+(tall?1600:400)+'"><rect width="100%" height="100%" fill="#f9a8d4"/><rect x="4" y="4" width="'+(tall?392:1592)+'" height="'+(tall?1592:392)+'" fill="none" stroke="#4a1735" stroke-width="8"/><text x="30" y="80" font-size="40">Cały obraz</text></svg>');return <><div style={{position:'fixed',zIndex:10000,top:0}}>{['wide','tall','silent','none'].map(k=><button data-ban-kind={k} key={k} onClick={()=>setKind(k)}>{k}</button>)}</div><BanScreen device={{id:'fixture-ban',status:'banned',role:'user',banDetails:{reason:'Przykładowy powód blokady – sprawdzenie czytelności i zawijania tekstu.',expiresAt:'2026-10-20T12:00:00Z',silent:kind==='silent',gifUrl:kind==='none'?'':image}} as any}/></>;}`);
   fs.mkdirSync(path.join(fixture,'app/statistics-fixture'));
   fs.copyFileSync(path.join(source,'test/statistics-ui-fixture.tsx'),path.join(fixture,'app/statistics-fixture/page.tsx'));
   fs.mkdirSync(path.join(fixture,'app/widget-fixture'));

@@ -1,7 +1,6 @@
 /** Presentation only: keep platform numbers in identities, matching and routing. */
 export function displayStopLabel(value:unknown):string {
-  // MPK stop 295: presentation alias only; identities and coordinates stay intact.
-  return String(value??'').trim().replace(/^Rzesz[oó]w\s*,?\s+Podkarpacka Kolonia 05$/i,'Rzeszów, Podkarpacka / Wetlińska 05 nż').replace(/(?<!\p{L})D\s*\.?\s*A\s*\.?(?:\s*[,/-]?\s*(?:st(?:anowisko)?\.?\s*)?\d+[a-z]?)?\s*$/iu,'D.A.');
+  return String(value??'').trim().replace(/(?<!\p{L})D\s*\.?\s*A\s*\.?(?:\s*[,/-]?\s*(?:st(?:anowisko)?\.?\s*)?\d+[a-z]?)?\s*$/iu,'D.A.');
 }
 
 /** Terminal platforms are shown in stop labels; vehicle panel labels stay compact. */

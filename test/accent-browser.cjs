@@ -82,6 +82,18 @@ const server=http.createServer((req,res)=>{
     };
     const overflow=async()=>assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.transit-view')].some(el=>el.scrollWidth>el.clientWidth+1)),false);
     const screenshot=async name=>{await new Promise(resolve=>setTimeout(resolve,650));return page.screenshot({path:`test/ui-previews/${name}.png`});};
+    await page.goto(origin+'/ban-fixture/',{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-ban-image]');
+    for(const [kind,ratio] of [['wide',4],['tall',.25]]){
+      await page.click('[data-ban-kind="'+kind+'"]');await page.waitForFunction(r=>{const img=document.querySelector('[data-ban-image]');return img?.complete&&img.naturalWidth/img.naturalHeight===r;}, {}, ratio);
+      const size=await page.$eval('[data-ban-image]',el=>({w:el.clientWidth,h:el.clientHeight,fit:getComputedStyle(el).objectFit}));
+      assert.ok(Math.abs(size.w/size.h-ratio)<.025,'ban image retains its full aspect ratio: '+kind);assert.equal(size.fit,'contain');
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'ban fits mobile width');
+      await screenshot('ban-'+kind);
+    }
+    await page.click('[data-ban-kind="silent"]');await page.waitForSelector('[data-ban-screen]',{hidden:true});
+    assert.equal(await page.evaluate(()=>document.body.innerText.includes('Przykładowy powód')),false,'silent ban still hides reason and ban state');
+    await page.click('[data-ban-kind="none"]');await page.waitForSelector('[data-ban-screen]');assert.equal(await page.$('[data-ban-image]'),null);
     await page.goto(origin,{waitUntil:'domcontentloaded'});
     console.log('App loaded');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
@@ -104,13 +116,13 @@ const server=http.createServer((req,res)=>{
     const beforePink=await page.evaluate(()=>({...localStorage}));
     await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
     await page.$eval('[aria-label="Zestaw: Różowy"]',el=>el.click());
-    await page.waitForSelector('[data-ui-theme="dark-pink"]');
-    await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()==='#f9a8d4');
-    assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-surface').trim()),'#35202d');
+    await page.waitForSelector('[data-ui-theme="light-pink"]');
+    await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()==='#c02674');
+    assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-surface').trim()),'#fff0f7');
     assert.equal(await page.$eval('[data-options-sheet]',el=>el.scrollWidth>el.clientWidth+1),false,'pink theme fits a phone');
     await screenshot('personalization-pink');
     await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});
-    await page.waitForSelector('[data-ui-theme="dark-pink"]');
+    await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.click('[aria-label="Przewoźnicy"]');await page.waitForSelector('[data-carrier-sheet]');
     const carrierPink=await page.$eval('[data-carrier-sheet]',el=>{
       const color=getComputedStyle(el).backgroundColor;
@@ -118,7 +130,7 @@ const server=http.createServer((req,res)=>{
       const context=canvas.getContext('2d');context.fillStyle=color;context.fillRect(0,0,1,1);
       return {color,rgba:[...context.getImageData(0,0,1,1).data]};
     });
-    assert.ok(carrierPink.rgba.slice(0,3).every((value,i)=>Math.abs(value-[53,32,45][i])<=1),'carrier panel uses pink theme: '+carrierPink.color);
+    assert.ok(carrierPink.rgba.slice(0,3).every((value,i)=>Math.abs(value-[255,225,239][i])<=1),'carrier panel uses pink theme: '+carrierPink.color);
     await screenshot('carriers-pink');
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforePink);
     // Check saved theme in a fresh document, preserving the browser context's
@@ -438,6 +450,18 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('.personal-tools',el=>el.scrollWidth>el.clientWidth+1),false,'profile and scheduling controls fit 320px');
     await page.$eval('[aria-label="Usuń zestaw Mój zestaw testowy"]',el=>el.click());
     await page.waitForSelector('[aria-label="Zastosuj zestaw Mój zestaw testowy"]',{hidden:true});
+    await page.evaluate(()=>{const original=URL.createObjectURL;URL.createObjectURL=function(blob){if(blob.type==='application/json')window.__appearanceExport=blob.text();return original.call(this,blob);};});
+    await page.$$eval('.personal-tools button',els=>els.find(el=>el.textContent.includes('Eksportuj wygląd')).click());
+    const exported=await page.evaluate(()=>window.__appearanceExport);assert.equal(JSON.parse(exported).format,'pks-live-appearance');
+    const importPath=path.join(root,'appearance-roundtrip.json');fs.writeFileSync(importPath,exported);
+    const beforeImport=await page.evaluate(()=>({theme:localStorage.getItem('mks_app_theme'),accent:localStorage.getItem('mks_theme'),appearance:localStorage.getItem('mks_interface_appearance_v1')}));
+    await page.evaluate(()=>{localStorage.setItem('mks_app_theme','dark-pink');localStorage.setItem('mks_theme','#22c55e');window.dispatchEvent(new Event('pks-profile-applied'));});
+    await (await page.$('[data-appearance-import]')).uploadFile(importPath);
+    await page.waitForFunction(()=>[...document.querySelectorAll('[role="status"]')].some(el=>el.textContent.includes('Przywrócono bieżący wygląd')));
+    assert.deepEqual(await page.evaluate(()=>({theme:localStorage.getItem('mks_app_theme'),accent:localStorage.getItem('mks_theme'),appearance:localStorage.getItem('mks_interface_appearance_v1')})),beforeImport,'import restores theme, accent and full appearance');
+    fs.writeFileSync(importPath,'{}');await (await page.$('[data-appearance-import]')).uploadFile(importPath);
+    await page.waitForFunction(()=>[...document.querySelectorAll('[role="status"]')].some(el=>el.textContent.includes('To nie jest obsługiwana kopia')));
+    assert.deepEqual(await page.evaluate(()=>({theme:localStorage.getItem('mks_app_theme'),accent:localStorage.getItem('mks_theme'),appearance:localStorage.getItem('mks_interface_appearance_v1')})),beforeImport,'invalid import leaves appearance unchanged');
     await page.evaluate(()=>document.querySelector('.personal-reset').click());
     await page.waitForFunction(()=>document.documentElement.dataset.personalRadius==='false'&&document.documentElement.dataset.personalLabels==='true');
     await openGroup('Nawigacja i ikony');

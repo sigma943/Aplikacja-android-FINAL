@@ -32,6 +32,7 @@ import {Capacitor} from '@capacitor/core';
 import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOff, Shield, Check} from 'lucide-react';
 import {motion, AnimatePresence} from 'motion/react';
 import type {Vehicle} from '@/components/BusMap';
+import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
 import MapStopSheet from '@/components/MapStopSheet';
 import OptionsSheet from '@/components/OptionsSheet';
 import OptionsContent from '@/components/OptionsContent';
@@ -144,7 +145,7 @@ export default function Home() {
   const [showMapStops,setShowMapStops]=useState(false);
   // Match the exported HTML first; restore preferences after hydration so React
   // updates theme classes rather than retaining mismatched server attributes.
-  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'|'dark-pink'>('dark-oled');
+  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'|'dark-pink'|'light-pink'>('dark-oled');
   const [systemIsDark, setSystemIsDark] = useState(false);
   const [transparentUI, setTransparentUI] = useState(true);
   const [lightEffects,setLightEffects]=useState(false);
@@ -324,7 +325,7 @@ export default function Home() {
     const sAppTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
     if (['amoled', 'oled', 'dark_oled', 'darkoled'].includes(sAppTheme)) setAppTheme('dark-oled');
     else if (sAppTheme === 'system') setAppTheme('system');
-    else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora' || sAppTheme === 'dark-pink') setAppTheme(sAppTheme);
+    else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora' || sAppTheme === 'dark-pink' || sAppTheme === 'light-pink') setAppTheme(sAppTheme);
     const sTrans = localStorage.getItem('mks_transparent');
     setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');
     setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
@@ -348,8 +349,8 @@ export default function Home() {
   useEffect(()=>{
     const update=()=>{
       try{setInterfaceAppearance(normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')));}catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
-      const theme=localStorage.getItem('mks_app_theme')||'dark-oled';if(['light','light-warm','dark','dark-oled','dark-aurora','dark-pink','system'].includes(theme))setAppTheme(theme as typeof appTheme);setThemeColor(localStorage.getItem('mks_theme')||'#00a3a2');
-      setTransparentUI(localStorage.getItem('mks_transparent')!=='false');setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
+      const theme=localStorage.getItem('mks_app_theme')||'dark-oled';if(['light','light-warm','dark','dark-oled','dark-aurora','dark-pink','light-pink','system'].includes(theme))setAppTheme(theme as typeof appTheme);setThemeColor(localStorage.getItem('mks_theme')||'#00a3a2');
+      setLightEffects(localStorage.getItem('mks_light_effects')==='true');setTransparentUI(localStorage.getItem('mks_transparent')!=='false');setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
     };
     window.addEventListener('pks-profile-applied',update);return()=>window.removeEventListener('pks-profile-applied',update);
   },[]);
@@ -364,7 +365,9 @@ export default function Home() {
     const bg =
       actual === 'light'
         ? '#f8fafc'
-        : actual === 'light-warm'
+        : actual === 'light-pink'
+          ? '#fff0f7'
+          : actual === 'light-warm'
           ? '#f2ede1'
           : actual === 'dark-oled'
             ? '#000000'
@@ -373,7 +376,7 @@ export default function Home() {
               : actual === 'dark-aurora'
               ? '#06130f'
               : '#111027';
-    const text = actual === 'light'
+    const text = actual === 'light-pink' ? '#4a1735' : actual === 'light'
       ? '#020617'
       : actual === 'light-warm'
         ? '#272116'
@@ -919,14 +922,15 @@ export default function Home() {
   const actualTheme = appTheme === 'system' ? (systemIsDark ? 'dark' : 'light') : appTheme;
   const isDark = actualTheme.startsWith('dark');
   const isOled = actualTheme === 'dark-oled';
+  const isLightPink = actualTheme === 'light-pink';
   const isPink = actualTheme === 'dark-pink';
   const isAurora = actualTheme === 'dark-aurora';
   const isWarm = actualTheme === 'light-warm';
 
-  const bgMain = isDark ? (isOled ? 'bg-black' : isPink ? 'bg-[#21121b]' : isAurora ? 'bg-[#120f24]' : 'bg-slate-900') : (isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
+  const bgMain = isDark ? (isOled ? 'bg-black' : isPink ? 'bg-[#21121b]' : isAurora ? 'bg-[#120f24]' : 'bg-slate-900') : (isLightPink ? 'bg-[#fff0f7]' : isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
   const bgCard = transparentUI 
-     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isPink ? 'bg-[#35202d]/84 backdrop-blur-xl border-pink-300/20' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : 'bg-white/90 backdrop-blur-md border-slate-100/50')
-     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isPink ? 'bg-[#35202d] border-pink-300/20' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : 'bg-white border-slate-200');
+     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isPink ? 'bg-[#35202d]/84 backdrop-blur-xl border-pink-300/20' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : isLightPink ? 'bg-[#fff0f7]/90 backdrop-blur-md border-pink-200/60' : 'bg-white/90 backdrop-blur-md border-slate-100/50')
+     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isPink ? 'bg-[#35202d] border-pink-300/20' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : isLightPink ? 'bg-[#fff0f7] border-pink-200' : 'bg-white border-slate-200');
   const mapGlassPanel = `pks-map-surface ${transparentUI ? 'pks-glass' : ''}`;
   const mapGlassInput = transparentUI
      ? (isDark
@@ -1377,7 +1381,7 @@ export default function Home() {
                 {activeTab === 'map' && selectedStopId && !selectedBus && (
                   <MapStopSheet
                     key="stop-panel-map"
-                    name={selectedExternalStop?.name || stopsList.find(s => s.id === selectedStopId)?.name || 'Przystanek'}
+                    name={mapStopSource ? mpkCatalogDisplayName(mapStopSource) : selectedExternalStop?.name || stopsList.find(s => s.id === selectedStopId)?.name || 'Przystanek'}
                     code={selectedExternalStop?.code || stopsList.find(s => s.id === selectedStopId)?.code}
                     expanded={isStopPanelExpanded}
                     onExpandedChange={setIsStopPanelExpanded}

@@ -4,7 +4,7 @@ import {useEffect, useState} from 'react';
 
 import {type DeviceRole} from '@/lib/admin/rbac';
 
-import {CloudOff, RefreshCw, Wrench} from 'lucide-react';
+import {CloudOff, RefreshCw, Wrench, ShieldAlert, Clock, Info} from 'lucide-react';
 
 
 import {type DeviceData} from '@/components/firebase/types';
@@ -23,6 +23,7 @@ function getStoredThemeMode() {
 }
 
 function themeBackground(themeMode: string) {
+  if (themeMode === 'light-pink') return '#fff0f7';
   if (themeMode === 'light') return '#f8fafc';
   if (themeMode === 'light-warm') return '#f2ede1';
   if (themeMode === 'dark-oled') return '#000000';
@@ -32,6 +33,7 @@ function themeBackground(themeMode: string) {
 }
 
 function themeTextColor(themeMode: string) {
+  if (themeMode === 'light-pink') return '#4a1735';
   if (themeMode === 'light') return '#020617';
   if (themeMode === 'light-warm') return '#272116';
   return '#ffffff';
@@ -51,6 +53,9 @@ function themeShell(themeMode = getStoredThemeMode()) {
     ['--pks-loading-text' as string]: themeTextColor(themeMode),
   } as React.CSSProperties;
 
+  if (themeMode === 'light-pink') {
+    return {page:'bg-[#fff0f7] text-[#4a1735]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#fff0f7]/90 shadow-pink-900/10',main:'text-[#4a1735]',mainStyle,sub:'text-[#85365f]',spinner:'#c02674'};
+  }
   if (isWarm) {
     return {
       page: 'bg-[#f2ede1] text-[#272116]',
@@ -232,7 +237,9 @@ function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Pr
   const isOled = themeMode === 'dark-oled';
   const isAurora = themeMode === 'dark-aurora';
 
-  const theme = themeMode === 'dark-pink'
+  const theme = themeMode === 'light-pink'
+    ? {page:'bg-[#fff0f7] text-[#4a1735]',glow:'',grid:'',card:'border-pink-200 bg-[#fff0f7]/90 shadow-pink-900/10',icon:'border-pink-200 bg-pink-100 text-pink-700',sub:'text-[#85365f]',button:'border-pink-300 bg-pink-100 text-pink-800 hover:bg-pink-200'}
+    : themeMode === 'dark-pink'
     ? {page:'bg-[#21121b] text-[#fff2f8]',glow:'',grid:'',card:'border-pink-300/18 bg-[#35202d]/86 shadow-black/30',icon:'border-pink-300/20 bg-pink-300/10 text-pink-200',sub:'text-[#dfbccf]',button:'border-pink-300/30 bg-pink-300/10 text-pink-100 hover:bg-pink-300/15'}
     : isWarm
     ? {
@@ -315,6 +322,7 @@ function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Pr
 
 function BanScreen({ device }: { device: DeviceData }) {
   const { banDetails } = device;
+  const [banTheme] = useState(()=>themeShell());
   const expireDate = banDetails?.expiresAt ? new Date(banDetails.expiresAt).toLocaleString('pl-PL') : 'Nigdy';
   const [silentError] = useState(() => {
     const codes = ['ERR_0x', 'E', 'APP-', 'SYS-'];
@@ -363,56 +371,21 @@ function BanScreen({ device }: { device: DeviceData }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0c1b] text-white flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl h-[400px] bg-red-600/20 blur-[120px] rounded-full pointer-events-none" />
-
-      <div className="w-full max-w-5xl rounded-3xl border border-red-500/20 bg-slate-950/60 backdrop-blur-3xl p-8 md:p-12 shadow-2xl relative z-10 flex flex-col md:flex-row gap-8 items-center border-t-red-500/40">
-        <div className="flex-1 space-y-8">
-          <div>
-            <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-br from-red-400 to-red-600 tracking-tight leading-tight">
-              ZOSTAŁEŚ
-              <br />
-              ZBANOWANY!
-            </h1>
-            <p className="text-slate-400 text-lg mt-4 font-medium">Twoje urządzenie zostało zablokowane.</p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-white/5 bg-white/5 p-4 flex gap-4 items-center">
-              <div className="p-3 rounded-full bg-red-500/10 text-red-400">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">Blokada wygasa</p>
-                <p className="text-lg font-medium text-slate-200">{expireDate}</p>
-              </div>
-            </div>
-
-            {banDetails?.reason && (
-              <div className="rounded-2xl border border-white/5 bg-white/5 p-4 flex gap-4 items-center">
-                <div className="p-3 rounded-full bg-red-500/10 text-red-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">Powód blokady</p>
-                  <p className="text-lg font-medium text-slate-200">{banDetails.reason}</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <p className="text-sm text-slate-500">Jeśli uważasz, że to błąd - skontaktuj się z administratorem.</p>
+    <main data-ban-screen className={`min-h-dvh flex items-center justify-center px-4 py-8 font-sans ${banTheme.page}`} style={banTheme.pageStyle}>
+      <section className={`w-full max-w-2xl overflow-hidden rounded-[28px] border p-5 shadow-2xl sm:p-8 ${banTheme.card}`}>
+        <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-[.16em] opacity-70"><span className="h-2 w-2 rounded-full bg-rose-400"/>PKS Live · Dostęp do aplikacji</div>
+        <div className="mt-7 flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-rose-400/25 bg-rose-400/10 text-rose-400"><ShieldAlert size={25}/></div>
+          <div className="min-w-0"><h1 className={`text-2xl font-bold tracking-tight sm:text-3xl ${banTheme.main}`}>Urządzenie zablokowane</h1><p className={`mt-2 text-sm leading-6 ${banTheme.sub}`}>Dostęp do aplikacji został ograniczony przez administratora.</p></div>
         </div>
-
-        {gifUrl && (
-          <div className="flex-1 w-full max-w-md shrink-0">
-            <div className="aspect-video sm:aspect-square w-full rounded-2xl overflow-hidden shadow-xl">
-              <img src={gifUrl} alt="Ban GIF" className="h-full w-full object-cover object-center opacity-90" />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+        <dl className="mt-7 grid gap-3">
+          <div className="flex items-start gap-3 rounded-2xl border border-current/10 bg-current/[.035] p-4"><Clock size={19} className="mt-0.5 shrink-0 opacity-60"/><div className="min-w-0"><dt className={`text-xs font-semibold ${banTheme.sub}`}>Blokada wygasa</dt><dd className="mt-1 break-words text-sm font-semibold">{expireDate}</dd></div></div>
+          {banDetails?.reason&&<div className="flex items-start gap-3 rounded-2xl border border-current/10 bg-current/[.035] p-4"><Info size={19} className="mt-0.5 shrink-0 opacity-60"/><div className="min-w-0"><dt className={`text-xs font-semibold ${banTheme.sub}`}>Powód blokady</dt><dd className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">{banDetails.reason}</dd></div></div>}
+        </dl>
+        {gifUrl&&<figure className="mt-5 rounded-2xl border border-current/10 bg-black/5 p-2"><img data-ban-image src={gifUrl} alt="Ilustracja do komunikatu blokady" className="mx-auto block h-auto max-h-[55dvh] w-auto max-w-full rounded-xl object-contain"/></figure>}
+        <p className={`mt-6 text-xs leading-5 ${banTheme.sub}`}>Jeśli uważasz, że to błąd, skontaktuj się z administratorem.</p>
+      </section>
+    </main>
   );
 }
 
