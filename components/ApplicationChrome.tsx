@@ -16,7 +16,7 @@ export function StopTabIcon({ className = '' }: { className?: string }) {
 
 type HeaderProps={mapGlassPanel:string;mapGlassInput:string;themeColor:string;transparentUI:boolean;isDark:boolean;isManualRefreshing:boolean;showAlertDot:boolean;error?:string|null;isOffline:boolean;textSub:string;filterRoute:string;setFilterRoute:(value:string)=>void;handleManualRefresh:()=>void;closeMapPanelsForSearch:()=>void};
 export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,isDark,isManualRefreshing,showAlertDot,error,isOffline,textSub,filterRoute,setFilterRoute,handleManualRefresh,closeMapPanelsForSearch}:HeaderProps){return (
-<div className={`${mapGlassPanel} rounded-[1.4rem] border p-3 md:p-4 flex flex-col gap-3 pointer-events-auto w-full md:w-96 transition-all`}>
+<div data-map-search-panel className={`pks-map-search-panel ${mapGlassPanel} rounded-[1.4rem] border p-3 md:p-4 flex flex-col gap-3 pointer-events-auto w-full md:w-96 transition-all`}>
                 <div className="flex items-center justify-between font-extrabold text-xl tracking-tight" style={{ color: themeColor }}>
                   <div className="flex items-center gap-2">
                      <Bus className="w-5 h-5 md:w-6 md:h-6" />

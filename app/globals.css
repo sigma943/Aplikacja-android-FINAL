@@ -51,18 +51,6 @@
   --ui-text: #57153c;
   --ui-edge: rgb(192 38 116 / 26%);
 }
-/* A small, non-repeating pair of hearts sits in the panel's side gutter.
-   Keeping the whole SVG inside the rounded background avoids clipped hearts
-   and leaves headings, inputs and buttons free of decoration. */
-.pks-theme-root[data-ui-theme='light-pink'] { --pink-hearts: url("data:image/svg+xml,%3Csvg%20xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width='12'%20height='64'%20viewBox='0%200%2012%2064'%3E%3Cg%20fill='%23000000'%3E%3Cpath%20d='M6%2023C4%2021%201%2019%201%2016.5A2.5%202.5%200%200%201%206%2016.5A2.5%202.5%200%200%201%2011%2016.5C11%2019%208%2021%206%2023Z'%2F%3E%3Cpath%20d='M6%2049C4%2047%202%2045.5%202%2043.5A2%202%200%200%201%206%2043.5A2%202%200%200%201%2010%2043.5C10%2045.5%208%2047%206%2049Z'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"); }
-.pks-theme-root[data-ui-theme='light-pink'] :is(.pks-options-sheet,.transit-surface,.admin-topbar,.admin-light .pks-personal-card) {
-  background-image:var(--pink-hearts) !important;
-  background-repeat:no-repeat !important;
-  background-size:12px 64px !important;
-  background-position:right 0 center !important;
-  background-origin:padding-box;
-  background-clip:padding-box;
-}
 .pks-theme-root[data-ui-theme='dark-pink'] {
   --ui-canvas: #21121b;
   --ui-surface: #35202d;
@@ -679,7 +667,7 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) .transit-view {
   --transit-canvas:var(--ui-canvas); --transit-surface:var(--ui-surface); --transit-card:var(--ui-raised); --transit-border:var(--ui-edge);
 }
-.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.pks-options-sheet,.transit-surface,.admin-topbar,.pks-personal-card) {
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.pks-map-search-panel,.pks-options-sheet,.transit-surface,.admin-topbar,.pks-personal-card) {
   background-image:var(--theme-decoration),var(--personal-glow-image,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
 }
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) .pks-panel-scope[data-panel-theme] :is(
@@ -698,3 +686,17 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] :is(.text-slate-400,.text-slate-500,.text-slate-600),
 .pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] input::placeholder,
 .pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] textarea::placeholder { color:var(--ui-muted); }
+
+/* Sparse hearts stay entirely in the outer 12px gutters. Stagger the two
+   sides vertically and keep glow/pattern layers independent of the motifs. */
+.pks-theme-root[data-ui-theme='light-pink'] :is(
+  .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],
+  .transit-surface,.admin-topbar,.pks-personal-card,.widget-generator,.pks-navigation
+) {
+  background-image:var(--theme-decoration),var(--theme-decoration),var(--personal-glow-image,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
+  background-repeat:repeat-y,repeat-y,repeat,repeat !important;
+  background-size:12px 216px,12px 216px,auto,auto !important;
+  background-position:left top,right 0 top 36px,center,center !important;
+  background-origin:padding-box;
+  background-clip:padding-box;
+}
