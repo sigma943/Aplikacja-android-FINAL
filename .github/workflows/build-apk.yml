@@ -108,7 +108,7 @@ jobs:
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew testDebugUnitTest testReleaseUnitTest assembleDebug assembleRelease
+          ./gradlew testDebugUnitTest testReleaseUnitTest testReleaseTestUnitTest assembleDebug assembleRelease assembleReleaseTest
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -157,4 +157,27 @@ jobs:
         with:
           name: pks-live-release-unsigned-apk
           path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+
+      - name: Verify separate signed release test
+        run: |
+          python scripts/verify-apk-variants.py --separate \
+            android/app/build/outputs/apk/debug/app-debug.apk \
+            android/app/build/outputs/apk/releaseTest/app-releaseTest.apk \
+            "$ANDROID_HOME/build-tools/36.0.0/aapt" \
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
+            "$RUNNER_TEMP/apk-release-test-verification.json"
+
+      - name: Upload separate release test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pks-live-release-test-apk
+          path: android/app/build/outputs/apk/releaseTest/app-releaseTest.apk
+          if-no-files-found: error
+
+      - name: Upload separate release test verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-release-test-verification
+          path: ${{ runner.temp }}/apk-release-test-verification.json
           if-no-files-found: error

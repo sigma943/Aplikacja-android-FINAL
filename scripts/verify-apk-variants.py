@@ -46,17 +46,21 @@ def inspect(apk, aapt, apksigner, signed=True):
 
 def main():
     unsigned = sys.argv[1] == '--unsigned'
-    debug, release, aapt, apksigner, destination = sys.argv[2:] if unsigned else sys.argv[1:]
+    separate = sys.argv[1] == '--separate'
+    debug, release, aapt, apksigner, destination = sys.argv[2:] if unsigned or separate else sys.argv[1:]
     first, second = inspect(debug, aapt, apksigner), inspect(release, aapt, apksigner, signed=not unsigned)
-    if first['identity'] != second['identity']:
+    expected_identity = dict(first['identity'])
+    if separate:
+        expected_identity['name'] += '.releasetest'
+    if expected_identity != second['identity']:
         raise RuntimeError('Package, version or supported Android versions differ')
     if not first['debuggable'] or second['debuggable']:
         raise RuntimeError('Expected debug to be debuggable and release to be non-debuggable')
-    if not unsigned and first['certificates'] != second['certificates']:
+    if not unsigned and not separate and first['certificates'] != second['certificates']:
         raise RuntimeError('Debug/release signing certificates differ: do not publish this release')
     if first['assets'] != second['assets']:
         raise RuntimeError('Packaged web application or Capacitor configuration differs')
-    report = {'identity': second['identity'], 'releaseDebuggable': second['debuggable'], 'releaseSigned': not unsigned,
+    report = {'identity': second['identity'], 'releaseDebuggable': second['debuggable'], 'releaseSigned': not unsigned, 'separateInstallation': separate,
               'signingCertificateSha256': second['certificates'], 'identicalAssetFiles': len(second['assets']),
               'debugBytes': Path(debug).stat().st_size, 'releaseBytes': Path(release).stat().st_size,
               'phoneStartupMeasured': False}

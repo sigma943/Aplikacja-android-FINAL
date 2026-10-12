@@ -38,6 +38,16 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+        releaseTest {
+            initWith release
+            applicationIdSuffix ".releasetest"
+            matchingFallbacks = ['release']
+            signingConfig signingConfigs.debug
+            resValue "string", "app_name", "PKS Live Release Test"
+            resValue "string", "title_activity_main", "PKS Live Release Test"
+            resValue "string", "package_name", "pl.pkslive.app.releasetest"
+            resValue "string", "custom_url_scheme", "pl.pkslive.app.releasetest"
+        }
     }
 }
 
