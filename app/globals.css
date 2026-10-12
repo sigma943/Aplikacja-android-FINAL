@@ -731,3 +731,18 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .stop-line-overflow { color:var(--ui-text,#cbd5e1); }
 
 .pks-theme-root[data-ui-theme^='light'] .personal-note { color:var(--ui-muted); opacity:1; }
+
+/* Statistics is an opaque admin surface even when the main app uses glass. */
+[data-statistics-view] {
+  background-color:var(--ui-canvas,#040609) !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+[data-statistics-view][data-ui-mode='light'] { background-color:var(--ui-canvas,#f1f5f9) !important; }
+[data-statistics-view] .pks-personal-card,
+.pks-theme-root[data-ui-theme] .pks-panel-scope[data-panel-theme][data-glass] [data-statistics-view] .pks-personal-card {
+  background-color:var(--ui-raised,#111623) !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+[data-statistics-view][data-ui-mode='light'] .pks-personal-card { background-color:var(--ui-raised,#ffffff) !important; }

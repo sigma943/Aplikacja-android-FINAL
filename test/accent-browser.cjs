@@ -806,6 +806,21 @@ const server=http.createServer((req,res)=>{
     await page.setViewport({width:1440,height:1000,deviceScaleFactor:1});await statisticsFits();await screenshot('statistics-desktop');
     await page.click('nav button:first-child');await page.waitForFunction(()=>!document.querySelector('[data-statistics-view]'));
     await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
+    // Admin statistics keeps solid surfaces even with personalised glass enabled.
+    await page.evaluate(()=>{document.documentElement.dataset.personalGlass='true';document.documentElement.style.setProperty('--personal-glass','rgba(255,255,255,.2)');});
+    for(const theme of ['dark-forest','light-sky','light-pink']){
+      await page.click(`[data-statistics-theme="${theme}"]`);
+      await page.waitForSelector(`[data-ui-theme="${theme}"]`);
+      const surfaces=await page.$eval('[data-statistics-view]',el=>{
+        const root=getComputedStyle(el),card=getComputedStyle(el.querySelector('.pks-personal-card'));
+        return {root:root.backgroundColor,card:card.backgroundColor,blur:card.backdropFilter,decoration:card.backgroundImage};
+      });
+      assert.ok(surfaces.root.startsWith('rgb('),'statistics background is fully opaque: '+theme);
+      assert.ok(surfaces.card.startsWith('rgb('),'statistics cards are fully opaque: '+theme);
+      assert.equal(surfaces.blur,'none');
+      assert.ok(backgroundSvgs(surfaces.decoration).length>0,'statistics uses the selected theme decoration: '+theme);
+      await statisticsFits();await screenshot('statistics-'+theme);
+    }
     console.log('Browser: statistics navigation, unique installations, local API totals, date ranges, CSV, light/dark and 320px mobile layouts passed without backend writes.');
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.goto(`${origin}/widget-fixture/`,{waitUntil:'domcontentloaded'});
