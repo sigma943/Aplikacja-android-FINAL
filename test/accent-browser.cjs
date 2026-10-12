@@ -197,7 +197,12 @@ const server=http.createServer((req,res)=>{
       await page.waitForSelector(`[data-ui-theme="${mode}"]`);
       await page.waitForSelector(`[data-stop-line-overflow]`);
       const contrasts=await page.evaluate(()=>{
-        const rgba=color=>color.match(/[\d.]+/g).map(Number);
+        const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+        const context=canvas.getContext('2d',{willReadFrequently:true});
+        const rgba=color=>{
+          context.clearRect(0,0,1,1);context.fillStyle=color;context.fillRect(0,0,1,1);
+          const [r,g,b,a]=context.getImageData(0,0,1,1).data;return [r,g,b,a/255];
+        };
         const blend=(fg,bg)=>fg.slice(0,3).map((v,i)=>v*(fg[3]??1)+bg[i]*(1-(fg[3]??1)));
         const background=el=>{
           if(!el)return [255,255,255];
