@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict');
+const backgroundSvgs=require('./helpers/css-background-svg.cjs');
 const http=require('node:http');const fs=require('node:fs');const path=require('node:path');
 const puppeteer=require('puppeteer');
 const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root;const productionRoot=path.resolve('out');
@@ -183,7 +184,7 @@ const server=http.createServer((req,res)=>{
     await button('Przystanki');await page.waitForSelector('.transit-surface');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.transit-surface')).backgroundImage.includes('svg'));
     const pinkStops=await page.$eval('.transit-surface',el=>({pattern:getComputedStyle(el).backgroundImage,surface:getComputedStyle(el).backgroundColor,canvas:getComputedStyle(el.closest('.transit-view')).getPropertyValue('--transit-canvas').trim()}));
-    assert.ok(decodeURIComponent(pinkStops.pattern).includes("fill='#000000'"),'pink stop panels have black hearts');
+    assert.ok(backgroundSvgs(pinkStops.pattern).some(svg=>svg.includes("fill='#000000'")),'pink stop panels have black hearts');
     assert.equal(pinkStops.canvas,'#ffd1e8');assert.notEqual(pinkStops.surface,'rgb(255, 255, 255)');
     await screenshot('stops-pink-hearts');
 
@@ -721,7 +722,7 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>{localStorage.setItem('mks_app_theme','light-pink');window.dispatchEvent(new Event('pks-profile-applied'));});
     await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor==='rgb(255, 184, 219)');
-    assert.ok(decodeURIComponent(await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundImage)).includes("fill='#000000'"));
+    assert.ok(backgroundSvgs(await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundImage)).some(svg=>svg.includes("fill='#000000'")));
     assert.equal(await page.$eval('.admin-light .pks-personal-card',el=>getComputedStyle(el).backgroundColor),'rgb(255, 184, 219)');
     await screenshot('admin-pink-hearts');
     await page.evaluate(()=>{localStorage.setItem('mks_app_theme','dark');window.dispatchEvent(new Event('pks-profile-applied'));});
