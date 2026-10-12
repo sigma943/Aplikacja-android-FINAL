@@ -14,6 +14,16 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
     preview:{background:'#ffd1e8',surface:'#ffd1e8',text:'#57153c'},
   },
   {
+    name:'Leśny',description:'Ciemna zieleń, delikatne liście i miękka szmaragdowa poświata',theme:'dark-forest',accent:'#67dca0',glass:true,glow:true,glowStrength:45,
+    appearance:appearance({glassOpacity:86,glassBlur:18,borderStrength:16,shadowStrength:30,navIndicator:'halo',glowStyle:'accent',glowColor:'#67dca0',glowSpread:85,glowPlacement:'diagonal'}),
+    preview:{background:'#061a13',surface:'#102f23',text:'#edf9f0'},
+  },
+  {
+    name:'Niebo',description:'Błękitne panele, puszyste chmury i delikatna świetlista poświata',theme:'light-sky',accent:'#1679b7',glass:true,glow:true,glowStrength:40,
+    appearance:appearance({glassOpacity:88,glassBlur:16,borderStrength:18,shadowStrength:25,navIndicator:'pill',glowStyle:'accent',glowColor:'#1679b7',glowSpread:90,glowPlacement:'diagonal'}),
+    preview:{background:'#d5efff',surface:'#aedbfa',text:'#103750'},
+  },
+  {
     name:'Spokojny',description:'Piaskowe tło i delikatny turkus',theme:'light-warm',accent:'#00a3a2',glass:true,glow:true,glowStrength:30,
     appearance:appearance({panelRadius:26,cardRadius:20,shadowStrength:15,glassOpacity:86,glassBlur:14,surfaceTint:'warm',panelTintStrength:10,cardStyle:'original',navIndicator:'pill',glowStyle:'accent',glowColor:'#00a3a2',glowSpread:95,glowPlacement:'diagonal',titleWeight:600}),
     preview:{background:'#f2ede1',surface:'#faf7ef',text:'#272116'},

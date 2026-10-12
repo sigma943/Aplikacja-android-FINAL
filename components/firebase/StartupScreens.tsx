@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect, useState} from 'react';
+import {readAppTheme,resolveAppTheme,THEME_SCREEN_COLORS,themeDecoration} from '@/lib/app-theme';
 
 import {type DeviceRole} from '@/lib/admin/rbac';
 
@@ -9,38 +10,23 @@ import {CloudOff, RefreshCw, Wrench, ShieldAlert, Clock, Info} from 'lucide-reac
 
 import {type DeviceData} from '@/components/firebase/types';
 
-function getStoredThemeMode() {
-  if (typeof window === 'undefined') return 'dark-oled';
-  const savedTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
-  const normalizedTheme =
-    savedTheme === 'amoled' || savedTheme === 'oled' || savedTheme === 'dark_oled' || savedTheme === 'darkoled'
-      ? 'dark-oled'
-      : savedTheme;
-  if (normalizedTheme === 'dark-pink') return 'light-pink';
-  if (normalizedTheme === 'system') {
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return normalizedTheme;
+function getStoredThemeMode(){return resolveAppTheme(readAppTheme());}
+function themeBackground(mode:string){return THEME_SCREEN_COLORS[resolveAppTheme(mode)].background;}
+function themeTextColor(mode:string){return THEME_SCREEN_COLORS[resolveAppTheme(mode)].text;}
+function useStartupThemeMode(){
+  const [mode,setMode]=useState('dark-oled');
+  useEffect(()=>{
+    const update=()=>setMode(getStoredThemeMode());update();
+    window.addEventListener('storage',update);window.addEventListener('pks-profile-applied',update);
+    let media:MediaQueryList|undefined;
+    try{media=window.matchMedia('(prefers-color-scheme: dark)');media.addEventListener('change',update);}catch{}
+    return()=>{window.removeEventListener('storage',update);window.removeEventListener('pks-profile-applied',update);try{media?.removeEventListener('change',update);}catch{}};
+  },[]);
+  return mode;
 }
 
-function themeBackground(themeMode: string) {
-  if (themeMode === 'light-pink') return '#ffd1e8';
-  if (themeMode === 'light') return '#f8fafc';
-  if (themeMode === 'light-warm') return '#f2ede1';
-  if (themeMode === 'dark-oled') return '#000000';
-  if (themeMode === 'dark-pink') return '#21121b';
-  if (themeMode === 'dark-aurora') return '#06130f';
-  return '#111027';
-}
-
-function themeTextColor(themeMode: string) {
-  if (themeMode === 'light-pink') return '#57153c';
-  if (themeMode === 'light') return '#020617';
-  if (themeMode === 'light-warm') return '#272116';
-  return '#ffffff';
-}
-
-function themeShell(themeMode = getStoredThemeMode()) {
+function themeShell(themeMode:string = getStoredThemeMode()) {
+  themeMode=resolveAppTheme(themeMode);
   const isWarm = themeMode === 'light-warm';
   const isLight = themeMode === 'light' || isWarm;
   const isOled = themeMode === 'dark-oled';
@@ -54,6 +40,14 @@ function themeShell(themeMode = getStoredThemeMode()) {
     ['--pks-loading-text' as string]: themeTextColor(themeMode),
   } as React.CSSProperties;
 
+  if(themeMode==='dark-forest'||themeMode==='light-sky'){
+    const forest=themeMode==='dark-forest';
+    const decoration=`${themeDecoration(themeMode)},radial-gradient(ellipse at 20% 0%,${forest?'#23623a66':'#ffffffaa'},transparent 70%)`;
+    Object.assign(pageStyle,{backgroundImage:decoration,'--startup-decoration':decoration});
+    return {page:'pks-themed-screen',pageStyle,glow:'',grid:'',mainStyle,
+      card:forest?'border-emerald-200/20 bg-[#102f23]/90 shadow-black/30':'border-[#527fa3]/25 bg-[#d5efff]/90 shadow-sky-900/15',
+      main:forest?'text-[#edf9f0]':'text-[#103750]',sub:forest?'text-[#b7d8c3]':'text-[#315f7d]',spinner:forest?'#67dca0':'#1679b7'};
+  }
   if (themeMode === 'light-pink') {
     return {page:'bg-[#ffd1e8] text-[#57153c]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',main:'text-[#57153c]',mainStyle,sub:'text-[#832557]',spinner:'#c02674'};
   }
@@ -136,24 +130,25 @@ function themeShell(themeMode = getStoredThemeMode()) {
 }
 
 function LoadingScreen() {
-  const [theme, setTheme] = useState(()=>themeShell('dark-oled'));
+  const mode=useStartupThemeMode();
+  const theme=themeShell(mode);
 
   useEffect(() => {
-    const next = themeShell();
-    const mode = getStoredThemeMode();
-    const bg = themeBackground(mode);
-    const text = themeTextColor(mode);
+
+    const current=getStoredThemeMode();
+    const bg = themeBackground(current);
+    const text = themeTextColor(current);
+    document.documentElement.dataset.pksTheme=current;
     document.documentElement.style.setProperty('--pks-initial-bg', bg);
     document.documentElement.style.setProperty('--pks-loading-text', text);
     document.documentElement.style.backgroundColor = bg;
     document.documentElement.style.color = text;
     document.body.style.backgroundColor = bg;
     document.body.style.color = text;
-    setTheme(next);
-  }, []);
+  }, [mode]);
 
   return (
-    <div className={`pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
+    <div data-startup-theme={mode} style={theme.pageStyle} className={`pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
       {theme.glow && <div className={`absolute inset-0 ${theme.glow}`} />}
       {theme.grid && <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />}
       <div className="relative z-10 flex flex-col items-center gap-5">
@@ -201,10 +196,11 @@ function startupFailureMessage(error:unknown) {
 }
 
 function ConnectionTimeoutScreen({ timeout = false,errorMessage }: { timeout?: boolean;errorMessage?:string }) {
-  const [theme] = useState(()=>themeShell());
+  const themeMode=useStartupThemeMode();
+  const theme=themeShell(themeMode);
 
   return (
-    <div className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
+    <div data-startup-theme={themeMode} style={themeShell(themeMode).pageStyle} className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
       {theme.glow && <div className={`absolute inset-0 ${theme.glow}`} />}
       {theme.grid && <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />}
       <div className={`relative z-10 w-full max-w-md rounded-3xl border ${theme.card} p-8 text-center shadow-2xl backdrop-blur-2xl`}>
@@ -232,13 +228,14 @@ function ConnectionTimeoutScreen({ timeout = false,errorMessage }: { timeout?: b
 }
 
 function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Promise<void>; checking: boolean }) {
-  const [themeMode] = useState(getStoredThemeMode);
+  const themeMode=useStartupThemeMode();
   const isWarm = themeMode === 'light-warm';
   const isLight = themeMode === 'light' || isWarm;
   const isOled = themeMode === 'dark-oled';
   const isAurora = themeMode === 'dark-aurora';
 
-  const theme = themeMode === 'light-pink'
+  const shell=themeShell(themeMode);
+  const theme = themeMode==='dark-forest'||themeMode==='light-sky' ? {...shell,icon:themeMode==='dark-forest'?'border-emerald-300/20 bg-emerald-400/10 text-emerald-200':'border-sky-700/20 bg-sky-100 text-sky-800',button:themeMode==='dark-forest'?'border-emerald-300/30 bg-emerald-400/15 text-emerald-100':'border-sky-700/25 bg-sky-100 text-sky-900'} : themeMode === 'light-pink'
     ? {page:'bg-[#ffd1e8] text-[#57153c]',glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',icon:'border-pink-200 bg-pink-100 text-pink-700',sub:'text-[#832557]',button:'border-pink-300 bg-pink-100 text-pink-800 hover:bg-pink-200'}
     : themeMode === 'dark-pink'
     ? {page:'bg-[#21121b] text-[#fff2f8]',glow:'',grid:'',card:'border-pink-300/18 bg-[#35202d]/86 shadow-black/30',icon:'border-pink-300/20 bg-pink-300/10 text-pink-200',sub:'text-[#dfbccf]',button:'border-pink-300/30 bg-pink-300/10 text-pink-100 hover:bg-pink-300/15'}
@@ -293,7 +290,7 @@ function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Pr
             };
 
   return (
-    <div className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
+    <div data-startup-theme={themeMode} style={themeShell(themeMode).pageStyle} className={`min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
       <div className={`absolute inset-0 ${theme.glow}`} />
       <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />
 
@@ -323,7 +320,8 @@ function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Pr
 
 function BanScreen({ device }: { device: DeviceData }) {
   const { banDetails } = device;
-  const [banTheme] = useState(()=>themeShell());
+  const themeMode=useStartupThemeMode();
+  const banTheme=themeShell(themeMode);
   const expireDate = banDetails?.expiresAt ? new Date(banDetails.expiresAt).toLocaleString('pl-PL') : 'Nigdy';
   const [silentError] = useState(() => {
     const codes = ['ERR_0x', 'E', 'APP-', 'SYS-'];
@@ -331,13 +329,7 @@ function BanScreen({ device }: { device: DeviceData }) {
     return `${prefix}${Math.floor(100000 + Math.random() * 900000)}`;
   });
   const silentMessage = 'Wystąpił błąd. Spróbuj ponownie później.';
-  const [silentIsDark] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const theme = localStorage.getItem('mks_app_theme') || 'dark-oled';
-    if (theme.startsWith('dark')) return true;
-    if (theme.startsWith('light')) return false;
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
-  });
+  const silentIsDark=themeMode.startsWith('dark');
   const gifUrl =
     banDetails?.gifUrl && !String(banDetails.gifUrl).startsWith('blob:')
       ? banDetails.gifUrl
@@ -345,14 +337,14 @@ function BanScreen({ device }: { device: DeviceData }) {
 
   if (banDetails?.silent) {
     return (
-      <div className={[
+      <div data-startup-theme={themeMode} style={banTheme.pageStyle} className={[
         'min-h-screen flex items-center justify-center p-6 font-sans',
         silentIsDark ? 'bg-[#05070b] text-slate-100' : 'bg-slate-50 text-slate-900'
       ].join(' ')}>
         <div className="w-full max-w-md text-center">
           <div className={[
             'mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border text-2xl font-black',
-            silentIsDark ? 'border-slate-800 bg-slate-900 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+            banTheme.card+' '+banTheme.sub
           ].join(' ')}>
             !
           </div>
@@ -362,7 +354,7 @@ function BanScreen({ device }: { device: DeviceData }) {
           </p>
           <div className={[
             'mx-auto mt-6 inline-flex rounded-xl border px-4 py-2 font-mono text-xs font-bold tracking-wide',
-            silentIsDark ? 'border-slate-800 bg-slate-900/70 text-slate-500' : 'border-slate-200 bg-white text-slate-500'
+            banTheme.card+' '+banTheme.sub
           ].join(' ')}>
             {silentError}
           </div>
@@ -372,7 +364,7 @@ function BanScreen({ device }: { device: DeviceData }) {
   }
 
   return (
-    <main data-ban-screen className={`min-h-dvh flex items-center justify-center px-4 py-8 font-sans ${banTheme.page}`} style={banTheme.pageStyle}>
+    <main data-ban-screen data-startup-theme={themeMode} className={`min-h-dvh flex items-center justify-center px-4 py-8 font-sans ${banTheme.page}`} style={banTheme.pageStyle}>
       <section className={`w-full max-w-2xl overflow-hidden rounded-[28px] border p-5 shadow-2xl sm:p-8 ${banTheme.card}`}>
         <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-[.16em] opacity-70"><span className="h-2 w-2 rounded-full bg-rose-400"/>PKS Live · Dostęp do aplikacji</div>
         <div className="mt-7 flex items-start gap-4">

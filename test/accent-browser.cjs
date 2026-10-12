@@ -113,6 +113,40 @@ const server=http.createServer((req,res)=>{
     await page.click('[data-carrier-grid] button[aria-label="PKS Rzeszów"]');
     assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
+    const beforeNewThemes=await page.evaluate(()=>({...localStorage}));
+    for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff']]){
+      await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+      await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
+      assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-canvas').trim()),canvas);
+      assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),'true');
+      const pattern=decodeURIComponent(await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage));
+      assert.ok(pattern.includes('svg')&&pattern.includes('radial-gradient'),'decoration and glow are both present');
+      await screenshot('personalization-'+mode);
+      await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
+      await button('Przystanki');await page.waitForSelector('.transit-surface');await screenshot('stops-'+mode);await button('Mapa');
+      await page.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
+      for(const kind of ['loading','error','maintenance','ban','silent']){
+        await page.click(`[data-screen-kind="${kind}"]`);await page.waitForSelector(`[data-startup-theme="${mode}"]`);
+        const background=await page.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
+        assert.equal(background,mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
+        assert.ok((await page.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage)).includes('svg'));
+        if(kind==='silent'){assert.equal(await page.$('[data-ban-screen]'),null);assert.equal(await page.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
+        if(kind==='ban'||kind==='loading')await screenshot(kind+'-'+mode);
+      }
+      await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector(`[data-ui-theme="${mode}"]`);
+    }
+    await page.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
+    for(const dark of [false,true]){
+      await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:dark?'dark':'light'}]);
+      await page.evaluate(()=>{localStorage.setItem('mks_app_theme','damaged-theme');window.dispatchEvent(new Event('pks-profile-applied'));});
+      await page.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
+      await page.evaluate(()=>{window.__themeGetItem=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key==='mks_app_theme')throw new Error('Blocked theme storage');return window.__themeGetItem.call(this,key);};window.dispatchEvent(new Event('pks-profile-applied'));});
+      await page.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
+      await page.evaluate(()=>{Storage.prototype.getItem=window.__themeGetItem;});
+    }
+    await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+    await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforeNewThemes);
+    await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-ui-theme="dark-oled"]');
     const beforePink=await page.evaluate(()=>({...localStorage}));
     await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
     await page.$eval('[aria-label="Zestaw: Różowy"]',el=>el.click());
@@ -670,6 +704,13 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('.pks-navigation [data-nav-item="admin"]');
     await page.click('.pks-navigation [data-nav-item="admin"]');
     await page.waitForSelector('.admin-topbar');
+
+    for(const [mode,color] of [['dark-forest','rgb(25, 67, 51)'],['light-sky','rgb(174, 219, 250)']]){
+      await page.evaluate(mode=>{localStorage.setItem('mks_app_theme',mode);window.dispatchEvent(new Event('pks-profile-applied'));},mode);
+      await page.waitForSelector(`[data-ui-theme="${mode}"]`);await page.waitForFunction(color=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor===color,{},color);
+      await screenshot('admin-'+mode);
+    }
+    await page.evaluate(()=>{localStorage.setItem('mks_app_theme','dark');window.dispatchEvent(new Event('pks-profile-applied'));});await page.waitForSelector('[data-ui-theme="dark"]');
     const adminBeforePink=await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundColor);
     await page.evaluate(()=>{localStorage.setItem('mks_app_theme','light-pink');window.dispatchEvent(new Event('pks-profile-applied'));});
     await page.waitForSelector('[data-ui-theme="light-pink"]');

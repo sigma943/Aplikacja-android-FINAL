@@ -1,4 +1,5 @@
 'use client';
+import {normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
 import BusDetailsPanel from '@/components/BusDetailsPanel';
 
@@ -147,7 +148,7 @@ export default function Home() {
   const [showMapStops,setShowMapStops]=useState(false);
   // Match the exported HTML first; restore preferences after hydration so React
   // updates theme classes rather than retaining mismatched server attributes.
-  const [appTheme, setAppTheme] = useState<'system'|'light'|'light-warm'|'dark'|'dark-oled'|'dark-aurora'|'dark-pink'|'light-pink'>('dark-oled');
+  const [appTheme, setAppTheme] = useState<AppTheme>('dark-oled');
   const [systemIsDark, setSystemIsDark] = useState(false);
   const [transparentUI, setTransparentUI] = useState(true);
   const [lightEffects,setLightEffects]=useState(false);
@@ -312,6 +313,7 @@ export default function Home() {
   const mapDepartureError=[...new Set([...mapToday.warnings,...mapTomorrow.warnings])].join(' ')||null;
 
   useEffect(() => {
+    try {
     applyScheduledProfile();
     const storedProviders = sanitizeProvidersWithVisibility(readStoredTransportProviders(), hiddenProvidersSet);
     activeProvidersRef.current = storedProviders;
@@ -330,9 +332,7 @@ export default function Home() {
       localStorage.setItem('mks_app_theme','light-pink');
       if((localStorage.getItem('mks_theme')||'').toLowerCase()==='#f9a8d4'){localStorage.setItem('mks_theme','#c02674');setThemeColor('#c02674');}
     }
-    if (['amoled', 'oled', 'dark_oled', 'darkoled'].includes(sAppTheme)) setAppTheme('dark-oled');
-    else if (sAppTheme === 'system') setAppTheme('system');
-    else if (sAppTheme === 'light' || sAppTheme === 'light-warm' || sAppTheme === 'dark' || sAppTheme === 'dark-oled' || sAppTheme === 'dark-aurora' || sAppTheme === 'dark-pink' || sAppTheme === 'light-pink') setAppTheme(sAppTheme);
+    setAppTheme(normalizeAppTheme(sAppTheme));
     const sTrans = localStorage.getItem('mks_transparent');
     setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');
     setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
@@ -350,14 +350,17 @@ export default function Home() {
     const handler = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
+    } catch {setAppTheme('system');setSystemIsDark(systemPrefersDark());setHasLoadedTransportProviders(true);}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(()=>{
     const update=()=>{
+      try {
       try{setInterfaceAppearance(normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')));}catch{setInterfaceAppearance({...DEFAULT_INTERFACE_APPEARANCE});}
-      const theme=localStorage.getItem('mks_app_theme')||'dark-oled';if(['light','light-warm','dark','dark-oled','dark-aurora','dark-pink','light-pink','system'].includes(theme))setAppTheme(theme as typeof appTheme);setThemeColor(localStorage.getItem('mks_theme')||'#00a3a2');
+      setAppTheme(readAppTheme());setThemeColor(localStorage.getItem('mks_theme')||'#00a3a2');
       setLightEffects(localStorage.getItem('mks_light_effects')==='true');setTransparentUI(localStorage.getItem('mks_transparent')!=='false');setPanelGlow(localStorage.getItem('mks_panel_glow')==='true');setGlowStrength(panelGlowStrength(localStorage.getItem('mks_panel_glow_strength')));
+      }catch{setAppTheme('system');setSystemIsDark(systemPrefersDark());}
     };
     window.addEventListener('pks-profile-applied',update);return()=>window.removeEventListener('pks-profile-applied',update);
   },[]);
@@ -366,28 +369,10 @@ export default function Home() {
   const saveMapStops=(value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));};
   const saveInactive = (val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); };
   const saveAppTheme = (val: any) => {
-    setAppTheme(val);
-    localStorage.setItem('mks_app_theme', val);window.dispatchEvent(new Event('pks-interface-appearance'));
-    const actual = val === 'system' ? (systemIsDark ? 'dark' : 'light') : val;
-    const bg =
-      actual === 'light'
-        ? '#f8fafc'
-        : actual === 'light-pink'
-          ? '#ffd1e8'
-          : actual === 'light-warm'
-          ? '#f2ede1'
-          : actual === 'dark-oled'
-            ? '#000000'
-            : actual === 'dark-pink'
-              ? '#21121b'
-              : actual === 'dark-aurora'
-              ? '#06130f'
-              : '#111027';
-    const text = actual === 'light-pink' ? '#57153c' : actual === 'light'
-      ? '#020617'
-      : actual === 'light-warm'
-        ? '#272116'
-        : '#ffffff';
+    val=normalizeAppTheme(val);
+    try{localStorage.setItem('mks_app_theme',val);}catch{val='system';}
+    setAppTheme(val);window.dispatchEvent(new Event('pks-interface-appearance'));
+    const {background:bg,text}=THEME_SCREEN_COLORS[resolveAppTheme(val,systemIsDark)];
     document.documentElement.style.setProperty('--pks-initial-bg', bg);
     document.documentElement.style.setProperty('--pks-loading-text', text);
     document.documentElement.style.backgroundColor = bg;
@@ -926,7 +911,7 @@ export default function Home() {
   }, [refreshInterval]);
 
   // Theme Helpers
-  const actualTheme = appTheme === 'system' ? (systemIsDark ? 'dark' : 'light') : appTheme;
+  const actualTheme = resolveAppTheme(appTheme,systemIsDark);
   const isDark = actualTheme.startsWith('dark');
   const isOled = actualTheme === 'dark-oled';
   const isLightPink = actualTheme === 'light-pink';
@@ -1116,7 +1101,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div data-ui-theme={actualTheme} style={uiAccentVariables(themeColor, isDark) as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
+    <div data-ui-theme={actualTheme} style={{...uiAccentVariables(themeColor,isDark),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,

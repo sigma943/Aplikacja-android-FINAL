@@ -957,11 +957,11 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     return (
       <div className={cn('relative flex-1 overflow-y-auto', embedded && transparentUI && 'pks-panel-scope')}
         data-glass={embedded && transparentUI ? 'on' : 'off'}
-        data-panel-theme="dark">
+        data-panel-theme={isDarkTheme ? 'dark' : 'light'}>
         <BanScreen />
         <button
           onClick={() => setActiveView('devices')}
-          className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm transition-colors border border-white/10"
+          className={`absolute top-4 right-4 bg-white/10 hover:bg-white/20 ${isDarkTheme ? 'text-white' : 'text-slate-900'} px-4 py-2 rounded-xl text-sm transition-colors border border-white/10`}
         >
           [Wróć do Dashboardu]
         </button>

@@ -650,3 +650,39 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
   [class~='bg-[#111623]/50'],[class~='bg-[#151B28]'],[class~='bg-[#0a0f18]'],
   .admin-topbar,.pks-personal-card,input:not([type='checkbox']):not([type='radio']),textarea,select
 ) { background-color:var(--ui-raised) !important; }
+
+/* Complete new theme palettes: fixed decorative SVGs add no animations. */
+.pks-theme-root[data-ui-theme='dark-forest'] {
+  --ui-canvas:#061a13; --ui-surface:#102f23; --ui-raised:#194333;
+  --ui-glass:rgb(16 47 35 / 86%); --ui-glass-row:rgb(25 67 51 / 78%);
+  --ui-text:#edf9f0; --ui-muted:#b7d8c3; --ui-edge:rgb(139 223 165 / 24%);
+  background-color:var(--ui-canvas) !important;
+}
+.pks-theme-root[data-ui-theme='light-sky'] {
+  --ui-canvas:#d5efff; --ui-surface:#d5efff; --ui-raised:#aedbfa;
+  --ui-glass:rgb(174 219 250 / 88%); --ui-glass-row:rgb(174 219 250 / 80%);
+  --ui-text:#103750; --ui-muted:#315f7d; --ui-edge:rgb(36 101 151 / 26%);
+  background-color:var(--ui-canvas) !important;
+}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) {
+  --panel-glass:var(--ui-glass); --panel-surface:var(--ui-glass-row); --panel-solid:var(--ui-surface); --panel-edge:var(--ui-edge);
+}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) .transit-view {
+  --transit-canvas:var(--ui-canvas); --transit-surface:var(--ui-surface); --transit-card:var(--ui-raised); --transit-border:var(--ui-edge);
+}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.pks-options-sheet,.transit-surface,.admin-topbar,.pks-personal-card) {
+  background-image:var(--theme-decoration),var(--personal-glow-image,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
+}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) .pks-panel-scope[data-panel-theme] :is(
+  [class~='bg-[#040609]'],[class~='bg-[#080B12]'],[class~='bg-[#080b12]'],[class~='bg-[#0d1117]'],
+  [class~='bg-[#0F131D]'],[class~='bg-[#0f131d]'],[class~='bg-[#0F131D]/95'],[class~='bg-[#0f131d]/95'],
+  [class~='bg-[#111623]'],[class~='bg-[#111623]/50'],[class~='bg-[#151B28]'],[class~='bg-[#0a0f18]'],.admin-topbar,.pks-personal-card
+) { background-color:var(--ui-raised) !important; }
+.pks-theme-root[data-ui-theme='light-sky'] .admin-light[data-panel-theme='light'] { background-color:var(--ui-canvas) !important; }
+.pks-theme-root[data-ui-theme='light-sky'] .admin-light[data-panel-theme='light'] :is(input:not([type='checkbox']):not([type='radio']),textarea,select) { background-color:var(--ui-raised) !important; }
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.transit-view,.map-detail-shell) :is(.text-slate-400,.text-slate-500,.text-slate-600) { color:var(--ui-muted); }
+.pks-themed-screen { background-size:auto,100% 100%; }
+
+.pks-loading-screen[data-startup-theme='dark-forest'],.pks-loading-screen[data-startup-theme='light-sky'] { background-image:var(--startup-decoration) !important; }
+[data-startup-theme^='light'] :is(.text-red-400,.text-rose-400) { color:#be123c; }
+[data-startup-theme^='light'] .text-emerald-50 { color:#065f46; }
