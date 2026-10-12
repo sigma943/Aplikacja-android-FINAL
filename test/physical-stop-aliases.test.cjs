@@ -26,9 +26,9 @@ test('Marcel course selection resolves only one exact catalog locality/platform 
   assert.equal(canonicalMapStopId(stops,'marcel:100',undefined,point),'city-03');
   assert.equal(canonicalMapStopId(stops,'100','pks',point),'city-03');
   assert.equal(canonicalMapStopId(stops,'stable-04','marcel',point),'city-04','explicit catalog ID wins');
-  assert.equal(canonicalMapStopId(stops,'100','marcel',{...point,n:'Rzeszów - Podkarpacka / Matuszczaka 05'}),'100');
-  assert.equal(canonicalMapStopId([...stops,{...stops[0],id:'ambiguous'}],'100','marcel',point),'100');
-  assert.equal(canonicalMapStopId(stops,'100','marcel'),'100');
+  assert.equal(canonicalMapStopId(stops,'100','marcel',{...point,n:'Rzeszów - Podkarpacka / Matuszczaka 05'}),'marcel:100');
+  assert.equal(canonicalMapStopId([...stops,{...stops[0],id:'ambiguous'}],'100','marcel',point),'marcel:100');
+  assert.equal(canonicalMapStopId(stops,'100','marcel'),'marcel:100');
   assert.equal(canonicalMapStopId(stops,'100','mpk_rzeszow',point),'100');
 });
 test('actual Lisa-Kuli Moniuszki PKS 04 and MPK 02 share one identity and keep departure IDs',()=>{
@@ -60,4 +60,42 @@ test('station stands, different landmarks and numbered street names cannot overr
     ['Rzeszów 3 Maja / Rynek 04','5 Maja / Rynek 02']];
   for(const [a,b] of pairs)assert.equal(buildStopsCatalog([{id:'p',name:a,lat:50.04,lon:22,lines:[]}],
     [{id:'m',name:b,lat:50.04001,lon:22,lines:[]}],[],'protected-alias-'+a).length,2);
+});
+
+test('Marcel courses match surveyed PKS platforms before the Marcel catalog is available, with original IDs and data preserved',()=>{
+  const {canonicalMapStopId,marcelMapStopPoint}=load('lib/map-stop-markers.ts');
+  const pks=Object.entries(pksAsset).map(([id,s])=>({...s,id,name:s.n+' '+(s.code||''),lines:[]}));
+  const map=buildStopsCatalog(pks,[],[],'marcel-course-with-pks-only',true);
+  const before=JSON.stringify(map);
+  const course=require('./fixtures/marcel-jaslo-rzeszow-1181798.json').course;
+  const expected={'36':'9026','37':'1374','38':'1366','39':'1142','40':'6155','41':'1035','42':'5810','44':'3908','45':'4765','46':'4698'};
+  for(const [id,pksId] of Object.entries(expected)){
+    const raw=course.find(s=>String(s.kol)===id);
+    const point={n:raw.nazMi+' - '+raw.nazPr,lat:raw.szGps,lon:raw.dlGps};
+    assert.equal(canonicalMapStopId(map,id,'marcel',point),pksId,point.n);
+    const displayed=marcelMapStopPoint(map,id,point);
+    const {platformPosition}=load('lib/stop-platform-position.ts');
+    assert.deepEqual([displayed.lat,displayed.lon],Object.values(platformPosition(map.find(s=>s.id===pksId))));
+    assert.equal(displayed.n,point.n);
+    assert.deepEqual(point,{n:raw.nazMi+' - '+raw.nazPr,lat:raw.szGps,lon:raw.dlGps},'API data are not rewritten');
+  }
+  assert.equal(JSON.stringify(map),before,'catalog positions, aliases and provider grouping are unchanged');
+});
+
+test('Marcel fallback never borrows a numeric PKS ID, opposite direction, ambiguous platform, another locality or station stand',()=>{
+  const {canonicalMapStopId,marcelMapStopPoint}=load('lib/map-stop-markers.ts');
+  const base={id:'pks-01',name:'Babica DPS 01',code:'01',lat:49.934,lon:21.86,type:'bus',providerStopIds:{pks:'100'}};
+  const point={n:'Babica - Dom Pomocy Społecznej 01 (+)',lat:49.93401,lon:21.86};
+  assert.equal(canonicalMapStopId([base],'36','marcel',point),'pks-01');
+  const ambiguous={...base,id:'pks-02',name:'Babica DPS 02',code:'02',lat:49.93406};
+  assert.equal(canonicalMapStopId([base,ambiguous],'36','marcel',point),'marcel:36');
+  assert.equal(canonicalMapStopId([base],'36','marcel',{...point,lat:49.935}),'marcel:36');
+  assert.equal(canonicalMapStopId([base],'36','marcel',{...point,n:'Boguchwała - Dom Pomocy Społecznej 01'}),'marcel:36');
+  assert.equal(canonicalMapStopId([base],'36','marcel',{...point,n:'Babica - Szkoła 01'}),'marcel:36');
+  const collision={...base,id:'36',name:'Inny przystanek 36',code:'36'};
+  assert.equal(canonicalMapStopId([collision],'36','marcel',point),'marcel:36');
+  assert.equal(marcelMapStopPoint([collision],'36',point),point);
+  assert.equal(canonicalMapStopId([{...base,name:'Babica D.A. 01'}],'36','marcel',{...point,n:'Babica - D.A. 01'}),'marcel:36');
+  assert.equal(canonicalMapStopId([{...base,name:'Babica 45',code:'45'}],'36','marcel',{...point,n:'Babica - 53'}),'marcel:36');
+  assert.equal(canonicalMapStopId([base],'36','marcel',{...point,lat:NaN}),'marcel:36');
 });

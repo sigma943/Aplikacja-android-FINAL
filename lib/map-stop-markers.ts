@@ -2,12 +2,14 @@ import {readBusCoordinates} from './bus-coordinates';
 import {platformPosition} from './stop-platform-position';
 import type {Stop} from '@/Panel/src/types';
 import type {StopData} from './transport/vehicle';
-import {marcelCourseStopIndexKey} from '@/components/stops-panel/stop-domain';
+import {marcelCourseStopIndexKey, normalizeStopMergeName, distanceMeters, hasConflictingCityToken} from '@/components/stops-panel/stop-domain';
+import {physicalStopName} from './physical-stop-aliases';
 export const MAP_STOPS_MIN_ZOOM=16;
 export function canonicalMapStopId(stops:Stop[],id?:string|null,provider?:string,point?:StopData){
   if(!id)return id;
   const namespace=/^(pks|mpk_rzeszow|marcel):(.+)$/.exec(id);
   const source=namespace?.[1]||provider||'pks',rawId=namespace?.[2]||id;
+  const unresolved=source==='marcel'&&!namespace?'marcel:'+rawId:id;
   if(!namespace&&(!provider||provider==='pks')&&stops.some(s=>s.id===id))return id;
   const matches=stops.filter(s=>String(s.providerStopIds?.[source]||'').split(',').map(v=>v.trim()).includes(rawId));
   if(matches.length===1)return matches[0].id;
@@ -15,13 +17,61 @@ export function canonicalMapStopId(stops:Stop[],id?:string|null,provider?:string
   // Reuse the catalog's exact key, preserving side numbers and locality identity.
   if(source==='marcel'&&matches.length===0&&point){
     const [city,...place]=point.n.split(' - ');
-    if(!city||!place.length)return id;
+    if(!city||!place.length)return unresolved;
     const key=marcelCourseStopIndexKey({nazMi:city,nazPr:place.join(' - ')});
     const aliases=stops.filter(stop=>String(stop.providerStopIds?.marcelCityMatchKeys||'').split(',').map(v=>v.trim()).includes(key));
     if(aliases.length===1)return aliases[0].id;
+    if(aliases.length>1)return unresolved;
+    const shared=marcelPhysicalMapStop(stops,city,place.join(' - '),point);
+    if(shared)return shared.id;
   }
-  return id;
+  return unresolved;
 }
+
+/** Display-only fallback while the Marcel catalog has no course alias yet.
+ * Number conflicts need the complete landmark. GPS alone never selects a stop.
+ */
+function marcelPhysicalMapStop(stops:Stop[],city:string,place:string,point:StopData){
+  if(!readBusCoordinates(point.lat,point.lon))return null;
+  const label=normalizeStopMergeName(place.replace(/^\(\d+[a-z]?\)\s*/i,'').replace(/\s*\([+\-/\s]+\)\s*$/g,''));
+  const name=normalizeStopMergeName(city+' '+label);
+  if(/\bd a\b|\bdworzec\b|\bstanowisko\b/.test(name))return null;
+  const key=physicalStopName(name.replace(/[()]/g,' ')),cityTokens=normalizeStopMergeName(city).split(' ');
+  const code=/\s(\d+[a-z]?)$/.exec(' '+label)?.[1]?.replace(/^0+(?=\d)/,'');
+  const originTokens=new Set(key.split(' '));
+  const nearby=stops.flatMap(stop=>{
+    if(stop.type==='train'||!stop.name||!(stop.providerStopIds?.pks||stop.providerStopIds?.mpk_rzeszow))return [];
+    const position=platformPosition(stop);if(!position)return [];
+    // Compare only the small neighbourhood, not every catalog name on each clock tick.
+    if(Math.abs(position.lat-point.lat)>.0012||Math.abs(position.lon-point.lon)>.002)return [];
+    const distance=distanceMeters(point.lat,point.lon,position.lat,position.lon);
+    if(distance>120)return [];
+    const candidateName=normalizeStopMergeName(stop.name),candidateKey=physicalStopName(candidateName.replace(/[()]/g,' '));
+    const candidateTokens=candidateKey.split(' ');
+    const candidateCode=String(stop.code||/\s(\d+[a-z]?)$/.exec(candidateName)?.[1]||'').toLowerCase().replace(/^0+(?=\d)/,'');
+    const sameCity=cityTokens.every(token=>candidateName.split(' ').includes(token));
+    const fullIdentity=key===candidateKey;
+    const sharedLandmark=candidateTokens.some(token=>originTokens.has(token)&&!cityTokens.includes(token));
+    const localityOnly=candidateTokens.every(token=>cityTokens.includes(token));
+    const originLocalityOnly=[...originTokens].every(token=>cityTokens.includes(token));
+    const numbered=!/\bd a\b|\bdworzec\b|\bstanowisko\b/.test(candidateName)&&!!code&&code===candidateCode&&(sameCity||candidateTokens.every(token=>originTokens.has(token)))&&(sharedLandmark||localityOnly||originLocalityOnly);
+    const eligible=!hasConflictingCityToken(name,candidateName)&&(fullIdentity&&(code===candidateCode||key.split(' ').length>=2)||numbered);
+    return [{stop,distance,eligible}];
+  }).sort((a,b)=>a.distance-b.distance||a.stop.id.localeCompare(b.stop.id));
+  // Other platforms count as competitors even when their names/numbers differ.
+  if(!nearby.length||nearby[0].distance>25||!nearby[0].eligible)return null;
+  if(nearby[1]&&nearby[1].distance-nearby[0].distance<20)return null;
+  return nearby[0].stop;
+}
+
+/** Align only Marcel's map overlay; preserve timetable IDs, coordinates and catalog data. */
+export function marcelMapStopPoint(stops:Stop[],id:string,point:StopData):StopData{
+  const canonical=canonicalMapStopId(stops,id,'marcel',point);
+  const stop=stops.find(stop=>stop.id===canonical);
+  const position=stop?platformPosition(stop):null;
+  return position?{...point,...position}:point;
+}
+
 export function mapStopColor(stop:Pick<Stop,'name'>){
   const name=stop.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   if(/^rzeszow\b/.test(name)&&(/\bd\s*\.?\s*a\s*\.?\s*(?:st\b|stanow|$)/.test(name)||/\b(?:dworzec|dworz\.)\s*(?:autobusowy|pks)\b/.test(name)))return '#14b8a6';

@@ -9,11 +9,11 @@ import {Marker, useMap, CircleMarker, useMapEvents} from 'react-leaflet';
 import L from 'leaflet';
 
 import type {Stop} from '@/Panel/src/types';
-import {mapStopColor, mapStopIconHtml, visibleMapStops} from '@/lib/map-stop-markers';
+import {mapStopColor, mapStopIconHtml, visibleMapStops, marcelMapStopPoint} from '@/lib/map-stop-markers';
 
 import {type Vehicle, type StopData} from '@/lib/transport/vehicle';
 
-function SelectedStopPin({id,catalogId,point,stops,color,rail=false}:{id?:string|null;catalogId?:string|null;point?:StopData;stops:Stop[];color:string;rail?:boolean}) {
+function SelectedStopPin({id,catalogId,point,stops,color,rail=false,alignToCatalog=false}:{id?:string|null;catalogId?:string|null;point?:StopData;stops:Stop[];color:string;rail?:boolean;alignToCatalog?:boolean}) {
   const map=useMap();const [revision,setRevision]=useState(0);
   useMapEvents({zoomend:()=>setRevision(v=>v+1),moveend:()=>setRevision(v=>v+1)});
   const icon=useMemo(()=>L.divIcon({className:'stop-highlight-pin',html:`<svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" style="color:${color};filter:drop-shadow(0 3px 4px #0005)"><path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/><circle cx="19" cy="18" r="6.5" fill="white"/></svg>`,iconSize:[38,48],iconAnchor:[19,46]}),[color]);
@@ -24,7 +24,7 @@ function SelectedStopPin({id,catalogId,point,stops,color,rail=false}:{id?:string
     return visibleMapStops(stops,[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],map.getZoom(),catalogId||id).some(stop=>stop.id===(catalogId||id));
   },[map,stops,catalogId,id,revision,platformRevision]);
   if(!id||!point||(!rail && !readBusCoordinates(point.lat,point.lon)))return null;
-  if(!rail){const position=platformPosition(point);if(!position)return null;point={...point,...position};}
+  if(!rail){const catalog=alignToCatalog?stops.find(stop=>stop.id===catalogId):null;const position=platformPosition(catalog||point);if(!position)return null;point={...point,...position};}
   if(catalogVisible)return null;
   return <Marker position={[point.lat,point.lon]} zIndexOffset={5000} icon={icon}/>;
 }
@@ -50,6 +50,7 @@ function CatalogStopsLayer({stops,selected,selectedColor,onSelect}:{stops:Stop[]
 function RouteStopsLayer({
   selectedVehicle,
   stopsData,
+  catalogStops,
   stopIds,
   highlightedStopId,
   selectedRouteColor,
@@ -57,6 +58,7 @@ function RouteStopsLayer({
 }: {
   selectedVehicle?: Vehicle;
   stopsData: Record<string, StopData>;
+  catalogStops?: Stop[];
   stopIds: Array<string | number>;
   highlightedStopId?: string | null;
   selectedRouteColor: string;
@@ -69,6 +71,13 @@ function RouteStopsLayer({
     zoomend: () => setZoom(map.getZoom()),
   });
 
+  const platformRevision=stopPlatformRevision();
+  const marcelStops=useMemo(()=>{
+    if(selectedVehicle?.provider!=='marcel'||!catalogStops?.length)return stopsData;
+    const aligned={...stopsData};
+    for(const id of stopIds){const raw=stopsData[String(id)];if(raw)aligned[String(id)]=marcelMapStopPoint(catalogStops,String(id),raw);}
+    return aligned;
+  },[selectedVehicle?.provider,catalogStops,stopsData,stopIds.join(','),platformRevision]);
   const visibleStopIds = selectedVehicle ? stopIds : [];
 
   if (!selectedVehicle) return null;
@@ -78,8 +87,9 @@ function RouteStopsLayer({
   return (
     <>
       {visibleStopIds.map((stopId, idx) => {
-        const rawStop = stopsData[String(stopId)];
-        const position=rawStop&&selectedVehicle.provider!=='pkp_intercity'?platformPosition(rawStop):null;
+        const rawStop = marcelStops[String(stopId)];
+        const alignedMarcel=selectedVehicle.provider==='marcel'&&rawStop!==stopsData[String(stopId)];
+        const position=rawStop&&selectedVehicle.provider!=='pkp_intercity'?(alignedMarcel?{lat:rawStop.lat,lon:rawStop.lon}:platformPosition(rawStop)):null;
         const stop = rawStop && selectedVehicle.provider!=='pkp_intercity' ? (position?{...rawStop,...position}:null) : rawStop;
         if (!stop) return null;
         const isHighlighted = String(stopId) === highlightedStopId;

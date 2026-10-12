@@ -53,9 +53,9 @@ export default function Page(){
  useEffect(()=>{const timer=setInterval(()=>setTick(value=>value+1),100);return()=>clearInterval(timer);},[]);
  useEffect(()=>{(window as any).fixtureMapTicks=tick;},[tick]);
  const id=provider==='mpk_rzeszow'?200:100;
- const point=useMemo(()=>({id,name:provider==='marcel'?'Rzeszów - TestMap 03':'Rzeszów TestMap 03',lat:50.04,lon:22,planned:null,real:null}),[id,provider]);
+ const point=useMemo(()=>({id,name:provider==='marcel'?'Rzeszów - TestMap 03':'Rzeszów TestMap 03',lat:provider==='marcel'?50.04004:50.04,lon:provider==='marcel'?22.00004:22,planned:null,real:null}),[id,provider]);
  const vehicle=useMemo(()=>({id:'selection-test',provider,name:'Test bus',routeShortName:'M',lat:50.042,lon:22.002,routeStops:[point]}),[provider,point]);
- const stops:any[]=useMemo(()=>[{id:'catalog-platform',name:'Rzeszów TestMap 03',type:'bus',lat:50.04,lon:22,carriers:[],lines:[],isFavorite:false,providerStopIds:{pks:'100',mpk_rzeszow:'200',marcel:'stable-03',marcelCityMatchKeys:'rzeszow|testmap 03'}}],[]);
+ const stops:any[]=useMemo(()=>[{id:'catalog-platform',name:'Rzeszów TestMap 03',type:'bus',lat:50.04,lon:22,carriers:[],lines:[],isFavorite:false,providerStopIds:{pks:'100',mpk_rzeszow:'200',marcel:'stable-03'}}],[]);
  return <div style={{height:'100vh'}}><div style={{position:'fixed',top:0,left:0,zIndex:20000}}>{['marcel','pks','mpk_rzeszow'].map(value=><button key={value} data-test-provider={value} onClick={()=>setProvider(value)}>{value}</button>)}<button data-test-icons onClick={()=>setShow(value=>!value)}>Icons</button></div><BusMap vehicles={[]} selectedVehicle={vehicle} highlightedStopId={String(id)} mapStops={show?stops:[]}/></div>;
 }`);
   fs.copyFileSync(path.join(source,'tsconfig.json'),path.join(fixture,'tsconfig.json'));
