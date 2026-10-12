@@ -24,7 +24,7 @@ function getStoredThemeMode() {
 }
 
 function themeBackground(themeMode: string) {
-  if (themeMode === 'light-pink') return '#fff0f7';
+  if (themeMode === 'light-pink') return '#ffd1e8';
   if (themeMode === 'light') return '#f8fafc';
   if (themeMode === 'light-warm') return '#f2ede1';
   if (themeMode === 'dark-oled') return '#000000';
@@ -34,7 +34,7 @@ function themeBackground(themeMode: string) {
 }
 
 function themeTextColor(themeMode: string) {
-  if (themeMode === 'light-pink') return '#4a1735';
+  if (themeMode === 'light-pink') return '#57153c';
   if (themeMode === 'light') return '#020617';
   if (themeMode === 'light-warm') return '#272116';
   return '#ffffff';
@@ -55,7 +55,7 @@ function themeShell(themeMode = getStoredThemeMode()) {
   } as React.CSSProperties;
 
   if (themeMode === 'light-pink') {
-    return {page:'bg-[#fff0f7] text-[#4a1735]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#fff0f7]/90 shadow-pink-900/10',main:'text-[#4a1735]',mainStyle,sub:'text-[#85365f]',spinner:'#c02674'};
+    return {page:'bg-[#ffd1e8] text-[#57153c]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',main:'text-[#57153c]',mainStyle,sub:'text-[#832557]',spinner:'#c02674'};
   }
   if (isWarm) {
     return {
@@ -239,7 +239,7 @@ function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Pr
   const isAurora = themeMode === 'dark-aurora';
 
   const theme = themeMode === 'light-pink'
-    ? {page:'bg-[#fff0f7] text-[#4a1735]',glow:'',grid:'',card:'border-pink-200 bg-[#fff0f7]/90 shadow-pink-900/10',icon:'border-pink-200 bg-pink-100 text-pink-700',sub:'text-[#85365f]',button:'border-pink-300 bg-pink-100 text-pink-800 hover:bg-pink-200'}
+    ? {page:'bg-[#ffd1e8] text-[#57153c]',glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',icon:'border-pink-200 bg-pink-100 text-pink-700',sub:'text-[#832557]',button:'border-pink-300 bg-pink-100 text-pink-800 hover:bg-pink-200'}
     : themeMode === 'dark-pink'
     ? {page:'bg-[#21121b] text-[#fff2f8]',glow:'',grid:'',card:'border-pink-300/18 bg-[#35202d]/86 shadow-black/30',icon:'border-pink-300/20 bg-pink-300/10 text-pink-200',sub:'text-[#dfbccf]',button:'border-pink-300/30 bg-pink-300/10 text-pink-100 hover:bg-pink-300/15'}
     : isWarm

@@ -67,7 +67,7 @@ export function interfacePanelPattern(v:InterfaceAppearance,dark:boolean){
 }
 
 export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,accent:string,lightEffects:boolean,theme=''){
-  const color=normalizeUiAccent(accent),base=theme==='dark-oled'?'#141d26':theme==='dark-aurora'?'#211b36':theme==='dark-pink'?'#35202d':theme==='light-pink'?'#fff0f7':theme==='light-warm'?'#faf7ef':dark?'#1b2937':'#f7fafc';
+  const color=normalizeUiAccent(accent),base=theme==='dark-oled'?'#141d26':theme==='dark-aurora'?'#211b36':theme==='dark-pink'?'#35202d':theme==='light-pink'?'#ffd1e8':theme==='light-warm'?'#faf7ef':dark?'#1b2937':'#f7fafc';
   const target=v.surfaceTint==='custom'?v.panelColor:v.surfaceTint==='accent'?color:'#d2c2a4';
   const rgb=(hex:string)=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
   const bg=rgb(base).map((c,i)=>Math.round(v.surfaceTint==='original'?c:c*(1-v.panelTintStrength/100)+rgb(target)[i]*v.panelTintStrength/100));

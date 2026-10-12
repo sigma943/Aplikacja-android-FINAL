@@ -373,7 +373,7 @@ export default function Home() {
       actual === 'light'
         ? '#f8fafc'
         : actual === 'light-pink'
-          ? '#fff0f7'
+          ? '#ffd1e8'
           : actual === 'light-warm'
           ? '#f2ede1'
           : actual === 'dark-oled'
@@ -383,7 +383,7 @@ export default function Home() {
               : actual === 'dark-aurora'
               ? '#06130f'
               : '#111027';
-    const text = actual === 'light-pink' ? '#4a1735' : actual === 'light'
+    const text = actual === 'light-pink' ? '#57153c' : actual === 'light'
       ? '#020617'
       : actual === 'light-warm'
         ? '#272116'
@@ -934,10 +934,10 @@ export default function Home() {
   const isAurora = actualTheme === 'dark-aurora';
   const isWarm = actualTheme === 'light-warm';
 
-  const bgMain = isDark ? (isOled ? 'bg-black' : isPink ? 'bg-[#21121b]' : isAurora ? 'bg-[#120f24]' : 'bg-slate-900') : (isLightPink ? 'bg-[#fff0f7]' : isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
+  const bgMain = isDark ? (isOled ? 'bg-black' : isPink ? 'bg-[#21121b]' : isAurora ? 'bg-[#120f24]' : 'bg-slate-900') : (isLightPink ? 'bg-[#ffd1e8]' : isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
   const bgCard = transparentUI 
-     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isPink ? 'bg-[#35202d]/84 backdrop-blur-xl border-pink-300/20' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : isLightPink ? 'bg-[#fff0f7]/90 backdrop-blur-md border-pink-200/60' : 'bg-white/90 backdrop-blur-md border-slate-100/50')
-     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isPink ? 'bg-[#35202d] border-pink-300/20' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : isLightPink ? 'bg-[#fff0f7] border-pink-200' : 'bg-white border-slate-200');
+     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isPink ? 'bg-[#35202d]/84 backdrop-blur-xl border-pink-300/20' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : isLightPink ? 'bg-[#ffd1e8]/90 backdrop-blur-md border-pink-200/60' : 'bg-white/90 backdrop-blur-md border-slate-100/50')
+     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isPink ? 'bg-[#35202d] border-pink-300/20' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : isLightPink ? 'bg-[#ffd1e8] border-pink-200' : 'bg-white border-slate-200');
   const mapGlassPanel = `pks-map-surface ${transparentUI ? 'pks-glass' : ''}`;
   const mapGlassInput = transparentUI
      ? (isDark

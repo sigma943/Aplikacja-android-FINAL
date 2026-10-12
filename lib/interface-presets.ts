@@ -9,9 +9,9 @@ const appearance=(changes:Partial<InterfaceAppearance>):InterfaceAppearance=>({.
 
 export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   {
-    name:'Różowy',description:'Jasny róż, malinowe akcenty i delikatne szklane panele',theme:'light-pink',accent:'#c02674',glass:true,glow:false,glowStrength:40,
+    name:'Różowy',description:'Cukierkowy róż, malinowe akcenty i subtelne serduszka',theme:'light-pink',accent:'#c02674',glass:true,glow:false,glowStrength:40,
     appearance:appearance({}),
-    preview:{background:'#fff0f7',surface:'#fff0f7',text:'#4a1735'},
+    preview:{background:'#ffd1e8',surface:'#ffd1e8',text:'#57153c'},
   },
   {
     name:'Spokojny',description:'Piaskowe tło i delikatny turkus',theme:'light-warm',accent:'#00a3a2',glass:true,glow:true,glowStrength:30,

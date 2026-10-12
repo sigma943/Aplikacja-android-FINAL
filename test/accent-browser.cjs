@@ -118,7 +118,7 @@ const server=http.createServer((req,res)=>{
     await page.$eval('[aria-label="Zestaw: Różowy"]',el=>el.click());
     await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()==='#c02674');
-    assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-surface').trim()),'#fff0f7');
+    assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-surface').trim()),'#ffd1e8');
     assert.equal(await page.$eval('[data-options-sheet]',el=>el.scrollWidth>el.clientWidth+1),false,'pink theme fits a phone');
     await screenshot('personalization-pink');
     await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});
@@ -130,7 +130,7 @@ const server=http.createServer((req,res)=>{
       const context=canvas.getContext('2d');context.fillStyle=color;context.fillRect(0,0,1,1);
       return {color,rgba:[...context.getImageData(0,0,1,1).data]};
     });
-    assert.ok(carrierPink.rgba.slice(0,3).every((value,i)=>Math.abs(value-[255,225,239][i])<=1),'carrier panel uses pink theme: '+carrierPink.color);
+    assert.ok(carrierPink.rgba.slice(0,3).every((value,i)=>Math.abs(value-[255,184,219][i])<=1),'carrier panel uses pink theme: '+carrierPink.color);
     await screenshot('carriers-pink');
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforePink);
     // Check saved theme in a fresh document, preserving the browser context's
