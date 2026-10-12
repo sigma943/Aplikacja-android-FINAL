@@ -326,7 +326,7 @@ export default function Home() {
     setShowMapStops(localStorage.getItem('mks_show_map_stops')==='true');
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
-    const storedAppTheme = (localStorage.getItem('mks_app_theme') || 'dark-oled').trim().toLowerCase();
+    const storedAppTheme = (localStorage.getItem('mks_app_theme') ?? 'dark-oled').trim().toLowerCase();
     const sAppTheme = storedAppTheme === 'dark-pink' ? 'light-pink' : storedAppTheme;
     if(storedAppTheme==='dark-pink'){
       localStorage.setItem('mks_app_theme','light-pink');
