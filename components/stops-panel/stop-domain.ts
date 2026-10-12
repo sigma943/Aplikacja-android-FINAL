@@ -101,7 +101,7 @@ const MARCEL_STOPS_INDEX_CACHE = new Map<string, Promise<MarcelIndexedStop[]>>()
 
 const STOP_CACHE_VERSION = 11;
 const STOP_CACHE_TTL_MS = 15 * 60 * 1000;
-const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v10:';
+const MARCEL_STOPS_PERSISTENT_PREFIX = 'pks-live:marcel-stops-index:v11:';
 const MERGED_STOPS_RUNTIME_CACHE = new Map<string, Stop[]>();
 const MERGED_STOPS_RUNTIME_CACHE_LIMIT = 3;
 const GEO_BUCKET_PRECISION = 0.001;
@@ -868,11 +868,17 @@ function pksLinesForStop(
 }
 
 function marcelCourseStopMatchKey(stop: MarcelCourseStopPublic) {
-  return stopPreciseNameKey(stripMarcelStopName(stop.nazPr)) || stopBaseNameKey(stripMarcelStopName(stop.nazPr));
+  const stripped=stripMarcelStopName(stop.nazPr);
+  const numbered=String(stop.nazPr||'').replace(/\s*\([+\-/\s]+\)\s*$/g,'').trim();
+  // A bare platform number is a real identity when paired with its locality.
+  const key=stopPreciseNameKey(stripped)||stopBaseNameKey(stripped)||(/^\d+[a-z]?$/i.test(numbered)?numbered.toLowerCase().replace(/^0+(?=\d)/,''):'');
+  // Keys are stored in CSV aliases. Punctuation inside a name is not a separator.
+  return key.replace(/,/g,' ').replace(/\s+/g,' ').trim();
 }
 
 function marcelCourseStopIndexKey(stop: MarcelCourseStopPublic) {
-  return [normalizeStopName(stop.nazMi), marcelCourseStopMatchKey(stop)].filter(Boolean).join('|');
+  const city=normalizeStopName(stop.nazMi).replace(/,/g,' ').replace(/\s+/g,' ').trim();
+  return [city,marcelCourseStopMatchKey(stop)].filter(Boolean).join('|');
 }
 
 const marcelIndexListeners = new Map<string, Set<(stops: MarcelIndexedStop[]) => void>>();
@@ -913,9 +919,11 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
         await mapWithConcurrency(courseIds, 2, async courseId => {
         const stopsForCourse = await fetchMarcelPublicCourseStopsClient(courseId);
         stopsForCourse.forEach((courseStop) => {
-          const matchName = stripMarcelStopName(courseStop.nazPr);
+          const strippedName=stripMarcelStopName(courseStop.nazPr);
+          const matchName=strippedName||marcelCourseStopMatchKey(courseStop);
           const matchKey = marcelCourseStopMatchKey(courseStop);
-          const displayName = marcelStopDisplayName(courseStop.nazMi, courseStop.nazPr);
+          const displayName=marcelStopDisplayName(courseStop.nazMi,courseStop.nazPr)||
+            (matchName&&courseStop.nazMi&&readBusCoordinates(courseStop.szGps,courseStop.dlGps)?stopDisplayName(courseStop.nazMi)+' - '+matchName:'');
           const key = marcelCourseStopIndexKey(courseStop);
           if (!displayName || !matchName || !matchKey || !key) return;
 

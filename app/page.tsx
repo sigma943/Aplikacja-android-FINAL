@@ -9,6 +9,8 @@ import {onWidgetOpen} from '@/lib/stop-widget';
 import {useMapStops} from '@/lib/use-map-stops';
 import {useStopDepartures} from '@/Panel/src/components/useStopDepartures';
 import {mapStopDepartureRows} from '@/lib/map-stop-departures';
+import {refreshMapStopSource} from '@/lib/map-stop-source';
+import {marcelCourseStopIndexKey,marcelCourseStopMatchKey} from '@/components/stops-panel/stop-domain';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {useSheetGesture} from '@/lib/use-sheet-gesture';
 import {BackScope, useAppBack} from '@/lib/use-app-back';
@@ -178,11 +180,11 @@ export default function Home() {
     if (activeTab === 'stops' && isStopsTabDisabled) setActiveTab('map');
   }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled]);
   const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, apiLat?: number | null, apiLon?: number | null, lat?: number, lon?: number}[]>([]);
-  const mapStops=useMapStops(showMapStops,stopsList);
   const [stopsLoadError, setStopsLoadError] = useState(false);
   const stopsLoadPendingRef = useRef(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [selectedExternalStop, setSelectedExternalStop] = useState<StopsPanelStop | null>(null);
+  const mapStops=useMapStops(showMapStops,stopsList,activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus);
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(7000);
   const [favsState, setFavsState] = useState<string[]>([]);
@@ -297,8 +299,9 @@ export default function Home() {
 
   const mapStopSource = useMemo<StopsPanelStop>(() => {
     const known=stopsList.find(stop=>stop.id===selectedStopId);
-    return selectedExternalStop||{id:selectedStopId||'no-selection',name:known?.name||selectedStopId||'',type:'bus',carriers:[],lines:[],isFavorite:false,areaId:known?.areaId,code:known?.code,sourceProviderIds:['pks'],providerStopIds:{pks:selectedStopId||''},pksStopPoints:[{id:selectedStopId||'',areaId:known?.areaId,code:known?.code}]};
-  },[selectedExternalStop,selectedStopId,stopsList]);
+    const source:StopsPanelStop=selectedExternalStop||{id:selectedStopId||'no-selection',name:known?.name||selectedStopId||'',type:'bus',carriers:[],lines:[],isFavorite:false,areaId:known?.areaId,code:known?.code,sourceProviderIds:['pks'],providerStopIds:{pks:selectedStopId||''},pksStopPoints:[{id:selectedStopId||'',areaId:known?.areaId,code:known?.code}]};
+    return refreshMapStopSource(source,mapStops);
+  },[selectedExternalStop,selectedStopId,stopsList,mapStops]);
   const mapStopActive=activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus;
   const mapToday=useStopDepartures(mapStopSource,0,warsawDateIso(),loadStopDepartures,mapStopActive);
   const mapTomorrow=useStopDepartures(mapStopSource,1,warsawDateIso(1),loadStopDepartures,mapStopActive);
@@ -1008,9 +1011,8 @@ export default function Home() {
     if(provider==='pks')external.pksStopPoints=[{id:stopId,areaId:known?.areaId,code:known?.code}];
     if(provider==='marcel') {
       const [city,...place]=name.split(' - ');
-      const normalize=(text:string)=>text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u0142/g,'l').trim().replace(/\s+/g,' ');
-      const match=normalize(place.join(' - ')||city);
-      external.providerStopIds={marcelMatchKeys:match,marcelCityMatchKeys:normalize(city)+'|'+match};
+      const courseStop={nazMi:city,nazPr:place.join(' - ')||city};
+      external.providerStopIds={marcelMatchKeys:marcelCourseStopMatchKey(courseStop),marcelCityMatchKeys:marcelCourseStopIndexKey(courseStop)};
     }
     setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);
   },[selectedBus,stopsList]);

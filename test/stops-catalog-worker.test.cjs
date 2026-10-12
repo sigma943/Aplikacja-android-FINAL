@@ -86,7 +86,7 @@ test('map ignores a late result from an older catalog after inputs change',async
  const original=global.window;const tasks=[];global.window={setTimeout:fn=>{tasks.push(fn);return tasks.length;},clearTimeout(){},addEventListener(){},removeEventListener(){}};
  let effect;const displayed=[],jobs=[];
  const hook=load('lib/use-map-stops.ts',{
-  react:{useState:()=>[[],value=>displayed.push(value)],useEffect:fn=>{effect=fn;}},
+  react:{useState:()=>[[],value=>displayed.push(value)],useRef:()=>({current:[]}),useEffect:fn=>{effect=fn;}},
   './stops-catalog-async':{buildStopsCatalogAsync:()=>new Promise(resolve=>jobs.push(resolve))},
   './stops-catalog-cache':{readStopsCatalogCache:async()=>null,peekStopsCatalogCache:()=>null},
   './pks-client':{fetchMpkRzeszowStopsClient:()=>new Promise(()=>{})},

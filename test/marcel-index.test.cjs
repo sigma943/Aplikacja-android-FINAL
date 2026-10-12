@@ -24,3 +24,15 @@ test('missing GPS stays missing and valid coordinates from another course replac
  assert.ok(missing,'stop remains available for departures');assert.equal(missing.lat,undefined);assert.equal(missing.lon,undefined);
  const school=stops.find(s=>s!==missing);assert.equal(school.lat,49.95);assert.equal(school.lon,21.9,'coordinates must come from the same observation');
 });
+
+test('bare Marcel platform numbers preserve locality and direction identities instead of disappearing',async()=>{
+ const api={fetchMarcelRoutesClient:async()=>[{idTr:1}],fetchMarcelCoursesClient:async()=>[{idKu:1}],fetchMarcelPublicCourseStopsClient:async()=>[
+  {nazMi:'Babica',nazPr:'83 (+)',szGps:49.95,dlGps:21.9},
+  {nazMi:'Babica',nazPr:'82 (-)',szGps:49.949,dlGps:21.899},
+  {nazMi:'Babica',nazPr:'(81)',szGps:null,dlGps:null}]};
+ const domain=load('components/stops-panel/stop-domain.ts',{'@/lib/pks-client':api});
+ const rows=await domain.getMarcelStopsIndex('2026-10-09');
+ assert.equal(rows.length,2);assert.deepEqual(rows.map(s=>s.cityMatchKey).sort(),['babica|82','babica|83']);
+ assert.equal(domain.marcelCourseStopIndexKey({nazMi:'Babica',nazPr:'083 (+)'}),'babica|83');
+ assert.notEqual(rows[0].id,rows[1].id);
+});
