@@ -259,19 +259,19 @@ test('closed new logins require a pending device and installation; callers canno
  const pending={...device('user',id),loginApproved:false};
  await assertFails(setDoc(doc(db,'devices','pending-device'),device('user',id)));
  await assertFails(setDoc(doc(db,'devices','pending-device'),{...pending,loginApproved:true}));
- await assertFails(setDoc(doc(db,'installations',id),{...pending,loginApproved:true}));
- const batch=writeBatch(db);batch.set(doc(db,'devices','pending-device'),pending);batch.set(doc(db,'installations',id),{...pending,lastUid:'pending-device'});await assertSucceeds(batch.commit());
+ await assertFails(setDoc(doc(db,'installations',id),{...pending,loginApproved:true,updatedBy:'pending-device'}));
+ const batch=writeBatch(db);batch.set(doc(db,'devices','pending-device'),pending);batch.set(doc(db,'installations',id),{...pending,lastUid:'pending-device',updatedBy:'pending-device'});await assertSucceeds(batch.commit());
  await assertSucceeds(getDoc(doc(db,'devices','pending-device')));
  await assertFails(updateDoc(doc(db,'devices','pending-device'),{loginApproved:true}));
  await assertFails(updateDoc(doc(db,'installations',id),{loginApproved:true}));
  await assertSucceeds(updateDoc(doc(owner,'devices','pending-device'),{verified:true}));
  const saved=(await getDoc(doc(db,'devices','pending-device'))).data();
- await assertSucceeds(setDoc(doc(db,'installations',id),{...saved,lastUid:'pending-device'}));
+ await assertSucceeds(setDoc(doc(db,'installations',id),{...saved,lastUid:'pending-device',updatedBy:'pending-device'}));
 });
 test('pending reinstall cannot change approval even after global logins reopen',async()=>{
  const id='android_3123456789abcdef';
  await env.withSecurityRulesDisabled(async context=>{const db=context.firestore();await setDoc(doc(db,'installations',id),{...device('user',id),loginApproved:false,lastUid:'prior-pending'});await setDoc(doc(db,'devices','prior-pending'),{...device('user',id),loginApproved:false});});
  const db=env.authenticatedContext('next-pending').firestore();
  await assertFails(setDoc(doc(db,'devices','next-pending'),{...device('user',id),loginApproved:true}));
- const batch=writeBatch(db);const pending={...device('user',id),loginApproved:false};batch.set(doc(db,'devices','next-pending'),pending);batch.set(doc(db,'installations',id),{...pending,lastUid:'next-pending'});batch.delete(doc(db,'devices','prior-pending'));await assertSucceeds(batch.commit());
+ const batch=writeBatch(db);const pending={...device('user',id),loginApproved:false};batch.set(doc(db,'devices','next-pending'),pending);batch.set(doc(db,'installations',id),{...pending,lastUid:'next-pending',updatedBy:'next-pending'});batch.delete(doc(db,'devices','prior-pending'));await assertSucceeds(batch.commit());
 });

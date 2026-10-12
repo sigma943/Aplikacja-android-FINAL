@@ -874,7 +874,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[role="dialog"]',{hidden:true});
     assert.deepEqual(errors,[]);
     console.log('Browser: widget advanced options start collapsed; transparency, custom accents, corners, density, text, direction/delay toggles, defaults and light theme update the preview without mobile overflow.');
-    await page.goto(origin+'/login-fixture/',{waitUntil:'networkidle0'});
+    await page.goto(origin+'/login-fixture/',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-login-open]',{timeout:15000});
     await page.evaluate(()=>window.__startupTest.loginPolicy(false));
     await page.waitForSelector('[data-login-blocked]');
