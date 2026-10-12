@@ -32,6 +32,8 @@ android {
             if (System.getenv('APK_SIGNING_STORE_FILE')) signingConfig signingConfigs.persistent
         }
         release {
+            debuggable false
+            shrinkResources false
             if (System.getenv('APK_SIGNING_STORE_FILE')) signingConfig signingConfigs.persistent
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

@@ -108,10 +108,40 @@ jobs:
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew testDebugUnitTest assembleDebug
+          if [ -n "$APK_SIGNING_STORE_FILE" ]; then
+            ./gradlew testDebugUnitTest testReleaseUnitTest assembleDebug assembleRelease
+          else
+            ./gradlew testDebugUnitTest assembleDebug
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: pks-live-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+
+      - name: Verify signed release matches debug application
+        if: env.APK_SIGNING_STORE_FILE != ''
+        run: |
+          python scripts/verify-apk-variants.py \
+            android/app/build/outputs/apk/debug/app-debug.apk \
+            android/app/build/outputs/apk/release/app-release.apk \
+            "$ANDROID_HOME/build-tools/36.0.0/aapt" \
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
+            "$RUNNER_TEMP/apk-variant-verification.json"
+
+      - name: Upload signed release APK
+        if: env.APK_SIGNING_STORE_FILE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: pks-live-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload APK verification report
+        if: env.APK_SIGNING_STORE_FILE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-variant-verification
+          path: ${{ runner.temp }}/apk-variant-verification.json
+          if-no-files-found: error
