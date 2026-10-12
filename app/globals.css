@@ -67,7 +67,7 @@
   --ui-raised: #fffaf0;
   --ui-glass: rgb(250 247 239 / 64%);
   --ui-glass-row: rgb(255 250 240 / 42%);
-  --ui-muted: #746a58;
+  --ui-muted: #544a38;
   --ui-text: #272116;
   --ui-edge: rgb(138 123 95 / 18%);
 }
@@ -687,16 +687,45 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] input::placeholder,
 .pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] textarea::placeholder { color:var(--ui-muted); }
 
-/* Sparse hearts stay entirely in the outer 12px gutters. Stagger the two
-   sides vertically and keep glow/pattern layers independent of the motifs. */
+/* Hearts repeat across the same full-width tiles as clouds and leaves.
+   Decoration stays behind content, independently of glow and texture. */
 .pks-theme-root[data-ui-theme='light-pink'] :is(
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],
   .transit-surface,.admin-topbar,.pks-personal-card,.widget-generator,.pks-navigation
 ) {
-  background-image:var(--theme-decoration),var(--theme-decoration),var(--personal-glow-image,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
-  background-repeat:repeat-y,repeat-y,repeat,repeat !important;
-  background-size:12px 216px,12px 216px,auto,auto !important;
-  background-position:left top,right 0 top 36px,center,center !important;
+  background-image:var(--theme-decoration),var(--personal-glow-image,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
+  background-repeat:repeat,repeat,repeat !important;
+  background-size:320px 180px,auto,auto !important;
+  background-position:left top,center,center !important;
   background-origin:padding-box;
   background-clip:padding-box;
 }
+
+/* Neutral labels use the active palette in every light theme, including glass.
+   Solid accent buttons retain their separately computed foreground colour. */
+.pks-theme-root[data-ui-theme^='light'] :is(
+  .transit-view,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope
+) :is(.text-slate-100,.text-slate-200,.text-slate-300,.text-gray-100,.text-gray-200,.text-gray-300,[data-stop-line-overflow]) {
+  color:var(--ui-text) !important;
+}
+.pks-theme-root[data-ui-theme^='light'] :is(
+  .transit-view,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope
+) :is(.text-slate-400,.text-slate-500,.text-slate-600,.text-gray-400,.text-gray-500,.text-gray-600,.map-detail-muted) {
+  color:var(--ui-muted) !important;
+}
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope) :is(input,textarea)::placeholder {
+  color:var(--ui-muted) !important;
+  opacity:1;
+}
+.pks-theme-root[data-ui-theme^='light'] [data-stop-line-overflow] {
+  background-color:var(--ui-raised);
+  border-color:var(--ui-edge);
+}
+/* Carrier and status hues need darker text over tinted light surfaces. */
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-orange-400,.text-amber-300,.text-amber-400) { color:#78350f !important; }
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-teal-300,.text-teal-400,.text-emerald-300,.text-emerald-400) { color:#064e3b !important; }
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-lime-300,.text-lime-400) { color:#365314 !important; }
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-blue-300,.text-blue-400,.text-sky-300,.text-sky-400,.text-cyan-300,.text-cyan-400) { color:#1e3a8a !important; }
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-rose-300,.text-rose-400,.text-red-400) { color:#881337 !important; }
+
+.stop-line-overflow { color:var(--ui-text,#cbd5e1); }

@@ -184,9 +184,40 @@ const server=http.createServer((req,res)=>{
     await button('Przystanki');await page.waitForSelector('.transit-surface');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.transit-surface')).backgroundImage.includes('svg'));
     const pinkStops=await page.$eval('.transit-surface',el=>({pattern:getComputedStyle(el).backgroundImage,surface:getComputedStyle(el).backgroundColor,canvas:getComputedStyle(el.closest('.transit-view')).getPropertyValue('--transit-canvas').trim()}));
-    assert.ok(backgroundSvgs(pinkStops.pattern).some(svg=>svg.includes("fill='#000000'")),'pink stop panels have black hearts');
+    assert.ok(backgroundSvgs(pinkStops.pattern).some(svg=>svg.includes('id="heart"')),'pink stop panels have heart decorations');
     assert.equal(pinkStops.canvas,'#ffd1e8');assert.notEqual(pinkStops.surface,'rgb(255, 255, 255)');
     await screenshot('stops-pink-hearts');
+
+    // Real computed colours, including alpha compositing of glass and line chips.
+    for(const mode of ['light','light-warm','light-pink','light-sky'])for(const glass of [false,true]){
+      await page.evaluate(({mode,glass})=>{
+        localStorage.setItem('mks_app_theme',mode);localStorage.setItem('mks_transparent',String(glass));
+        window.dispatchEvent(new Event('pks-profile-applied'));
+      },{mode,glass});
+      await page.waitForSelector(`[data-ui-theme="${mode}"]`);
+      await page.waitForSelector(`[data-stop-line-overflow]`);
+      const contrasts=await page.evaluate(()=>{
+        const rgba=color=>color.match(/[\d.]+/g).map(Number);
+        const blend=(fg,bg)=>fg.slice(0,3).map((v,i)=>v*(fg[3]??1)+bg[i]*(1-(fg[3]??1)));
+        const background=el=>{
+          if(!el)return [255,255,255];
+          return blend(rgba(getComputedStyle(el).backgroundColor),background(el.parentElement));
+        };
+        const luminance=rgb=>rgb.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+        const ratio=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+        const nodes=[...document.querySelectorAll('[data-stop-card-id] h3,[data-stop-card-id] p,[data-stop-line-badges] span')];
+        const input=document.querySelector('input[placeholder*="Babica"]');
+        return [...nodes.map(el=>({label:el.textContent,ratio:ratio(luminance(blend(rgba(getComputedStyle(el).color),background(el))),luminance(background(el)))})),
+          {label:'search placeholder',ratio:ratio(luminance(rgba(getComputedStyle(input,'::placeholder').color)),luminance(background(input)))}];
+      });
+      assert.ok(contrasts.some(row=>/^\+\d/.test(row.label)),'overflow chip is checked');
+      for(const row of contrasts)assert.ok(row.ratio>=4.5,`${mode}, glass=${glass}: ${row.label} contrast ${row.ratio}`);
+      await screenshot(`stops-contrast-${mode}-${glass?'glass':'solid'}`);
+      if(mode==='light-pink'){
+        const tile=await page.$eval('.transit-surface',el=>getComputedStyle(el).backgroundSize);
+        assert.ok(tile.startsWith('320px 180px'),'hearts cover full-width tiles like clouds');
+      }
+    }
 
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforePink);
     // Check saved theme in a fresh document, preserving the browser context's
@@ -722,7 +753,7 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>{localStorage.setItem('mks_app_theme','light-pink');window.dispatchEvent(new Event('pks-profile-applied'));});
     await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor==='rgb(255, 184, 219)');
-    assert.ok(backgroundSvgs(await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundImage)).some(svg=>svg.includes("fill='#000000'")));
+    assert.ok(backgroundSvgs(await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundImage)).some(svg=>svg.includes('id="heart"')));
     assert.equal(await page.$eval('.admin-light .pks-personal-card',el=>getComputedStyle(el).backgroundColor),'rgb(255, 184, 219)');
     await screenshot('admin-pink-hearts');
     await page.evaluate(()=>{localStorage.setItem('mks_app_theme','dark');window.dispatchEvent(new Event('pks-profile-applied'));});

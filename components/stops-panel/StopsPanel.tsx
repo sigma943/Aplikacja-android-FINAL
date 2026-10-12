@@ -307,7 +307,7 @@ export default function StopsPanel({
           />
         ) : (
           <StopList initialFavoritesOnly={initialFavoritesOnly}
-            notice={Object.keys(catalogErrors).length>0 && <div role="status" className="col-span-full rounded-xl border border-amber-500/30 bg-slate-900 p-3 text-sm text-amber-200">
+            notice={Object.keys(catalogErrors).length>0 && <div role="status" className={`col-span-full rounded-xl border border-amber-500/30 p-3 text-sm ${isDarkTheme ? 'bg-slate-900 text-amber-200' : 'bg-amber-50 text-amber-900'}`}>
         {Object.keys(catalogErrors).join(', ')}: nie udało się pobrać pełnej listy przystanków.
         <button onClick={()=>{setCatalogErrors({});setCatalogAttempt(value=>value+1);}} className="ml-3 underline">Ponów</button>
       </div>}

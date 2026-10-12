@@ -49,6 +49,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
       main:forest?'text-[#edf9f0]':'text-[#103750]',sub:forest?'text-[#b7d8c3]':'text-[#315f7d]',spinner:forest?'#67dca0':'#075985'};
   }
   if (themeMode === 'light-pink') {
+    Object.assign(pageStyle,{backgroundImage:themeDecoration(themeMode)});
     return {page:'bg-[#ffd1e8] text-[#57153c]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',main:'text-[#57153c]',mainStyle,sub:'text-[#832557]',spinner:'#c02674'};
   }
   if (isWarm) {

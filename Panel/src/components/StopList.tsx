@@ -101,7 +101,7 @@ function StopLineBadges({lines,providerId,pksLineSet,providers}:{lines:string[];
   const visible=lines.slice(0,visibleCount),remaining=lines.length-visible.length;
   return <div ref={row} data-stop-line-badges data-line-total={lines.length} className="mt-1 flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden">
     {visible.map(line=><span key={line} className={`max-w-[5.5rem] shrink-0 truncate rounded-md border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line,providers?.[line]?.[0]||(pksLineSet.has(line)?'pks':providerId))}`}>{line}</span>)}
-    {remaining>0&&<span data-stop-line-overflow className="shrink-0 rounded border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] font-black text-slate-300">+{remaining}</span>}
+    {remaining>0&&<span data-stop-line-overflow className="shrink-0 rounded border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] font-black stop-line-overflow">+{remaining}</span>}
   </div>;
 }
 
@@ -411,7 +411,7 @@ export default function StopList({
 
             {filteredStops.length === 0 && (
               <div className={`mt-16 px-4 text-center text-[15px] text-slate-500 ${isFullScreen ? 'col-span-full' : ''}`}>
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-slate-900 text-slate-600">
+                <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
                 {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak wyników dla podanej nazwy.'}
@@ -500,7 +500,7 @@ export default function StopList({
 
             {fullFilteredStops.length === 0 && (
               <div className="mt-16 px-4 text-center text-[15px] text-slate-500">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-slate-900 text-slate-600">
+                <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
                 {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak pasujących przystanków dla tej nazwy.'}

@@ -7,7 +7,7 @@ test('heart checks decode only SVG URLs when backgrounds also contain gradient p
   assert.throws(()=>decodeURIComponent(layers),URIError);
   const svgs=backgroundSvgs(layers);
   assert.equal(svgs.length,2);
-  assert.ok(svgs.every(svg=>svg.includes("fill='#000000'")));
+  assert.ok(svgs.every(svg=>svg.includes('id="heart"')));
   assert.deepEqual(backgroundSvgs('radial-gradient(at 20% 0%, transparent 70%)'),[]);
 });
 test('SVG extraction supports CSS URL quoting and preserves encoded percent signs',()=>{
