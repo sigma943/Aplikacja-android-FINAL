@@ -19,8 +19,8 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
     preview:{background:'#061a13',surface:'#102f23',text:'#edf9f0'},
   },
   {
-    name:'Niebo',description:'Błękitne panele, puszyste chmury i delikatna świetlista poświata',theme:'light-sky',accent:'#1679b7',glass:true,glow:true,glowStrength:40,
-    appearance:appearance({glassOpacity:88,glassBlur:16,borderStrength:18,shadowStrength:25,navIndicator:'pill',glowStyle:'accent',glowColor:'#1679b7',glowSpread:90,glowPlacement:'diagonal'}),
+    name:'Niebo',description:'Błękitne panele, puszyste chmury i delikatna świetlista poświata',theme:'light-sky',accent:'#075985',glass:true,glow:true,glowStrength:40,
+    appearance:appearance({glassOpacity:88,glassBlur:16,borderStrength:18,shadowStrength:25,navIndicator:'pill',glowStyle:'accent',glowColor:'#075985',glowSpread:90,glowPlacement:'diagonal'}),
     preview:{background:'#d5efff',surface:'#aedbfa',text:'#103750'},
   },
   {

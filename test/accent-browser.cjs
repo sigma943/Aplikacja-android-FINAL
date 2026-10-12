@@ -124,26 +124,31 @@ const server=http.createServer((req,res)=>{
       await screenshot('personalization-'+mode);
       await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
       await button('Przystanki');await page.waitForSelector('.transit-surface');await screenshot('stops-'+mode);await button('Mapa');
-      await page.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
+      await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
+      const screens=await browser.newPage();screens.on('pageerror',e=>errors.push(e.message));
+      await screens.setViewport({width:393,height:851,deviceScaleFactor:1});
+      await screens.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
       for(const kind of ['loading','error','maintenance','ban','silent']){
-        await page.click(`[data-screen-kind="${kind}"]`);await page.waitForSelector(`[data-startup-theme="${mode}"]`);
-        const background=await page.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
+        await screens.click(`[data-screen-kind="${kind}"]`);await screens.waitForSelector(`[data-startup-theme="${mode}"]`);
+        const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
         assert.equal(background,mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
-        assert.ok((await page.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage)).includes('svg'));
-        if(kind==='silent'){assert.equal(await page.$('[data-ban-screen]'),null);assert.equal(await page.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
-        if(kind==='ban'||kind==='loading')await screenshot(kind+'-'+mode);
+        assert.ok((await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage)).includes('svg'));
+        if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
+        if(kind==='ban'||kind==='loading')await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
       }
-      await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector(`[data-ui-theme="${mode}"]`);
+      await screens.close();await page.bringToFront();await page.waitForSelector(`[data-ui-theme="${mode}"]`);
     }
-    await page.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
+    const fallbackScreens=await browser.newPage();fallbackScreens.on('pageerror',e=>errors.push(e.message));
+    await fallbackScreens.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
     for(const dark of [false,true]){
-      await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:dark?'dark':'light'}]);
-      await page.evaluate(()=>{localStorage.setItem('mks_app_theme','damaged-theme');window.dispatchEvent(new Event('pks-interface-appearance'));});
-      await page.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
-      await page.evaluate(()=>{window.__themeGetItem=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key==='mks_app_theme')throw new Error('Blocked theme storage');return window.__themeGetItem.call(this,key);};window.dispatchEvent(new Event('pks-profile-applied'));});
-      await page.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
-      await page.evaluate(()=>{Storage.prototype.getItem=window.__themeGetItem;});
+      await fallbackScreens.emulateMediaFeatures([{name:'prefers-color-scheme',value:dark?'dark':'light'}]);
+      await fallbackScreens.evaluate(()=>{localStorage.setItem('mks_app_theme','damaged-theme');window.dispatchEvent(new Event('pks-interface-appearance'));});
+      await fallbackScreens.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
+      await fallbackScreens.evaluate(()=>{window.__themeGetItem=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key==='mks_app_theme')throw new Error('Blocked theme storage');return window.__themeGetItem.call(this,key);};window.dispatchEvent(new Event('pks-profile-applied'));});
+      await fallbackScreens.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
+      await fallbackScreens.evaluate(()=>{Storage.prototype.getItem=window.__themeGetItem;});
     }
+    await fallbackScreens.close();await page.bringToFront();
     await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforeNewThemes);
     await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-ui-theme="dark-oled"]');

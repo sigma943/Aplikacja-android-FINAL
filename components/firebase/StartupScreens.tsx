@@ -46,7 +46,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
     Object.assign(pageStyle,{backgroundImage:decoration,'--startup-decoration':decoration});
     return {page:'pks-themed-screen',pageStyle,glow:'',grid:'',mainStyle,
       card:forest?'border-emerald-200/20 bg-[#102f23]/90 shadow-black/30':'border-[#527fa3]/25 bg-[#d5efff]/90 shadow-sky-900/15',
-      main:forest?'text-[#edf9f0]':'text-[#103750]',sub:forest?'text-[#b7d8c3]':'text-[#315f7d]',spinner:forest?'#67dca0':'#1679b7'};
+      main:forest?'text-[#edf9f0]':'text-[#103750]',sub:forest?'text-[#b7d8c3]':'text-[#315f7d]',spinner:forest?'#67dca0':'#075985'};
   }
   if (themeMode === 'light-pink') {
     return {page:'bg-[#ffd1e8] text-[#57153c]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',main:'text-[#57153c]',mainStyle,sub:'text-[#832557]',spinner:'#c02674'};

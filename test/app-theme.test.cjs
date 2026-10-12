@@ -22,3 +22,11 @@ test('blocked storage uses system, and selected forest/sky profiles survive back
   assert.ok(theme.themeDecoration(mode).startsWith('url('));
  }
 });
+
+test('forest and sky accents remain readable on their raised panels',()=>{
+ const {INTERFACE_PRESETS}=load('lib/interface-presets.ts');
+ const lum=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0);
+ for(const [mode,bg] of [['dark-forest','#194333'],['light-sky','#aedbfa']]){
+  const accent=INTERFACE_PRESETS.find(p=>p.theme===mode).accent,a=lum(accent),b=lum(bg);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5);
+ }
+});
