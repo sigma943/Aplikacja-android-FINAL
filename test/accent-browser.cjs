@@ -195,9 +195,12 @@ const server=http.createServer((req,res)=>{
         window.dispatchEvent(new Event('pks-profile-applied'));
       },{mode,glass});
       await page.waitForSelector(`[data-ui-theme="${mode}"]`);
-      await page.click('input[placeholder*="Babica"]');
-      await page.keyboard.down('Control');await page.keyboard.press('KeyA');await page.keyboard.up('Control');
-      await page.type('input[placeholder*="Babica"]','Boguchwała');
+      await page.waitForFunction(glass=>document.querySelector('.transit-view')?.closest('.pks-panel-scope')?.dataset.glass===(glass?'on':'off'),{},glass);
+      await page.$eval('input[placeholder*="Babica"]',el=>{
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,'Boguchwała');
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+      });
+      await page.waitForFunction(()=>document.querySelector('input[placeholder*="Babica"]')?.value==='Boguchwała');
       await page.waitForSelector('[data-stop-line-overflow]');
       const contrasts=await page.evaluate(()=>{
         const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
