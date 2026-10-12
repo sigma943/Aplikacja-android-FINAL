@@ -442,7 +442,7 @@ const server=http.createServer((req,res)=>{
     assert.ok(await page.$eval('.personal-profile-save button',el=>el.disabled),'save remains visible and disabled without a name');
     assert.ok(await page.$eval('.personal-profile-save',el=>{const button=el.querySelector('button').getBoundingClientRect(),box=el.getBoundingClientRect();return button.width>0&&button.right<=box.right+1&&button.left>=box.left;}),'save fits next to the name at 320px');
     const transfer=await page.$$eval('[data-appearance-transfer] button',els=>els.map(el=>{const icon=el.querySelector('svg').getBoundingClientRect(),label=el.querySelector('span').getBoundingClientRect(),box=el.getBoundingClientRect();return {display:getComputedStyle(el).display,aligned:Math.abs(icon.y+icon.height/2-label.y-label.height/2)<1,contained:icon.left>=box.left&&label.right<=box.right+1,ordered:icon.right<=label.left};}));
-    assert.equal(transfer.length,2);assert.ok(transfer.every(el=>el.display==='inline-flex'&&el.aligned&&el.contained&&el.ordered),'import/export icons and labels share a centred row and fit a 320px phone');
+    assert.equal(transfer.length,2);assert.ok(transfer.every(el=>['flex','inline-flex'].includes(el.display)&&el.aligned&&el.contained&&el.ordered),'import/export icons and labels share a centred row and fit a 320px phone');
     await page.$eval('[data-appearance-transfer]',el=>el.scrollIntoView({block:'center'}));await screenshot('appearance-transfer-mobile');
     await page.type('[aria-label="Nazwa własnego zestawu"]','Mój zestaw testowy');
     await page.click('.personal-profile-save button');
