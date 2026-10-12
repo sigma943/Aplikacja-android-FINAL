@@ -118,7 +118,7 @@ const server=http.createServer((req,res)=>{
     for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff'],['Kosmos','dark-cosmos','#000000']]){
       await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
-      assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-canvas').trim()),canvas);
+      assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundColor),`rgb(${[1,3,5].map(index=>parseInt(canvas.slice(index,index+2),16)).join(', ')})`);
       assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),mode==='dark-cosmos'?'off':'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),mode==='dark-cosmos'?'false':'true');
       const pattern=await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage);
       assert.ok(pattern.includes('svg'),'selected theme has static decorations');if(mode!=='dark-cosmos')assert.ok(pattern.includes('radial-gradient'),'decoration and glow are both present');

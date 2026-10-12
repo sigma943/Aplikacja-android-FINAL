@@ -760,7 +760,7 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   border-color:var(--ui-edge);
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-card:nth-child(3n+2) { background-position:110px -135px; }
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-card:nth-child(3n) { background-position:-130px -215px; }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-card:nth-child(3n) { background-position:180px -215px; }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-panel-scope[data-panel-theme] :is(
   [class~='bg-[#040609]'],[class~='bg-[#080B12]'],[class~='bg-[#080b12]'],[class~='bg-[#0d1117]'],
   [class~='bg-[#0F131D]'],[class~='bg-[#0f131d]'],[class~='bg-[#0F131D]/95'],[class~='bg-[#0f131d]/95'],
