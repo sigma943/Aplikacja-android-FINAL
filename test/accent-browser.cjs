@@ -133,7 +133,9 @@ const server=http.createServer((req,res)=>{
         await screens.click(`[data-screen-kind="${kind}"]`);await screens.waitForSelector(`[data-startup-theme="${mode}"]`);
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
         assert.equal(background,mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
-        assert.ok((await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage)).includes('svg'));
+        const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
+        if(kind==='loading')assert.equal(decoration,'none','loading screen has a uniform theme background');
+        else assert.ok(decoration.includes('svg'));
         if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
         if(kind==='ban'||kind==='loading')await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
       }
