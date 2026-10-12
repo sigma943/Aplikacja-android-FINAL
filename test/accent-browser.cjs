@@ -112,7 +112,13 @@ const server=http.createServer((req,res)=>{
     await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-ui-theme="dark-pink"]');
     await page.click('[aria-label="Przewoźnicy"]');await page.waitForSelector('[data-carrier-sheet]');
-    assert.ok(await page.$eval('[data-carrier-sheet]',el=>getComputedStyle(el).backgroundColor.includes('53, 32, 45')),'carrier panel uses pink theme');
+    const carrierPink=await page.$eval('[data-carrier-sheet]',el=>{
+      const color=getComputedStyle(el).backgroundColor;
+      const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+      const context=canvas.getContext('2d');context.fillStyle=color;context.fillRect(0,0,1,1);
+      return {color,rgba:[...context.getImageData(0,0,1,1).data]};
+    });
+    assert.ok(carrierPink.rgba.slice(0,3).every((value,i)=>Math.abs(value-[53,32,45][i])<=1),'carrier panel uses pink theme: '+carrierPink.color);
     await screenshot('carriers-pink');
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforePink);
     // Check saved theme in a fresh document, preserving the browser context's
