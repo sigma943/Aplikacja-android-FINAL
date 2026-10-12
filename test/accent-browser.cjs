@@ -874,31 +874,35 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[role="dialog"]',{hidden:true});
     assert.deepEqual(errors,[]);
     console.log('Browser: widget advanced options start collapsed; transparency, custom accents, corners, density, text, direction/delay toggles, defaults and light theme update the preview without mobile overflow.');
-    await page.goto(origin+'/login-fixture/',{waitUntil:'domcontentloaded'});
-    await page.waitForSelector('[data-login-open]',{timeout:15000});
-    await page.evaluate(()=>window.__startupTest.loginPolicy(false));
-    await page.waitForSelector('[data-login-blocked]');
-    assert.equal(await page.$('[data-login-open]'),null);
+    const loginPage=await browser.newPage();
+    loginPage.on('pageerror',error=>errors.push(error.message));
+    await loginPage.goto(origin+'/login-fixture/',{waitUntil:'domcontentloaded'});
+    await loginPage.waitForSelector('[data-login-open]',{timeout:15000});
+    await loginPage.evaluate(()=>window.__startupTest.loginPolicy(false));
+    await loginPage.waitForSelector('[data-login-blocked]');
+    assert.equal(await loginPage.$('[data-login-open]'),null);
     for(const [role,verified] of [['user',true],['admin',false],['owner',false]]){
-      await page.evaluate((role,verified)=>window.__startupTest.loginPolicy(false,role,verified),role,verified);
-      await page.waitForSelector('[data-login-open]');
-      assert.equal(await page.$('[data-login-blocked]'),null);
-      await page.evaluate(()=>window.__startupTest.loginPolicy(false));
-      await page.waitForSelector('[data-login-blocked]');
+      await loginPage.evaluate((role,verified)=>window.__startupTest.loginPolicy(false,role,verified),role,verified);
+      await loginPage.waitForSelector('[data-login-open]');
+      assert.equal(await loginPage.$('[data-login-blocked]'),null);
+      await loginPage.evaluate(()=>window.__startupTest.loginPolicy(false));
+      await loginPage.waitForSelector('[data-login-blocked]');
     }
-    await page.evaluate(()=>window.__startupTest.loginPolicy(true));
-    await page.waitForSelector('[data-login-open]');
-    await page.evaluate(()=>window.__startupTest.loginPolicy(false,'user',false,true));
-    await page.waitForSelector('[data-login-open]');
+    await loginPage.evaluate(()=>window.__startupTest.loginPolicy(true));
+    await loginPage.waitForSelector('[data-login-open]');
+    await loginPage.evaluate(()=>window.__startupTest.loginPolicy(false,'user',false,true));
+    await loginPage.waitForSelector('[data-login-open]');
     for(const width of [320,393,1024]){
-      await page.setViewport({width,height:800,deviceScaleFactor:1});
-      const pending=await page.evaluate(()=>[...document.querySelectorAll('[data-login-pending]')].filter(el=>el.getBoundingClientRect().width>0).map(el=>({text:el.textContent,right:el.getBoundingClientRect().right,left:el.getBoundingClientRect().left,overflow:el.scrollWidth>el.clientWidth+1})));
+      await loginPage.setViewport({width,height:800,deviceScaleFactor:1});
+      const pending=await loginPage.evaluate(()=>[...document.querySelectorAll('[data-login-pending]')].filter(el=>el.getBoundingClientRect().width>0).map(el=>({text:el.textContent,right:el.getBoundingClientRect().right,left:el.getBoundingClientRect().left,overflow:el.scrollWidth>el.clientWidth+1})));
       assert.ok(pending.length>0);
       for(const label of pending){assert.equal(label.text,'Oczekuje na dostęp');assert.ok(label.left>=0&&label.right<=width);assert.equal(label.overflow,false);}
-      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+      assert.equal(await loginPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+      await loginPage.screenshot({path:'test/ui-previews/login-pending-'+width+'.png'});
     }
-    await screenshot('login-pending-device');
+    await loginPage.screenshot({path:'test/ui-previews/login-pending-device.png'});
     assert.deepEqual(errors,[]);
+    await loginPage.close();
     console.log('Browser: closed new logins wait for approval; verification and admin/owner roles unblock immediately; existing admission is preserved; pending device label fits phone and desktop.');
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
     console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');
