@@ -266,7 +266,7 @@ export function MaintenanceView({
 
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-8">
+    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
