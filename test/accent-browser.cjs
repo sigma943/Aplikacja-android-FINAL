@@ -212,6 +212,7 @@ const server=http.createServer((req,res)=>{
         await new Promise(resolve=>setTimeout(resolve,1200));
         assert.deepEqual(await captureStopPanels(),stopPanels,'stop detail composition survives completed loading, clock refreshes and preference events');
         assert.notEqual(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>el.style.getPropertyValue('--cosmos-planet')),'none','every cosmic departure panel has one restrained planet');
+        assert.ok(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>el.getBoundingClientRect().height>=160),'short and empty departure panels have room for the entire planet');
         assert.ok(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>getComputedStyle(el).backgroundSize.includes('min(100%, 640px)')),'long timetables cannot magnify stars to their content height');
         assert.equal(await page.$$eval('[data-departure-row]',els=>els.some(el=>el.getAnimations().some(animation=>animation.playState==='running'))),false,'Kosmos refreshes departure values without replaying row entrance animations');
         await screenshot('departures-dark-cosmos-stable');
