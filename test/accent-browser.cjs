@@ -194,7 +194,7 @@ const server=http.createServer((req,res)=>{
         await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
         await new Promise(resolve=>setTimeout(resolve,8500));
         assert.deepEqual(await captureCosmic(),stable,'focus, appearance refreshes and meteor ticks never randomize existing scenes');
-        assert.ok(await page.$$eval('.transit-stop-card',els=>els.every(el=>{const style=getComputedStyle(el);return style.backgroundRepeat.split(',').every(value=>value.trim()==='no-repeat')&&style.backgroundSize.split(',')[2].trim()==='cover';})),'dust has no repeated tile boundaries inside any card');
+        assert.ok(await page.$$eval('.transit-stop-card',els=>els.every(el=>{const style=getComputedStyle(el);return style.backgroundRepeat.split(',').every(value=>value.trim()==='no-repeat')&&style.backgroundSize.includes('min(100%, 640px)');})),'dust stays bounded to panel width without repeated tile boundaries');
         await page.type('input[placeholder*="Babica"]','Albigowa');
         await page.waitForFunction(count=>{const titles=[...document.querySelectorAll('.transit-stop-card h3')];return titles.length>0&&titles.length<count&&titles.every(el=>el.textContent.includes('Albigowa'));},{},stable.length);
         await page.click('[aria-label="Wyczysc wyszukiwanie"]');
@@ -211,6 +211,9 @@ const server=http.createServer((req,res)=>{
         await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
         await new Promise(resolve=>setTimeout(resolve,1200));
         assert.deepEqual(await captureStopPanels(),stopPanels,'stop detail composition survives completed loading, clock refreshes and preference events');
+        assert.notEqual(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>el.style.getPropertyValue('--cosmos-planet')),'none','every cosmic departure panel has one restrained planet');
+        assert.ok(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>getComputedStyle(el).backgroundSize.includes('min(100%, 640px)')),'long timetables cannot magnify stars to their content height');
+        assert.equal(await page.$$eval('[data-departure-row]',els=>els.some(el=>el.getAnimations().some(animation=>animation.playState==='running'))),false,'Kosmos refreshes departure values without replaying row entrance animations');
         await page.click('[aria-label="Wróć do listy przystanków"]');
         await page.waitForSelector('.transit-stop-card');
         await page.click('.transit-stop-card');

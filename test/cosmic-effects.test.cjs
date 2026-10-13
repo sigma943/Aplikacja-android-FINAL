@@ -79,3 +79,10 @@ test('panel dust uses a bounded cover position instead of offsets crossing repea
  const {cosmicScene}=load('lib/cosmic-scene.ts');
  for(let i=0;i<300;i++){const scene=cosmicScene(i);assert.ok(scene.dustX>=0&&scene.dustX<=100);assert.ok(scene.dustY>=0&&scene.dustY<=100);}
 });
+
+test('cosmic nebulae contain fine stars without oversized cross shapes, and departures always have one modest planet',()=>{
+ const {COSMIC_DUST,COSMIC_PLANETS,cosmicPanelStyle}=load('lib/cosmic-scene.ts');
+ for(const image of COSMIC_DUST){const svg=decodeURIComponent(image);assert.doesNotMatch(svg,/<path|<rect/);assert.ok((svg.match(/<circle/g)||[]).length>=350);const radii=[...svg.matchAll(/\br="([\d.]+)"/g)].map(match=>Number(match[1]));assert.ok(Math.max(...radii)<=4);}
+ for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.ok(COSMIC_PLANETS.includes(style['--cosmos-planet']));assert.equal(style['--cosmos-planet-size'],'56px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
+ const {COSMIC_STAR_POSITIONS,COSMIC_TWINKLE_INTERVAL}=load('lib/cosmic-effects.ts');assert.ok(COSMIC_STAR_POSITIONS.length>=12&&COSMIC_STAR_POSITIONS.length<=18);assert.ok(COSMIC_TWINKLE_INTERVAL>=9000);
+});

@@ -4,7 +4,7 @@ import {Capacitor} from '@capacitor/core';
 import {App} from '@capacitor/app';
 import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
-import {COSMIC_METEOR_DURATION,COSMIC_TWINKLE_INTERVAL,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
+import {COSMIC_METEOR_DURATION,COSMIC_TWINKLE_INTERVAL,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
 
 import {COSMIC_DUST,COSMIC_PLANETS,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicScene,cosmicListScene,cosmicVisitSession} from '@/lib/cosmic-scene';
 
@@ -99,11 +99,11 @@ export default function CosmicEffects(){
     const startStars=()=>{
       if(stars.length||!field.current)return;
       const points=field.current.querySelectorAll<HTMLElement>('[data-cosmic-star]');
-      const positions=[[16,18],[77,31],[39,54],[87,76],[23,86],[61,12],[55,70]];
+      const positions=COSMIC_STAR_POSITIONS;
       points.forEach((point,i)=>{
         point.style.left=positions[i][0]+'%';point.style.top=positions[i][1]+'%';
-        const duration=COSMIC_TWINKLE_INTERVAL+i*850;
-        stars.push(point.animate([{opacity:.06},{opacity:.55,offset:.5},{opacity:.06}],{duration,delay:-i*1370,iterations:Infinity,easing:'ease-in-out'}));
+        const duration=COSMIC_TWINKLE_INTERVAL+i*500;
+        stars.push(point.animate([{opacity:.04},{opacity:.38,offset:.5},{opacity:.04}],{duration,delay:-i*1370,iterations:Infinity,easing:'ease-in-out'}));
       });
     };
     const scheduler=cosmicMeteorScheduler(()=>allowed,()=>{
@@ -155,5 +155,5 @@ export default function CosmicEffects(){
       delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;root.style.removeProperty('--theme-decoration');
     };
   },[]);
-  return <div ref={field} data-cosmic-effects aria-hidden="true">{Array.from({length:7},(_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor/></div>;
+  return <div ref={field} data-cosmic-effects aria-hidden="true">{COSMIC_STAR_POSITIONS.map((_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor/></div>;
 }

@@ -766,7 +766,8 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)),linear-gradient(135deg,#080c18,#04060e 62%,#0b0c19) !important;
   /* One complete image per panel: random pixel offsets of a repeated tile
      expose hard vertical/horizontal boundaries inside the nebula. */
-  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,cover,100% 100% !important;
+  /* Fit artwork to panel width, never magnify it to a long timetable's height. */
+  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,640px) auto,100% 100% !important;
   background-position:center,var(--cosmos-planet-position,84% 78%),var(--cosmos-dust-position,50% 50%),center !important;
   background-repeat:no-repeat !important;
   /* Decode transparent planet images normally; blended GPU layers can retain
@@ -802,13 +803,12 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 [data-cosmic-meteor]::before { content:''; position:absolute; left:0; top:-1px; width:3px; height:3px; border-radius:50%; background:#f3f1ff; }
 @media (prefers-reduced-motion:reduce) { [data-cosmic-effects] { display:none !important; } }
 
-[data-cosmic-star] { position:absolute; width:7px; height:7px; opacity:0; background:radial-gradient(circle,#f4f1ff 0 12%,#b4caff66 18%,transparent 58%); }
-[data-cosmic-star]::before,[data-cosmic-star]::after { content:''; position:absolute; background:linear-gradient(transparent,#dce3ffaa,transparent); width:1px; height:7px; left:3px; }
-[data-cosmic-star]::after { transform:rotate(90deg); }
+[data-cosmic-star] { position:absolute; width:6px; height:6px; opacity:0; background:radial-gradient(circle,#f4f1ff 0 10%,#b4caff66 16%,transparent 65%); }
+[data-cosmic-star]:nth-child(3n) { width:4px; height:4px; }
 
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.transit-view,[data-statistics-view]),.pks-theme-root[data-ui-theme='dark-cosmos'] {
   background-image:var(--theme-decoration);
-  background-size:cover;
+  background-size:min(100%,640px) auto;
   background-position:center;
   background-repeat:no-repeat;
 }
@@ -816,6 +816,15 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card {
   --cosmos-readability:linear-gradient(180deg,rgba(4,6,14,.82),rgba(4,6,14,.52) 42%,transparent 78%);
   box-shadow:inset 0 1px 0 rgb(202 211 255 / 3%);
+  border-color:rgb(167 154 226 / 18%) !important;
+}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card > div:first-child {
+  background-color:rgb(21 23 43 / 78%);
+  border-color:rgb(167 154 226 / 25%);
+}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-departure-row] {
+  animation:none !important;
+  transition:none !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-navigation {
   --cosmos-planet:none;
