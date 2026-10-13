@@ -755,12 +755,12 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
   .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation
 ) {
-  background-image:var(--theme-decoration) !important;
-  background-size:480px 320px !important; background-repeat:repeat !important;
+  background-image:var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)) !important;
+  background-size:var(--cosmos-planet-size,80px) var(--cosmos-planet-size,80px),640px 400px !important;
+  background-position:var(--cosmos-planet-position,78% 45%),var(--cosmos-dust-position,0px 0px) !important;
+  background-repeat:no-repeat,repeat !important;
   border-color:var(--ui-edge);
 }
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-card:nth-child(3n+2) { background-position:110px -135px; }
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-card:nth-child(3n) { background-position:180px -215px; }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-panel-scope[data-panel-theme] :is(
   [class~='bg-[#040609]'],[class~='bg-[#080B12]'],[class~='bg-[#080b12]'],[class~='bg-[#0d1117]'],
   [class~='bg-[#0F131D]'],[class~='bg-[#0f131d]'],[class~='bg-[#0F131D]/95'],[class~='bg-[#0f131d]/95'],
@@ -774,3 +774,9 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 [data-cosmic-meteor] { position:absolute; width:86px; height:1.5px; opacity:0; border-radius:999px; background:linear-gradient(90deg,#f1f1ff,#b6a3ff80 28%,transparent); transform-origin:left center; }
 [data-cosmic-meteor]::before { content:''; position:absolute; left:0; top:-1px; width:3px; height:3px; border-radius:50%; background:#f3f1ff; }
 @media (prefers-reduced-motion:reduce) { [data-cosmic-effects] { display:none !important; } }
+
+[data-cosmic-star] { position:absolute; width:7px; height:7px; opacity:0; background:radial-gradient(circle,#f4f1ff 0 12%,#b4caff66 18%,transparent 58%); }
+[data-cosmic-star]::before,[data-cosmic-star]::after { content:''; position:absolute; background:linear-gradient(transparent,#dce3ffaa,transparent); width:1px; height:7px; left:3px; }
+[data-cosmic-star]::after { transform:rotate(90deg); }
+
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.transit-view,[data-statistics-view]) { background-image:var(--theme-decoration); }

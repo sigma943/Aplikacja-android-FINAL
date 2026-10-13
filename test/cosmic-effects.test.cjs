@@ -22,5 +22,11 @@ test('Kosmos replaces Aurora, stays black at first paint, survives backups and u
  assert.ok(THEME_MODES.includes('dark-cosmos'));assert.equal(THEME_MODES.includes('dark-aurora'),false);assert.equal(normalizeAppTheme('dark-aurora'),'dark-cosmos');assert.equal(THEME_SCREEN_COLORS['dark-cosmos'].background,'#000000');
  const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),preset=INTERFACE_PRESETS.find(p=>p.name==='Kosmos');assert.equal(preset.glass,false);assert.equal(preset.glow,false);assert.equal(preset.appearance.glassBlur,0);
  const {exportAppearanceBackup,parseAppearanceBackup}=load('lib/appearance-backup.ts');const profile={...preset,id:'current',updatedAt:1};assert.equal(parseAppearanceBackup(exportAppearanceBackup(profile,[],{},false)).current.theme,'dark-cosmos');
- const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<6000);assert.match(atlas,/id="violet"/);assert.match(atlas,/id="blue"/);assert.match(atlas,/id="rust"/);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
+ const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<26000);assert.match(atlas,/id="nebula"/);assert.match(atlas,/id="mist"/);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
+});
+
+test('individual cosmic panels have diverse, stable seeded positions and six textured planet families',()=>{
+ const {cosmicScene,COSMIC_PLANETS,COSMIC_DUST}=load('lib/cosmic-scene.ts');assert.equal(COSMIC_PLANETS.length,6);assert.equal(COSMIC_DUST.length,4);
+ const scenes=Array.from({length:30},(_,i)=>cosmicScene(i*931+77));assert.ok(new Set(scenes.map(s=>s.planet)).size>=5);assert.ok(new Set(scenes.map(s=>s.x.toFixed(0))).size>15);assert.ok(new Set(scenes.map(s=>s.y.toFixed(0))).size>15);assert.ok(scenes.some(s=>!s.showPlanet));assert.deepEqual(cosmicScene(77),cosmicScene(77));
+ for(const scene of scenes){assert.ok(scene.x>=28&&scene.x<=93);assert.ok(scene.y>=12&&scene.y<=91);assert.ok(scene.size<=114);}
 });

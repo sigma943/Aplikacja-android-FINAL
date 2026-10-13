@@ -127,9 +127,13 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
         await page.waitForFunction(()=>document.querySelector('[data-cosmic-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:12000,polling:25});
         assert.equal(await page.$$eval('[data-cosmic-meteor]',els=>els.length),1);
+        assert.ok(await page.$$eval('[data-cosmic-star]',els=>els.some(el=>el.getAnimations().some(a=>a.playState==='running'))),'small stars twinkle');
+        const layouts=await page.$$eval('[data-cosmic-scene]',els=>els.map(el=>el.style.getPropertyValue('--cosmos-planet-position')));
+        assert.ok(new Set(layouts).size>1,'panels have individual scattered planet positions');
         await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
         assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
+        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0);
         await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
         await page.evaluate(()=>{localStorage.setItem('mks_light_effects','true');window.dispatchEvent(new Event('pks-interface-appearance'));});
@@ -139,12 +143,19 @@ const server=http.createServer((req,res)=>{
         const idleTab=await browser.newPage();await idleTab.bringToFront();
         await page.waitForFunction(()=>document.hidden&&document.documentElement.dataset.cosmicMotion==='off');
         assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
+        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0);
         await idleTab.close();await page.bringToFront();
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
       }
       await screenshot('personalization-'+mode);
       await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
-      await button('Przystanki');await page.waitForSelector('.transit-surface');await screenshot('stops-'+mode);await button('Mapa');
+      await button('Przystanki');await page.waitForSelector('.transit-surface');
+      if(mode==='dark-cosmos'){
+        await page.waitForFunction(()=>document.querySelectorAll('.transit-card[data-cosmic-scene]').length>3);
+        const positions=await page.$$eval('.transit-card[data-cosmic-scene]',els=>els.map(el=>el.style.getPropertyValue('--cosmos-planet-position')));
+        assert.ok(new Set(positions).size>3,'stop cards do not repeat a three-row planet pattern');
+      }
+      await screenshot('stops-'+mode);await button('Mapa');
       await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
       const screens=await browser.newPage();screens.on('pageerror',e=>errors.push(e.message));
       await screens.setViewport({width:393,height:851,deviceScaleFactor:1});
