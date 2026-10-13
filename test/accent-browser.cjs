@@ -200,6 +200,13 @@ const server=http.createServer((req,res)=>{
           let hash=2166136261;const dust=el.style.getPropertyValue('--cosmos-dust');for(let i=0;i<dust.length;i++)hash=Math.imul(hash^dust.charCodeAt(i),16777619)>>>0;
           return {id:el.dataset.stopCardId,visit:el.dataset.cosmicVisit,art:[el.dataset.cosmicPlanet,el.dataset.cosmicPlanetName,el.style.getPropertyValue('--cosmos-planet-position'),el.style.getPropertyValue('--cosmos-planet-size'),el.style.getPropertyValue('--cosmos-dust-position'),hash].join('|')};
         }));
+        assert.ok(await page.$$eval('.transit-stop-card',nodes=>nodes.every(node=>{
+          const style=getComputedStyle(node),rect=node.getBoundingClientRect();
+          return style.transform==='none'&&style.opacity==='1'&&parseFloat(style.borderBottomWidth)>=1&&rect.height>80;
+        })),'cosmic stop cards retain full borders and avoid transformed clipping layers');
+        const skyArt=await page.$eval('.pks-theme-root',node=>getComputedStyle(node).backgroundImage);
+        assert.ok(skyArt.includes('sky-cloud')&&skyArt.includes('sky-mist'),'canvas includes stars and nebulae');
+        assert.ok(!skyArt.includes('/themes/kosmos/')&&!skyArt.includes('corona'),'canvas never contains planets or suns');
         const stable=await captureCosmic();
         const skyBeforeOptions=await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage);
         for(let repeat=0;repeat<2;repeat++){
@@ -1063,12 +1070,33 @@ const server=http.createServer((req,res)=>{
     await cosmosPage.waitForSelector('[data-cosmic-view="admin:devices"][data-cosmic-seed]');
     const adminSeed=await cosmosPage.$eval('[data-cosmic-view="admin:devices"]',node=>node.dataset.cosmicSeed);
     await cosmosPage.waitForFunction(()=>typeof window.__startupTest?.loginPolicy==='function');
-    await cosmosPage.evaluate(()=>window.__startupTest.loginPolicy(true,'owner',true,true));
+    await cosmosPage.evaluate(()=>{
+      window.__adminCosmicChanges=[];
+      const seen=new WeakMap();
+      new MutationObserver(records=>{
+        for(const record of records){
+          const node=record.target;
+          if(!(node instanceof HTMLElement)||!node.closest('[data-cosmic-view^="admin:"]'))continue;
+          const art=['--cosmos-planet','--cosmos-planet-position','--cosmos-planet-size','--cosmos-dust'].map(key=>node.style.getPropertyValue(key)).join('|');
+          if(!node.dataset.cosmicScene)continue;
+          const previous=seen.get(node);
+          if(previous&&previous.visit===node.dataset.cosmicVisit&&previous.art!==art)window.__adminCosmicChanges.push(node.dataset.cosmicScene);
+          seen.set(node,{visit:node.dataset.cosmicVisit,art});
+        }
+      }).observe(document.body,{subtree:true,attributes:true,attributeFilter:['data-cosmic-scene','data-cosmic-visit','style']});
+      window.__startupTest.loginPolicy(true,'owner',true,true);
+    });
     await cosmosPage.waitForSelector('.admin-topbar');await cosmosPage.waitForSelector('[data-cosmic-view="admin:devices"] [data-cosmic-scene]');assert.equal(await cosmosPage.$eval('[data-cosmic-view="admin:devices"]',node=>node.dataset.cosmicSeed),adminSeed,'admin preserves the visit seed from loading to loaded data');
     const adminArt=()=>cosmosPage.$$eval('[data-cosmic-scene]',nodes=>nodes.map(node=>({key:node.dataset.cosmicScene,art:[...node.style].filter(name=>name.startsWith('--cosmos-')).map(name=>node.style.getPropertyValue(name)).join('|')})).sort((a,b)=>a.key.localeCompare(b.key)));
     await cosmosPage.waitForSelector('[data-cosmic-panel="admin-device:restored-owner-uid"]');
     assert.equal(await cosmosPage.$eval('[data-cosmic-canvas]',node=>getComputedStyle(node).backgroundColor),'rgba(0, 0, 0, 0)','admin list canvas reveals the sky outside its cards');
     const beforeData=await adminArt();await cosmosPage.evaluate(()=>{window.dispatchEvent(new Event('focus'));window.__startupTest.heartbeat();});await new Promise(resolve=>setTimeout(resolve,600));assert.deepEqual(await adminArt(),beforeData,'admin data snapshots do not randomize the existing arrangement');
+    assert.deepEqual(await cosmosPage.evaluate(()=>window.__adminCosmicChanges),[],'admin panels receive only one composition while loading completes');
+    await cosmosPage.waitForSelector('[data-cosmic-panel="admin-sidebar"][data-cosmic-scene]');
+    const sidebarArt=await cosmosPage.$eval('[data-cosmic-panel="admin-sidebar"]',node=>node.getAttribute('style'));
+    const menu=await cosmosPage.$('[aria-label="Otwórz menu"]');
+    if(menu){await menu.click();await new Promise(resolve=>setTimeout(resolve,400));}
+    assert.equal(await cosmosPage.$eval('[data-cosmic-panel="admin-sidebar"]',node=>node.getAttribute('style')),sidebarArt,'opening admin sidebar keeps its composition');
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-admin-stable.png'});
     await cosmosPage.goto(origin+'/cosmos-route-fixture/',{waitUntil:'domcontentloaded'});await cosmosPage.waitForSelector('.leaflet-interactive');await cosmosPage.waitForFunction(()=>window.__stationRoute?.length>0);
     assert.ok(!await cosmosPage.evaluate(()=>window.__stationRoute.some(p=>p[0]===50.041991&&p[1]===22.002377)),'map paints the corrected station corridor');

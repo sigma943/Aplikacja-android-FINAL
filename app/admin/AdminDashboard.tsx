@@ -268,7 +268,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
   if (loading) {
     return (
-      <div data-cosmic-view={`admin:${activeView}`} data-cosmic-seed={cosmicScope?.seed} data-panel-theme={isDarkTheme?'dark':'light'} className="pks-panel-scope min-h-screen bg-[#040609] flex items-center justify-center text-white">Ładowanie...</div>
+      <div data-cosmic-view={`admin:${activeView}`} data-cosmic-seed={cosmicScope?.view===activeView?cosmicScope.seed:undefined} data-panel-theme={isDarkTheme?'dark':'light'} className="pks-panel-scope min-h-screen bg-[#040609] flex items-center justify-center text-white">Ładowanie...</div>
     );
   }
 
@@ -983,7 +983,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       }
       style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
       data-cosmic-view={`admin:${activeView}`}
-      data-cosmic-seed={cosmicScope?.seed}
+      data-cosmic-seed={cosmicScope?.view===activeView?cosmicScope.seed:undefined}
       data-glass={embedded && transparentUI ? 'on' : 'off'}
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >

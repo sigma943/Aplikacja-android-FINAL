@@ -101,3 +101,12 @@ test('options overlay preserves the underlying visit and every cached card, real
  session.enter('map:tab');session.enter('stops:tab');
  assert.notDeepEqual(session.scene('stop:123',cosmicScene),card);
 });
+
+
+test('canvas skies are seeded, contain stars and nebulae, and never contain planets or suns',()=>{
+ const {cosmicSky}=load('lib/cosmic-scene.ts');
+ assert.equal(cosmicSky(123),cosmicSky(123));assert.notEqual(cosmicSky(123),cosmicSky(456));
+ const svg=decodeURIComponent(cosmicSky(123));
+ assert.ok((svg.match(/<circle/g)||[]).length>=300);assert.match(svg,/sky-cloud/);assert.match(svg,/sky-mist/);
+ assert.doesNotMatch(svg,/planet|sun|corona|<image/);
+});

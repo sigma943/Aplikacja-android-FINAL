@@ -6,7 +6,7 @@ import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {COSMIC_METEOR_DURATION,COSMIC_TWINKLE_INTERVAL,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
 
-import {COSMIC_DUST,COSMIC_SKY,COSMIC_SUN,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicKeySeed,cosmicOrb,cosmicScene,cosmicListScene,cosmicVisitSession} from '@/lib/cosmic-scene';
+import {COSMIC_DUST,cosmicSky,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicKeySeed,cosmicOrb,cosmicScene,cosmicListScene,cosmicVisitSession} from '@/lib/cosmic-scene';
 
 let visitSession:ReturnType<typeof cosmicVisitSession>|null=null;
 
@@ -19,11 +19,14 @@ export default function CosmicEffects(){
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
     const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
     const session=visitSession??=cosmicVisitSession(crypto.getRandomValues(new Uint32Array(1))[0]);
+    const sky=cosmicSky(crypto.getRandomValues(new Uint32Array(1))[0]);
     let sequences=new WeakMap<Element,{previous?:ReturnType<typeof cosmicScene>;gap:number}>();
     const stars:Animation[]=[],placed=new WeakMap<Element,{epoch:number;key:string}>();
     const panelKey=(node:HTMLElement)=>{
       if(node.dataset.stopCardId)return `stop:${node.dataset.stopCardId}`;
       if(node.dataset.cosmicPanel)return `panel:${node.dataset.cosmicPanel}`;
+      if(node.classList.contains('admin-topbar'))return 'admin:topbar';
+      if(node.classList.contains('pks-personal-panel'))return 'admin:sidebar';
       if(node.id)return `id:${node.id}`;
       const path:string[]=[];
       for(let element:Element|null=node;element&&element!==document.body;element=element.parentElement){
@@ -66,6 +69,10 @@ export default function CosmicEffects(){
       const panels=[...(node.matches(COSMIC_PANEL_SELECTOR)?[node]:[]),...node.querySelectorAll(COSMIC_PANEL_SELECTOR)];
       for(const panel of panels){
         if(!(panel instanceof HTMLElement)||panel.hasAttribute('data-cosmic-owned'))continue;
+        // Admin chooses its visit seed before any panel may receive artwork.
+        // Otherwise loading first paints a global scene, then replaces it.
+        const adminScope=panel.closest<HTMLElement>('[data-cosmic-view^="admin:"]');
+        if(adminScope&&!adminScope.dataset.cosmicSeed)continue;
         const previous=placed.get(panel),scope=scopedKey(panel);
         const identityChanged=Boolean(previous&&((panel.dataset.stopCardId||panel.dataset.cosmicPanel)?previous.key!==scope.key:scope.seed?!previous.key.startsWith(`scope:${scope.seed}:`):previous.key.startsWith('scope:')));
         if(!previous||identityChanged||(!scope.seed&&previous.epoch!==session.epoch))place(panel);
@@ -146,7 +153,7 @@ export default function CosmicEffects(){
       if(session.enter(`${tab}:${view}`,optionsOpen))sequences=new WeakMap();
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
-      if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',COSMIC_SKY);const backdrop=session.scene('screen-sky',cosmicScene);root.style.setProperty('--cosmos-ambient-orb',backdrop.sun?COSMIC_SUN:'none');discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-ambient-orb');}
+      if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',sky);discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');}
       const changed=nextRegion!==region;region=nextRegion;measure();
       const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region)});
       if(nextAllowed!==allowed||changed){
@@ -167,7 +174,7 @@ export default function CosmicEffects(){
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);
       native?.then(handle=>handle.remove()).catch(()=>{});
-      delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-ambient-orb');
+      delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');
     };
   },[]);
   return <div ref={field} data-cosmic-effects aria-hidden="true">{COSMIC_STAR_POSITIONS.map((_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor/></div>;

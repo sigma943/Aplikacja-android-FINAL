@@ -1,11 +1,19 @@
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
-import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import {readAppTheme,resolveAppTheme} from '@/lib/app-theme';
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
 import { motion, useReducedMotion } from 'motion/react';
 import VirtualStopCards from './VirtualStopCards';
+
+const subscribeTheme=(update:()=>void)=>{
+  const events=['storage','pks-interface-appearance','pks-profile-applied'];
+  for(const event of events)window.addEventListener(event,update);
+  return ()=>{for(const event of events)window.removeEventListener(event,update);};
+};
+const cosmicTheme=()=>resolveAppTheme(readAppTheme())==='dark-cosmos';
 
 interface StopListProps {
   initialFavoritesOnly?:boolean;
@@ -121,7 +129,9 @@ export default function StopList({
 }: StopListProps) {
   const favoritesOnly=searchState?.favoritesOnly??initialFavoritesOnly;
   const [localInputValue, setLocalInputValue] = useState('');
-  const reduceMotion = useReducedMotion();
+  const cosmic=useSyncExternalStore(subscribeTheme,cosmicTheme,()=>false);
+  // WebView can retain old clipping bounds on moving, decorated cards.
+  const reduceMotion = useReducedMotion() || cosmic;
   const [localFullListOpen, setLocalFullListOpen] = useState(false);
   const isFullListOpen = searchState?.isFullListOpen ?? localFullListOpen;
   const setIsFullListOpen = (value: boolean) => {setLocalFullListOpen(value);onSearchStateChange?.({isFullListOpen:value});};
@@ -250,7 +260,7 @@ export default function StopList({
     return (
       <motion.div
         key={`${full ? 'full' : 'list'}-${stop.id}`}
-        layout={full ? false : 'position'}
+        layout={full || reduceMotion ? false : 'position'}
         data-stop-card-id={stop.id}
         transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 230, damping: 30}}}
         role="button"

@@ -754,7 +754,7 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
-  .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation
+  .admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation
 ) {
   /* Each panel owns its scene. Newly mounted children must not briefly borrow
      their parent's planet while waiting for scene discovery. Inline placement
@@ -793,7 +793,7 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-panel-scope[data-panel-theme] :is(
   [class~='bg-[#040609]'],[class~='bg-[#080B12]'],[class~='bg-[#080b12]'],[class~='bg-[#0d1117]'],
   [class~='bg-[#0F131D]'],[class~='bg-[#0f131d]'],[class~='bg-[#0F131D]/95'],[class~='bg-[#0f131d]/95'],
-  [class~='bg-[#111623]'],[class~='bg-[#111623]/50'],[class~='bg-[#151B28]'],[class~='bg-[#0a0f18]'],.admin-topbar,.pks-personal-card
+  [class~='bg-[#111623]'],[class~='bg-[#111623]/50'],[class~='bg-[#151B28]'],[class~='bg-[#0a0f18]'],.admin-topbar,.pks-personal-panel,.pks-personal-card
 ) { background-color:var(--ui-surface) !important; }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.transit-view,.map-detail-shell,.pks-panel-scope,[data-carrier-sheet]) :is(.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-muted) { color:var(--ui-muted); }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-panel-scope,.pks-options-sheet,[data-carrier-sheet]) :is(input,textarea)::placeholder { color:var(--ui-muted); }
@@ -835,6 +835,10 @@ html[data-cosmic-theme='on']:has([data-carrier-sheet]) [data-map-canvas] { visib
   --cosmos-readability:linear-gradient(105deg,rgba(0,0,0,.92),rgba(0,0,0,.55) 48%,transparent 82%);
   box-shadow:none !important;
   border-color:rgb(167 154 226 / 24%) !important;
+  transform:none !important;
+  will-change:auto !important;
+  opacity:1 !important;
+  background-attachment:scroll !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card > div:first-child {
   background-color:#0b0c14;

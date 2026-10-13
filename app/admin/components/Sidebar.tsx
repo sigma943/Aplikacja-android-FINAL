@@ -55,7 +55,7 @@ export function Sidebar({
         />
       )}
 
-      <div className={cn(
+      <div data-cosmic-panel="admin-sidebar" className={cn(
         "pks-personal-panel fixed inset-y-0 left-0 z-[7000] w-64 border-r border-white/5 bg-[#080B12] flex flex-col justify-between transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0 lg:flex-shrink-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
