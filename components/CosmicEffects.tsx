@@ -23,6 +23,7 @@ export default function CosmicEffects(){
     const stars:Animation[]=[],placed=new WeakMap<Element,{epoch:number;key:string}>();
     const panelKey=(node:HTMLElement)=>{
       if(node.dataset.stopCardId)return `stop:${node.dataset.stopCardId}`;
+      if(node.dataset.cosmicPanel)return `panel:${node.dataset.cosmicPanel}`;
       if(node.id)return `id:${node.id}`;
       const path:string[]=[];
       for(let element:Element|null=node;element&&element!==document.body;element=element.parentElement){
@@ -77,19 +78,23 @@ export default function CosmicEffects(){
     };
     const observer=new MutationObserver(records=>{
       let regionsChanged=false;
+      const added:Element[]=[];
       for(const record of records){
         if(record.type==='attributes'){
-          if(record.attributeName==='aria-hidden'||(record.attributeName==='aria-current'&&record.target instanceof Element&&record.target.hasAttribute('data-nav-item')))regionsChanged=true;
-          if(record.attributeName==='data-stop-card-id'&&record.target instanceof Element)discover(record.target);
+          if(record.attributeName==='aria-hidden'||record.attributeName==='data-cosmic-view'||(record.attributeName==='aria-current'&&record.target instanceof Element&&record.target.hasAttribute('data-nav-item')))regionsChanged=true;
+          if(record.attributeName==='data-stop-card-id'&&record.target instanceof Element)added.push(record.target);
         }
         for(const node of [...record.addedNodes,...record.removedNodes])if(node instanceof Element){
           if(node.matches(regionSelector)||node.querySelector(regionSelector))regionsChanged=true;
-          if(node.isConnected&&root.dataset.cosmicTheme==='on')discover(node);
+          if(node.isConnected)added.push(node);
         }
       }
+      // Resolve the final visible view before decorating any newly mounted panels.
+      // A loading render and its completed render must share the same visit.
       if(regionsChanged)update();
+      else if(root.dataset.cosmicTheme==='on')for(const node of added)discover(node);
     });
-    observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-hidden','aria-current','data-stop-card-id']});
+    observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-hidden','aria-current','data-stop-card-id','data-cosmic-view']});
     const stopStars=()=>{for(const star of stars)star.cancel();stars.length=0;};
     const startStars=()=>{
       if(stars.length||!field.current)return;
@@ -118,12 +123,16 @@ export default function CosmicEffects(){
       let reduced=media.matches,light=false;
       try{light=localStorage.getItem('mks_light_effects')==='true';reduced ||= normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;}catch{}
       const active=[...document.querySelectorAll<HTMLElement>('.pks-navigation [data-nav-item][aria-current="page"]')].find(node=>!node.closest('.personal-preview-scene'));
-      const tab=active?.dataset.navItem||session.tab||'root';
-      if(session.enter(tab))sequences=new WeakMap();
+      const tab=active?.dataset.navItem||session.tab?.split(':',1)[0]||'root';
+      const nextRegion=findRegion();
+      const view=nextRegion?.dataset.cosmicView||[
+        ['.pks-options-sheet','options'],['[data-carrier-sheet]','carriers'],['.map-detail-shell','map-detail'],
+      ].find(([selector])=>nextRegion?.matches(selector))?.[1]||'tab';
+      if(session.enter(`${tab}:${view}`))sequences=new WeakMap();
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
       if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));discover(document.body);}else {root.style.removeProperty('--theme-decoration');}
-      const nextRegion=findRegion(),changed=nextRegion!==region;region=nextRegion;measure();
+      const changed=nextRegion!==region;region=nextRegion;measure();
       const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region)});
       if(nextAllowed!==allowed||changed){
         allowed=nextAllowed;animation?.cancel();animation=null;stopStars();scheduler.refresh();

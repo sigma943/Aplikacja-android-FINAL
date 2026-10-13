@@ -980,6 +980,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           : cn('pks-panel-scope flex h-screen min-h-0 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
       }
       style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
+      data-cosmic-view={`admin:${activeView}`}
       data-glass={embedded && transparentUI ? 'on' : 'off'}
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >

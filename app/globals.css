@@ -755,6 +755,14 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
   .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation
 ) {
+  /* Each panel owns its scene. Newly mounted children must not briefly borrow
+     their parent's planet while waiting for scene discovery. Inline placement
+     overrides these defaults once, for the lifetime of the open view. */
+  --cosmos-planet:none;
+  --cosmos-planet-position:84% 78%;
+  --cosmos-planet-size:64px;
+  --cosmos-dust:var(--theme-decoration);
+  --cosmos-dust-position:50% 50%;
   background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)),linear-gradient(135deg,#080c18,#04060e 62%,#0b0c19) !important;
   /* One complete image per panel: random pixel offsets of a repeated tile
      expose hard vertical/horizontal boundaries inside the nebula. */

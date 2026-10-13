@@ -200,6 +200,24 @@ const server=http.createServer((req,res)=>{
         await page.click('[aria-label="Wyczysc wyszukiwanie"]');
         await page.waitForFunction(count=>document.querySelectorAll('.transit-stop-card').length===count,{},stable.length);
         assert.deepEqual(await captureCosmic(),stable,'filtering and rebuilding the stop list preserves each stop’s composition');
+        const captureStopPanels=()=>page.$$eval('[data-cosmic-panel]',els=>els.map(el=>({
+          key:el.dataset.cosmicPanel,visit:el.dataset.cosmicVisit,
+          art:[...el.style].filter(name=>name.startsWith('--cosmos-')).map(name=>el.style.getPropertyValue(name)).join('|'),
+        })));
+        await page.click('.transit-stop-card');
+        await page.waitForSelector('[data-cosmic-panel="stop-header"][data-cosmic-scene]');
+        const stopPanels=await captureStopPanels();
+        await page.waitForFunction(()=>!document.querySelector('[data-cosmic-panel="stop-departures"] .animate-spin'));
+        await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
+        await new Promise(resolve=>setTimeout(resolve,1200));
+        assert.deepEqual(await captureStopPanels(),stopPanels,'stop detail composition survives completed loading, clock refreshes and preference events');
+        await page.click('[aria-label="Wróć do listy przystanków"]');
+        await page.waitForSelector('.transit-stop-card');
+        await page.click('.transit-stop-card');
+        await page.waitForSelector('[data-cosmic-panel="stop-header"][data-cosmic-scene]');
+        assert.notDeepEqual((await captureStopPanels()).map(panel=>panel.art),stopPanels.map(panel=>panel.art),'closing and reopening stop detail creates a new composition');
+        await page.click('[aria-label="Wróć do listy przystanków"]');
+        await page.waitForSelector('.transit-stop-card');
         await button('Mapa');await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
         await button('Przystanki');await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="stops"]')?.getAttribute('aria-current')==='page');
         await page.waitForFunction(visit=>document.querySelector('.transit-stop-card')?.dataset.cosmicVisit!==visit,{},stable[0].visit);

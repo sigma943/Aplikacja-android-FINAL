@@ -160,11 +160,12 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       exit={{ opacity: 0, x: 15 }}
       transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1] }}
       data-ui-mode={isDarkTheme ? "dark" : "light"}
+      data-cosmic-view={`stop:${stop.id}`}
       className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
     >
       <div className="w-full max-w-3xl min-w-0 mx-auto">
         {/* Header */}
-        <div className={`relative mx-3 mt-3 rounded-[24px] border p-3.5 lg:mx-8 lg:p-5 overflow-hidden backdrop-blur-2xl ${headerShellClass}`}>
+        <div data-cosmic-panel="stop-header" className={`relative mx-3 mt-3 rounded-[24px] border p-3.5 lg:mx-8 lg:p-5 overflow-hidden backdrop-blur-2xl ${headerShellClass}`}>
           {/* Subtle background gradient */}
           <div className={`absolute top-0 right-0 w-full h-full ${headerGradientClass}`}></div>
           
@@ -221,7 +222,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
         <div className="px-3 lg:px-8 mt-3 space-y-4 relative z-10">
           
           {/* Calendar Picker Swipable 7-Day Row */}
-          <div className={`relative rounded-[22px] p-3 border backdrop-blur-2xl ${surfaceClass}`}>
+          <div data-cosmic-panel="stop-days" className={`relative rounded-[22px] p-3 border backdrop-blur-2xl ${surfaceClass}`}>
             <div className="flex justify-between items-center mb-2 px-1">
               <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest font-sans">Dzień odjazdu</h3>
               <span className="ui-accent-soft text-[10px] font-medium px-2 py-1 rounded-lg border capitalize">
@@ -298,7 +299,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                </div>
              </div>
               
-             <motion.div layout className={`backdrop-blur-2xl rounded-[22px] border overflow-hidden ${departuresCardClass}`}>
+             <motion.div data-cosmic-panel="stop-departures" layout className={`backdrop-blur-2xl rounded-[22px] border overflow-hidden ${departuresCardClass}`}>
                 {isLoading ? (
                   <div className="space-y-1.5 animate-pulse p-4">
                     {[1, 2, 3, 4].map((i) => (
