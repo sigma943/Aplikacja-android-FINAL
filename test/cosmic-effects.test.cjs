@@ -55,8 +55,11 @@ test('all eight planet photographs are packaged locally for offline Android use'
  const fs=require('node:fs');const {COSMIC_PLANET_NAMES,COSMIC_PLANETS}=load('lib/cosmic-scene.ts');
  assert.deepEqual([...COSMIC_PLANET_NAMES],['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune']);
  for(let i=0;i<COSMIC_PLANET_NAMES.length;i++){
-  assert.equal(COSMIC_PLANETS[i],`url("/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.jpg")`);
+  assert.equal(COSMIC_PLANETS[i],`url("/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.svg")`);
   const photo=fs.readFileSync(`public/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.jpg`);
   assert.equal(photo.readUInt16BE(0),0xffd8);assert.ok(photo.length>1000&&photo.length<100000);
+  const sprite=fs.readFileSync(`public/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.svg`,'utf8');
+  assert.ok(sprite.includes(photo.toString('base64')),'sprites embed the unchanged NASA photograph');
+  assert.match(sprite,/<feColorMatrix/);assert.doesNotMatch(sprite,/<animate|href="https?:/);
  }
 });

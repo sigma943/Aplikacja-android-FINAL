@@ -30,7 +30,7 @@ export const COSMIC_DUST = [dust(731), dust(1929), dust(4491), dust(8764)];
 
 /** Real NASA photographs, kept in their original aspect ratios and packaged offline. */
 export const COSMIC_PLANET_NAMES = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'] as const;
-export const COSMIC_PLANETS = COSMIC_PLANET_NAMES.map(name => `url("/themes/kosmos/${name}.jpg")`);
+export const COSMIC_PLANETS = COSMIC_PLANET_NAMES.map(name => `url("/themes/kosmos/${name}.svg")`);
 
 export function cosmicScene(seed: number, previous?: {x: number; planet: number}) {
   const r = cosmicRandom(seed);

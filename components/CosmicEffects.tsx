@@ -24,6 +24,7 @@ export default function CosmicEffects(){
       const sequence=card&&group?(sequences.get(group)||{gap:2}):undefined;
       const nextSeed=(seed+Math.imul(++sceneIndex,2654435761))>>>0;
       const scene=sequence?cosmicListScene(nextSeed,sequence.previous,sequence.gap):cosmicScene(nextSeed);
+      if(node.classList.contains('pks-map-search-panel'))scene.showPlanet=false;
       if(sequence&&group){
         if(scene.showPlanet){sequence.previous=scene;sequence.gap=0;}else sequence.gap++;
         sequences.set(group,sequence);

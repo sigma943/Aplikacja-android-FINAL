@@ -1,6 +1,6 @@
 # Kosmos planet imagery
 
-The eight planet photographs are packaged locally; no external image requests are made at runtime. Source: NASA Science, [About the Planets](https://science.nasa.gov/solar-system/planets/). Photographs are displayed at their original aspect ratios and combined with the panel using CSS screen blending, so their black backgrounds do not form rectangles. The photographs remain unmodified.
+The eight planet photographs are packaged locally; no external image requests are made at runtime. Source: NASA Science, [About the Planets](https://science.nasa.gov/solar-system/planets/). Photographs remain unmodified and retain their original aspect ratios. `scripts/build-cosmic-planets.mjs` wraps each photograph in a self-contained SVG with a static color matrix that makes its black background transparent. This is decoded as an ordinary image; panels do not use CSS background blending or backdrop filters. This avoids clipped composited backgrounds in Android WebView.
 
 - Mercury: https://science.nasa.gov/wp-content/uploads/2024/03/pia15162-mercury-basins-messenger-16x9-1.jpg?w=1024
 - Venus: https://science.nasa.gov/wp-content/uploads/2024/03/venus-mariner-10-pia23791-fig2-16x9-1.jpg?w=1024
