@@ -1193,6 +1193,7 @@ export default function Home() {
                   transition={{ duration: 0.15 }}
                   className={`absolute inset-0 z-[25] flex min-h-0 flex-col ${transparentUI ? 'pks-glass-frame' : isDark ? 'bg-[#040609]' : isWarm ? 'bg-[#f2ede1]' : 'bg-slate-50'}`}
                   data-panel-theme={isDark ? 'dark' : 'light'}
+                  data-cosmic-canvas
                >
                   <AdminDashboard embedded transparentUI={transparentUI} themeColor={themeColor} isDarkTheme={isDark} onExit={() => setActiveTab(isMapTabDisabled ? 'stops' : adminReturnTab.current)} />
                </motion.div>
@@ -1201,7 +1202,7 @@ export default function Home() {
          </BackScope>
 
          {/* ============== MAP VIEW ============== */}
-         <div className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
+         <div data-map-canvas className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
             <BusMap 
                vehicles={filteredVehicles} 
                onVehicleClick={handleVehicleClick}

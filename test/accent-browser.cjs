@@ -165,6 +165,14 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.querySelectorAll('.transit-card[data-cosmic-scene]').length>3);
         const positions=await page.$$eval('.transit-card[data-cosmic-scene]',els=>els.map(el=>el.style.getPropertyValue('--cosmos-planet-position')));
         assert.ok(new Set(positions).size>3,'stop cards do not repeat a three-row planet pattern');
+        assert.equal(await page.$eval('.transit-view',el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)','stop list reveals one shared nebula field');
+        assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'hidden','inactive map cannot cover the shared sky');
+        const skyPixels=await page.evaluate(async image=>{
+          const img=new Image();img.src=image;await img.decode();const canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;const context=canvas.getContext('2d');context.drawImage(img,0,0);
+          return [120,400,innerHeight-120].map(y=>[...context.getImageData(4,Math.floor(y),1,1).data]);
+        },'data:image/png;base64,'+Buffer.from(await page.screenshot()).toString('base64'));
+        assert.ok(skyPixels.every(pixel=>pixel[2]>=20),'space between cards is visibly blue/violet rather than solid black: '+JSON.stringify(skyPixels));
+
         const scenes=await page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>({planet:el.dataset.cosmicPlanet==='on',size:parseFloat(el.style.getPropertyValue('--cosmos-planet-size'))})));
         assert.ok(scenes.length>3);
         assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length/3),'planets occupy at most a third of stop cards');
@@ -232,7 +240,7 @@ const server=http.createServer((req,res)=>{
       await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
       if(mode==='dark-cosmos'){
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
-        assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','cosmic effects never overlay the bare map');
+        assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','cosmic effects never overlay the bare map');assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map is visible again after closing the cosmic panels');
         assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
         assert.equal(await page.$eval('.pks-map-search-panel',el=>el.style.getPropertyValue('--cosmos-planet')),'none','map search panel never receives planet artwork');
         assert.ok(!await page.$eval('.pks-map-search-panel',el=>getComputedStyle(el).backgroundImage.includes('/themes/kosmos/')),'no planet is painted underneath map search controls');
@@ -245,7 +253,7 @@ const server=http.createServer((req,res)=>{
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
         assert.equal(background,mode==='dark-cosmos'?'rgb(0, 0, 0)':mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
         const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
-        if(kind==='loading'){assert.equal(decoration,'none','loading screen has a uniform theme background');if(mode==='dark-cosmos')assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');}
+        if(kind==='loading'){if(mode==='dark-cosmos'){assert.ok(decoration.includes('sky-cloud')&&decoration.includes('radial-gradient'),'Kosmos retains the same sky during loading');assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');}else assert.equal(decoration,'none','other loading themes keep a uniform background');}
         else assert.ok(decoration.includes('svg'));
         if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
         if(kind==='ban'||kind==='loading')await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
@@ -876,7 +884,7 @@ const server=http.createServer((req,res)=>{
     await page.click('.pks-navigation [data-nav-item="admin"]');
     await page.waitForSelector('.admin-topbar');
 
-    for(const [mode,color] of [['dark-forest','rgb(25, 67, 51)'],['light-sky','rgb(174, 219, 250)'],['dark-cosmos','rgb(8, 10, 18)']]){
+    for(const [mode,color] of [['dark-forest','rgb(25, 67, 51)'],['light-sky','rgb(174, 219, 250)'],['dark-cosmos','rgba(8, 10, 18, 0.64)']]){
       await page.evaluate(mode=>{localStorage.setItem('mks_app_theme',mode);window.dispatchEvent(new Event('pks-profile-applied'));},mode);
       await page.waitForSelector(`[data-ui-theme="${mode}"]`);await page.waitForFunction(color=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor===color,{},color);
       if(mode==='dark-forest')assert.equal(await page.$eval('.pks-panel-scope input[placeholder="Szukaj..."]',el=>getComputedStyle(el,'::placeholder').color),'rgb(183, 216, 195)','forest admin hints use the readable muted palette');
@@ -936,8 +944,7 @@ const server=http.createServer((req,res)=>{
         const root=getComputedStyle(el),card=getComputedStyle(el.querySelector('.pks-personal-card'));
         return {root:root.backgroundColor,card:card.backgroundColor,blur:card.backdropFilter,decoration:card.backgroundImage};
       });
-      assert.ok(surfaces.root.startsWith('rgb('),'statistics background is fully opaque: '+theme);
-      assert.ok(surfaces.card.startsWith('rgb('),'statistics cards are fully opaque: '+theme);
+      if(theme==='dark-cosmos'){assert.equal(surfaces.root,'rgba(0, 0, 0, 0)','statistics reveals the shared cosmic canvas');assert.equal(surfaces.card,'rgba(8, 10, 18, 0.64)','cosmic statistics cards dim the shared sky for readability');}else{assert.ok(surfaces.root.startsWith('rgb('),'statistics background is fully opaque: '+theme);assert.ok(surfaces.card.startsWith('rgb('),'statistics cards are fully opaque: '+theme);}
       assert.equal(surfaces.blur,'none');
       assert.ok(backgroundSvgs(surfaces.decoration).length>0,'statistics uses the selected theme decoration: '+theme);
       await statisticsFits();await screenshot('statistics-'+theme);

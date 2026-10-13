@@ -40,7 +40,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
   } as React.CSSProperties;
 
   if(themeMode==='dark-cosmos'){
-    Object.assign(pageStyle,{backgroundImage:themeDecoration(themeMode)});
+    Object.assign(pageStyle,{backgroundImage:themeDecoration(themeMode),'--theme-decoration':themeDecoration(themeMode)});
     return {page:'bg-black text-[#f3f1ff]',pageStyle,glow:'',grid:'',mainStyle,card:'border-violet-300/20 bg-[#080a12] shadow-none',main:'text-[#f3f1ff]',sub:'text-[#b9bdcf]',spinner:'#b6a3ff'};
   }
   if(themeMode==='dark-forest'||themeMode==='light-sky'){

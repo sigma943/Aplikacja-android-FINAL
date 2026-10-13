@@ -22,7 +22,7 @@ test('Kosmos replaces Aurora, stays black at first paint, survives backups and u
  assert.ok(THEME_MODES.includes('dark-cosmos'));assert.equal(THEME_MODES.includes('dark-aurora'),false);assert.equal(normalizeAppTheme('dark-aurora'),'dark-cosmos');assert.equal(THEME_SCREEN_COLORS['dark-cosmos'].background,'#000000');
  const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),preset=INTERFACE_PRESETS.find(p=>p.name==='Kosmos');assert.equal(preset.glass,false);assert.equal(preset.glow,false);assert.equal(preset.appearance.glassBlur,0);
  const {exportAppearanceBackup,parseAppearanceBackup}=load('lib/appearance-backup.ts');const profile={...preset,id:'current',updatedAt:1};assert.equal(parseAppearanceBackup(exportAppearanceBackup(profile,[],{},false)).current.theme,'dark-cosmos');
- const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<44000);assert.match(atlas,/id="nebula"/);assert.match(atlas,/id="mist"/);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
+ const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<44000);assert.match(atlas,/id="sky-cloud"/);assert.ok((atlas.match(/<circle /g)||[]).length>=180);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
 });
 
 test('individual cosmic panels have diverse, stable seeded positions and eight real Solar System planets',()=>{
