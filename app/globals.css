@@ -831,10 +831,10 @@ html[data-cosmic-theme='on']:has([data-carrier-sheet]) [data-map-canvas] { visib
 .pks-theme-root[data-ui-theme='dark-cosmos'] .pks-panel-scope[data-panel-theme][data-glass] [data-statistics-view] .pks-personal-card { background-color:var(--ui-surface) !important; }
 /* Cards share the screen's nebula. Only their restrained planets stay local. */
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation) {
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-sky,var(--theme-decoration)) !important;
-  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,640px) auto !important;
-  background-position:center,var(--cosmos-planet-position,84% 78%),center top !important;
-  background-repeat:no-repeat,no-repeat,repeat !important;
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none) !important;
+  background-size:100% 100%,var(--cosmos-planet-size,64px) auto !important;
+  background-position:center,var(--cosmos-planet-position,84% 78%) !important;
+  background-repeat:no-repeat,no-repeat !important;
 }
 /* Map sheets need the same sky on their own: street labels must not show
    through the timetable or search controls. The footer also covers scrolling
@@ -861,15 +861,15 @@ html[data-cosmic-theme='on']:has([data-carrier-sheet]) [data-map-canvas] { visib
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'] {
   min-height:160px;
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-sky) !important;
-  background-position:center,var(--cosmos-planet-position),center top !important;
-  background-repeat:no-repeat,no-repeat,repeat !important;
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none) !important;
+  background-position:center,var(--cosmos-planet-position) !important;
+  background-repeat:no-repeat,no-repeat !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'][data-cosmic-expanded='true'] {
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-secondary-orb,none),var(--cosmos-sky) !important;
-  background-size:100% 100%,56px auto,56px auto,min(100%,640px) auto !important;
-  background-position:center,var(--cosmos-planet-position),72% calc(100% - 32px),center top !important;
-  background-repeat:no-repeat,no-repeat,no-repeat,repeat !important;
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-secondary-orb,none) !important;
+  background-size:100% 100%,56px auto,56px auto !important;
+  background-position:center,var(--cosmos-planet-position),72% calc(100% - 32px) !important;
+  background-repeat:no-repeat,no-repeat,no-repeat !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-navigation {
   --cosmos-planet:none;
