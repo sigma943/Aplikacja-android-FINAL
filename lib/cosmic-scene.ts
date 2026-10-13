@@ -14,12 +14,12 @@ export function cosmicRandom(seed: number) {
 function dust(seed: number) {
   const random = cosmicRandom(seed);
   const band = (x: number) => 306 - x * .14 + Math.sin(x / 105) * 21;
-  const wisps = Array.from({length: 34}, (_, i) => {
+  const wisps = Array.from({length: 10}, (_, i) => {
     const x = random() * 640, y = band(x) + (random() - .5) * 58;
-    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${(22 + random() * 65).toFixed(1)}" ry="${(9 + random() * 23).toFixed(1)}" transform="rotate(${(-32 + random() * 35).toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" fill="url(#${i % 3 ? 'nebula' : 'mist'})" opacity="${(.4 + random() * .6).toFixed(2)}"/>`;
+    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${(22 + random() * 65).toFixed(1)}" ry="${(9 + random() * 23).toFixed(1)}" transform="rotate(${(-32 + random() * 35).toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" fill="url(#${i % 3 ? 'nebula' : 'mist'})" opacity="${(.18 + random() * .28).toFixed(2)}"/>`;
   }).join('');
-  const stars = Array.from({length: 125}, () => `<circle cx="${(random() * 640).toFixed(1)}" cy="${(random() * 400).toFixed(1)}" r="${(.2 + random() * .55).toFixed(2)}" opacity="${(.12 + random() * .4).toFixed(2)}"/>`).join('');
-  const grains = Array.from({length: 230}, (_, i) => {
+  const stars = Array.from({length: 180}, () => `<circle cx="${(random() * 640).toFixed(1)}" cy="${(random() * 400).toFixed(1)}" r="${(.3 + random() * .7).toFixed(2)}" opacity="${(.12 + random() * .4).toFixed(2)}"/>`).join('');
+  const grains = Array.from({length: 200}, (_, i) => {
     const x = random() * 640, distance = (random() + random() + random() - 1.5) * 42;
     const y = band(x) + distance;
     return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(.18 + random() * .65).toFixed(2)}" fill="${i % 11 ? '#a69acb' : '#c2dfea'}" opacity="${(.15 + random() * .35).toFixed(2)}"/>`;
@@ -31,10 +31,15 @@ export const COSMIC_DUST = [dust(731), dust(1929), dust(4491), dust(8764)];
 /** Seamless sky for long canvases; its stars never grow with content height. */
 export function cosmicSky(seed=943731){
   const random=cosmicRandom(seed);
-  const stars=Array.from({length:300},()=>`<circle cx="${(2+random()*636).toFixed(1)}" cy="${(2+random()*636).toFixed(1)}" r="${(.2+random()*.5).toFixed(2)}" opacity="${(.22+random()*.38).toFixed(2)}"/>`).join('');
-  const clouds=Array.from({length:18},()=>{const x=random()*640,y=110+random()*420,rx=50+random()*95,ry=22+random()*35;return [-640,0,640].map(offset=>`<ellipse cx="${(x+offset).toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#sky-cloud)" opacity=".55"/>`).join('');}).join('');
-  const wisps=Array.from({length:20},(_,i)=>{const x=random()*640,y=220+x*.15+Math.sin(x/100)*32,rx=30+random()*42,ry=9+random()*12;return [-640,0,640].map(offset=>`<ellipse cx="${(x+offset).toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#${i%3?'sky-cloud':'sky-mist'})" opacity=".72"/>`).join('');}).join('');
-  return url(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><defs><radialGradient id="sky-cloud"><stop stop-color="#9b87c6" stop-opacity=".23"/><stop offset=".5" stop-color="#536788" stop-opacity=".08"/><stop offset="1" stop-color="#080b17" stop-opacity="0"/></radialGradient><radialGradient id="sky-mist"><stop stop-color="#80b6cf" stop-opacity=".22"/><stop offset=".4" stop-color="#50788f" stop-opacity=".08"/><stop offset="1" stop-color="#080b17" stop-opacity="0"/></radialGradient></defs>${clouds}${wisps}<g fill="#becae7">${stars}</g></svg>`);
+  const stars=Array.from({length:520},()=>`<circle cx="${(2+random()*636).toFixed(1)}" cy="${(2+random()*636).toFixed(1)}" r="${(.35+random()*.9).toFixed(2)}" opacity="${(.35+random()*.5).toFixed(2)}"/>`).join('');
+  const clouds=Array.from({length:8},()=>{const x=random()*640,y=110+random()*420,rx=50+random()*95,ry=22+random()*35;return [-640,0,640].map(offset=>`<ellipse cx="${(x+offset).toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#sky-cloud)" opacity=".55"/>`).join('');}).join('');
+  const wisps=Array.from({length:6},(_,i)=>{const x=random()*640,y=220+x*.15+Math.sin(x/100)*32,rx=30+random()*42,ry=9+random()*12;return [-640,0,640].map(offset=>`<ellipse cx="${(x+offset).toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#${i%3?'sky-cloud':'sky-mist'})" opacity=".34"/>`).join('');}).join('');
+  const gx=80+random()*480,gy=75+random()*490,angle=-45+random()*90;
+  const spiral=`<g data-galaxy="spiral" transform="translate(${gx.toFixed(1)} ${gy.toFixed(1)}) rotate(${angle.toFixed(1)}) scale(1 .48)"><ellipse rx="23" ry="14" fill="url(#galaxy-halo)"/><g fill="none" stroke="#94a4c0" stroke-width=".65" opacity=".6"><path d="M0 0C5 -8 17 -8 18 0S6 15 -8 8S-16 -7 -4 -10"/><path d="M0 0C-5 8 -17 8 -18 0S-6 -15 8 -8S16 7 4 10"/></g><ellipse rx="5" ry="3" fill="url(#galaxy-core)"/><ellipse rx="1.2" ry=".9" fill="#ffe3bb" opacity=".85"/></g>`;
+  const edge=`<g data-galaxy="edge-on" transform="translate(${(80+(gx+190)%480).toFixed(1)} ${(75+(gy+260)%490).toFixed(1)}) rotate(${(-angle-15).toFixed(1)})"><ellipse rx="19" ry="5" fill="url(#galaxy-halo)"/><ellipse rx="12" ry="1.5" fill="url(#galaxy-core)" opacity=".5"/><path d="M-14 1Q0 -1 14 1" fill="none" stroke="#667a9f" stroke-width=".7"/><ellipse rx="2" ry="1" fill="#ffebd1" opacity=".8"/></g>`;
+  const galaxy=spiral+edge;
+  const sparks=Array.from({length:5},()=>{const x=12+random()*616,y=12+random()*616;return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})"><circle r="5" fill="url(#star-halo)"/><path d="M-4 0H4M0 -4V4" stroke="#cce4ff" stroke-width=".45" opacity=".6"/><circle r=".85" fill="#e7f4ff"/></g>`;}).join('');
+  return url(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><defs><radialGradient id="sky-cloud"><stop stop-color="#9b87c6" stop-opacity=".13"/><stop offset=".5" stop-color="#536788" stop-opacity=".08"/><stop offset="1" stop-color="#080b17" stop-opacity="0"/></radialGradient><radialGradient id="sky-mist"><stop stop-color="#80b6cf" stop-opacity=".12"/><stop offset=".4" stop-color="#50788f" stop-opacity=".08"/><stop offset="1" stop-color="#080b17" stop-opacity="0"/></radialGradient><radialGradient id="galaxy-halo"><stop stop-color="#8c8dab" stop-opacity=".45"/><stop offset="1" stop-color="#8292b8" stop-opacity="0"/></radialGradient><radialGradient id="galaxy-core"><stop stop-color="#ffe6c3" stop-opacity=".95"/><stop offset="1" stop-color="#eec79d" stop-opacity="0"/></radialGradient><radialGradient id="star-halo"><stop stop-color="#dfedff" stop-opacity=".65"/><stop offset=".25" stop-color="#88b8ed" stop-opacity=".25"/><stop offset="1" stop-color="#88b8ed" stop-opacity="0"/></radialGradient></defs>${clouds}${wisps}<g fill="#becae7">${stars}</g>${galaxy}${sparks}</svg>`);
 }
 export const COSMIC_SKY=cosmicSky();
 export const COSMIC_SUN=url('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><defs><radialGradient id="corona"><stop stop-color="#ffbc56" stop-opacity=".22"/><stop offset=".6" stop-color="#f18a38" stop-opacity=".08"/><stop offset="1" stop-color="#f18a38" stop-opacity="0"/></radialGradient><radialGradient id="sun"><stop stop-color="#fff0b1"/><stop offset=".65" stop-color="#ffc35c"/><stop offset="1" stop-color="#e99039"/></radialGradient></defs><circle cx="48" cy="48" r="44" fill="url(#corona)"/><circle cx="48" cy="48" r="22" fill="url(#sun)"/><g fill="#cf7634" opacity=".17"><circle cx="38" cy="41" r="2"/><circle cx="53" cy="55" r="3"/><circle cx="57" cy="37" r="1.6"/><circle cx="41" cy="58" r="1.5"/></g></svg>');
@@ -46,7 +51,7 @@ export const COSMIC_PLANETS = COSMIC_PLANET_NAMES.map(name => `url("/themes/kosm
 export function cosmicScene(seed: number, previous?: {x: number; planet: number}) {
   const r = cosmicRandom(seed);
   const scene = {
-    planet: Math.floor(r() * COSMIC_PLANETS.length), showPlanet: r() > .68,
+    planet: Math.floor(r() * COSMIC_PLANETS.length), showPlanet: r() > .35,
     x: (r() < .5 ? 48 : 80) + r() * 10, y: 64 + r() * 24, size: 50 + r() * 26,
     dust: Math.floor(r() * COSMIC_DUST.length), dustX: 50, dustY: 65, sun:r()<.08,
   };
@@ -58,10 +63,10 @@ export function cosmicScene(seed: number, previous?: {x: number; planet: number}
   return scene;
 }
 
-/** At least two quiet cards between planets; no long empty run in a stop list. */
+/** Small planets on alternating cards, with at most two quiet cards in a row. */
 export function cosmicListScene(seed: number, previous?: ReturnType<typeof cosmicScene>, gap = 2) {
   const scene = cosmicScene(seed, previous);
-  scene.showPlanet = gap >= 2 && (scene.showPlanet || gap >= 4);
+  scene.showPlanet = gap >= 1 && (scene.showPlanet || gap >= 2);
   return scene;
 }
 
@@ -73,8 +78,8 @@ export function cosmicPanelStyle(seed:number,departures=false){
   const scene=cosmicScene(seed);
   return {
     '--cosmos-planet':departures||scene.showPlanet?cosmicOrb(scene):'none',
-    '--cosmos-planet-position':departures?'76% 96px':`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`,
-    '--cosmos-planet-size':departures?'56px':`${scene.size.toFixed(1)}px`,
+    '--cosmos-planet-position':departures?'68% 50%':`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`,
+    '--cosmos-planet-size':departures?'48px':`${scene.size.toFixed(1)}px`,
     '--cosmos-dust':COSMIC_DUST[scene.dust],
     '--cosmos-dust-position':`${scene.dustX}% ${scene.dustY}%`,
     '--cosmos-secondary-orb':seed%7===0?COSMIC_SUN:COSMIC_PLANETS[(scene.planet+3)%COSMIC_PLANETS.length],

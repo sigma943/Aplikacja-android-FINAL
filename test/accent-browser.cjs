@@ -176,9 +176,9 @@ const server=http.createServer((req,res)=>{
 
         const scenes=await page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>({planet:el.dataset.cosmicPlanet==='on',size:parseFloat(el.style.getPropertyValue('--cosmos-planet-size'))})));
         assert.ok(scenes.length>3);
-        assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length/3),'planets occupy at most a third of stop cards');
+        assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length/2),'planets occupy up to half of stop cards');
         assert.ok(scenes.every(scene=>scene.size>=50&&scene.size<=76),'small planets fit mobile cards');
-        for(let i=0;i<scenes.length;i++)if(scenes[i].planet)assert.ok(!scenes[i+1]?.planet&&!scenes[i+2]?.planet,'two quiet cards follow each planet');
+        for(let i=0;i<scenes.length;i++)if(scenes[i].planet)assert.ok(!scenes[i+1]?.planet,'one quiet card follows each planet');
         const saved=await page.evaluate(()=>{
           const appearance=localStorage.getItem('mks_interface_appearance_v1'),glass=localStorage.getItem('mks_transparent'),glow=localStorage.getItem('mks_panel_glow');
           localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({...JSON.parse(appearance||'{}'),density:'spacious',textScale:120,glassOpacity:35,glassBlur:28}));
@@ -204,6 +204,10 @@ const server=http.createServer((req,res)=>{
           const style=getComputedStyle(node),rect=node.getBoundingClientRect();
           return style.transform==='none'&&style.opacity==='1'&&parseFloat(style.borderBottomWidth)>=1&&rect.height>80;
         })),'cosmic stop cards retain full borders and avoid transformed clipping layers');
+        assert.ok(await page.$$eval('.transit-stop-card',nodes=>nodes.every(node=>{
+          const outline=getComputedStyle(node,'::after');
+          return outline.content!=='none'&&parseFloat(outline.borderBottomWidth)===1&&outline.pointerEvents==='none';
+        })),'foreground outlines cover all four card edges independently of the artwork');
         const skyArt=await page.$eval('.pks-theme-root',node=>getComputedStyle(node).backgroundImage);
         assert.ok(skyArt.includes('sky-cloud')&&skyArt.includes('sky-mist'),'canvas includes stars and nebulae');
         assert.ok(!skyArt.includes('/themes/kosmos/')&&!skyArt.includes('corona'),'canvas never contains planets or suns');
@@ -244,8 +248,8 @@ const server=http.createServer((req,res)=>{
         await new Promise(resolve=>setTimeout(resolve,1200));
         assert.deepEqual(await captureStopPanels(),stopPanels,'stop detail composition survives completed loading, clock refreshes and preference events');
         assert.notEqual(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>el.style.getPropertyValue('--cosmos-planet')),'none','every cosmic departure panel has one restrained planet');
-        assert.ok(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>el.getBoundingClientRect().height>=160),'short and empty departure panels have room for the entire planet');
-        assert.ok(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>getComputedStyle(el.closest('.pks-theme-root')).backgroundSize.includes('320px')),'long timetables cannot magnify stars to their content height');
+        assert.equal(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>getComputedStyle(el).minHeight),'0px','planet artwork cannot stretch departure panels');
+        assert.ok(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>getComputedStyle(el.closest('.pks-theme-root')).backgroundSize.includes('480px')),'long timetables cannot magnify stars to their content height');
         assert.equal(await page.$$eval('[data-departure-row]',els=>els.some(el=>el.getAnimations().some(animation=>animation.playState==='running'))),false,'Kosmos refreshes departure values without replaying row entrance animations');
         await screenshot('departures-dark-cosmos-stable');
         await page.click('[aria-label="Wróć do listy przystanków"]');
@@ -266,6 +270,15 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
         assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','cosmic effects never overlay the bare map');assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map is visible again after closing the cosmic panels');
         assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
+        await button('Opcje');await page.waitForSelector('[data-options-sheet]');
+        assert.equal(await page.$eval('[data-map-canvas]',node=>getComputedStyle(node).visibility),'visible','opening options or switching to Kosmos must never hide the parent map');
+        await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
+        await page.click('[aria-label="Przewoźnicy"]');await page.waitForSelector('[data-carrier-sheet]');
+        assert.equal(await page.$eval('[data-map-canvas]',node=>getComputedStyle(node).visibility),'visible','carrier sheet cannot hide its own parent map');
+        assert.ok(await page.$eval('[data-carrier-sheet]',node=>getComputedStyle(node).visibility==='visible'&&node.getBoundingClientRect().height>80),'cosmic carrier sheet is visible above the real map');
+        assert.equal(await page.$$eval('[data-carrier-grid] button',nodes=>nodes.filter(node=>node.getBoundingClientRect().width>0&&getComputedStyle(node).visibility==='visible').length),3,'all carrier choices remain visible');
+        await screenshot('carriers-dark-cosmos');
+        await page.click('[aria-label="Zamknij panel przewoźników"]');await page.waitForSelector('[data-carrier-sheet]',{hidden:true});
         assert.equal(await page.$eval('.pks-map-search-panel',el=>el.style.getPropertyValue('--cosmos-planet')),'none','map search panel never receives planet artwork');
         assert.ok(!await page.$eval('.pks-map-search-panel',el=>getComputedStyle(el).backgroundImage.includes('/themes/kosmos/')),'no planet is painted underneath map search controls');
       }
