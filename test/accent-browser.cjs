@@ -214,6 +214,7 @@ const server=http.createServer((req,res)=>{
         assert.notEqual(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>el.style.getPropertyValue('--cosmos-planet')),'none','every cosmic departure panel has one restrained planet');
         assert.ok(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>getComputedStyle(el).backgroundSize.includes('min(100%, 640px)')),'long timetables cannot magnify stars to their content height');
         assert.equal(await page.$$eval('[data-departure-row]',els=>els.some(el=>el.getAnimations().some(animation=>animation.playState==='running'))),false,'Kosmos refreshes departure values without replaying row entrance animations');
+        await screenshot('departures-dark-cosmos-stable');
         await page.click('[aria-label="Wróć do listy przystanków"]');
         await page.waitForSelector('.transit-stop-card');
         await page.click('.transit-stop-card');
