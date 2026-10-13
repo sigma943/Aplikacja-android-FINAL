@@ -14,6 +14,8 @@ const accents=[['Turkus','#00a3a2'],['Niebieski','#3b82f6'],['Fiolet','#8b5cf6']
 
 export default function InterfacePersonalization(p:Props){
   const {value:v,dark}=p,[query,setQuery]=useState('');
+  const cosmic=p.theme==='dark-cosmos';
+  const lockedEffects=(children:ReactNode)=><fieldset disabled={cosmic} data-cosmic-locked={cosmic?'true':undefined} className="personal-effects"><legend className="sr-only">Efekty paneli</legend>{cosmic&&<p className="personal-note">Niedostępne w trybie Kosmos.</p>}{children}</fieldset>;
   const set=<K extends keyof InterfaceAppearance>(key:K,next:InterfaceAppearance[K])=>p.onChange({...v,[key]:next});
   const selected=(active:boolean)=>`personal-choice ui-accent-focus ${active?'ui-accent-soft':'bg-current/[.035] border-current/10'}`;
   const slider=(key:NumericKey,label:string,min:number,max:number,step:number,unit='')=><label className="personal-slider"><span className="flex items-center justify-between gap-3"><span>{label}</span><output>{v[key]}{unit}</output></span><input aria-label={label} type="range" min={min} max={max} step={step} value={v[key]} onChange={e=>set(key,Number(e.target.value))}/></label>;
@@ -57,16 +59,16 @@ export default function InterfacePersonalization(p:Props){
     </>,'akcent własny kolor jasny ciemny amoled aurora',true)}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}
     {group('shapes' ,'Kształty i głębia','Rogi, obramowania i cienie',<Shapes size={19}/>,<>{slider('panelRadius','Zaokrąglenie paneli',0,36,2,' px')}{slider('cardRadius','Zaokrąglenie kart',0,30,2,' px')}{slider('controlRadius','Zaokrąglenie przycisków',0,24,2,' px')}{slider('borderStrength','Widoczność obramowań',0,40,2,'%')}{slider('shadowStrength','Siła cieni',0,100,5,'%')}</>,'zaokrąglenie paneli kart przycisków widoczność obramowań siła cieni')}
-    {group('glass','Szkło i przezroczystość','Przezroczyste lub pełne panele',<Layers size={19}/>,<>{toggle('Efekt szkła',p.glass,p.setGlass,'Przezroczyste panele z rozmytym tłem')}{p.glass&&<>{slider('glassOpacity','Krycie tła paneli',20,100,5,'%')}{slider('glassBlur','Rozmycie szkła',0,p.lightEffects?6:28,2,' px')}</>}{p.lightEffects&&<p className="personal-note">Lżejsze efekty: rozmycie do 6 px.</p>}</>,'efekt szkła krycie tła rozmycie przezroczystość')}
-    {group('glow','Miękka poświata','Kolor, siła i rozmieszczenie',<Sun size={19}/>,<>
-      {toggle('Miękka poświata paneli',p.glow,p.setGlow)}
+    {group('glass','Szkło i przezroczystość','Przezroczyste lub pełne panele',<Layers size={19}/>,lockedEffects(<>{toggle('Efekt szkła',!cosmic&&p.glass,p.setGlass,'Przezroczyste panele z rozmytym tłem')}{p.glass&&<>{slider('glassOpacity','Krycie tła paneli',20,100,5,'%')}{slider('glassBlur','Rozmycie szkła',0,p.lightEffects?6:28,2,' px')}</>}{p.lightEffects&&<p className="personal-note">Lżejsze efekty: rozmycie do 6 px.</p>}</>),'efekt szkła krycie tła rozmycie przezroczystość')}
+    {group('glow','Miękka poświata','Kolor, siła i rozmieszczenie',<Sun size={19}/>,lockedEffects(<>
+      {toggle('Miękka poświata paneli',!cosmic&&p.glow,p.setGlow)}
       {p.glow&&<>
       <label className="personal-slider"><span className="flex items-center justify-between"><span>Siła poświaty</span><output>{p.glowStrength}%</output></span><input aria-label="Siła miękkiej poświaty" type="range" min="0" max="100" step="5" value={p.glowStrength} onChange={e=>p.setGlowStrength(Number(e.target.value))}/></label>
       {choices('glowStyle','Kolory plam',[['graphite','Grafit'],['accent','Kolorowe'],['mixed','Grafit + kolor']])}
       {v.glowStyle!=='graphite'&&colorPicker('Kolor poświaty',v.glowColor,color=>set('glowColor',color),'Własny kolor poświaty','Kolor miękkiej poświaty','Kolor poświaty')}
       {slider('glowSpread','Rozproszenie plam',40,100,5,'%')}{choices('glowPlacement','Rozmieszczenie',[['corners','W rogach'],['center','Centralnie'],['diagonal','Po przekątnej']])}
       </>}
-    </>,'miękka poświata siła kolor grafit plamy rozproszenie rozmieszczenie')}
+    </>),'miękka poświata siła kolor grafit plamy rozproszenie rozmieszczenie')}
     {group('text','Tekst i czytelność','Rozmiar, krój i wyróżnienie tytułów',<Type size={19}/>,<>{slider('textScale','Wielkość tekstu interfejsu',90,120,5,'%')}{choices('fontFamily','Krój pisma',[['system','Systemowy'],['sans','Klasyczny'],['mono','Monospace']])}{slider('titleWeight','Grubość nagłówków',500,800,100)}{choices('textContrast','Kontrast tekstu',[['standard','Standardowy'],['strong','Mocniejszy']])}</>,'wielkość tekstu interfejsu krój pisma grubość nagłówków litery cyfry kontrast mocniejszy')}
     {group('nav','Nawigacja i ikony','Etykiety, ikony i aktywna zakładka',<Navigation size={19}/>,<>{choices('navLayout','Układ nawigacji',[['stacked','Podpis pod ikoną'],['inline','Podpis obok ikony']])}{slider('iconSize','Rozmiar ikon nawigacji',18,30,2,' px')}{slider('iconStroke','Grubość ikon',1,3,.25)}{toggle('Podpisy pod ikonami',v.navLabels,on=>set('navLabels',on))}{choices('navIndicator','Aktywna zakładka',[['line','Linia'],['pill','Miękkie tło'],['halo','Poświata ikony'],['block','Pełny akcent'],['none','Sam kolor']])}</>,'rozmiar ikon nawigacji grubość podpisy aktywna zakładka widoczność układ obok poświata pełny akcent')}
     {group('comfort','Układ i komfort','Odstępy i animacje',<SlidersHorizontal size={19}/>,<>{choices('density','Odstępy w kartach',[['compact','Mniejsze'],['comfortable','Standardowe'],['spacious','Większe']])}{toggle('Ogranicz animacje',v.reducedMotion,on=>set('reducedMotion',on))}</>,'odstępy karty animacje ruch wyróżnienie lżejsze efekty')}

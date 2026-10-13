@@ -740,8 +740,9 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 
 /* Kosmos: deep space, fine nebula lanes and sparse, small celestial accents. */
 html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
-  --ui-canvas:#000000; --ui-surface:rgb(8 10 18 / 64%); --ui-raised:#10121c;
-  --ui-glass:rgb(8 10 18 / 96%); --ui-glass-row:rgb(16 18 28 / 96%);
+  --ui-canvas:#000000; --ui-surface:#020306; --ui-raised:#0b0c14;
+  --panel-glow-image:none !important;
+  --ui-glass:#020306; --ui-glass-row:#0b0c14;
   --ui-text:#f3f1ff; --ui-muted:#b9bdcf; --ui-edge:rgb(160 171 221 / 19%);
 }
 .pks-theme-root[data-ui-theme='dark-cosmos'] { background-color:var(--ui-canvas) !important; background-image:var(--theme-decoration); }
@@ -763,13 +764,13 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   --cosmos-planet-size:64px;
   --cosmos-dust:var(--theme-decoration);
   --cosmos-dust-position:50% 50%;
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)),linear-gradient(135deg,#080c18,#04060e 62%,#0b0c19) !important;
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)),var(--cosmos-sky,var(--theme-decoration)) !important;
   /* One complete image per panel: random pixel offsets of a repeated tile
      expose hard vertical/horizontal boundaries inside the nebula. */
   /* Fit artwork to panel width, never magnify it to a long timetable's height. */
-  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,640px) auto,100% 100% !important;
+  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,640px) auto,320px 320px !important;
   background-position:center,var(--cosmos-planet-position,84% 78%),var(--cosmos-dust-position,50% 50%),center !important;
-  background-repeat:no-repeat !important;
+  background-repeat:no-repeat,no-repeat,no-repeat,repeat !important;
   /* Decode transparent planet images normally; blended GPU layers can retain
      stale clipping bounds when Android WebView resizes or scrolls these cards. */
   background-blend-mode:normal !important;
@@ -806,18 +807,19 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 [data-cosmic-star] { position:absolute; width:6px; height:6px; opacity:0; background:radial-gradient(circle,#f4f1ff 0 10%,#b4caff66 16%,transparent 65%); }
 [data-cosmic-star]:nth-child(3n) { width:4px; height:4px; }
 
-/* One nebula field under the whole view, rather than a new cloud in every card.
-   Static CSS layers also work while animations are disabled or data is loading. */
+/* A black starfield across the app, with a different fine nebula in each card. */
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'],[data-startup-theme='dark-cosmos']) {
-  --cosmos-canvas-art:var(--cosmos-sky,var(--theme-decoration)),radial-gradient(ellipse at 14% 20%,#62509280,transparent 58%),radial-gradient(ellipse at 94% 58%,#24577678,transparent 60%),radial-gradient(ellipse at 38% 92%,#5834586b,transparent 58%),linear-gradient(145deg,#0b1021,#090d1c 48%,#11102a);
+  --cosmos-canvas-art:var(--cosmos-sky,var(--theme-decoration)),linear-gradient(#000000,#020306);
 }
-.pks-theme-root[data-ui-theme='dark-cosmos'],html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel-scope[data-cosmic-view]),[data-startup-theme='dark-cosmos'] {
-  background-image:var(--cosmos-ambient-orb,none),var(--cosmos-canvas-art) !important;
-  background-size:76px auto,min(100%,640px) auto,100% 100%,100% 100%,100% 100%,100% 100% !important;
-  background-position:88% 82%,center top,center,center,center,center !important;
-  background-repeat:no-repeat,repeat,no-repeat,no-repeat,no-repeat,no-repeat !important;
+.pks-theme-root[data-ui-theme='dark-cosmos'],
+html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel-scope[data-cosmic-view]),
+[data-startup-theme='dark-cosmos'] {
+  background-image:var(--cosmos-canvas-art) !important;
+  background-size:320px 320px,100% 100% !important;
+  background-position:center top,center !important;
+  background-repeat:repeat,no-repeat !important;
 }
-/* The map stays mounted for fast return, but cannot cover the sky of another tab. */
+/* Keep the map mounted, but hide it while another view covers it. */
 .pks-theme-root[data-ui-theme='dark-cosmos'] [data-map-canvas][inert],
 .pks-theme-root[data-ui-theme='dark-cosmos']:has([data-options-sheet]) [data-map-canvas],
 html[data-cosmic-theme='on']:has([data-carrier-sheet]) [data-map-canvas] { visibility:hidden; }
@@ -829,49 +831,35 @@ html[data-cosmic-theme='on']:has([data-carrier-sheet]) [data-map-canvas] { visib
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-panel-scope[data-cosmic-view] [data-cosmic-canvas] { background-color:transparent !important; }
 .pks-theme-root[data-ui-theme='dark-cosmos'] .pks-panel-scope[data-panel-theme][data-glass] [data-statistics-view] .pks-personal-card { background-color:var(--ui-surface) !important; }
-/* Cards share the screen's nebula. Only their restrained planets stay local. */
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation) {
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none) !important;
-  background-size:100% 100%,var(--cosmos-planet-size,64px) auto !important;
-  background-position:center,var(--cosmos-planet-position,84% 78%) !important;
-  background-repeat:no-repeat,no-repeat !important;
-}
-/* Map sheets need the same sky on their own: street labels must not show
-   through the timetable or search controls. The footer also covers scrolling
-   text, while retaining the same sky palette. The actual map stays readable. */
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-map-search-panel,.map-detail-shell,[data-carrier-sheet],.pks-navigation) {
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-canvas-art) !important;
-  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,640px) auto,100% 100%,100% 100%,100% 100%,100% 100% !important;
-  background-position:center,var(--cosmos-planet-position,84% 78%),center top,center,center,center,center !important;
-  background-repeat:no-repeat,no-repeat,repeat,no-repeat,no-repeat,no-repeat,no-repeat !important;
-}
-
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card {
-  --cosmos-readability:linear-gradient(180deg,rgba(4,6,14,.82),rgba(4,6,14,.52) 42%,transparent 78%);
-  box-shadow:inset 0 1px 0 rgb(202 211 255 / 3%);
-  border-color:rgb(167 154 226 / 18%) !important;
+  --cosmos-readability:linear-gradient(105deg,rgba(0,0,0,.92),rgba(0,0,0,.55) 48%,transparent 82%);
+  box-shadow:none !important;
+  border-color:rgb(167 154 226 / 24%) !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card > div:first-child {
-  background-color:rgb(21 23 43 / 78%);
+  background-color:#0b0c14;
   border-color:rgb(167 154 226 / 25%);
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-departure-row] {
   animation:none !important;
   transition:none !important;
 }
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'] {
-  min-height:160px;
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none) !important;
-  background-position:center,var(--cosmos-planet-position) !important;
-  background-repeat:no-repeat,no-repeat !important;
-}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'] { min-height:160px; }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'][data-cosmic-expanded='true'] {
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-secondary-orb,none) !important;
-  background-size:100% 100%,56px auto,56px auto !important;
-  background-position:center,var(--cosmos-planet-position),72% calc(100% - 32px) !important;
-  background-repeat:no-repeat,no-repeat,no-repeat !important;
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(0,0,0,.65),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-secondary-orb,none),var(--cosmos-dust),var(--cosmos-sky,var(--theme-decoration)) !important;
+  background-size:100% 100%,56px auto,56px auto,min(100%,640px) auto,320px 320px !important;
+  background-position:center,var(--cosmos-planet-position),72% calc(100% - 32px),var(--cosmos-dust-position),center top !important;
+  background-repeat:no-repeat,no-repeat,no-repeat,no-repeat,repeat !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-navigation {
   --cosmos-planet:none;
-  --cosmos-readability:linear-gradient(180deg,rgba(4,6,14,.32),rgba(4,6,14,.65));
+  --cosmos-readability:linear-gradient(180deg,rgba(0,0,0,.7),#020306);
+  background-color:#020306 !important;
 }
+.pks-theme-root[data-ui-theme='dark-cosmos'] :has(> [data-options-sheet]) {
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.personal-effects { min-width:0; border:0; padding:0; margin:0; display:grid; gap:12px; }
+.personal-effects[data-cosmic-locked='true'] { opacity:.45; }
+.personal-effects[data-cosmic-locked='true'] :is(input,button) { cursor:not-allowed; }

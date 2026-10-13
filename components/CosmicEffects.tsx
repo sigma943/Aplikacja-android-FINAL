@@ -111,7 +111,11 @@ export default function CosmicEffects(){
       points.forEach((point,i)=>{
         point.style.left=positions[i][0]+'%';point.style.top=positions[i][1]+'%';
         const duration=COSMIC_TWINKLE_INTERVAL+i*500;
-        stars.push(point.animate([{opacity:.04},{opacity:.38,offset:.5},{opacity:.04}],{duration,delay:-i*1370,iterations:Infinity,easing:'ease-in-out'}));
+        stars.push(point.animate([
+          {opacity:.04,transform:'translate3d(0,0,0) scale(1)'},
+          {opacity:.38,transform:'translate3d(-7px,10px,0) scale(.85)',offset:.5},
+          {opacity:.04,transform:'translate3d(-14px,20px,0) scale(.7)'},
+        ],{duration,delay:-i*1370,iterations:Infinity,easing:'ease-in-out'}));
       });
     };
     const scheduler=cosmicMeteorScheduler(()=>allowed,()=>{
@@ -131,13 +135,15 @@ export default function CosmicEffects(){
       let reduced=media.matches,light=false;
       try{light=localStorage.getItem('mks_light_effects')==='true';reduced ||= normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;}catch{}
       const active=[...document.querySelectorAll<HTMLElement>('.pks-navigation [data-nav-item][aria-current="page"]')].find(node=>!node.closest('.personal-preview-scene'));
-      const tab=active?.dataset.navItem||session.tab?.split(':',1)[0]||'root';
+      const optionsOpen=active?.dataset.navItem==='options'||Boolean(document.querySelector('.pks-options-sheet'));
+      const tab=optionsOpen?session.tab?.split(':',1)[0]||'root':active?.dataset.navItem||'root';
       const nextRegion=findRegion();
-      const logical=[...document.querySelectorAll<HTMLElement>('[data-cosmic-view]')].find(node=>!node.closest('[aria-hidden="true"],[inert],.personal-preview-scene'));
+      const logical=[...document.querySelectorAll<HTMLElement>('[data-cosmic-view]')].find(node=>!node.closest('[aria-hidden="true"],[inert],.personal-preview-scene,.pks-options-sheet'));
       // Loading, entrance animations and panel dimensions cannot start a visit.
-      const overlay=[['.pks-options-sheet','options'],['[data-carrier-sheet]','carriers']].find(([selector])=>nextRegion?.matches(selector))?.[1];
+      const overlay=nextRegion?.matches('[data-carrier-sheet]')?'carriers':undefined;
       const view=overlay||logical?.dataset.cosmicView||(nextRegion?.matches('.map-detail-shell')?'map-detail':'tab');
-      if(session.enter(`${tab}:${view}`))sequences=new WeakMap();
+      // Options cover the current view; they never begin or end its visit.
+      if(session.enter(`${tab}:${view}`,optionsOpen))sequences=new WeakMap();
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
       if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',COSMIC_SKY);const backdrop=session.scene('screen-sky',cosmicScene);root.style.setProperty('--cosmos-ambient-orb',backdrop.sun?COSMIC_SUN:'none');discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-ambient-orb');}

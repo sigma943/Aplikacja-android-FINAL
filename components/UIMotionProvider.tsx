@@ -25,7 +25,7 @@ export default function UIMotionProvider({children}: {children: ReactNode}) {
       cleanupAppearance?.();
       cleanupAppearance=applyInterfaceAppearance(root,value,dark,localStorage.getItem('mks_theme')||'#00a3a2',lightEffects,theme);
       const strength=panelGlowStrength(localStorage.getItem('mks_panel_glow_strength'));
-      root.dataset.panelGlow=localStorage.getItem('mks_panel_glow')==='true'&&strength>0?'on':'off';
+      root.dataset.panelGlow=theme!=='dark-cosmos'&&localStorage.getItem('mks_panel_glow')==='true'&&strength>0?'on':'off';
       const variables=panelGlowVariables(value.glowColor,strength,dark,lightEffects,{style:value.glowStyle,spread:value.glowSpread,placement:value.glowPlacement});
       glowKeys=Object.keys(variables);
       for(const [key,next]of Object.entries(variables))root.style.setProperty(key,next);

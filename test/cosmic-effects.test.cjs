@@ -88,3 +88,16 @@ test('cosmic nebulae contain fine stars without oversized cross shapes, and depa
  for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.ok([...COSMIC_PLANETS,COSMIC_SUN].includes(style['--cosmos-planet']));assert.equal(style['--cosmos-planet-size'],'56px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
  const {COSMIC_STAR_POSITIONS,COSMIC_TWINKLE_INTERVAL}=load('lib/cosmic-effects.ts');assert.ok(COSMIC_STAR_POSITIONS.length>=12&&COSMIC_STAR_POSITIONS.length<=18);assert.ok(COSMIC_TWINKLE_INTERVAL>=9000);
 });
+
+test('options overlay preserves the underlying visit and every cached card, real navigation still randomizes',()=>{
+ const {cosmicVisitSession,cosmicScene}=load('lib/cosmic-scene.ts'),session=cosmicVisitSession(943);
+ session.enter('stops:tab');const epoch=session.epoch,card=session.scene('stop:123',cosmicScene);
+ for(let i=0;i<4;i++){
+  assert.equal(session.enter('options:tab',true),false);
+  assert.equal(session.epoch,epoch);assert.equal(session.tab,'stops:tab');
+  assert.strictEqual(session.scene('stop:123',cosmicScene),card);
+  assert.equal(session.enter('stops:tab'),false);
+ }
+ session.enter('map:tab');session.enter('stops:tab');
+ assert.notDeepEqual(session.scene('stop:123',cosmicScene),card);
+});

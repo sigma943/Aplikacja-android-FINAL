@@ -150,9 +150,9 @@ export default function Home() {
   // updates theme classes rather than retaining mismatched server attributes.
   const [appTheme, setAppTheme] = useState<AppTheme>('dark-oled');
   const [systemIsDark, setSystemIsDark] = useState(false);
-  const [transparentUI, setTransparentUI] = useState(true);
+  const [savedTransparentUI, setTransparentUI] = useState(true);
   const [lightEffects,setLightEffects]=useState(false);
-  const [panelGlow,setPanelGlow]=useState(false);
+  const [savedPanelGlow,setPanelGlow]=useState(false);
   const [glowStrength,setGlowStrength]=useState(40);
   const [interfaceAppearance,setInterfaceAppearance]=useState<InterfaceAppearance>(()=>({...DEFAULT_INTERFACE_APPEARANCE}));
 
@@ -912,6 +912,8 @@ export default function Home() {
 
   // Theme Helpers
   const actualTheme = resolveAppTheme(appTheme,systemIsDark);
+  const transparentUI = actualTheme !== 'dark-cosmos' && savedTransparentUI;
+  const panelGlow = actualTheme !== 'dark-cosmos' && savedPanelGlow;
   const isDark = actualTheme.startsWith('dark');
   const isOled = actualTheme === 'dark-oled' || actualTheme === 'dark-cosmos';
   const isLightPink = actualTheme === 'light-pink';
