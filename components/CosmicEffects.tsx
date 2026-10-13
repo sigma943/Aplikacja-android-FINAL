@@ -6,7 +6,7 @@ import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {COSMIC_METEOR_DURATION,COSMIC_TWINKLE_INTERVAL,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
 
-import {COSMIC_DUST,COSMIC_PLANETS,COSMIC_PANEL_SELECTOR,cosmicScene} from '@/lib/cosmic-scene';
+import {COSMIC_DUST,COSMIC_PLANETS,COSMIC_PANEL_SELECTOR,cosmicScene,cosmicListScene} from '@/lib/cosmic-scene';
 
 /** Individually placed static scenes; only three tiny stars and one meteor animate. */
 export default function CosmicEffects(){
@@ -16,13 +16,13 @@ export default function CosmicEffects(){
     let nativeActive=true,allowed=false,cycle=0,animation:Animation|null=null,disposed=false;
     let seed=crypto.getRandomValues(new Uint32Array(1))[0],sceneIndex=0;
     const sequences=new WeakMap<Element,{previous?:ReturnType<typeof cosmicScene>;gap:number}>();
-    const stars:Animation[]=[],placed=new WeakSet<Element>(),visible=new Set<HTMLElement>();
+    const stars:Animation[]=[],placed=new WeakSet<Element>();
     const place=(node:HTMLElement)=>{
       const card=node.classList.contains('transit-stop-card'),group=node.parentElement;
-      const sequence=card&&group?(sequences.get(group)||{gap:0}):undefined;
-      const scene=cosmicScene((seed+Math.imul(++sceneIndex,2654435761))>>>0,sequence?.previous);
+      const sequence=card&&group?(sequences.get(group)||{gap:2}):undefined;
+      const nextSeed=(seed+Math.imul(++sceneIndex,2654435761))>>>0;
+      const scene=sequence?cosmicListScene(nextSeed,sequence.previous,sequence.gap):cosmicScene(nextSeed);
       if(sequence&&group){
-        if(!sequence.previous||sequence.gap>0)scene.showPlanet=true;
         if(scene.showPlanet){sequence.previous=scene;sequence.gap=0;}else sequence.gap++;
         sequences.set(group,sequence);
       }
@@ -32,13 +32,13 @@ export default function CosmicEffects(){
       node.style.setProperty('--cosmos-dust',COSMIC_DUST[scene.dust]);
       node.style.setProperty('--cosmos-dust-position',`${scene.dustX}px ${scene.dustY}px`);
       node.dataset.cosmicScene=String(sceneIndex);
+      node.dataset.cosmicPlanet=scene.showPlanet?'on':'off';
     };
-    const intersection=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting)visible.add(entry.target as HTMLElement);else visible.delete(entry.target as HTMLElement);}});
     const discover=(node:Element)=>{
       const panels=[...(node.matches(COSMIC_PANEL_SELECTOR)?[node]:[]),...node.querySelectorAll(COSMIC_PANEL_SELECTOR)];
-      for(const panel of panels){if(!(panel instanceof HTMLElement))continue;if(!placed.has(panel)){placed.add(panel);place(panel);}intersection.observe(panel);}
+      for(const panel of panels){if(!(panel instanceof HTMLElement))continue;if(!placed.has(panel)){placed.add(panel);place(panel);}}
     };
-    const observer=new MutationObserver(records=>{for(const record of records){for(const node of record.removedNodes)if(node instanceof Element){for(const panel of [node,...node.querySelectorAll('[data-cosmic-scene]')]){intersection.unobserve(panel);visible.delete(panel as HTMLElement);}}if(root.dataset.cosmicTheme==='on')for(const node of record.addedNodes)if(node instanceof Element)discover(node);}});
+    const observer=new MutationObserver(records=>{if(root.dataset.cosmicTheme==='on')for(const record of records)for(const node of record.addedNodes)if(node instanceof Element)discover(node);});
     observer.observe(document.body,{childList:true,subtree:true});
     const stopStars=()=>{for(const star of stars)star.cancel();stars.length=0;};
     const scheduler=cosmicMeteorScheduler(()=>allowed,()=>{
@@ -50,7 +50,7 @@ export default function CosmicEffects(){
         point.style.left=(8+Math.random()*84)+'%';point.style.top=(8+Math.random()*82)+'%';
         stars.push(point.animate([{opacity:0},{opacity:.75,offset:.45},{opacity:.2,offset:.8},{opacity:0}],{duration:1600+n*160,easing:'ease-in-out'}));
       }
-      if(++cycle%10===0){const panels=[...visible].filter(panel=>panel.isConnected);if(panels.length)place(panels[Math.floor(Math.random()*panels.length)]);}
+      ++cycle;
       if(cycle%2!==0)return;
       const left=42+Math.random()*50,top=10+Math.random()*64;
       streak.current.style.left=left+'%';streak.current.style.top=top+'%';
@@ -68,7 +68,7 @@ export default function CosmicEffects(){
       try{light=localStorage.getItem('mks_light_effects')==='true';reduced ||= normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;}catch{}
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
-      if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));discover(document.body);}else {root.style.removeProperty('--theme-decoration');intersection.disconnect();visible.clear();}
+      if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));discover(document.body);}else {root.style.removeProperty('--theme-decoration');}
       allowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light});
       root.dataset.cosmicMotion=allowed?'on':'off';
       animation?.cancel();animation=null;stopStars();scheduler.refresh();
@@ -78,7 +78,7 @@ export default function CosmicEffects(){
     const native=Capacitor.isNativePlatform()?App.addListener('appStateChange',state=>{nativeActive=state.isActive;update();}):null;
     native?.catch(()=>{});
     return ()=>{
-      disposed=true;scheduler.stop();animation?.cancel();stopStars();observer.disconnect();intersection.disconnect();visible.clear();
+      disposed=true;scheduler.stop();animation?.cancel();stopStars();observer.disconnect();
       for(const event of ['storage','focus','pks-interface-appearance','pks-profile-applied'])window.removeEventListener(event,update);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);
       native?.then(handle=>handle.remove()).catch(()=>{});

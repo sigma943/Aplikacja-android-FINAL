@@ -154,6 +154,11 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.querySelectorAll('.transit-card[data-cosmic-scene]').length>3);
         const positions=await page.$$eval('.transit-card[data-cosmic-scene]',els=>els.map(el=>el.style.getPropertyValue('--cosmos-planet-position')));
         assert.ok(new Set(positions).size>3,'stop cards do not repeat a three-row planet pattern');
+        const scenes=await page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>({planet:el.dataset.cosmicPlanet==='on',size:parseFloat(el.style.getPropertyValue('--cosmos-planet-size'))})));
+        assert.ok(scenes.length>3);
+        assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length/3),'planets occupy at most a third of stop cards');
+        assert.ok(scenes.every(scene=>scene.size>=50&&scene.size<=76),'small planets fit mobile cards');
+        for(let i=0;i<scenes.length;i++)if(scenes[i].planet)assert.ok(!scenes[i+1]?.planet&&!scenes[i+2]?.planet,'two quiet cards follow each planet');
       }
       await screenshot('stops-'+mode);await button('Mapa');
       await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');

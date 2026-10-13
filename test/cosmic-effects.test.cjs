@@ -27,11 +27,26 @@ test('Kosmos replaces Aurora, stays black at first paint, survives backups and u
 
 test('individual cosmic panels have diverse, stable seeded positions and six textured planet families',()=>{
  const {cosmicScene,COSMIC_PLANETS,COSMIC_DUST}=load('lib/cosmic-scene.ts');assert.equal(COSMIC_PLANETS.length,6);assert.equal(COSMIC_DUST.length,4);
- const scenes=Array.from({length:30},(_,i)=>cosmicScene(i*931+77));assert.ok(new Set(scenes.map(s=>s.planet)).size>=5);assert.ok(new Set(scenes.map(s=>s.x.toFixed(0))).size>15);assert.ok(new Set(scenes.map(s=>s.y.toFixed(0))).size>15);assert.ok(scenes.some(s=>!s.showPlanet));assert.deepEqual(cosmicScene(77),cosmicScene(77));
- for(const scene of scenes){assert.ok(scene.x>=28&&scene.x<=93);assert.ok(scene.y>=12&&scene.y<=91);assert.ok(scene.size<=114);}
+ const scenes=Array.from({length:100},(_,i)=>cosmicScene(i*931+77));assert.ok(new Set(scenes.map(s=>s.planet)).size>=5);assert.ok(new Set(scenes.map(s=>s.x.toFixed(0))).size>15);assert.ok(new Set(scenes.map(s=>s.y.toFixed(0))).size>15);assert.ok(scenes.filter(s=>s.showPlanet).length<45);assert.deepEqual(cosmicScene(77),cosmicScene(77));
+ for(const scene of scenes){assert.ok(scene.x>=48&&scene.x<=90);assert.ok(scene.y>=64&&scene.y<=88);assert.ok(scene.size>=50&&scene.size<=76);}
 });
 
 test('successive visible planet scenes cannot align in one column or repeat their planet family',()=>{
  const {cosmicScene}=load('lib/cosmic-scene.ts');let previous=cosmicScene(11);
- for(let i=0;i<100;i++){const scene=cosmicScene(127*i+79,previous);assert.ok(Math.abs(scene.x-previous.x)>=26);assert.notEqual(scene.planet,previous.planet);previous=scene;}
+ for(let i=0;i<100;i++){const scene=cosmicScene(127*i+79,previous);assert.ok(Math.abs(scene.x-previous.x)>=22);assert.notEqual(scene.planet,previous.planet);previous=scene;}
+});
+
+test('stop lists leave two to four quiet cards between small planets for every session seed',()=>{
+ const {cosmicListScene}=load('lib/cosmic-scene.ts');
+ for(let seed=0;seed<40;seed++){
+  let previous,gap=2,last=-1,count=0;
+  for(let i=0;i<60;i++){
+   const scene=cosmicListScene(seed*941+i*127,previous,gap);
+   if(scene.showPlanet){
+    if(last>=0){assert.ok(i-last>=3&&i-last<=5);assert.ok(Math.abs(scene.x-previous.x)>=22);assert.notEqual(scene.planet,previous.planet);}
+    previous=scene;gap=0;last=i;count++;
+   }else gap++;
+  }
+  assert.ok(count>=12&&count<=20);
+ }
 });

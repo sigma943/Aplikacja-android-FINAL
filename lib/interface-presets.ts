@@ -24,7 +24,7 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
     preview:{background:'#d5efff',surface:'#aedbfa',text:'#103750'},
   },
   {
-    name:'Kosmos',description:'Prawie czarne tło, małe planety, subtelny pył i rzadkie spadające gwiazdy',theme:'dark-cosmos',accent:'#b6a3ff',glass:false,glow:false,glowStrength:25,
+    name:'Kosmos',description:'Głęboka czerń, pasma gwiezdnego pyłu, drobne planety i spadające gwiazdy',theme:'dark-cosmos',accent:'#b6a3ff',glass:false,glow:false,glowStrength:25,
     appearance:appearance({glassOpacity:96,glassBlur:0,borderStrength:16,shadowStrength:0,navIndicator:'line',glowStyle:'accent',glowColor:'#b6a3ff'}),
     preview:{background:'#000000',surface:'#080a12',text:'#f3f1ff'},
   },
