@@ -56,10 +56,17 @@ jobs:
         run: npm run android:assets
 
       - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: "zulu"
-          java-version: "21"
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          task_java_home="${JAVA_HOME_21_X64:-}"
+          if [ -z "$task_java_home" ] || [ ! -x "$task_java_home/bin/java" ]; then
+            echo "::error::Java 21 is missing from the hosted runner."
+            exit 1
+          fi
+          "$task_java_home/bin/java" -version
+          echo "JAVA_HOME=$task_java_home" >> "$GITHUB_ENV"
+          echo "$task_java_home/bin" >> "$GITHUB_PATH"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
