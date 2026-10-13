@@ -1,12 +1,31 @@
 """Restore the persistent APK key; never fall back to a runner-generated key."""
 import base64
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 
+def copied_secret(value, name):
+    """Accept a bare value or the named block copied from the setup file."""
+    marker = re.search(r'(?:^|\n)' + re.escape(name) + r'[ \t]*(?:[=:][ \t]*|\r?\n)', value)
+    if marker:
+        value = value[marker.end():]
+        value = re.split(r'\r?\nANDROID_(?:KEYSTORE_BASE64|KEYSTORE_PASSWORD|KEY_ALIAS|KEY_PASSWORD)\b', value, maxsplit=1)[0]
+        value = value.strip('\r\n')
+    return value
+
+
 def restore(environment):
+    environment = dict(environment)
+    for source, public_name in (
+        ('APK_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_BASE64'),
+        ('APK_STORE_PASSWORD', 'ANDROID_KEYSTORE_PASSWORD'),
+        ('APK_KEY_ALIAS', 'ANDROID_KEY_ALIAS'),
+        ('APK_KEY_PASSWORD', 'ANDROID_KEY_PASSWORD'),
+    ):
+        environment[source] = copied_secret(environment.get(source, ''), public_name)
     names = ('APK_KEYSTORE_BASE64', 'APK_STORE_PASSWORD', 'APK_KEY_ALIAS', 'APK_KEY_PASSWORD')
     missing = [name for name in names if not environment.get(name)]
     if missing:
@@ -17,7 +36,12 @@ def restore(environment):
         if '\n' in environment[name] or '\r' in environment[name]:
             raise ValueError('Signing configuration must use single-line values')
     try:
-        key = base64.b64decode(''.join(environment['APK_KEYSTORE_BASE64'].split()), validate=True)
+        encoded = environment['APK_KEYSTORE_BASE64'].strip()
+        if encoded.startswith('```') and encoded.endswith('```') and '\n' in encoded:
+            encoded = encoded.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+        if len(encoded) >= 2 and encoded[0] == encoded[-1] and encoded[0] in ('"', "'"):
+            encoded = encoded[1:-1]
+        key = base64.b64decode(''.join(encoded.split()), validate=True)
     except ValueError:
         raise ValueError('ANDROID_KEYSTORE_BASE64 is not valid Base64') from None
     if not key:

@@ -73,6 +73,33 @@ class SigningTests(unittest.TestCase):
                 self.assertEqual(exported['APK_SIGNING_STORE_PASSWORD'], environment['APK_STORE_PASSWORD'])
                 self.assertEqual(exported['APK_SIGNING_KEY_PASSWORD'], environment['APK_KEY_PASSWORD'])
 
+    def test_named_blocks_and_assignments_preserve_the_same_private_key(self):
+        names = {'APK_KEYSTORE_BASE64': 'ANDROID_KEYSTORE_BASE64',
+                 'APK_STORE_PASSWORD': 'ANDROID_KEYSTORE_PASSWORD',
+                 'APK_KEY_ALIAS': 'ANDROID_KEY_ALIAS', 'APK_KEY_PASSWORD': 'ANDROID_KEY_PASSWORD'}
+        for separator in ('\n', '=', ': '):
+            with self.subTest(separator=separator), tempfile.TemporaryDirectory() as directory:
+                environment = self.environment(directory)
+                for name, public_name in names.items():
+                    environment[name] = public_name + separator + environment[name]
+                signing.restore(environment)
+                self.assertEqual((Path(directory) / 'pks-live-signing.keystore').read_bytes(), self.key.read_bytes())
+
+    def test_setup_document_and_quoted_base64_are_accepted_without_logging_values(self):
+        for mode in ('document', 'quotes', 'fence'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                environment = self.environment(directory)
+                encoded = environment['APK_KEYSTORE_BASE64']
+                if mode == 'document':
+                    environment['APK_KEYSTORE_BASE64'] = ('Private setup document\n\nANDROID_KEYSTORE_BASE64\n' + encoded +
+                        '\n\nANDROID_KEYSTORE_PASSWORD\ntest-only-password\n\nANDROID_KEY_ALIAS\ntest-signing\n\nANDROID_KEY_PASSWORD\ntest-only-password\n')
+                elif mode == 'quotes':
+                    environment['APK_KEYSTORE_BASE64'] = '"' + encoded + '"'
+                else:
+                    environment['APK_KEYSTORE_BASE64'] = '```text\n' + encoded + '\n```'
+                signing.restore(environment)
+                self.assertEqual((Path(directory) / 'pks-live-signing.keystore').read_bytes(), self.key.read_bytes())
+
 
 if __name__ == '__main__':
     unittest.main()
