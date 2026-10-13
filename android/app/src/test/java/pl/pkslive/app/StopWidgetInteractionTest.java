@@ -94,10 +94,26 @@ public class StopWidgetInteractionTest {
     View finished=inflate(context,320,180);
     assertNull(finished.findViewById(R.id.widget_spinner));assertEquals(View.VISIBLE,finished.findViewById(R.id.widget_refresh).getVisibility());
   }
-  @Test public void repeatedTapDoesNotQueueAnotherRequestAndReportsTheCooldown(){
-    StopWidgetProvider.refresh(context,7,true);long accepted=StopWidgetProvider.prefs(context).getLong("manual_7",0);
+  @Test public void repeatedTapJoinsTheActiveRequestWithoutACooldownNotice(){
+    JobScheduler scheduler=(JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+    StopWidgetProvider.refresh(context,7,true);JobInfo accepted=scheduler.getPendingJob(7402);
+    long loading=StopWidgetProvider.prefs(context).getLong("refreshing_7",0);
     StopWidgetProvider.refresh(context,7,true);
-    assertEquals(accepted,StopWidgetProvider.prefs(context).getLong("manual_7",0));assertTrue(StopWidgetProvider.prefs(context).getString("notice_7","").contains("za"));
+    assertSame(accepted,scheduler.getPendingJob(7402));assertEquals(loading,StopWidgetProvider.prefs(context).getLong("refreshing_7",0));
+    assertEquals("",StopWidgetProvider.prefs(context).getString("notice_7",""));
+  }
+  @Test public void completedRefreshCanBeRepeatedImmediatelyDespiteRecentLegacyManualTimestamp(){
+    JobScheduler scheduler=(JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+    for(int i=0;i<3;i++){
+      // Completion clears progress; fresh data and old cooldown keys must not block a new tap.
+      scheduler.cancel(7402);
+      StopWidgetProvider.prefs(context).edit().remove("refreshing_7").putLong("updated_7",System.currentTimeMillis()).putLong("attempted_7",System.currentTimeMillis()).putLong("manual_7",System.currentTimeMillis()).apply();
+      StopWidgetProvider.refresh(context,7,true);
+      JobInfo job=scheduler.getPendingJob(7402);assertNotNull(job);assertTrue(job.getExtras().getBoolean("manual"));
+      assertTrue(StopWidgetProvider.prefs(context).getLong("refreshing_7",0)>0);
+      assertFalse(StopWidgetProvider.prefs(context).contains("manual_7"));
+      assertEquals("",StopWidgetProvider.prefs(context).getString("notice_7",""));
+    }
   }
   @Test public void exhaustedExpeditedQuotaFallsBackToANormalManualJob(){
     JobScheduler scheduler=(JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
