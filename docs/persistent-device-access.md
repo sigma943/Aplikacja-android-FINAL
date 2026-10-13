@@ -39,9 +39,11 @@ Najlepiej użyć dotychczasowego klucza z komputera, na którym budowano zainsta
 Jeżeli dotychczasowy klucz był jednorazowym kluczem runnera i został utracony,
 po przejściu na stały podpis trzeba jednorazowo ponownie nadać rangi urządzeniom.
 
-Bez tego sekretu workflow nadal buduje testowy APK i wyświetla ostrzeżenie,
-ale nie gwarantuje zachowania ID między różnymi buildami. Nie polegamy na
-krótkotrwałym cache CI do przechowywania klucza. Sekrety nie są dostępne dla PR z forków.
+Bez kompletu czterech sekretów workflow kończy się błędem przed budowaniem APK.
+Nie publikuje już APK z losowym kluczem debug ani niepodpisanego release.
+Po zbudowaniu sprawdza zgodność podpisów debug/release przed publikacją APK.
+Nie polegamy na krótkotrwałym cache CI do przechowywania klucza.
+Sekrety nie są dostępne dla PR z forków — taki build również nie opublikuje APK.
 
 ## Weryfikacja
 
@@ -95,3 +97,22 @@ czasu znika automatycznie. Odmowa uprawnień ma osobny komunikat z przyczyną.
 
 Identyfikator po ponownym zainstalowaniu tego samego APK pozostaje identyczny.
 Dla kolejnych buildów nadal należy ustawić ten sam prywatny klucz podpisu opisany wyżej.
+
+
+## Ochrona tożsamości w kolejnych buildach
+
+Każdy build instalowany przez użytkowników musi korzystać z tego samego keystore,
+aliasu i profilu użytkownika Androida. Nie generuj nowego klucza dla kolejnej wersji
+i nie zastępuj sekretu innym keystore. Ranga w panelu aplikacji nie jest rolą
+Android Device Owner i nie daje dostępu do sprzętowego numeru seryjnego.
+
+Jeśli wcześniejsze APK podpisywał jednorazowy runner i nie zachowano jego klucza,
+nie da się odzyskać prywatnego klucza z samego APK. Przejście na nowy stały podpis
+wymaga jednorazowej reinstalacji i ponownego nadania dostępu przez właściciela.
+Zachowane profile Firebase nie są usuwane przez tę zmianę; nie wolno przywracać
+rangi na podstawie samej nazwy lub modelu telefonu. Kolejne APK ze stałym podpisem
+mają zachowywać Android ID, a tym samym zapisane bany, rangi i uprawnienia.
+
+Wariant `PKS Live Release Test` jest celowo oddzielną instalacją i nie przejmuje
+uprawnień produkcyjnej aplikacji. Do aktualizacji używaj `pks-live-release-apk`
+(lub debug z tym samym stałym podpisem), nie `pks-live-release-test-apk`.
