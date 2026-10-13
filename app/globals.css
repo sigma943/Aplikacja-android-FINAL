@@ -837,8 +837,9 @@ html[data-cosmic-theme='on']:has([data-carrier-sheet]) [data-map-canvas] { visib
   background-repeat:no-repeat,no-repeat,repeat !important;
 }
 /* Map sheets need the same sky on their own: street labels must not show
-   through the timetable or search controls. The actual map stays readable. */
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-map-search-panel,.map-detail-shell,[data-carrier-sheet]) {
+   through the timetable or search controls. The footer also covers scrolling
+   text, while retaining the same sky palette. The actual map stays readable. */
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-map-search-panel,.map-detail-shell,[data-carrier-sheet],.pks-navigation) {
   background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.28),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-canvas-art) !important;
   background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,640px) auto,100% 100%,100% 100%,100% 100%,100% 100% !important;
   background-position:center,var(--cosmos-planet-position,84% 78%),center top,center,center,center,center !important;
