@@ -756,9 +756,10 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation
 ) {
   background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)),linear-gradient(135deg,#080c18,#04060e 62%,#0b0c19) !important;
-  background-size:100% 100%,var(--cosmos-planet-size,64px) var(--cosmos-planet-size,64px),640px 400px,100% 100% !important;
+  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,640px 400px,100% 100% !important;
   background-position:center,var(--cosmos-planet-position,84% 78%),var(--cosmos-dust-position,0px 0px),center !important;
   background-repeat:no-repeat,no-repeat,repeat,no-repeat !important;
+  background-blend-mode:normal,screen,normal,normal;
   border-color:var(--ui-edge);
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-panel-scope[data-panel-theme] :is(

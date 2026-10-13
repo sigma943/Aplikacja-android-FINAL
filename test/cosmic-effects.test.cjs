@@ -3,7 +3,7 @@ const {COSMIC_METEOR_INTERVAL,COSMIC_METEOR_DURATION,cosmicMotionAllowed,cosmicM
 const normal={theme:'dark-cosmos',hidden:false,nativeActive:true,reducedMotion:false,lightEffects:false};
 test('cosmic motion stops for hidden/native background apps, both reduced motion preferences, light effects and other themes',()=>{
  assert.equal(cosmicMotionAllowed(normal),true);
- for(const change of [{hidden:true},{nativeActive:false},{reducedMotion:true},{lightEffects:true},{theme:'dark-oled'}])assert.equal(cosmicMotionAllowed({...normal,...change}),false);
+ for(const change of [{hidden:true},{nativeActive:false},{reducedMotion:true},{lightEffects:true},{theme:'dark-oled'},{hasRegion:false}])assert.equal(cosmicMotionAllowed({...normal,...change}),false);
  assert.ok(COSMIC_METEOR_DURATION<=800);assert.ok(COSMIC_METEOR_INTERVAL>=8000);
 });
 test('meteor scheduler is idle between short effects and has zero wakeups when disabled; resume creates only one timer',()=>{
@@ -22,11 +22,11 @@ test('Kosmos replaces Aurora, stays black at first paint, survives backups and u
  assert.ok(THEME_MODES.includes('dark-cosmos'));assert.equal(THEME_MODES.includes('dark-aurora'),false);assert.equal(normalizeAppTheme('dark-aurora'),'dark-cosmos');assert.equal(THEME_SCREEN_COLORS['dark-cosmos'].background,'#000000');
  const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),preset=INTERFACE_PRESETS.find(p=>p.name==='Kosmos');assert.equal(preset.glass,false);assert.equal(preset.glow,false);assert.equal(preset.appearance.glassBlur,0);
  const {exportAppearanceBackup,parseAppearanceBackup}=load('lib/appearance-backup.ts');const profile={...preset,id:'current',updatedAt:1};assert.equal(parseAppearanceBackup(exportAppearanceBackup(profile,[],{},false)).current.theme,'dark-cosmos');
- const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<26000);assert.match(atlas,/id="nebula"/);assert.match(atlas,/id="mist"/);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
+ const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<44000);assert.match(atlas,/id="nebula"/);assert.match(atlas,/id="mist"/);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
 });
 
-test('individual cosmic panels have diverse, stable seeded positions and six textured planet families',()=>{
- const {cosmicScene,COSMIC_PLANETS,COSMIC_DUST}=load('lib/cosmic-scene.ts');assert.equal(COSMIC_PLANETS.length,6);assert.equal(COSMIC_DUST.length,4);
+test('individual cosmic panels have diverse, stable seeded positions and eight real Solar System planets',()=>{
+ const {cosmicScene,COSMIC_PLANETS,COSMIC_DUST}=load('lib/cosmic-scene.ts');assert.equal(COSMIC_PLANETS.length,8);assert.equal(COSMIC_DUST.length,4);
  const scenes=Array.from({length:100},(_,i)=>cosmicScene(i*931+77));assert.ok(new Set(scenes.map(s=>s.planet)).size>=5);assert.ok(new Set(scenes.map(s=>s.x.toFixed(0))).size>15);assert.ok(new Set(scenes.map(s=>s.y.toFixed(0))).size>15);assert.ok(scenes.filter(s=>s.showPlanet).length<45);assert.deepEqual(cosmicScene(77),cosmicScene(77));
  for(const scene of scenes){assert.ok(scene.x>=48&&scene.x<=90);assert.ok(scene.y>=64&&scene.y<=88);assert.ok(scene.size>=50&&scene.size<=76);}
 });
@@ -48,5 +48,15 @@ test('stop lists leave two to four quiet cards between small planets for every s
    }else gap++;
   }
   assert.ok(count>=12&&count<=20);
+ }
+});
+
+test('all eight planet photographs are packaged locally for offline Android use',()=>{
+ const fs=require('node:fs');const {COSMIC_PLANET_NAMES,COSMIC_PLANETS}=load('lib/cosmic-scene.ts');
+ assert.deepEqual([...COSMIC_PLANET_NAMES],['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune']);
+ for(let i=0;i<COSMIC_PLANET_NAMES.length;i++){
+  assert.equal(COSMIC_PLANETS[i],`url("/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.jpg")`);
+  const photo=fs.readFileSync(`public/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.jpg`);
+  assert.equal(photo.readUInt16BE(0),0xffd8);assert.ok(photo.length>1000&&photo.length<100000);
  }
 });

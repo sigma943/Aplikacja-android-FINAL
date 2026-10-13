@@ -128,6 +128,9 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.querySelector('[data-cosmic-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:12000,polling:25});
         assert.equal(await page.$$eval('[data-cosmic-meteor]',els=>els.length),1);
         assert.ok(await page.$$eval('[data-cosmic-star]',els=>els.some(el=>el.getAnimations().some(a=>a.playState==='running'))),'small stars twinkle');
+        const twinkles=await page.$$eval('[data-cosmic-star]',els=>els.flatMap(el=>el.getAnimations().map(animation=>animation.effect.getTiming())));
+        assert.ok(twinkles.length>0&&twinkles.every(timing=>timing.duration>=6400&&timing.iterations===Infinity),'individual stars twinkle slowly and continuously');
+        assert.ok(new Set(twinkles.map(timing=>timing.duration)).size>1,'stars have independent rhythms');
         const layouts=await page.$$eval('[data-cosmic-scene]',els=>els.map(el=>el.style.getPropertyValue('--cosmos-planet-position')));
         assert.ok(new Set(layouts).size>1,'panels have individual scattered planet positions');
         await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
@@ -162,6 +165,11 @@ const server=http.createServer((req,res)=>{
       }
       await screenshot('stops-'+mode);await button('Mapa');
       await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
+      if(mode==='dark-cosmos'){
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','cosmic effects never overlay the bare map');
+        assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
+      }
       const screens=await browser.newPage();screens.on('pageerror',e=>errors.push(e.message));
       await screens.setViewport({width:393,height:851,deviceScaleFactor:1});
       await screens.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
