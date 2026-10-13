@@ -812,6 +812,9 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
   background-position:88% 82%,center top;
   background-repeat:no-repeat,repeat;
 }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-panel-scope[data-cosmic-view] [data-cosmic-canvas] {
+  background-color:transparent !important;
+}
 
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card {
   --cosmos-readability:linear-gradient(180deg,rgba(4,6,14,.82),rgba(4,6,14,.52) 42%,transparent 78%);

@@ -1042,6 +1042,8 @@ const server=http.createServer((req,res)=>{
     await cosmosPage.evaluate(()=>window.__startupTest.loginPolicy(true,'owner',true,true));
     await cosmosPage.waitForSelector('.admin-topbar');await cosmosPage.waitForSelector('[data-cosmic-view="admin:devices"] [data-cosmic-scene]');assert.equal(await cosmosPage.$eval('[data-cosmic-view="admin:devices"]',node=>node.dataset.cosmicSeed),adminSeed,'admin preserves the visit seed from loading to loaded data');
     const adminArt=()=>cosmosPage.$$eval('[data-cosmic-scene]',nodes=>nodes.map(node=>({key:node.dataset.cosmicScene,art:[...node.style].filter(name=>name.startsWith('--cosmos-')).map(name=>node.style.getPropertyValue(name)).join('|')})).sort((a,b)=>a.key.localeCompare(b.key)));
+    await cosmosPage.waitForSelector('[data-cosmic-panel="admin-device:restored-owner-uid"]');
+    assert.equal(await cosmosPage.$eval('[data-cosmic-canvas]',node=>getComputedStyle(node).backgroundColor),'rgba(0, 0, 0, 0)','admin list canvas reveals the sky outside its cards');
     const beforeData=await adminArt();await cosmosPage.evaluate(()=>{window.dispatchEvent(new Event('focus'));window.__startupTest.heartbeat();});await new Promise(resolve=>setTimeout(resolve,600));assert.deepEqual(await adminArt(),beforeData,'admin data snapshots do not randomize the existing arrangement');
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-admin-stable.png'});
     await cosmosPage.goto(origin+'/cosmos-route-fixture/',{waitUntil:'domcontentloaded'});await cosmosPage.waitForSelector('.leaflet-interactive');await cosmosPage.waitForFunction(()=>window.__stationRoute?.length>0);
