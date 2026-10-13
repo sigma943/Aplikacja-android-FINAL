@@ -23,3 +23,18 @@ test('shared stop snapshots keep later departures for widgets with different lin
  assert.equal(widgetDepartures(shared,[],['288'],now)[0].id,'20');
  assert.equal(widgetDepartures(shared,[],['108'],now).length,16);
 });
+
+const {WIDGET_REFRESH_PRESETS,isValidWidgetRefreshMinutes,normalizeWidgetRefreshMinutes}=loadTs('lib/widget-refresh.ts');
+test('widget supports short and arbitrary whole-minute intervals',()=>{
+ assert.deepEqual([...WIDGET_REFRESH_PRESETS],[1,2,5,15,30,60,120]);
+ for(const value of [1,2,5,7,37,1440,2147483647]){assert.equal(isValidWidgetRefreshMinutes(value),true);assert.equal(normalizeWidgetRefreshMinutes(value),value);}
+ for(const value of [undefined,null,'5',0,-1,1.5,NaN,Infinity,2147483648]){assert.equal(isValidWidgetRefreshMinutes(value),false);assert.equal(normalizeWidgetRefreshMinutes(value),30);}
+});
+test('pin sends the custom interval to Android and defaults old configs to 30 minutes',async()=>{
+ const sent=[];
+ const {pinStopWidget}=loadTs('lib/stop-widget.ts',{'@capacitor/core':{Capacitor:{getPlatform:()=> 'android'},registerPlugin:()=>({pin:async options=>{sent.push(JSON.parse(options.config));return {token:'test'};}})}});
+ const config={stop:{id:'stop',name:'Test'},lines:null,size:'medium',theme:'system'};
+ for(const value of [1,2,5,37])await pinStopWidget({...config,refreshMinutes:value},[],[]);
+ await pinStopWidget(config,[],[]);
+ assert.deepEqual(sent.map(config=>config.refreshMinutes),[1,2,5,37,30]);
+});

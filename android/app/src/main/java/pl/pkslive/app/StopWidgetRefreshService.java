@@ -36,7 +36,7 @@ public class StopWidgetRefreshService extends JobService {
     Arrays.sort(ordered,Comparator.comparingLong(id->StopWidgetProvider.prefs(this).getLong("attempted_"+id,0)));
     ids=Arrays.stream(ordered).mapToInt(Integer::intValue).toArray();index=-1;next();
   }
-  @Override public boolean onStopJob(JobParameters p){waitingJobs.remove(p.getJobId());if(job==null||p.getJobId()!=job.getJobId())return false;stopped=true;if(ids!=null&&index>=0&&index<ids.length){clearProgress(ids[index]);StopWidgetProvider.render(this,ids[index]);}cleanup();job=null;handler.post(this::startWaitingJob);return false;}
+  @Override public boolean onStopJob(JobParameters p){waitingJobs.remove(p.getJobId());if(job==null||p.getJobId()!=job.getJobId())return false;stopped=true;if(ids!=null&&index>=0&&index<ids.length){clearProgress(ids[index]);StopWidgetProvider.render(this,ids[index]);}cleanup();job=null;handler.post(()->{StopWidgetProvider.schedule(this,true);startWaitingJob();});return false;}
   private void cleanup(){handler.removeCallbacks(timeout);for(HttpURLConnection connection:connections)connection.disconnect();connections.clear();if(web!=null){web.removeJavascriptInterface("NativeWidget");web.stopLoading();web.destroy();web=null;}}
   private void next(){
     cleanup();if(stopped||job==null)return;
@@ -49,7 +49,7 @@ public class StopWidgetRefreshService extends JobService {
       if(cached!=null){StopWidgetProvider.prefs(this).edit().putString("rows_"+id,cached[0]).putString("warning_"+id,cached[1]).putLong("updated_"+id,Long.parseLong(cached[2])).apply();StopWidgetProvider.render(this,id);index++;continue;}
       break;
     }
-    if(index>=ids.length||System.currentTimeMillis()-startedAt>120000){JobParameters done=job;job=null;jobFinished(done,false);handler.post(this::startWaitingJob);return;}
+    if(index>=ids.length||System.currentTimeMillis()-startedAt>120000){JobParameters done=job;job=null;jobFinished(done,false);handler.post(()->{StopWidgetProvider.schedule(this,true);startWaitingJob();});return;}
     StopWidgetProvider.prefs(this).edit().putLong("attempted_"+ids[index],System.currentTimeMillis()).apply();
     final int id=ids[index];final WebView runner=new WebView(this);web=runner;runner.getSettings().setJavaScriptEnabled(true);runner.getSettings().setDomStorageEnabled(true);runner.getSettings().setAllowFileAccess(false);runner.getSettings().setAllowContentAccess(false);
     WebViewAssetLoader loader=new WebViewAssetLoader.Builder().setDomain("appassets.androidplatform.net").addPathHandler("/",path->{try{String mime=path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".json")?"application/json":"text/html";return new WebResourceResponse(mime,"UTF-8",getAssets().open("public/"+path));}catch(IOException e){return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",null,new ByteArrayInputStream(new byte[0]));}}).build();
