@@ -818,8 +818,8 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
   background-repeat:no-repeat,repeat,no-repeat,no-repeat,no-repeat,no-repeat !important;
 }
 /* The map stays mounted for fast return, but cannot cover the sky of another tab. */
-.pks-theme-root[data-ui-theme='dark-cosmos'] > [data-map-canvas][inert],
-.pks-theme-root[data-ui-theme='dark-cosmos']:has([data-options-sheet]) > [data-map-canvas],
+.pks-theme-root[data-ui-theme='dark-cosmos'] [data-map-canvas][inert],
+.pks-theme-root[data-ui-theme='dark-cosmos']:has([data-options-sheet]) [data-map-canvas],
 html[data-cosmic-theme='on']:has([data-carrier-sheet]) [data-map-canvas] { visibility:hidden; }
 .pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-view,[data-statistics-view],.pks-panel-scope[data-cosmic-view],[data-cosmic-canvas]) {
   background-image:none !important;
