@@ -230,7 +230,7 @@ const server=http.createServer((req,res)=>{
         await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
         await new Promise(resolve=>setTimeout(resolve,8500));
         assert.deepEqual(await captureCosmic(),stable,'focus, appearance refreshes and meteor ticks never randomize existing scenes');
-        assert.ok(await page.$$eval('.transit-stop-card',els=>els.every(el=>{const style=getComputedStyle(el);return style.backgroundRepeat.split(',').slice(0,2).every(value=>value.trim()==='no-repeat')&&!style.backgroundSize.includes('cover')&&style.backgroundImage.includes('sky-cloud')&&style.backgroundImage.includes('nebula');})),'planets never tile and each card has fine local dust over the starfield');
+        assert.ok(await page.$$eval('.transit-stop-card',els=>els.every(el=>{const style=getComputedStyle(el);return style.backgroundRepeat.split(',').slice(0,2).every(value=>value.trim()==='no-repeat')&&!style.backgroundSize.includes('cover')&&style.backgroundImage.includes('sky-cloud')&&style.backgroundImage.includes('/themes/kosmos/deep-space-');})),'planets never tile and each card has a local Hubble composition over the sparse starfield');
         await page.type('input[placeholder*="Babica"]','Albigowa');
         await page.waitForFunction(count=>{const titles=[...document.querySelectorAll('.transit-stop-card h3')];return titles.length>0&&titles.length<count&&titles.every(el=>el.textContent.includes('Albigowa'));},{},stable.length);
         await page.click('[aria-label="Wyczysc wyszukiwanie"]');
