@@ -16,6 +16,27 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
+      - name: Setup Java
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          task_java_home="${JAVA_HOME_21_X64:-}"
+          if [ -z "$task_java_home" ] || [ ! -x "$task_java_home/bin/java" ]; then
+            echo "::error::Java 21 is missing from the hosted runner."
+            exit 1
+          fi
+          "$task_java_home/bin/java" -version
+          echo "JAVA_HOME=$task_java_home" >> "$GITHUB_ENV"
+          echo "$task_java_home/bin" >> "$GITHUB_PATH"
+
+      - name: Restore persistent APK signing key
+        env:
+          APK_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          APK_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          APK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          APK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: python3 scripts/restore-apk-signing.py
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -55,12 +76,6 @@ jobs:
       - name: Generate Android Icons
         run: npm run android:assets
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: "zulu"
-          java-version: "21"
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -68,35 +83,6 @@ jobs:
 
       - name: Verify Firebase restoration rules
         run: npm run test:rules
-
-      - name: Restore persistent APK signing key
-        env:
-          APK_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          APK_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          APK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          APK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          if [ -z "$APK_KEYSTORE_BASE64" ]; then
-            echo "::warning::Persistent signing key is not configured. This test APK cannot guarantee device identity across different builds."
-            exit 0
-          fi
-          python - <<'PY'
-          import base64, os, pathlib
-          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'pks-live-signing.keystore'
-          path.write_bytes(base64.b64decode(''.join(os.environ['APK_KEYSTORE_BASE64'].split()), validate=True))
-          path.chmod(0o600)
-          with open(os.environ['GITHUB_ENV'], 'a') as output:
-              output.write(f'APK_SIGNING_STORE_FILE={path}\n')
-              for source, target, default in [
-                  ('APK_STORE_PASSWORD', 'APK_SIGNING_STORE_PASSWORD', 'android'),
-                  ('APK_KEY_ALIAS', 'APK_SIGNING_KEY_ALIAS', 'androiddebugkey'),
-                  ('APK_KEY_PASSWORD', 'APK_SIGNING_KEY_PASSWORD', 'android'),
-              ]:
-                  value = os.environ.get(source) or default
-                  if '\n' in value or '\r' in value:
-                      raise ValueError('Signing configuration must use single-line values')
-                  output.write(f'{target}={value}\n')
-          PY
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -110,14 +96,7 @@ jobs:
           chmod +x ./gradlew
           ./gradlew testDebugUnitTest testReleaseUnitTest testReleaseTestUnitTest assembleDebug assembleRelease assembleReleaseTest
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: pks-live-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-
       - name: Verify signed release matches debug application
-        if: env.APK_SIGNING_STORE_FILE != ''
         run: |
           python scripts/verify-apk-variants.py \
             android/app/build/outputs/apk/debug/app-debug.apk \
@@ -126,37 +105,24 @@ jobs:
             "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
             "$RUNNER_TEMP/apk-variant-verification.json"
 
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pks-live-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+
       - name: Upload signed release APK
-        if: env.APK_SIGNING_STORE_FILE != ''
         uses: actions/upload-artifact@v4
         with:
           name: pks-live-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
-      - name: Verify unsigned release contains identical application
-        if: env.APK_SIGNING_STORE_FILE == ''
-        run: |
-          python scripts/verify-apk-variants.py --unsigned \
-            android/app/build/outputs/apk/debug/app-debug.apk \
-            android/app/build/outputs/apk/release/app-release-unsigned.apk \
-            "$ANDROID_HOME/build-tools/36.0.0/aapt" \
-            "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
-            "$RUNNER_TEMP/apk-variant-verification.json"
-
       - name: Upload APK verification report
         uses: actions/upload-artifact@v4
         with:
           name: apk-variant-verification
           path: ${{ runner.temp }}/apk-variant-verification.json
-          if-no-files-found: error
-
-      - name: Upload unsigned release for signing setup
-        if: env.APK_SIGNING_STORE_FILE == ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: pks-live-release-unsigned-apk
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
 
       - name: Verify separate signed release test
@@ -181,3 +147,4 @@ jobs:
           name: apk-release-test-verification
           path: ${{ runner.temp }}/apk-release-test-verification.json
           if-no-files-found: error
+

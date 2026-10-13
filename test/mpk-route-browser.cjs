@@ -88,8 +88,10 @@ try{
  stopBoard=`<Departures i="100"><D i="8212" iks="6462467" r="15" d="Olbrachta p. Jarową" n="815" t="${seconds+660}" vr="660" m="2"/></Departures>`;
  await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()==='Przystanki').click());
  await page.waitForSelector('input[placeholder*="Babica"]');await page.type('input[placeholder*="Babica"]','Matuszczaka');
- await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>el.textContent.includes('Matuszczaka')));
- await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id]')].find(el=>el.textContent.includes('Matuszczaka')).click());
+ await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id]')].some(el=>el.textContent.includes('Matuszczaka')&&el.textContent.includes('MPK Rzeszów')));
+ const sharedTitle=await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id]')].find(el=>el.textContent.includes('Matuszczaka')&&el.textContent.includes('MPK Rzeszów')).querySelector('h3').textContent);
+ assert.match(sharedTitle,/Rzeszów, Podkarp\.Matuszczaka 03/i,'list keeps the PKS name and a shared provider card');
+ await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id]')].find(el=>el.textContent.includes('Matuszczaka')&&el.textContent.includes('MPK Rzeszów')).click());
  await page.waitForFunction(()=>document.body.textContent.includes('+6 min')&&document.body.textContent.includes('Lubelska MPK'));
  const rendered=await page.evaluate(()=>{const title=[...document.querySelectorAll('h4')].find(el=>el.textContent==='Olbrachta p. Jarową');return title?.parentElement.parentElement.parentElement.parentElement.textContent;});
  assert.match(rendered,/1[01] min/);assert.match(rendered,/\+6 min/);assert.doesNotMatch(rendered,/Rozkład/);assert.deepEqual(errors,[]);

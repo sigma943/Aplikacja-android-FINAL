@@ -587,9 +587,10 @@ export function DeviceTable({
                     <div className="text-[9px] text-slate-500 uppercase tracking-[0.2em] font-black">Rola w systemie</div>
                     <Badge role={device.role} className="-ml-[1px]" />
                   </div>
-                  <div className="flex flex-col gap-1 items-end text-right">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 items-end text-right">
                     <div className="text-[9px] text-slate-500 uppercase tracking-[0.2em] font-black">Obecny stan</div>
                     <Badge status={device.status} className="-mr-[1px]" />
+                    {device.loginBlocked&&<span data-login-pending className="max-w-[9rem] break-words text-[10px] font-medium leading-snug text-amber-400" title="Nowe logowania są wyłączone">Oczekuje na dostęp</span>}
                   </div>
                 </div>
               </motion.div>
@@ -639,7 +640,7 @@ export function DeviceTable({
                       <td className="px-6 py-4 text-slate-400">{device.firstLogin}</td>
                       <td className={cn('px-6 py-4 text-xs', device.lastSeenOnline ? 'font-bold text-emerald-400' : 'text-slate-400')}>{device.lastSeenLabel ?? '—'}</td>
                       <td className="px-6 py-4"><Badge role={device.role} /></td>
-                      <td className="px-6 py-4 w-32"><Badge status={device.status} /></td>
+                      <td className="px-6 py-4 w-32"><Badge status={device.status} />{device.loginBlocked&&<span data-login-pending className="mt-1 block max-w-[9rem] break-words text-[10px] leading-snug text-amber-400" title="Nowe logowania są wyłączone">Oczekuje na dostęp</span>}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-start gap-2">
                           <button type="button" disabled={banDisabled} onClick={() => !banDisabled && onOpenBanModal(device)} className="cursor-pointer rounded-xl p-2.5 text-slate-500 transition-all hover:scale-110 hover:bg-rose-500/10 hover:text-rose-400 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30" title={banTitle(device, isSelf)}>

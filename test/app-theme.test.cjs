@@ -5,7 +5,7 @@ test('theme aliases remain supported; damaged values fall back to system',()=>{
  for(const input of ['bad-theme','',{},42]){assert.equal(theme.normalizeAppTheme(input),'system');assert.equal(theme.resolveAppTheme(input,true),'dark');assert.equal(theme.resolveAppTheme(input,false),'light');}
 });
 test('first-paint script uses selected palettes and safely recovers when storage or media queries fail',()=>{
- for(const mode of ['dark-forest','light-sky','light-pink','bad-theme','system','','constructor','__proto__','toString'])for(const dark of [true,false])for(const brokenStorage of [true,false]){
+ for(const mode of ['dark-cosmos','dark-aurora','dark-forest','light-sky','light-pink','bad-theme','system','','constructor','__proto__','toString'])for(const dark of [true,false])for(const brokenStorage of [true,false]){
   const style={values:{},setProperty(k,v){this.values[k]=v}},root={style,dataset:{}};
   vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{localStorage:{getItem(){if(brokenStorage)throw Error('Denied');return mode;}},matchMedia:()=>({matches:dark}),document:{documentElement:root}});
   const expected=theme.resolveAppTheme(brokenStorage?'system':mode,dark);assert.equal(root.dataset.pksTheme,expected);assert.equal(style.backgroundColor,theme.THEME_SCREEN_COLORS[expected].background);assert.equal(style.color,theme.THEME_SCREEN_COLORS[expected].text);

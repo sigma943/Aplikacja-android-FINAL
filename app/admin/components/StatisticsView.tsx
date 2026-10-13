@@ -47,7 +47,7 @@ export function StatisticsView({devices,devicesError,devicesReady=true,onMenuCli
   const api=useMemo(()=>apiStatistics(history.days,range,history.startedAt,now),[history,range,now]);
   const loaded=devicesReady&&!devicesError;
   const muted=isDarkTheme?'text-slate-400':'text-slate-500';
-  const card=isDarkTheme?'border-white/[0.08] bg-[#111623]':'border-slate-200 bg-white/85';
+  const card='pks-personal-card '+(isDarkTheme?'border-white/[0.08] bg-[#111623]':'border-slate-200 bg-white/85');
   const soft=isDarkTheme?'bg-white/[0.035]':'bg-slate-50';
   const period=range===1?'dzisiaj':`w ostatnich ${range} dniach`;
   const exportCsv=async()=>{
@@ -63,7 +63,7 @@ export function StatisticsView({devices,devicesError,devicesReady=true,onMenuCli
     {title:'Zapytania API',value:history.startedAt?number(api.requests):'—',icon:Server,detail:'PKS · MPK · Marcel',scope:'To urządzenie'},
     {title:'Skuteczność API',value:api.successRate===null?'—':api.successRate.toLocaleString('pl-PL',{maximumFractionDigits:1})+'%',icon:CheckCircle2,detail:api.requests?`${number(api.requests-api.errors)} poprawnych odpowiedzi`:'Brak zapytań w tym okresie',scope:'To urządzenie'},
   ];
-  return <div data-statistics-view className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain ${isDarkTheme?'text-slate-100':'text-slate-900'}`}>
+  return <div data-statistics-view data-ui-mode={isDarkTheme?'dark':'light'} className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain ${isDarkTheme?'text-slate-100':'text-slate-900'}`}>
     <header className="flex shrink-0 flex-col gap-4 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:pt-8">
       <div className="flex items-center gap-4"><button onClick={onMenuClick} aria-label="Otwórz menu statystyk" className="lg:hidden w-11 h-11 shrink-0 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"><Menu size={20}/></button><div><h1 className="text-lg font-bold uppercase tracking-wider">Statystyki</h1><p className={`mt-0.5 text-[10px] font-medium uppercase tracking-widest ${muted}`}>Aktywność aplikacji i kondycja API</p></div></div>
       <button onClick={exportCsv} disabled={exporting||(!loaded&&!history.startedAt)} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold disabled:opacity-40 ${isDarkTheme?'border-white/10 hover:bg-white/5':'border-slate-200 hover:bg-slate-50'}`}><Download size={15}/>{exporting?'Zapisywanie…':'Eksport CSV'}</button>

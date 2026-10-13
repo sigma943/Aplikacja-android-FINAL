@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict');
+const backgroundSvgs=require('./helpers/css-background-svg.cjs');
 const http=require('node:http');const fs=require('node:fs');const path=require('node:path');
 const puppeteer=require('puppeteer');
 const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root;const productionRoot=path.resolve('out');
@@ -8,7 +9,7 @@ const server=http.createServer((req,res)=>{
   if(!file.startsWith(root+path.sep)){res.writeHead(404);res.end();return;}
   if(!fs.existsSync(file))file=path.resolve(productionRoot,'.'+pathname);
   if(!file.startsWith(productionRoot+path.sep)&&!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
-  const type={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.webp':'image/webp'}[path.extname(file)]||'application/octet-stream';
+  const type={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.svg':'image/svg+xml'}[path.extname(file)]||'application/octet-stream';
   res.setHeader('Content-Type',type);fs.createReadStream(file).pipe(res);
 });
 (async()=>{
@@ -114,25 +115,133 @@ const server=http.createServer((req,res)=>{
     assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
     const beforeNewThemes=await page.evaluate(()=>({...localStorage}));
-    for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff']]){
+    for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff'],['Kosmos','dark-cosmos','#000000']]){
       await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+      await page.waitForSelector(`[aria-label="Zestaw: ${name}"]`);
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
-      assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-canvas').trim()),canvas);
-      assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),'true');
+      assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundColor),`rgb(${[1,3,5].map(index=>parseInt(canvas.slice(index,index+2),16)).join(', ')})`);
+      assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),mode==='dark-cosmos'?'off':'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),mode==='dark-cosmos'?'false':'true');
       const pattern=await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage);
-      assert.ok(pattern.includes('svg')&&pattern.includes('radial-gradient'),'decoration and glow are both present');
+      assert.ok(pattern.includes('svg'),'selected theme has static decorations');if(mode!=='dark-cosmos')assert.ok(pattern.includes('radial-gradient'),'decoration and glow are both present');
+      if(mode==='dark-cosmos'){
+        assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Aurora')),false);
+        const planetImages=await page.evaluate(async()=>Promise.all(['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune'].map(async name=>{
+          const image=new Image();image.src=`/themes/kosmos/${name}.svg`;await image.decode();const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d');context.drawImage(image,0,0);
+          return {name,width:image.naturalWidth,centerAlpha:context.getImageData(Math.floor(canvas.width/2),Math.floor(canvas.height/2),1,1).data[3],cornerAlpha:context.getImageData(0,0,1,1).data[3]};
+        })));
+        assert.ok(planetImages.every(image=>image.width===512&&image.centerAlpha>0&&image.cornerAlpha<85),'each planet image decodes with visible artwork and a transparent background: '+JSON.stringify(planetImages));
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        await page.waitForFunction(()=>document.querySelector('[data-cosmic-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:12000,polling:25});
+        assert.equal(await page.$$eval('[data-cosmic-meteor]',els=>els.length),1);
+        assert.ok(await page.$$eval('[data-cosmic-star]',els=>els.some(el=>el.getAnimations().some(a=>a.playState==='running'))),'small stars twinkle');
+        const twinkles=await page.$$eval('[data-cosmic-star]',els=>els.flatMap(el=>el.getAnimations().map(animation=>{const timing=animation.effect.getTiming();return {duration:timing.duration,infinite:timing.iterations===Infinity};})));
+        assert.ok(twinkles.length>0&&twinkles.every(timing=>timing.duration>=6400&&timing.infinite),'individual stars twinkle slowly and continuously');
+        assert.ok(new Set(twinkles.map(timing=>timing.duration)).size>1,'stars have independent rhythms');
+        const cosmicPaint=await page.$$eval('[data-cosmic-scene]',els=>els.map(el=>{const style=getComputedStyle(el);return {node:el.className,blend:style.backgroundBlendMode,blur:style.backdropFilter};}));
+        assert.ok(cosmicPaint.every(style=>style.blend.split(',').every(mode=>mode.trim()==='normal')&&style.blur==='none'),'cosmic surfaces use ordinary image painting without blended or blurred panel layers: '+JSON.stringify(cosmicPaint.filter(style=>style.blend.split(',').some(mode=>mode.trim()!=='normal')||style.blur!=='none')));
+        const layouts=await page.$$eval('[data-cosmic-scene]',els=>els.map(el=>el.style.getPropertyValue('--cosmos-planet-position')));
+        assert.ok(new Set(layouts).size>1,'panels have individual scattered planet positions');
+        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
+        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0);
+        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        await page.evaluate(()=>{localStorage.setItem('mks_light_effects','true');window.dispatchEvent(new Event('pks-interface-appearance'));});
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        await page.evaluate(()=>{localStorage.setItem('mks_light_effects','false');window.dispatchEvent(new Event('pks-interface-appearance'));});
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        const idleTab=await browser.newPage();await idleTab.bringToFront();
+        await page.waitForFunction(()=>document.hidden&&document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
+        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0);
+        await idleTab.close();await page.bringToFront();
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+      }
       await screenshot('personalization-'+mode);
       await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
-      await button('Przystanki');await page.waitForSelector('.transit-surface');await screenshot('stops-'+mode);await button('Mapa');
+      await button('Przystanki');await page.waitForSelector('.transit-surface');
+      if(mode==='dark-cosmos'){
+        await page.waitForFunction(()=>document.querySelectorAll('.transit-card[data-cosmic-scene]').length>3);
+        const positions=await page.$$eval('.transit-card[data-cosmic-scene]',els=>els.map(el=>el.style.getPropertyValue('--cosmos-planet-position')));
+        assert.ok(new Set(positions).size>3,'stop cards do not repeat a three-row planet pattern');
+        const scenes=await page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>({planet:el.dataset.cosmicPlanet==='on',size:parseFloat(el.style.getPropertyValue('--cosmos-planet-size'))})));
+        assert.ok(scenes.length>3);
+        assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length/3),'planets occupy at most a third of stop cards');
+        assert.ok(scenes.every(scene=>scene.size>=50&&scene.size<=76),'small planets fit mobile cards');
+        for(let i=0;i<scenes.length;i++)if(scenes[i].planet)assert.ok(!scenes[i+1]?.planet&&!scenes[i+2]?.planet,'two quiet cards follow each planet');
+        const saved=await page.evaluate(()=>{
+          const appearance=localStorage.getItem('mks_interface_appearance_v1'),glass=localStorage.getItem('mks_transparent');
+          localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({...JSON.parse(appearance||'{}'),density:'spacious',textScale:120,glassOpacity:35,glassBlur:28}));
+          localStorage.setItem('mks_transparent','true');window.dispatchEvent(new Event('storage'));window.dispatchEvent(new Event('pks-interface-appearance'));
+          return {appearance,glass};
+        });
+        await page.waitForFunction(()=>document.documentElement.dataset.personalDensity==='spacious');
+        await screenshot('stops-dark-cosmos-resized');
+        const bottomPixels=await page.evaluate(async image=>{
+          const img=new Image();img.src=image;await img.decode();const canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;const context=canvas.getContext('2d');context.drawImage(img,0,0);
+          return [...document.querySelectorAll('.transit-stop-card')].map(el=>el.getBoundingClientRect()).filter(rect=>rect.top>=0&&rect.bottom<innerHeight-70).map(rect=>[...context.getImageData(Math.floor(rect.left+rect.width*.5),Math.floor(rect.bottom-8),1,1).data]);
+        },'data:image/png;base64,'+Buffer.from(await page.screenshot()).toString('base64'));
+        assert.ok(bottomPixels.length>0&&bottomPixels.every(pixel=>pixel[2]>=8),'resized cards paint their full height down to the bottom, rather than exposing a black cutout');
+        assert.ok(await page.$$eval('.transit-stop-card',els=>els.every(el=>{const style=getComputedStyle(el);return style.backgroundBlendMode.split(',').every(mode=>mode.trim()==='normal')&&style.backdropFilter==='none'&&style.backgroundClip.split(',').every(clip=>clip.trim()==='border-box');})),'saved glass preferences cannot reintroduce clipping on cosmic cards');
+        await page.evaluate(saved=>{for(const [key,value]of [['mks_interface_appearance_v1',saved.appearance],['mks_transparent',saved.glass]]){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}window.dispatchEvent(new Event('storage'));window.dispatchEvent(new Event('pks-interface-appearance'));},saved);
+        await page.waitForFunction(()=>document.documentElement.dataset.personalDensity==='comfortable');
+        const captureCosmic=()=>page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>{
+          let hash=2166136261;const dust=el.style.getPropertyValue('--cosmos-dust');for(let i=0;i<dust.length;i++)hash=Math.imul(hash^dust.charCodeAt(i),16777619)>>>0;
+          return {id:el.dataset.stopCardId,visit:el.dataset.cosmicVisit,art:[el.dataset.cosmicPlanet,el.dataset.cosmicPlanetName,el.style.getPropertyValue('--cosmos-planet-position'),el.style.getPropertyValue('--cosmos-planet-size'),el.style.getPropertyValue('--cosmos-dust-position'),hash].join('|')};
+        }));
+        const stable=await captureCosmic();
+        await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
+        await new Promise(resolve=>setTimeout(resolve,8500));
+        assert.deepEqual(await captureCosmic(),stable,'focus, appearance refreshes and meteor ticks never randomize existing scenes');
+        assert.ok(await page.$$eval('.transit-stop-card',els=>els.every(el=>{const style=getComputedStyle(el);return style.backgroundRepeat.split(',').every(value=>value.trim()==='no-repeat')&&style.backgroundSize.split(',')[2].trim()==='cover';})),'dust has no repeated tile boundaries inside any card');
+        await page.type('input[placeholder*="Babica"]','Albigowa');
+        await page.waitForFunction(count=>{const titles=[...document.querySelectorAll('.transit-stop-card h3')];return titles.length>0&&titles.length<count&&titles.every(el=>el.textContent.includes('Albigowa'));},{},stable.length);
+        await page.click('[aria-label="Wyczysc wyszukiwanie"]');
+        await page.waitForFunction(count=>document.querySelectorAll('.transit-stop-card').length===count,{},stable.length);
+        assert.deepEqual(await captureCosmic(),stable,'filtering and rebuilding the stop list preserves each stop’s composition');
+        const captureStopPanels=()=>page.$$eval('[data-cosmic-panel]',els=>els.map(el=>({
+          key:el.dataset.cosmicPanel,visit:el.dataset.cosmicVisit,
+          art:[...el.style].filter(name=>name.startsWith('--cosmos-')).map(name=>el.style.getPropertyValue(name)).join('|'),
+        })));
+        await page.click('.transit-stop-card');
+        await page.waitForSelector('[data-cosmic-panel="stop-header"][data-cosmic-scene]');
+        const stopPanels=await captureStopPanels();
+        await page.waitForFunction(()=>!document.querySelector('[data-cosmic-panel="stop-departures"] .animate-spin'));
+        await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
+        await new Promise(resolve=>setTimeout(resolve,1200));
+        assert.deepEqual(await captureStopPanels(),stopPanels,'stop detail composition survives completed loading, clock refreshes and preference events');
+        await page.click('[aria-label="Wróć do listy przystanków"]');
+        await page.waitForSelector('.transit-stop-card');
+        await page.click('.transit-stop-card');
+        await page.waitForSelector('[data-cosmic-panel="stop-header"][data-cosmic-scene]');
+        assert.notDeepEqual((await captureStopPanels()).map(panel=>panel.art),stopPanels.map(panel=>panel.art),'closing and reopening stop detail creates a new composition');
+        await page.click('[aria-label="Wróć do listy przystanków"]');
+        await page.waitForSelector('.transit-stop-card');
+        await button('Mapa');await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
+        await button('Przystanki');await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="stops"]')?.getAttribute('aria-current')==='page');
+        await page.waitForFunction(visit=>document.querySelector('.transit-stop-card')?.dataset.cosmicVisit!==visit,{},stable[0].visit);
+        assert.notDeepEqual((await captureCosmic()).map(scene=>scene.art),stable.map(scene=>scene.art),'leaving the tab and returning creates a fresh composition');
+      }
+      await screenshot('stops-'+mode);await button('Mapa');
       await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
+      if(mode==='dark-cosmos'){
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','cosmic effects never overlay the bare map');
+        assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
+        assert.equal(await page.$eval('.pks-map-search-panel',el=>el.style.getPropertyValue('--cosmos-planet')),'none','map search panel never receives planet artwork');
+        assert.ok(!await page.$eval('.pks-map-search-panel',el=>getComputedStyle(el).backgroundImage.includes('/themes/kosmos/')),'no planet is painted underneath map search controls');
+      }
       const screens=await browser.newPage();screens.on('pageerror',e=>errors.push(e.message));
       await screens.setViewport({width:393,height:851,deviceScaleFactor:1});
       await screens.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
       for(const kind of ['loading','error','maintenance','ban','silent']){
         await screens.click(`[data-screen-kind="${kind}"]`);await screens.waitForSelector(`[data-startup-theme="${mode}"]`);
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
-        assert.equal(background,mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
-        assert.ok((await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage)).includes('svg'));
+        assert.equal(background,mode==='dark-cosmos'?'rgb(0, 0, 0)':mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
+        const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
+        if(kind==='loading'){assert.equal(decoration,'none','loading screen has a uniform theme background');if(mode==='dark-cosmos')assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');}
+        else assert.ok(decoration.includes('svg'));
         if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
         if(kind==='ban'||kind==='loading')await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
       }
@@ -183,9 +292,51 @@ const server=http.createServer((req,res)=>{
     await button('Przystanki');await page.waitForSelector('.transit-surface');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.transit-surface')).backgroundImage.includes('svg'));
     const pinkStops=await page.$eval('.transit-surface',el=>({pattern:getComputedStyle(el).backgroundImage,surface:getComputedStyle(el).backgroundColor,canvas:getComputedStyle(el.closest('.transit-view')).getPropertyValue('--transit-canvas').trim()}));
-    assert.ok(decodeURIComponent(pinkStops.pattern).includes("fill='#000000'"),'pink stop panels have black hearts');
+    assert.ok(backgroundSvgs(pinkStops.pattern).some(svg=>svg.includes('id="heart"')),'pink stop panels have heart decorations');
     assert.equal(pinkStops.canvas,'#ffd1e8');assert.notEqual(pinkStops.surface,'rgb(255, 255, 255)');
     await screenshot('stops-pink-hearts');
+
+    // Real computed colours, including alpha compositing of glass and line chips.
+    for(const mode of ['light','light-warm','light-pink','light-sky'])for(const glass of [false,true]){
+      await page.evaluate(({mode,glass})=>{
+        localStorage.setItem('mks_app_theme',mode);localStorage.setItem('mks_transparent',String(glass));
+        window.dispatchEvent(new Event('pks-profile-applied'));
+      },{mode,glass});
+      await page.waitForSelector(`[data-ui-theme="${mode}"]`);
+      await page.waitForFunction(glass=>document.querySelector('.transit-view')?.closest('.pks-panel-scope')?.dataset.glass===(glass?'on':'off'),{},glass);
+      await page.$eval('input[placeholder*="Babica"]',el=>{
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,'Boguchwała');
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+      });
+      await page.waitForFunction(()=>document.querySelector('input[placeholder*="Babica"]')?.value==='Boguchwała');
+      await page.waitForSelector('[data-stop-line-overflow]');
+      const contrasts=await page.evaluate(()=>{
+        const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+        const context=canvas.getContext('2d',{willReadFrequently:true});
+        const rgba=color=>{
+          context.clearRect(0,0,1,1);context.fillStyle=color;context.fillRect(0,0,1,1);
+          const [r,g,b,a]=context.getImageData(0,0,1,1).data;return [r,g,b,a/255];
+        };
+        const blend=(fg,bg)=>fg.slice(0,3).map((v,i)=>v*(fg[3]??1)+bg[i]*(1-(fg[3]??1)));
+        const background=el=>{
+          if(!el)return [255,255,255];
+          return blend(rgba(getComputedStyle(el).backgroundColor),background(el.parentElement));
+        };
+        const luminance=rgb=>rgb.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+        const ratio=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+        const nodes=[...document.querySelectorAll('[data-stop-card-id] h3,[data-stop-card-id] .text-slate-600,[data-stop-line-badges] span')];
+        const input=document.querySelector('input[placeholder*="Babica"]');
+        return [...nodes.map(el=>({label:el.textContent,ratio:ratio(luminance(blend(rgba(getComputedStyle(el).color),background(el))),luminance(background(el)))})),
+          {label:'search placeholder',ratio:ratio(luminance(rgba(getComputedStyle(input,'::placeholder').color)),luminance(background(input)))}];
+      });
+      assert.ok(contrasts.some(row=>/^\+\d/.test(row.label)),'overflow chip is checked');
+      for(const row of contrasts)assert.ok(row.ratio>=4.5,`${mode}, glass=${glass}: ${row.label} contrast ${row.ratio}`);
+      await screenshot(`stops-contrast-${mode}-${glass?'glass':'solid'}`);
+      if(mode==='light-pink'){
+        const tile=await page.$eval('.transit-surface',el=>getComputedStyle(el).backgroundSize);
+        assert.ok(tile.startsWith('320px 180px'),'hearts cover full-width tiles like clouds');
+      }
+    }
 
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforePink);
     // Check saved theme in a fresh document, preserving the browser context's
@@ -676,7 +827,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[data-permission="statistics"]');
     assert.equal(await page.$eval('[data-permission="statistics"]',el=>getComputedStyle(el).opacity),'1');
     assert.equal(await page.$eval('[data-permission="statistics"]',el=>getComputedStyle(el).filter),'none');
-    assert.equal(await page.$eval('[aria-label="Edycja uprawnień"] input',el=>getComputedStyle(el,'::placeholder').color),'rgb(71, 85, 105)');
+    assert.equal(await page.$eval('[aria-label="Edycja uprawnień"] input',el=>getComputedStyle(el,'::placeholder').color),'rgb(51, 65, 85)');
     await screenshot('admin-roles-light');
     await page.$eval('[aria-label="Edycja uprawnień"] button',el=>el.click());
     await button('Ban');await page.evaluate(()=>[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Dodaj obrazek')).click());await page.waitForSelector('input[type="file"]');
@@ -710,7 +861,7 @@ const server=http.createServer((req,res)=>{
     await page.click('.pks-navigation [data-nav-item="admin"]');
     await page.waitForSelector('.admin-topbar');
 
-    for(const [mode,color] of [['dark-forest','rgb(25, 67, 51)'],['light-sky','rgb(174, 219, 250)']]){
+    for(const [mode,color] of [['dark-forest','rgb(25, 67, 51)'],['light-sky','rgb(174, 219, 250)'],['dark-cosmos','rgb(8, 10, 18)']]){
       await page.evaluate(mode=>{localStorage.setItem('mks_app_theme',mode);window.dispatchEvent(new Event('pks-profile-applied'));},mode);
       await page.waitForSelector(`[data-ui-theme="${mode}"]`);await page.waitForFunction(color=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor===color,{},color);
       if(mode==='dark-forest')assert.equal(await page.$eval('.pks-panel-scope input[placeholder="Szukaj..."]',el=>getComputedStyle(el,'::placeholder').color),'rgb(183, 216, 195)','forest admin hints use the readable muted palette');
@@ -721,7 +872,7 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>{localStorage.setItem('mks_app_theme','light-pink');window.dispatchEvent(new Event('pks-profile-applied'));});
     await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.admin-topbar')).backgroundColor==='rgb(255, 184, 219)');
-    assert.ok(decodeURIComponent(await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundImage)).includes("fill='#000000'"));
+    assert.ok(backgroundSvgs(await page.$eval('.admin-topbar',el=>getComputedStyle(el).backgroundImage)).some(svg=>svg.includes('id="heart"')));
     assert.equal(await page.$eval('.admin-light .pks-personal-card',el=>getComputedStyle(el).backgroundColor),'rgb(255, 184, 219)');
     await screenshot('admin-pink-hearts');
     await page.evaluate(()=>{localStorage.setItem('mks_app_theme','dark');window.dispatchEvent(new Event('pks-profile-applied'));});
@@ -761,6 +912,21 @@ const server=http.createServer((req,res)=>{
     await page.setViewport({width:1440,height:1000,deviceScaleFactor:1});await statisticsFits();await screenshot('statistics-desktop');
     await page.click('nav button:first-child');await page.waitForFunction(()=>!document.querySelector('[data-statistics-view]'));
     await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
+    // Admin statistics keeps solid surfaces even with personalised glass enabled.
+    await page.evaluate(()=>{document.documentElement.dataset.personalGlass='true';document.documentElement.style.setProperty('--personal-glass','rgba(255,255,255,.2)');});
+    for(const theme of ['dark-forest','light-sky','light-pink','dark-cosmos']){
+      await page.click(`[data-statistics-theme="${theme}"]`);
+      await page.waitForSelector(`[data-ui-theme="${theme}"]`);
+      const surfaces=await page.$eval('[data-statistics-view]',el=>{
+        const root=getComputedStyle(el),card=getComputedStyle(el.querySelector('.pks-personal-card'));
+        return {root:root.backgroundColor,card:card.backgroundColor,blur:card.backdropFilter,decoration:card.backgroundImage};
+      });
+      assert.ok(surfaces.root.startsWith('rgb('),'statistics background is fully opaque: '+theme);
+      assert.ok(surfaces.card.startsWith('rgb('),'statistics cards are fully opaque: '+theme);
+      assert.equal(surfaces.blur,'none');
+      assert.ok(backgroundSvgs(surfaces.decoration).length>0,'statistics uses the selected theme decoration: '+theme);
+      await statisticsFits();await screenshot('statistics-'+theme);
+    }
     console.log('Browser: statistics navigation, unique installations, local API totals, date ranges, CSV, light/dark and 320px mobile layouts passed without backend writes.');
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.goto(`${origin}/widget-fixture/`,{waitUntil:'domcontentloaded'});
@@ -814,6 +980,36 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[role="dialog"]',{hidden:true});
     assert.deepEqual(errors,[]);
     console.log('Browser: widget advanced options start collapsed; transparency, custom accents, corners, density, text, direction/delay toggles, defaults and light theme update the preview without mobile overflow.');
+    const loginPage=await browser.newPage();
+    loginPage.on('pageerror',error=>errors.push(error.message));
+    await loginPage.goto(origin+'/login-fixture/',{waitUntil:'domcontentloaded'});
+    await loginPage.waitForSelector('[data-login-open]',{timeout:15000});
+    await loginPage.evaluate(()=>window.__startupTest.loginPolicy(false));
+    await loginPage.waitForSelector('[data-login-blocked]');
+    assert.equal(await loginPage.$('[data-login-open]'),null);
+    for(const [role,verified] of [['user',true],['admin',false],['owner',false]]){
+      await loginPage.evaluate((role,verified)=>window.__startupTest.loginPolicy(false,role,verified),role,verified);
+      await loginPage.waitForSelector('[data-login-open]');
+      assert.equal(await loginPage.$('[data-login-blocked]'),null);
+      await loginPage.evaluate(()=>window.__startupTest.loginPolicy(false));
+      await loginPage.waitForSelector('[data-login-blocked]');
+    }
+    await loginPage.evaluate(()=>window.__startupTest.loginPolicy(true));
+    await loginPage.waitForSelector('[data-login-open]');
+    await loginPage.evaluate(()=>window.__startupTest.loginPolicy(false,'user',false,true));
+    await loginPage.waitForSelector('[data-login-open]');
+    for(const width of [320,393,1024]){
+      await loginPage.setViewport({width,height:800,deviceScaleFactor:1});
+      const pending=await loginPage.evaluate(()=>[...document.querySelectorAll('[data-login-pending]')].filter(el=>el.getBoundingClientRect().width>0).map(el=>({text:el.textContent,right:el.getBoundingClientRect().right,left:el.getBoundingClientRect().left,overflow:el.scrollWidth>el.clientWidth+1})));
+      assert.ok(pending.length>0);
+      for(const label of pending){assert.equal(label.text,'Oczekuje na dostęp');assert.ok(label.left>=0&&label.right<=width);assert.equal(label.overflow,false);}
+      assert.equal(await loginPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+      await loginPage.screenshot({path:'test/ui-previews/login-pending-'+width+'.png'});
+    }
+    await loginPage.screenshot({path:'test/ui-previews/login-pending-device.png'});
+    assert.deepEqual(errors,[]);
+    await loginPage.close();
+    console.log('Browser: closed new logins wait for approval; verification and admin/owner roles unblock immediately; existing admission is preserved; pending device label fits phone and desktop.');
     console.log('Browser: accent changes list, departures, favourites and controls; carrier colours survive; reload persists; light/dark mobile layout has no horizontal overflow.');
     console.log('Browser: default glass, compact map stop card, limited expanded height, map panning, handle swipe, saved glass preference and brighter AMOLED surfaces passed.');
     console.log('Browser: full list replaces the preview, 40 and 80 cards do not overlap, scrolling works, closing restores position, and map and carrier SVG geometry is identical.');

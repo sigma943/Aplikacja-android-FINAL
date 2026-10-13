@@ -35,3 +35,18 @@ test('legacy rules restore owner without downgrade and remove matching prior UID
  await registerRestoredDevice({},'new-owner-uid',id,'Phone',false,{});assert.equal(records.get('devices/new-owner-uid').role,'owner');assert.deepEqual(records.get('devices/new-owner-uid').permissions,profile.permissions);assert.equal(records.has('devices/prior-owner-uid'),false);
  sdk.runTransaction=async()=>{throw Object.assign(Error('offline'),{code:'unavailable'});};sdk.getDoc=async()=>{assert.fail('network errors must not enter compatibility registration');};await assert.rejects(registerRestoredDevice({},'another-uid',id,'Phone',false,{}),/offline/);
 });
+test('new devices register as pending while logins are closed; restart and UID transfer preserve admission',async()=>{
+ const id='android_1123456789abcdef',c=client({'admin_settings/security':{loginEnabled:false,autoBan:false}});
+ await c.registerRestoredDevice({},'first-pending-uid',id,'Phone',false,{});
+ assert.equal(c.records.get('devices/first-pending-uid').loginApproved,false);assert.equal(c.records.get('devices/first-pending-uid').status,'active');
+ assert.equal(c.records.get('installations/'+id).loginApproved,false);
+ await c.registerRestoredDevice({},'first-pending-uid',id,'Phone',false,{});assert.equal(c.records.get('devices/first-pending-uid').loginApproved,false);
+ c.records.set('admin_settings/security',{loginEnabled:true});
+ await c.registerRestoredDevice({},'second-pending-uid',id,'Phone',false,{});
+ assert.equal(c.records.get('devices/second-pending-uid').loginApproved,false);assert.equal(c.records.has('devices/first-pending-uid'),false);
+});
+test('existing legacy installations stay admitted when new logins close',async()=>{
+ const id='android_2123456789abcdef',c=client({['installations/'+id]:{role:'user',status:'active',verified:false},'admin_settings/security':{loginEnabled:false}});
+ await c.registerRestoredDevice({},'legacy-device-uid',id,'Phone',false,{});
+ assert.equal(c.records.get('devices/legacy-device-uid').loginApproved,true);
+});

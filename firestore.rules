@@ -76,6 +76,16 @@ service cloud.firestore {
       return isCallerOwner() || hasAdminPerm('globalSettingsEdit');
     }
 
+    // Missing setting preserves the default: new logins are enabled.
+    function newLoginsEnabled() {
+      return !exists(/databases/$(database)/documents/admin_settings/security) ||
+             get(/databases/$(database)/documents/admin_settings/security).data.get('loginEnabled', true) != false;
+    }
+
+    function newLoginApprovalValid(data) {
+      return data.get('loginApproved', true) == newLoginsEnabled();
+    }
+
     function autoBanUnverifiedEnabled() {
       return exists(/databases/$(database)/documents/admin_settings/security) &&
              get(/databases/$(database)/documents/admin_settings/security).data.autoBan == true;
@@ -186,11 +196,12 @@ service cloud.firestore {
              incoming().permissions == device.permissions &&
              incoming().status == device.status &&
              incoming().verified == device.get('verified', false) &&
-             incoming().get('banDetails', null) == device.get('banDetails', null);
+             incoming().get('banDetails', null) == device.get('banDetails', null) &&
+             incoming().get('loginApproved', true) == device.get('loginApproved', true);
     }
 
     function userInstallationCreateAllowed(data) {
-      return data.role == 'user' &&
+      return newLoginApprovalValid(data) && data.role == 'user' &&
              (!(data.verified is bool) || data.verified == false) &&
              userPermissionsAreSafe(data) &&
              (
@@ -201,7 +212,7 @@ service cloud.firestore {
     }
 
     function userInstallationUpdateAllowed(data) {
-      return callerDeviceExists() &&
+      return data.get('loginApproved', true) == existing().get('loginApproved', true) && callerDeviceExists() &&
              callerDeviceData().role == 'user' &&
              data.role == 'user' &&
              (!(data.verified is bool) || data.verified == false) &&
@@ -234,7 +245,9 @@ service cloud.firestore {
                        (!(data.verified is bool) || data.verified == false);
       let activeAllowed = data.status == 'active' && !autoBanUnverifiedEnabled();
       let autoBannedAllowed = data.status == 'banned' && data.verified == false && hasAutoBanDetails(data);
-      return validKeys && validTypes && (activeAllowed || autoBannedAllowed);
+      return validKeys && validTypes && newLoginApprovalValid(data) &&
+             (!('installationId' in data) || !exists(/databases/$(database)/documents/installations/$(data.installationId))) &&
+             (activeAllowed || autoBannedAllowed);
     }
 
     function canCreateDeviceFromInstallationProfile(data) {
@@ -245,6 +258,7 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/installations/$(instId)) &&
              data.role in ['owner', 'admin', 'user'] &&
              data.role == profile.role &&
+             data.get('loginApproved', true) == profile.get('loginApproved', true) &&
              (
                !(data.verified is bool) ||
                data.verified == profile.verified ||
@@ -279,7 +293,8 @@ service cloud.firestore {
              restored.installationId == instId &&
              restored.role == profile.role && restored.permissions == profile.permissions &&
              restored.status == profile.status && restored.verified == profile.verified &&
-             restored.get('banDetails', null) == profile.get('banDetails', null);
+             restored.get('banDetails', null) == profile.get('banDetails', null) &&
+             restored.get('loginApproved', true) == profile.get('loginApproved', true);
     }
 
     match /devices/{deviceId} {

@@ -29,8 +29,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
   themeMode=resolveAppTheme(themeMode);
   const isWarm = themeMode === 'light-warm';
   const isLight = themeMode === 'light' || isWarm;
-  const isOled = themeMode === 'dark-oled';
-  const isAurora = themeMode === 'dark-aurora';
+  const isOled = (themeMode === 'dark-oled' || themeMode === 'dark-cosmos');
   const mainStyle = {
     color: themeTextColor(themeMode),
   } as React.CSSProperties;
@@ -40,6 +39,10 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
     ['--pks-loading-text' as string]: themeTextColor(themeMode),
   } as React.CSSProperties;
 
+  if(themeMode==='dark-cosmos'){
+    Object.assign(pageStyle,{backgroundImage:themeDecoration(themeMode)});
+    return {page:'bg-black text-[#f3f1ff]',pageStyle,glow:'',grid:'',mainStyle,card:'border-violet-300/20 bg-[#080a12] shadow-none',main:'text-[#f3f1ff]',sub:'text-[#b9bdcf]',spinner:'#b6a3ff'};
+  }
   if(themeMode==='dark-forest'||themeMode==='light-sky'){
     const forest=themeMode==='dark-forest';
     const decoration=`${themeDecoration(themeMode)},radial-gradient(ellipse at 20% 0%,${forest?'#23623a66':'#ffffffaa'},transparent 70%)`;
@@ -49,6 +52,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
       main:forest?'text-[#edf9f0]':'text-[#103750]',sub:forest?'text-[#b7d8c3]':'text-[#315f7d]',spinner:forest?'#67dca0':'#075985'};
   }
   if (themeMode === 'light-pink') {
+    Object.assign(pageStyle,{backgroundImage:themeDecoration(themeMode)});
     return {page:'bg-[#ffd1e8] text-[#57153c]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',main:'text-[#57153c]',mainStyle,sub:'text-[#832557]',spinner:'#c02674'};
   }
   if (isWarm) {
@@ -102,19 +106,6 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
     };
   }
 
-  if (isAurora) {
-    return {
-      page: 'bg-[#06130f] text-white',
-      pageStyle,
-      glow: 'bg-[radial-gradient(circle_at_44%_10%,rgba(16,185,129,0.22),transparent_34%),radial-gradient(circle_at_78%_72%,rgba(59,130,246,0.16),transparent_36%)]',
-      grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
-      card: 'border-emerald-300/10 bg-[#0b1b16]/82 shadow-[0_24px_70px_rgba(0,0,0,0.42)]',
-      main: 'text-white',
-      mainStyle,
-      sub: 'text-emerald-100/55',
-      spinner: '#34d399',
-    };
-  }
 
   return {
     page: 'bg-[#111027] text-white',
@@ -148,9 +139,7 @@ function LoadingScreen() {
   }, [mode]);
 
   return (
-    <div data-startup-theme={mode} style={theme.pageStyle} className={`pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
-      {theme.glow && <div className={`absolute inset-0 ${theme.glow}`} />}
-      {theme.grid && <div className={`absolute inset-0 ${theme.grid} bg-[size:64px_64px] opacity-50`} />}
+    <div data-startup-theme={mode} style={{...theme.pageStyle,backgroundImage:'none',['--startup-decoration' as string]:'none'}} className={`pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
       <div className="relative z-10 flex flex-col items-center gap-5">
         <svg className="h-16 w-16" viewBox="0 0 64 64" aria-hidden="true">
           <circle
@@ -195,6 +184,18 @@ function startupFailureMessage(error:unknown) {
   return 'Nie udało się połączyć z Firebase. Sprawdź internet; aplikacja ponowi połączenie automatycznie.';
 }
 
+function LoginBlockedScreen(){
+  const mode=useStartupThemeMode(),theme=themeShell(mode);
+  return <div data-login-blocked data-startup-theme={mode} style={theme.pageStyle} className={`min-h-screen ${theme.page} flex items-center justify-center p-6 font-sans`}>
+    <div className={`w-full max-w-md rounded-3xl border ${theme.card} p-7 text-center shadow-xl`}>
+      <ShieldAlert className={`mx-auto mb-5 h-12 w-12 ${theme.main}`} aria-hidden="true"/>
+      <h1 className={`text-xl font-bold ${theme.main}`}>Oczekiwanie na dostęp</h1>
+      <p className={`mt-4 text-sm leading-relaxed ${theme.sub}`}>Nowe logowania są wyłączone. Administrator musi zatwierdzić Twoje urządzenie.</p>
+      <p className={`mt-3 text-xs leading-relaxed ${theme.sub}`}>Aplikacja otworzy się automatycznie po nadaniu dostępu.</p>
+    </div>
+  </div>;
+}
+
 function ConnectionTimeoutScreen({ timeout = false,errorMessage }: { timeout?: boolean;errorMessage?:string }) {
   const themeMode=useStartupThemeMode();
   const theme=themeShell(themeMode);
@@ -231,11 +232,10 @@ function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Pr
   const themeMode=useStartupThemeMode();
   const isWarm = themeMode === 'light-warm';
   const isLight = themeMode === 'light' || isWarm;
-  const isOled = themeMode === 'dark-oled';
-  const isAurora = themeMode === 'dark-aurora';
+  const isOled = (themeMode === 'dark-oled' || themeMode === 'dark-cosmos');
 
   const shell=themeShell(themeMode);
-  const theme = themeMode==='dark-forest'||themeMode==='light-sky' ? {...shell,icon:themeMode==='dark-forest'?'border-emerald-300/20 bg-emerald-400/10 text-emerald-200':'border-sky-700/20 bg-sky-100 text-sky-800',button:themeMode==='dark-forest'?'border-emerald-300/30 bg-emerald-400/15 text-emerald-100':'border-sky-700/25 bg-sky-100 text-sky-900'} : themeMode === 'light-pink'
+  const theme = themeMode==='dark-cosmos' ? {...shell,icon:'border-violet-300/20 bg-violet-300/10 text-violet-200',button:'border-violet-300/25 bg-violet-300/10 text-violet-200'} : themeMode==='dark-forest'||themeMode==='light-sky' ? {...shell,icon:themeMode==='dark-forest'?'border-emerald-300/20 bg-emerald-400/10 text-emerald-200':'border-sky-700/20 bg-sky-100 text-sky-800',button:themeMode==='dark-forest'?'border-emerald-300/30 bg-emerald-400/15 text-emerald-100':'border-sky-700/25 bg-sky-100 text-sky-900'} : themeMode === 'light-pink'
     ? {page:'bg-[#ffd1e8] text-[#57153c]',glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',icon:'border-pink-200 bg-pink-100 text-pink-700',sub:'text-[#832557]',button:'border-pink-300 bg-pink-100 text-pink-800 hover:bg-pink-200'}
     : themeMode === 'dark-pink'
     ? {page:'bg-[#21121b] text-[#fff2f8]',glow:'',grid:'',card:'border-pink-300/18 bg-[#35202d]/86 shadow-black/30',icon:'border-pink-300/20 bg-pink-300/10 text-pink-200',sub:'text-[#dfbccf]',button:'border-pink-300/30 bg-pink-300/10 text-pink-100 hover:bg-pink-300/15'}
@@ -269,17 +269,7 @@ function MaintenanceScreen({ onRefresh, checking }: { onRefresh: () => void | Pr
             sub: 'text-slate-500',
             button: 'border-cyan-400/35 bg-cyan-400/5 text-cyan-300 shadow-[0_0_26px_rgba(34,211,238,0.10)] hover:bg-cyan-400/10',
           }
-        : isAurora
-          ? {
-              page: 'bg-[#06130f] text-white',
-              glow: 'bg-[radial-gradient(circle_at_44%_10%,rgba(16,185,129,0.22),transparent_34%),radial-gradient(circle_at_78%_72%,rgba(59,130,246,0.16),transparent_36%)]',
-              grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
-              card: 'border-emerald-300/10 bg-[#0b1b16]/82 shadow-[0_24px_70px_rgba(0,0,0,0.42)]',
-              icon: 'border-emerald-300/15 bg-emerald-400/10 text-emerald-300 shadow-[0_0_45px_rgba(16,185,129,0.20)]',
-              sub: 'text-emerald-100/55',
-              button: 'border-emerald-300/30 bg-emerald-400/5 text-emerald-300 shadow-[0_0_26px_rgba(16,185,129,0.10)] hover:bg-emerald-400/10',
-            }
-          : {
+        : {
               page: 'bg-[#111027] text-white',
               glow: 'bg-[radial-gradient(circle_at_50%_15%,rgba(129,107,255,0.18),transparent_38%),radial-gradient(circle_at_18%_78%,rgba(0,163,162,0.08),transparent_34%)]',
               grid: 'bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)]',
@@ -391,3 +381,5 @@ export {startupFailureMessage};
 export {ConnectionTimeoutScreen};
 export {MaintenanceScreen};
 export {BanScreen};
+
+export {LoginBlockedScreen};

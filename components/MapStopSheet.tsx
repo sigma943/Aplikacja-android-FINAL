@@ -40,6 +40,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
     <motion.section
       aria-label="Przystanek na mapie"
       data-map-stop-sheet={preview?undefined:true}
+      data-cosmic-view={preview?undefined:`map-stop:${name}:${code||''}`}
       data-expanded={expanded}
       data-glass={transparent ? 'on' : 'off'}
       data-ui-mode={dark ? 'dark' : 'light'}

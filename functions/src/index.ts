@@ -347,11 +347,12 @@ export const registerDeviceIdentity = onCall(async (request) => {
     const alternateInstallationRef = alternateInstallationId && alternateInstallationId !== requestedInstallationId
       ? db.collection('installations').doc(alternateInstallationId)
       : null;
-    const [existingSnap, blockedSnap, requestedInstallationSnap, alternateInstallationSnap] = await Promise.all([
+    const [existingSnap, blockedSnap, requestedInstallationSnap, alternateInstallationSnap, securitySnap] = await Promise.all([
       deviceRef.get(),
       blockedInstallationRef(requestedInstallationId).get(),
       requestedInstallationRef.get(),
       alternateInstallationRef ? alternateInstallationRef.get() : Promise.resolve(null),
+      db.collection('admin_settings').doc('security').get(),
     ]);
 
     const installationSnap = requestedInstallationSnap.exists
@@ -390,6 +391,7 @@ export const registerDeviceIdentity = onCall(async (request) => {
           const prevRole = (prev?.role || 'user') as DeviceRole;
           const prevStatus: DeviceStatus = prev?.status === 'banned' ? 'banned' : 'active';
           patch.role = prevRole;
+          patch.loginApproved = typeof installation?.loginApproved === 'boolean' ? installation.loginApproved : prev.loginApproved !== false;
           patch.permissions = prev?.permissions && typeof prev.permissions === 'object'
             ? prev.permissions
             : permissionsForRole(prevRole);
@@ -442,6 +444,12 @@ export const registerDeviceIdentity = onCall(async (request) => {
       }
     }
 
+    const savedAdmission = existingSnap.exists ? existingSnap.data() : installation;
+    if (!('loginApproved' in patch)) {
+      patch.loginApproved = typeof savedAdmission?.loginApproved === 'boolean'
+        ? savedAdmission.loginApproved : existingSnap.exists || installationSnap.exists || securitySnap.data()?.loginEnabled !== false;
+    }
+
     if (isBlocked) {
       patch.banDetails = {
         reason: String(blocked?.reason || 'Blokada instalacji'),
@@ -462,7 +470,7 @@ export const registerDeviceIdentity = onCall(async (request) => {
       lastSeenAt: now,
       updatedAt: now,
     };
-    for (const key of ['role', 'permissions', 'status', 'verified', 'banDetails', 'displayName'] as const) {
+    for (const key of ['role', 'permissions', 'status', 'verified', 'loginApproved', 'banDetails', 'displayName'] as const) {
       if (key in patch) installationPatch[key] = patch[key];
     }
     await installationRef.set(installationPatch, { merge: true });

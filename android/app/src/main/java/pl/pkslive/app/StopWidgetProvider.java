@@ -28,22 +28,35 @@ public class StopWidgetProvider extends AppWidgetProvider {
   static boolean powerSave(Context c){return ((android.os.PowerManager)c.getSystemService(Context.POWER_SERVICE)).isPowerSaveMode();}
   static boolean due(Context c,int id){long now=System.currentTimeMillis();return policy(c,id).due(prefs(c).getLong("updated_"+id,0),prefs(c).getLong("attempted_"+id,0),now,powerSave(c));}
   static void cancelTick(Context c){AlarmManager alarm=(AlarmManager)c.getSystemService(Context.ALARM_SERVICE);PendingIntent p=PendingIntent.getBroadcast(c,7403,new Intent(c,StopWidgetProvider.class).setAction(TICK),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);alarm.cancel(p);}
-  static void schedule(Context c){
+  static void schedule(Context c){schedule(c,false);}
+  static void schedule(Context c,boolean force){
     cancelTick(c);JobScheduler scheduler=(JobScheduler)c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-    int[] widgets=ids(c);long interval=Long.MAX_VALUE;boolean batteryNotLow=true;
-    for(int id:widgets){if(!prefs(c).contains("config_"+id))continue;WidgetRefreshPolicy p=policy(c,id);if(p.enabled()){interval=Math.min(interval,p.intervalMillis());if("always".equals(p.mode))batteryNotLow=false;}}
-    if(interval==Long.MAX_VALUE){scheduler.cancel(7401);if(widgets.length==0)scheduler.cancel(7402);return;}
-    JobInfo current=scheduler.getPendingJob(7401);
-    if(current!=null&&current.getIntervalMillis()==interval&&(Build.VERSION.SDK_INT<26||current.isRequireBatteryNotLow()==batteryNotLow))return;
-    JobInfo.Builder builder=new JobInfo.Builder(7401,new ComponentName(c,StopWidgetRefreshService.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPeriodic(interval,Math.min(interval/3,10*60000L)).setPersisted(true);
+    int[] widgets=ids(c);long delay=Long.MAX_VALUE,now=System.currentTimeMillis();boolean batteryNotLow=true,saver=powerSave(c);
+    for(int id:widgets){
+      if(!prefs(c).contains("config_"+id))continue;
+      WidgetRefreshPolicy p=policy(c,id);
+      if(p.enabled()){
+        delay=Math.min(delay,p.nextDelay(prefs(c).getLong("updated_"+id,0),prefs(c).getLong("attempted_"+id,0),now,saver));
+        if("always".equals(p.mode))batteryNotLow=false;
+      }
+    }
+    if(delay==Long.MAX_VALUE){scheduler.cancel(7401);if(widgets.length==0)scheduler.cancel(7402);return;}
+    long dueAt=now+delay;JobInfo current=scheduler.getPendingJob(7401);
+    if(!force&&current!=null&&!current.isPeriodic()&&(Build.VERSION.SDK_INT<26||current.isRequireBatteryNotLow()==batteryNotLow)){
+      long scheduled=current.getExtras().getLong("dueAtMs",0);
+      if(scheduled==dueAt||(scheduled<=now+2000&&dueAt<=now+2000))return;
+    }
+    PersistableBundle extras=new PersistableBundle();extras.putLong("dueAtMs",dueAt);
+    // A one-shot job supports sub-15-minute targets without periodic-job clamping.
+    JobInfo.Builder builder=new JobInfo.Builder(7401,new ComponentName(c,StopWidgetRefreshService.class)).setExtras(extras).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setMinimumLatency(delay).setPersisted(true);
     if(Build.VERSION.SDK_INT>=26)builder.setRequiresBatteryNotLow(batteryNotLow);
     scheduler.schedule(builder.build());
   }
   static synchronized void refresh(Context c,int id,boolean manual){
     if(!prefs(c).contains("config_"+id))return;
     long now=System.currentTimeMillis();
-    if(manual){long previous=prefs(c).getLong("manual_"+id,0);if(now-previous<60000){prefs(c).edit().putString("notice_"+id,"Kolejne odświeżenie za "+Math.max(1,(60000-(now-previous)+999)/1000)+" s").putLong("noticeAt_"+id,now).apply();render(c,id);return;}}
-    else if(!due(c,id))return;
+    if(manual&&prefs(c).getLong("refreshing_"+id,0)>0&&now-prefs(c).getLong("refreshing_"+id,0)<90000){render(c,id);return;}
+    if(!manual&&!due(c,id))return;
     PersistableBundle extras=new PersistableBundle();extras.putInt("widgetId",id);extras.putBoolean("manual",manual);
     JobInfo.Builder builder=new JobInfo.Builder(7402,new ComponentName(c,StopWidgetRefreshService.class)).setExtras(extras).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
     if(manual&&Build.VERSION.SDK_INT>=31)builder.setExpedited(true);
@@ -53,7 +66,7 @@ public class StopWidgetProvider extends AppWidgetProvider {
     JobScheduler scheduler=(JobScheduler)c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
     int result=scheduler.schedule(builder.build());
     if(result==JobScheduler.RESULT_FAILURE&&manual&&Build.VERSION.SDK_INT>=31)result=scheduler.schedule(builder.setExpedited(false).setOverrideDeadline(0).build());
-    if(manual){prefs(c).edit().putLong("manual_"+id,result==JobScheduler.RESULT_SUCCESS?now:0).putLong("refreshing_"+id,result==JobScheduler.RESULT_SUCCESS?now:0).remove("notice_"+id).apply();if(result!=JobScheduler.RESULT_SUCCESS)prefs(c).edit().putString("notice_"+id,"Nie udało się uruchomić odświeżania").putLong("noticeAt_"+id,now).apply();render(c,id);}
+    if(manual){prefs(c).edit().remove("manual_"+id).putLong("refreshing_"+id,result==JobScheduler.RESULT_SUCCESS?now:0).remove("notice_"+id).apply();if(result!=JobScheduler.RESULT_SUCCESS)prefs(c).edit().putString("notice_"+id,"Nie udało się uruchomić odświeżania").putLong("noticeAt_"+id,now).apply();render(c,id);}
   }
   @Override public void onReceive(Context c,Intent intent){super.onReceive(c,intent);if(PINNED.equals(intent.getAction())){int id=intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,-1);String token=intent.getStringExtra("token");String config=prefs(c).getString("pending_"+token,null);if(id!=-1&&config!=null){prefs(c).edit().putString("config_"+id,config).putString("rows_"+id,prefs(c).getString("pending_rows_"+token,"[]")).putLong("updated_"+id,"[]".equals(prefs(c).getString("pending_rows_"+token,"[]"))?0:System.currentTimeMillis()).putBoolean("added_"+token,true).remove("pending_"+token).remove("pending_rows_"+token).apply();render(c,id);schedule(c);if(prefs(c).getLong("updated_"+id,0)==0)refresh(c,id,true);}}else if(TICK.equals(intent.getAction())||Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())){schedule(c);for(int id:ids(c))render(c,id);}else if(REFRESH.equals(intent.getAction())){refresh(c,intent.getIntExtra("widgetId",-1),true);}else if(Intent.ACTION_CONFIGURATION_CHANGED.equals(intent.getAction())||Intent.ACTION_TIME_CHANGED.equals(intent.getAction())||Intent.ACTION_TIMEZONE_CHANGED.equals(intent.getAction())){for(int id:ids(c))render(c,id);}}
   @Override public void onUpdate(Context c,AppWidgetManager m,int[] ids){for(int id:ids){render(c,id);refresh(c,id,false);}schedule(c);}

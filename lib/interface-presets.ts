@@ -24,6 +24,11 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
     preview:{background:'#d5efff',surface:'#aedbfa',text:'#103750'},
   },
   {
+    name:'Kosmos',description:'Głęboka czerń, pasma gwiezdnego pyłu, drobne planety i spadające gwiazdy',theme:'dark-cosmos',accent:'#b6a3ff',glass:false,glow:false,glowStrength:25,
+    appearance:appearance({glassOpacity:96,glassBlur:0,borderStrength:16,shadowStrength:0,navIndicator:'line',glowStyle:'accent',glowColor:'#b6a3ff'}),
+    preview:{background:'#000000',surface:'#080a12',text:'#f3f1ff'},
+  },
+  {
     name:'Spokojny',description:'Piaskowe tło i delikatny turkus',theme:'light-warm',accent:'#00a3a2',glass:true,glow:true,glowStrength:30,
     appearance:appearance({panelRadius:26,cardRadius:20,shadowStrength:15,glassOpacity:86,glassBlur:14,surfaceTint:'warm',panelTintStrength:10,cardStyle:'original',navIndicator:'pill',glowStyle:'accent',glowColor:'#00a3a2',glowSpread:95,glowPlacement:'diagonal',titleWeight:600}),
     preview:{background:'#f2ede1',surface:'#faf7ef',text:'#272116'},

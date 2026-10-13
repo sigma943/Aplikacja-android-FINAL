@@ -913,16 +913,15 @@ export default function Home() {
   // Theme Helpers
   const actualTheme = resolveAppTheme(appTheme,systemIsDark);
   const isDark = actualTheme.startsWith('dark');
-  const isOled = actualTheme === 'dark-oled';
+  const isOled = actualTheme === 'dark-oled' || actualTheme === 'dark-cosmos';
   const isLightPink = actualTheme === 'light-pink';
   const isPink = actualTheme === 'dark-pink';
-  const isAurora = actualTheme === 'dark-aurora';
   const isWarm = actualTheme === 'light-warm';
 
-  const bgMain = isDark ? (isOled ? 'bg-black' : isPink ? 'bg-[#21121b]' : isAurora ? 'bg-[#120f24]' : 'bg-slate-900') : (isLightPink ? 'bg-[#ffd1e8]' : isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
+  const bgMain = isDark ? (isOled ? 'bg-black' : isPink ? 'bg-[#21121b]' : 'bg-slate-900') : (isLightPink ? 'bg-[#ffd1e8]' : isWarm ? 'bg-[#f8f5f0]' : 'bg-slate-50');
   const bgCard = transparentUI 
-     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isPink ? 'bg-[#35202d]/84 backdrop-blur-xl border-pink-300/20' : isAurora ? 'bg-[#1a1430]/84 backdrop-blur-xl border-fuchsia-400/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : isLightPink ? 'bg-[#ffd1e8]/90 backdrop-blur-md border-pink-200/60' : 'bg-white/90 backdrop-blur-md border-slate-100/50')
-     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isPink ? 'bg-[#35202d] border-pink-300/20' : isAurora ? 'bg-[#1f1736] border-fuchsia-400/20' : 'bg-slate-900 border-slate-700') : isLightPink ? 'bg-[#ffd1e8] border-pink-200' : 'bg-white border-slate-200');
+     ? (isDark ? (isOled ? 'bg-[#18232f]/60 backdrop-blur-xl border-white/12' : isPink ? 'bg-[#35202d]/84 backdrop-blur-xl border-pink-300/20' : 'bg-slate-900/80 backdrop-blur-xl border-slate-700/50') : isLightPink ? 'bg-[#ffd1e8]/90 backdrop-blur-md border-pink-200/60' : 'bg-white/90 backdrop-blur-md border-slate-100/50')
+     : (isDark ? (isOled ? 'bg-[#18232f] border-slate-700' : isPink ? 'bg-[#35202d] border-pink-300/20' : 'bg-slate-900 border-slate-700') : isLightPink ? 'bg-[#ffd1e8] border-pink-200' : 'bg-white border-slate-200');
   const mapGlassPanel = `pks-map-surface ${transparentUI ? 'pks-glass' : ''}`;
   const mapGlassInput = transparentUI
      ? (isDark
@@ -953,7 +952,7 @@ export default function Home() {
     }
   }, [themeColor, isDark]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
-  const textSub = isDark ? (isPink ? 'text-pink-100/75' : isAurora ? 'text-violet-200/70' : 'text-slate-400') : 'text-slate-500';
+  const textSub = isDark ? (isPink ? 'text-pink-100/75' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
     selectedBus?.status === 'break'
       ? (Number.isFinite(selectedBus.nextTripStartAtMs)
@@ -1101,7 +1100,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div data-ui-theme={actualTheme} style={{...uiAccentVariables(themeColor,isDark),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''} ${isAurora ? 'theme-aurora' : ''}`}>
+    <div data-ui-theme={actualTheme} style={{...uiAccentVariables(themeColor,isDark),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -1110,17 +1109,6 @@ export default function Home() {
           filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
         }
         
-        /* Aurora Theme Overrides */
-        .theme-aurora .bg-slate-900:not(.mks-bus-marker *) { background-color: #120f24 !important; }
-        .theme-aurora .bg-slate-800:not(.mks-bus-marker *) { background-color: #1b1630 !important; }
-        .theme-aurora .bg-slate-700:not(.mks-bus-marker *) { background-color: #2a2146 !important; }
-        .theme-aurora .bg-slate-900\\/80:not(.mks-bus-marker *) { background-color: rgba(26,20,48,0.84) !important; }
-        .theme-aurora .bg-slate-900\\/85:not(.mks-bus-marker *) { background-color: rgba(26,20,48,0.9) !important; }
-        .theme-aurora .bg-slate-800\\/40:not(.mks-bus-marker *) { background-color: rgba(31,23,54,0.48) !important; }
-        .theme-aurora .border-slate-700\\/50 { border-color: rgba(232,121,249,0.18) !important; }
-        .theme-aurora .border-slate-700:not(.mks-bus-marker *) { border-color: rgba(167,139,250,0.26) !important; }
-        .theme-aurora .text-slate-400:not(.mks-bus-marker *) { color: #c4b5fd !important; }
-
         /* Warm (Piaskowy) Theme Overrides */
         .theme-warm .bg-slate-50:not(.mks-bus-marker *) { background-color: #f2ede1 !important; }
         .theme-warm .bg-white:not(.mks-bus-marker *) { background-color: #faf7ef !important; }

@@ -18,6 +18,7 @@ export interface Device {
   rawRole?: 'owner' | 'admin' | 'user';
   status: Status;
   verified?: boolean;
+  loginBlocked?: boolean;
   iconType: IconType;
   /** Tekst „ostatnio online” (Europe/Warsaw) lub brak danych */
   lastSeenLabel?: string;

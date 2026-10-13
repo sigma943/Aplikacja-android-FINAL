@@ -6,7 +6,7 @@
   --ui-raised: #fff;
   --ui-glass: rgb(247 250 252 / 64%);
   --ui-glass-row: rgb(255 255 255 / 42%);
-  --ui-muted: #586b80;
+  --ui-muted: #334155;
   --ui-text: #172536;
   --ui-edge: rgb(15 23 42 / 10%);
   background: var(--ui-canvas);
@@ -31,16 +31,7 @@
   --ui-text: #f1f5f9;
   --ui-edge: rgb(255 255 255 / 11%);
 }
-.pks-theme-root[data-ui-theme='dark-aurora'] {
-  --ui-canvas: #120f24;
-  --ui-surface: #211b36;
-  --ui-raised: #302642;
-  --ui-glass: rgb(33 27 54 / 54%);
-  --ui-glass-row: rgb(57 43 77 / 36%);
-  --ui-muted: #c5b9dc;
-  --ui-text: #f6f0ff;
-  --ui-edge: rgb(216 180 254 / 16%);
-}
+
 .pks-theme-root[data-ui-theme='light-pink'] {
   --ui-canvas: #ffd1e8;
   --ui-surface: #ffd1e8;
@@ -50,18 +41,6 @@
   --ui-muted: #832557;
   --ui-text: #57153c;
   --ui-edge: rgb(192 38 116 / 26%);
-}
-/* A small, non-repeating pair of hearts sits in the panel's side gutter.
-   Keeping the whole SVG inside the rounded background avoids clipped hearts
-   and leaves headings, inputs and buttons free of decoration. */
-.pks-theme-root[data-ui-theme='light-pink'] { --pink-hearts: url("data:image/svg+xml,%3Csvg%20xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width='12'%20height='64'%20viewBox='0%200%2012%2064'%3E%3Cg%20fill='%23000000'%3E%3Cpath%20d='M6%2023C4%2021%201%2019%201%2016.5A2.5%202.5%200%200%201%206%2016.5A2.5%202.5%200%200%201%2011%2016.5C11%2019%208%2021%206%2023Z'%2F%3E%3Cpath%20d='M6%2049C4%2047%202%2045.5%202%2043.5A2%202%200%200%201%206%2043.5A2%202%200%200%201%2010%2043.5C10%2045.5%208%2047%206%2049Z'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"); }
-.pks-theme-root[data-ui-theme='light-pink'] :is(.pks-options-sheet,.transit-surface,.admin-topbar,.admin-light .pks-personal-card) {
-  background-image:var(--pink-hearts) !important;
-  background-repeat:no-repeat !important;
-  background-size:12px 64px !important;
-  background-position:right 0 center !important;
-  background-origin:padding-box;
-  background-clip:padding-box;
 }
 .pks-theme-root[data-ui-theme='dark-pink'] {
   --ui-canvas: #21121b;
@@ -79,7 +58,7 @@
   --ui-raised: #fffaf0;
   --ui-glass: rgb(250 247 239 / 64%);
   --ui-glass-row: rgb(255 250 240 / 42%);
-  --ui-muted: #746a58;
+  --ui-muted: #544a38;
   --ui-text: #272116;
   --ui-edge: rgb(138 123 95 / 18%);
 }
@@ -670,7 +649,7 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-theme-root[data-ui-theme='light-sky'] {
   --ui-canvas:#d5efff; --ui-surface:#d5efff; --ui-raised:#aedbfa;
   --ui-glass:rgb(174 219 250 / 88%); --ui-glass-row:rgb(174 219 250 / 80%);
-  --ui-text:#103750; --ui-muted:#315f7d; --ui-edge:rgb(36 101 151 / 26%);
+  --ui-text:#103750; --ui-muted:#244761; --ui-edge:rgb(36 101 151 / 26%);
   background-color:var(--ui-canvas) !important;
 }
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) {
@@ -679,7 +658,7 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) .transit-view {
   --transit-canvas:var(--ui-canvas); --transit-surface:var(--ui-surface); --transit-card:var(--ui-raised); --transit-border:var(--ui-edge);
 }
-.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.pks-options-sheet,.transit-surface,.admin-topbar,.pks-personal-card) {
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) :is(.pks-map-search-panel,.pks-options-sheet,.transit-surface,.admin-topbar,.pks-personal-card) {
   background-image:var(--theme-decoration),var(--personal-glow-image,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
 }
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky']) .pks-panel-scope[data-panel-theme] :is(
@@ -698,3 +677,147 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 .pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] :is(.text-slate-400,.text-slate-500,.text-slate-600),
 .pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] input::placeholder,
 .pks-theme-root[data-ui-theme='dark-forest'] .pks-panel-scope[data-panel-theme] textarea::placeholder { color:var(--ui-muted); }
+
+/* Hearts repeat across the same full-width tiles as clouds and leaves.
+   Decoration stays behind content, independently of glow and texture. */
+.pks-theme-root[data-ui-theme='light-pink'] :is(
+  .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],
+  .transit-surface,.admin-topbar,.pks-personal-card,.widget-generator,.pks-navigation
+) {
+  background-image:var(--theme-decoration),var(--personal-glow-image,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
+  background-repeat:repeat,repeat,repeat !important;
+  background-size:320px 180px,auto,auto !important;
+  background-position:left top,center,center !important;
+  background-origin:padding-box;
+  background-clip:padding-box;
+}
+
+/* Neutral labels use the active palette in every light theme, including glass.
+   Solid accent buttons retain their separately computed foreground colour. */
+.pks-theme-root[data-ui-theme^='light'] :is(
+  .transit-view,.map-detail-shell,.pks-map-surface,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope
+) :is(.text-slate-100,.text-slate-200,.text-slate-300,.text-gray-100,.text-gray-200,.text-gray-300,[data-stop-line-overflow]) {
+  color:var(--ui-text) !important;
+}
+.pks-theme-root[data-ui-theme^='light'] :is(
+  .transit-view,.map-detail-shell,.pks-map-surface,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope
+) :is(.text-slate-400,.text-slate-500,.text-slate-600,.text-gray-400,.text-gray-500,.text-gray-600,.map-detail-muted) {
+  color:var(--ui-muted) !important;
+}
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-map-surface,.pks-options-sheet,[data-carrier-sheet],.pks-panel-scope) :is(input,textarea)::placeholder {
+  color:var(--ui-muted) !important;
+  opacity:1;
+}
+.pks-theme-root[data-ui-theme^='light'] [data-stop-line-overflow] {
+  background-color:var(--ui-raised);
+  border-color:var(--ui-edge);
+}
+/* Carrier and status hues need darker text over tinted light surfaces. */
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-orange-400,.text-amber-300,.text-amber-400) { color:#78350f !important; }
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-teal-300,.text-teal-400,.text-emerald-300,.text-emerald-400) { color:#064e3b !important; }
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-lime-300,.text-lime-400) { color:#365314 !important; }
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-blue-300,.text-blue-400,.text-sky-300,.text-sky-400,.text-cyan-300,.text-cyan-400) { color:#1e3a8a !important; }
+.pks-theme-root[data-ui-theme^='light'] :is(.transit-view,.map-detail-shell,.pks-panel-scope) :is(.text-rose-300,.text-rose-400,.text-red-400) { color:#881337 !important; }
+
+.stop-line-overflow { color:var(--ui-text,#cbd5e1); }
+
+.pks-theme-root[data-ui-theme^='light'] .personal-note { color:var(--ui-muted); opacity:1; }
+
+/* Statistics is an opaque admin surface even when the main app uses glass. */
+[data-statistics-view] {
+  background-color:var(--ui-canvas,#040609) !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+[data-statistics-view][data-ui-mode='light'] { background-color:var(--ui-canvas,#f1f5f9) !important; }
+[data-statistics-view] .pks-personal-card,
+.pks-theme-root[data-ui-theme] .pks-panel-scope[data-panel-theme][data-glass] [data-statistics-view] .pks-personal-card {
+  background-color:var(--ui-raised,#111623) !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+[data-statistics-view][data-ui-mode='light'] .pks-personal-card { background-color:var(--ui-raised,#ffffff) !important; }
+
+/* Kosmos: deep space, fine nebula lanes and sparse, small celestial accents. */
+html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
+  --ui-canvas:#000000; --ui-surface:#080a12; --ui-raised:#10121c;
+  --ui-glass:rgb(8 10 18 / 96%); --ui-glass-row:rgb(16 18 28 / 96%);
+  --ui-text:#f3f1ff; --ui-muted:#b9bdcf; --ui-edge:rgb(160 171 221 / 19%);
+}
+.pks-theme-root[data-ui-theme='dark-cosmos'] { background-color:var(--ui-canvas) !important; background-image:var(--theme-decoration); }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) {
+  --panel-glass:var(--ui-glass); --panel-surface:var(--ui-glass-row); --panel-solid:var(--ui-surface); --panel-edge:var(--ui-edge);
+}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-view {
+  --transit-canvas:var(--ui-canvas); --transit-surface:var(--ui-surface); --transit-card:var(--ui-surface); --transit-border:var(--ui-edge);
+}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(
+  .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
+  .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation
+) {
+  /* Each panel owns its scene. Newly mounted children must not briefly borrow
+     their parent's planet while waiting for scene discovery. Inline placement
+     overrides these defaults once, for the lifetime of the open view. */
+  --cosmos-planet:none;
+  --cosmos-planet-position:84% 78%;
+  --cosmos-planet-size:64px;
+  --cosmos-dust:var(--theme-decoration);
+  --cosmos-dust-position:50% 50%;
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)),linear-gradient(135deg,#080c18,#04060e 62%,#0b0c19) !important;
+  /* One complete image per panel: random pixel offsets of a repeated tile
+     expose hard vertical/horizontal boundaries inside the nebula. */
+  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,cover,100% 100% !important;
+  background-position:center,var(--cosmos-planet-position,84% 78%),var(--cosmos-dust-position,50% 50%),center !important;
+  background-repeat:no-repeat !important;
+  /* Decode transparent planet images normally; blended GPU layers can retain
+     stale clipping bounds when Android WebView resizes or scrolls these cards. */
+  background-blend-mode:normal !important;
+  background-origin:border-box !important;
+  background-clip:border-box !important;
+  background-color:var(--ui-surface) !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  border-color:var(--ui-edge);
+}
+/* Win over saved glass/blur personalization inside panels and portal frames. */
+html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) [data-cosmic-scene] {
+  background-color:var(--ui-surface) !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-map-search-panel {
+  --cosmos-planet:none !important;
+}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-panel-scope[data-panel-theme] :is(
+  [class~='bg-[#040609]'],[class~='bg-[#080B12]'],[class~='bg-[#080b12]'],[class~='bg-[#0d1117]'],
+  [class~='bg-[#0F131D]'],[class~='bg-[#0f131d]'],[class~='bg-[#0F131D]/95'],[class~='bg-[#0f131d]/95'],
+  [class~='bg-[#111623]'],[class~='bg-[#111623]/50'],[class~='bg-[#151B28]'],[class~='bg-[#0a0f18]'],.admin-topbar,.pks-personal-card
+) { background-color:var(--ui-surface) !important; }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.transit-view,.map-detail-shell,.pks-panel-scope,[data-carrier-sheet]) :is(.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-muted) { color:var(--ui-muted); }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-panel-scope,.pks-options-sheet,[data-carrier-sheet]) :is(input,textarea)::placeholder { color:var(--ui-muted); }
+[data-startup-theme='dark-cosmos'] :is(.backdrop-blur-2xl,.shadow-2xl) { backdrop-filter:none; -webkit-backdrop-filter:none; box-shadow:none; }
+[data-cosmic-effects] { display:none; position:fixed; inset:0; z-index:12001; overflow:hidden; pointer-events:none; contain:strict; }
+html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-screen)) [data-cosmic-effects] { display:block; }
+[data-cosmic-meteor] { position:absolute; width:86px; height:1.5px; opacity:0; border-radius:999px; background:linear-gradient(90deg,#f1f1ff,#b6a3ff80 28%,transparent); transform-origin:left center; }
+[data-cosmic-meteor]::before { content:''; position:absolute; left:0; top:-1px; width:3px; height:3px; border-radius:50%; background:#f3f1ff; }
+@media (prefers-reduced-motion:reduce) { [data-cosmic-effects] { display:none !important; } }
+
+[data-cosmic-star] { position:absolute; width:7px; height:7px; opacity:0; background:radial-gradient(circle,#f4f1ff 0 12%,#b4caff66 18%,transparent 58%); }
+[data-cosmic-star]::before,[data-cosmic-star]::after { content:''; position:absolute; background:linear-gradient(transparent,#dce3ffaa,transparent); width:1px; height:7px; left:3px; }
+[data-cosmic-star]::after { transform:rotate(90deg); }
+
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.transit-view,[data-statistics-view]),.pks-theme-root[data-ui-theme='dark-cosmos'] {
+  background-image:var(--theme-decoration);
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card {
+  --cosmos-readability:linear-gradient(180deg,rgba(4,6,14,.82),rgba(4,6,14,.52) 42%,transparent 78%);
+  box-shadow:inset 0 1px 0 rgb(202 211 255 / 3%);
+}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-navigation {
+  --cosmos-planet:none;
+  --cosmos-readability:linear-gradient(180deg,rgba(4,6,14,.8),rgba(4,6,14,.96));
+}

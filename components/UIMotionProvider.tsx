@@ -1,5 +1,7 @@
 "use client";
 import AppBackBridge from './AppBackBridge';
+import CosmicEffects from './CosmicEffects';
+import {readAppTheme,resolveAppTheme} from '@/lib/app-theme';
 import { MotionConfig } from 'motion/react';
 import {useEffect,useState,type ReactNode} from 'react';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppearance} from '@/lib/interface-appearance';
@@ -18,8 +20,7 @@ export default function UIMotionProvider({children}: {children: ReactNode}) {
       const switched=applyScheduledProfile();
       let value=normalizeInterfaceAppearance(null);
       try{value=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));}catch{/* Use defaults for damaged saved settings. */}
-      const saved=(localStorage.getItem('mks_app_theme')||'dark-oled').trim().toLowerCase();
-      const theme=saved==='system'?(media.matches?'dark':'light'):['amoled','oled','dark_oled','darkoled'].includes(saved)?'dark-oled':saved;
+      const theme=resolveAppTheme(readAppTheme(),media.matches);
       const dark=theme.startsWith('dark'),lightEffects=localStorage.getItem('mks_light_effects')==='true';
       cleanupAppearance?.();
       cleanupAppearance=applyInterfaceAppearance(root,value,dark,localStorage.getItem('mks_theme')||'#00a3a2',lightEffects,theme);
@@ -44,5 +45,5 @@ export default function UIMotionProvider({children}: {children: ReactNode}) {
       cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
     };
   },[]);
-  return <MotionConfig reducedMotion={reduced?'always':'user'} transition={{duration: .24, ease: [.22, 1, .36, 1]}}><AppBackBridge />{children}</MotionConfig>;
+  return <MotionConfig reducedMotion={reduced?'always':'user'} transition={{duration: .24, ease: [.22, 1, .36, 1]}}><AppBackBridge />{children}<CosmicEffects/></MotionConfig>;
 }

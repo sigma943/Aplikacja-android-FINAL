@@ -1,3 +1,4 @@
+import mpkStopSnapshot from '../../public/data/mpk-stop-points.json';
 import {isMpkPassengerLine} from '../mpk-passenger-lines';
 
 
@@ -12,32 +13,40 @@ import {CLIENT_STOP_CACHE_TTL_MS, readPersistentClientCache, writePersistentClie
 
 const MPK_STOPS_CACHE_KEY = 'pks-live:mpk-rzeszow-stops:v4';
 
-async function fetchMpkRzeszowStopsFromNetwork(options?: { signal?: AbortSignal }) {
-  return requestJson<MpkRzeszowStop[]>(MPK_RZESZOW_STOPS_URL, {
-    signal: options?.signal,
-    headers: {Accept: 'application/json'},
-  });
+const MPK_STOPS_UPDATED_EVENT = 'pks-live:mpk-stops-updated';
+function validMpkStops(value: unknown): value is MpkRzeszowStop[] {
+  return Array.isArray(value) && value.length > 0 && value.every(stop => stop &&
+    (typeof stop.stop_id === 'string' || typeof stop.stop_id === 'number') && typeof stop.stop_name === 'string' && stop.stop_name.trim());
 }
-
+async function fetchMpkRzeszowStopsFromNetwork(options?: { signal?: AbortSignal }) {
+  const rows = await requestJson<unknown>(MPK_RZESZOW_STOPS_URL, {signal:options?.signal,headers:{Accept:'application/json'}});
+  if (!validMpkStops(rows)) throw new Error('Empty or invalid MPK stop catalog');
+  return rows;
+}
+function saveMpkStops(rows:MpkRzeszowStop[]) {
+  writePersistentClientCache(MPK_STOPS_CACHE_KEY,rows);
+  if(typeof window!=='undefined')window.dispatchEvent(new Event(MPK_STOPS_UPDATED_EVENT));
+}
 export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSignal; forceRefresh?: boolean }) {
-  const cached = readPersistentClientCache<MpkRzeszowStop[]>(MPK_STOPS_CACHE_KEY);
-  const isFresh = cached && Date.now() - cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
-  if (cached && !options?.forceRefresh) {
-    if (!isFresh) {
-      fetchMpkRzeszowStopsFromNetwork()
-        .then((fresh) => writePersistentClientCache(MPK_STOPS_CACHE_KEY, fresh))
-        .catch(() => undefined);
-    }
+  const stored = readPersistentClientCache<MpkRzeszowStop[]>(MPK_STOPS_CACHE_KEY);
+  const cached = stored && validMpkStops(stored.data) ? stored : null;
+  const isFresh = cached && Date.now()-cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
+  if(cached && !options?.forceRefresh) {
+    if(!isFresh)void fetchMpkRzeszowStopsFromNetwork().then(saveMpkStops).catch(()=>undefined);
     return cached.data;
   }
-
   try {
     const fresh = await fetchMpkRzeszowStopsFromNetwork(options);
-    writePersistentClientCache(MPK_STOPS_CACHE_KEY, fresh);
+    // The caller publishes this result; notify only background cache refreshes.
+    writePersistentClientCache(MPK_STOPS_CACHE_KEY,fresh);
     return fresh;
-  } catch (error) {
-    if (cached) return cached.data;
-    throw error;
+  } catch(error) {
+    if(options?.signal?.aborted)throw error;
+    if(cached)return cached.data;
+    // Keep provider identities and passenger lines when the public endpoint is unavailable.
+    if(!validMpkStops(mpkStopSnapshot.stops))throw error;
+    // Do not cache the bundled fallback as a fresh API response: retry the live endpoint later.
+    return mpkStopSnapshot.stops;
   }
 }
 

@@ -1,4 +1,3 @@
-import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
 import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef } from 'react';
@@ -101,7 +100,7 @@ function StopLineBadges({lines,providerId,pksLineSet,providers}:{lines:string[];
   const visible=lines.slice(0,visibleCount),remaining=lines.length-visible.length;
   return <div ref={row} data-stop-line-badges data-line-total={lines.length} className="mt-1 flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden">
     {visible.map(line=><span key={line} className={`max-w-[5.5rem] shrink-0 truncate rounded-md border px-2 py-0.5 text-[10px] font-bold ${getLineStyle(line,providers?.[line]?.[0]||(pksLineSet.has(line)?'pks':providerId))}`}>{line}</span>)}
-    {remaining>0&&<span data-stop-line-overflow className="shrink-0 rounded border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] font-black text-slate-300">+{remaining}</span>}
+    {remaining>0&&<span data-stop-line-overflow className="shrink-0 rounded border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] font-black stop-line-overflow">+{remaining}</span>}
   </div>;
 }
 
@@ -170,7 +169,7 @@ export default function StopList({
     () =>
       sortedStops.map((stop) => ({
         stop,
-        normalizedName: normalizeSearchText(stop.name + " " + displayStopCatalogLabel(mpkCatalogDisplayName(stop),stop.code)),
+        normalizedName: normalizeSearchText(stop.name + " " + displayStopCatalogLabel(stop.name,stop.code)),
         carrierIds: new Set([
           ...stop.carriers.map((carrier) => carrier.id),
           ...((stop.sourceProviderIds || []).map((provider) => (provider === 'mpk_rzeszow' ? 'mpk' : provider))),
@@ -256,7 +255,7 @@ export default function StopList({
         transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 230, damping: 30}}}
         role="button"
         tabIndex={0}
-        aria-label={`Rozkład: ${displayStopCatalogLabel(mpkCatalogDisplayName(stop),stop.code)}`}
+        aria-label={`Rozkład: ${displayStopCatalogLabel(stop.name,stop.code)}`}
         onKeyDown={event => {
           if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
           event.preventDefault();
@@ -283,7 +282,7 @@ export default function StopList({
 
         <div className="min-w-0 flex-1 pr-2">
           <h3 className={`truncate text-[15px] font-semibold transition-colors lg:text-[17px] ${cardTitleClass}`}>
-            {displayStopCatalogLabel(mpkCatalogDisplayName(stop),stop.code)}
+            {displayStopCatalogLabel(stop.name,stop.code)}
           </h3>
           <div className="mt-1 flex flex-col gap-1">
             <div className={`flex min-w-0 flex-wrap items-center text-[12px] font-semibold ${secondaryTextClass}`}>
@@ -411,7 +410,7 @@ export default function StopList({
 
             {filteredStops.length === 0 && (
               <div className={`mt-16 px-4 text-center text-[15px] text-slate-500 ${isFullScreen ? 'col-span-full' : ''}`}>
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-slate-900 text-slate-600">
+                <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
                 {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak wyników dla podanej nazwy.'}
@@ -500,7 +499,7 @@ export default function StopList({
 
             {fullFilteredStops.length === 0 && (
               <div className="mt-16 px-4 text-center text-[15px] text-slate-500">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-white/5 bg-slate-900 text-slate-600">
+                <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
                 {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak pasujących przystanków dla tej nazwy.'}

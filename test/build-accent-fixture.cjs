@@ -35,7 +35,7 @@ module.exports=function buildAccentFixture(){
     .replaceAll("from 'firebase/functions'","from './sdk'")
     .replaceAll("from 'firebase/firestore'","from './sdk'");
   fs.writeFileSync(path.join(fixture,'app/startup-fixture/Provider.tsx'),startup);
-  for(const name of ['device-registration','firebase-session'])fs.writeFileSync(path.join(fixture,'app/startup-fixture/'+name+'.ts'),fs.readFileSync(path.join(source,'lib/'+name+'.ts'),'utf8').replaceAll("from 'firebase/firestore'","from './sdk'").replaceAll("from 'firebase/auth'","from './sdk'").replaceAll("from './admin/rbac'","from '@/lib/admin/rbac'"));
+  for(const name of ['device-registration','firebase-session'])fs.writeFileSync(path.join(fixture,'app/startup-fixture/'+name+'.ts'),fs.readFileSync(path.join(source,'lib/'+name+'.ts'),'utf8').replaceAll("from 'firebase/firestore'","from './sdk'").replaceAll("from 'firebase/auth'","from './sdk'").replaceAll("from './admin/rbac'","from '@/lib/admin/rbac'").replaceAll("from './login-policy'","from '@/lib/login-policy'"));
   fs.copyFileSync(path.join(source,'test/startup-ui-stub.ts'),path.join(fixture,'app/startup-fixture/sdk.ts'));
   fs.writeFileSync(path.join(fixture,'app/startup-fixture/page.tsx'),`'use client';import {FirebaseProvider,useFirebase} from './Provider';function Result(){const {device}=useFirebase();return <div data-restored-role={device?.role}>Uruchomiono aplikację: {device?.role}</div>;}export default function Page(){return <FirebaseProvider><Result/></FirebaseProvider>}`);
   fs.mkdirSync(path.join(fixture,'app/startup-home'));
@@ -56,6 +56,8 @@ module.exports=function buildAccentFixture(){
   fs.mkdirSync(path.join(fixture,'app/ban-fixture'));
   fs.writeFileSync(path.join(fixture,'app/ban-fixture/page.tsx'),`'use client';import {useState} from 'react';import {BanScreen} from '@/components/firebase/StartupScreens';
   export default function Page(){const [kind,setKind]=useState('wide');const tall=kind==='tall';const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="'+(tall?400:1600)+'" height="'+(tall?1600:400)+'"><rect width="100%" height="100%" fill="#f9a8d4"/><rect x="4" y="4" width="'+(tall?392:1592)+'" height="'+(tall?1592:392)+'" fill="none" stroke="#4a1735" stroke-width="8"/><text x="30" y="80" font-size="40">Cały obraz</text></svg>');return <><div style={{position:'fixed',zIndex:10000,top:0}}>{['wide','tall','silent','none'].map(k=><button data-ban-kind={k} key={k} onClick={()=>setKind(k)}>{k}</button>)}</div><BanScreen device={{id:'fixture-ban',status:'banned',role:'user',banDetails:{reason:'Przykładowy powód blokady – sprawdzenie czytelności i zawijania tekstu.',expiresAt:'2026-10-20T12:00:00Z',silent:kind==='silent',gifUrl:kind==='none'?'':image}} as any}/></>;}`);
+  fs.mkdirSync(path.join(fixture,'app/login-fixture'));
+  fs.writeFileSync(path.join(fixture,'app/login-fixture/page.tsx'),fs.readFileSync(path.join(source,'test/login-ui-fixture.tsx'),'utf8').replace("from '@/components/FirebaseProvider'","from '../startup-fixture/Provider'"));
   fs.mkdirSync(path.join(fixture,'app/statistics-fixture'));
   fs.copyFileSync(path.join(source,'test/statistics-ui-fixture.tsx'),path.join(fixture,'app/statistics-fixture/page.tsx'));
   fs.mkdirSync(path.join(fixture,'app/widget-fixture'));

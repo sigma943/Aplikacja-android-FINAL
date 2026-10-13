@@ -50,6 +50,7 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                   key="bus-panel-map"
                   style={{height:busDrag.height}}
                   data-map-bus-sheet={preview?undefined:true}
+                  data-cosmic-view={preview?undefined:`map-vehicle:${selectedBus.id}`}
                   data-expanded={isBusPanelExpanded}
                   data-glass={transparentUI ? 'on' : 'off'}
                   data-ui-mode={isDark ? 'dark' : 'light'}

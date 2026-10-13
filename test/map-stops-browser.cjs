@@ -194,6 +194,16 @@ try{
  assert.match(await page.$eval('[data-widget-preview]',el=>el.style.background),/linear-gradient/,'the existing preview retains its default appearance');
  assert.equal(await page.$eval('#widget-refresh-interval',el=>el.value),'30');
  assert.equal(await page.$eval('input[name="widget-refresh-mode"]:checked',el=>el.parentElement.textContent.includes('Pauza')),true);
+ for(const minutes of ['1','2','5']){await page.select('#widget-refresh-interval',minutes);assert.equal(await page.$eval('#widget-refresh-interval',el=>el.value),minutes);}
+ await page.select('#widget-refresh-interval','custom');
+ await page.waitForSelector('#widget-refresh-custom');
+ const enterInterval=async value=>{await page.click('#widget-refresh-custom',{clickCount:3});await page.keyboard.press('Backspace');await page.type('#widget-refresh-custom',value);};
+ for(const value of ['0','2.5']){await enterInterval(value);assert.equal(await page.$eval('#widget-refresh-custom',el=>el.getAttribute('aria-invalid')),'true');}
+ await enterInterval('7');assert.equal(await page.$eval('#widget-refresh-custom',el=>el.getAttribute('aria-invalid')),'false');
+ await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Wyłączone — tylko ręcznie')).click());
+ assert.equal(await page.$eval('#widget-refresh-custom',el=>el.disabled),true);
+ await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Pauza w oszczędzaniu')).click());
+ assert.equal(await page.$eval('#widget-refresh-custom',el=>el.disabled),false);
  await page.select('#widget-refresh-interval','120');
  await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Wyłączone — tylko ręcznie')).click());
  assert.equal(await page.$eval('#widget-refresh-interval',el=>el.disabled),true);

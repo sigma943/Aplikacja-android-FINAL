@@ -1,4 +1,5 @@
 'use client';
+import {isNewLoginBlocked,newLoginsEnabled} from '@/lib/login-policy';
 import {motion, useReducedMotion} from 'motion/react';
 import {readStatisticsAccess, statisticsPermission, statisticsAccessChange, type StatisticsAccess} from '@/lib/admin/statistics-access';
 import {uiAccentVariables} from '@/lib/ui-accent';
@@ -180,6 +181,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     setStatisticsAccessReady(false);
     const unsub = onSnapshot(doc(db, 'admin_settings', 'security'), (snap) => {
       const data = (snap.data()||{}) as Record<string, unknown>;
+      setGlobalSettings(previous=>({...previous,loginEnabled:newLoginsEnabled(data.loginEnabled)}));
       setStatisticsAccess(readStatisticsAccess(data.statisticsAccess));setStatisticsAccessReady(true);
       if (!snap.exists() || (!caps.globalSettings && !caps.globalSettingsEdit)) return;
       setGlobalSettings({
@@ -323,6 +325,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     role: mapRole(d.role),
     rawRole: d.role,
     status: mapStatus(d.status),
+    loginBlocked:isNewLoginBlocked(d,globalSettings.loginEnabled),
     verified: d.role === 'owner' || d.role === 'admin' || d.verified === true,
     iconType: determineIconType(d.deviceInfo),
     lastSeenLabel: lastSeenInfoFor(d).label,
@@ -977,6 +980,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           : cn('pks-panel-scope flex h-screen min-h-0 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
       }
       style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
+      data-cosmic-view={`admin:${activeView}`}
       data-glass={embedded && transparentUI ? 'on' : 'off'}
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >
