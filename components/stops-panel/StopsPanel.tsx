@@ -268,7 +268,7 @@ export default function StopsPanel({
 
   if (hasError && cacheReady && !uiStops.length) {
     return (
-      <div className={`flex h-full w-full items-center justify-center px-6 text-center backdrop-blur-2xl ${
+      <div data-cosmic-canvas className={`flex h-full w-full items-center justify-center px-6 text-center backdrop-blur-2xl ${
         isDarkTheme ? 'bg-[#07111d]/70 text-slate-300' : 'bg-white/80 text-slate-700'
       }`}>
         <div className="flex max-w-sm flex-col items-center gap-4">
@@ -293,6 +293,7 @@ export default function StopsPanel({
     <div
       className={`pks-panel-scope absolute inset-0 z-10 overflow-hidden ${transparentUI ? 'bg-transparent' : isDarkTheme ? 'bg-[#03060a]' : 'bg-slate-50'}`}
       data-glass={transparentUI ? 'on' : 'off'}
+      data-cosmic-canvas
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >
       <motion.div key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}} className="h-full w-full">
