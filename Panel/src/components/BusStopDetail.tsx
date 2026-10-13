@@ -3,7 +3,8 @@ import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
 import {useForegroundRefresh} from '../../../lib/use-foreground-refresh';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import {cosmicPanelStyle,cosmicKeySeed} from '../../../lib/cosmic-scene';
 import { ArrowLeft, MapPin, LayoutGrid, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
@@ -59,6 +60,23 @@ function getDynamicDays() {
 }
 
 export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, vehicles = [], onShowOnMap, isDarkTheme = true, active = true }: BusStopDetailProps) {
+  const [cosmicVisit,setCosmicVisit]=useState<{stopId:string;seed:number;panels:Record<string,ReturnType<typeof cosmicPanelStyle>>}|null>(null);
+  useLayoutEffect(()=>{
+    if(!active){setCosmicVisit(null);return;}
+    setCosmicVisit(previous=>{
+      if(previous?.stopId===stop.id)return previous;
+      const seed=crypto.getRandomValues(new Uint32Array(1))[0];
+      const panels=Object.fromEntries(['stop-header','stop-days','stop-departures'].map(key=>[key,cosmicPanelStyle(cosmicKeySeed(seed,key))]));
+      return {stopId:stop.id,seed,panels};
+    });
+  },[active,stop.id]);
+  const cosmicPanel=(key:string)=>({
+    'data-cosmic-owned':true,
+    'data-cosmic-panel':key,
+    'data-cosmic-scene':cosmicVisit?`panel:${key}`:undefined,
+    'data-cosmic-visit':cosmicVisit?String(cosmicVisit.seed):undefined,
+    style:cosmicVisit?.panels[key] as React.CSSProperties|undefined,
+  });
   const [showWidget,setShowWidget]=useState(false);
   const todayKey = warsawDateIso();
   const days = useMemo(getDynamicDays,[todayKey]);
@@ -165,7 +183,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     >
       <div className="w-full max-w-3xl min-w-0 mx-auto">
         {/* Header */}
-        <div data-cosmic-panel="stop-header" className={`relative mx-3 mt-3 rounded-[24px] border p-3.5 lg:mx-8 lg:p-5 overflow-hidden backdrop-blur-2xl ${headerShellClass}`}>
+        <div {...cosmicPanel('stop-header')} className={`relative mx-3 mt-3 rounded-[24px] border p-3.5 lg:mx-8 lg:p-5 overflow-hidden backdrop-blur-2xl ${headerShellClass}`}>
           {/* Subtle background gradient */}
           <div className={`absolute top-0 right-0 w-full h-full ${headerGradientClass}`}></div>
           
@@ -222,7 +240,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
         <div className="px-3 lg:px-8 mt-3 space-y-4 relative z-10">
           
           {/* Calendar Picker Swipable 7-Day Row */}
-          <div data-cosmic-panel="stop-days" className={`relative rounded-[22px] p-3 border backdrop-blur-2xl ${surfaceClass}`}>
+          <div {...cosmicPanel('stop-days')} className={`relative rounded-[22px] p-3 border backdrop-blur-2xl ${surfaceClass}`}>
             <div className="flex justify-between items-center mb-2 px-1">
               <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest font-sans">Dzień odjazdu</h3>
               <span className="ui-accent-soft text-[10px] font-medium px-2 py-1 rounded-lg border capitalize">
@@ -299,7 +317,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                </div>
              </div>
               
-             <motion.div data-cosmic-panel="stop-departures" layout className={`backdrop-blur-2xl rounded-[22px] border overflow-hidden ${departuresCardClass}`}>
+             <motion.div {...cosmicPanel('stop-departures')} layout className={`backdrop-blur-2xl rounded-[22px] border overflow-hidden ${departuresCardClass}`}>
                 {isLoading ? (
                   <div className="space-y-1.5 animate-pulse p-4">
                     {[1, 2, 3, 4].map((i) => (

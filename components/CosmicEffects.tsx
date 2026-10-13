@@ -59,7 +59,7 @@ export default function CosmicEffects(){
     };
     const discover=(node:Element)=>{
       const panels=[...(node.matches(COSMIC_PANEL_SELECTOR)?[node]:[]),...node.querySelectorAll(COSMIC_PANEL_SELECTOR)];
-      for(const panel of panels){if(!(panel instanceof HTMLElement))continue;const previous=placed.get(panel);if(!previous||previous.epoch!==session.epoch||(panel.dataset.stopCardId&&previous.key!==`stop:${panel.dataset.stopCardId}`))place(panel);}
+      for(const panel of panels){if(!(panel instanceof HTMLElement)||panel.hasAttribute('data-cosmic-owned'))continue;const previous=placed.get(panel);if(!previous||previous.epoch!==session.epoch||(panel.dataset.stopCardId&&previous.key!==`stop:${panel.dataset.stopCardId}`))place(panel);}
     };
     const measure=()=>{
       if(!region||!field.current)return;

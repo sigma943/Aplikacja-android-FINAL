@@ -207,7 +207,7 @@ const server=http.createServer((req,res)=>{
         await page.click('.transit-stop-card');
         await page.waitForSelector('[data-cosmic-panel="stop-header"][data-cosmic-scene]');
         const stopPanels=await captureStopPanels();
-        await page.waitForFunction(()=>!document.querySelector('[data-cosmic-panel="stop-departures"] .animate-spin'));
+        await page.waitForFunction(()=>!document.querySelector('[data-cosmic-panel="stop-departures"] .animate-pulse'));
         await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
         await new Promise(resolve=>setTimeout(resolve,1200));
         assert.deepEqual(await captureStopPanels(),stopPanels,'stop detail composition survives completed loading, clock refreshes and preference events');

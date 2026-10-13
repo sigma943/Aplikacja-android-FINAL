@@ -56,6 +56,18 @@ export function cosmicListScene(seed: number, previous?: ReturnType<typeof cosmi
 
 export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator';
 
+/** React-owned panels keep these exact styles throughout one mounted visit. */
+export function cosmicPanelStyle(seed:number){
+  const scene=cosmicScene(seed);
+  return {
+    '--cosmos-planet':scene.showPlanet?COSMIC_PLANETS[scene.planet]:'none',
+    '--cosmos-planet-position':`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`,
+    '--cosmos-planet-size':`${scene.size.toFixed(1)}px`,
+    '--cosmos-dust':COSMIC_DUST[scene.dust],
+    '--cosmos-dust-position':`${scene.dustX}% ${scene.dustY}%`,
+  };
+}
+
 export function cosmicKeySeed(seed:number,key:string){
   let hash=seed>>>0;
   for(let i=0;i<key.length;i++)hash=Math.imul(hash^key.charCodeAt(i),16777619)>>>0;
