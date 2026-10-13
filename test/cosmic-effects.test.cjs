@@ -30,3 +30,8 @@ test('individual cosmic panels have diverse, stable seeded positions and six tex
  const scenes=Array.from({length:30},(_,i)=>cosmicScene(i*931+77));assert.ok(new Set(scenes.map(s=>s.planet)).size>=5);assert.ok(new Set(scenes.map(s=>s.x.toFixed(0))).size>15);assert.ok(new Set(scenes.map(s=>s.y.toFixed(0))).size>15);assert.ok(scenes.some(s=>!s.showPlanet));assert.deepEqual(cosmicScene(77),cosmicScene(77));
  for(const scene of scenes){assert.ok(scene.x>=28&&scene.x<=93);assert.ok(scene.y>=12&&scene.y<=91);assert.ok(scene.size<=114);}
 });
+
+test('successive visible planet scenes cannot align in one column or repeat their planet family',()=>{
+ const {cosmicScene}=load('lib/cosmic-scene.ts');let previous=cosmicScene(11);
+ for(let i=0;i<100;i++){const scene=cosmicScene(127*i+79,previous);assert.ok(Math.abs(scene.x-previous.x)>=26);assert.notEqual(scene.planet,previous.planet);previous=scene;}
+});

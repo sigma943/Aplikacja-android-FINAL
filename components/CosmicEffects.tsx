@@ -15,9 +15,17 @@ export default function CosmicEffects(){
     const root=document.documentElement,media=matchMedia('(prefers-reduced-motion: reduce)');
     let nativeActive=true,allowed=false,cycle=0,animation:Animation|null=null,disposed=false;
     let seed=crypto.getRandomValues(new Uint32Array(1))[0],sceneIndex=0;
+    const sequences=new WeakMap<Element,{previous?:ReturnType<typeof cosmicScene>;gap:number}>();
     const stars:Animation[]=[],placed=new WeakSet<Element>(),visible=new Set<HTMLElement>();
     const place=(node:HTMLElement)=>{
-      const scene=cosmicScene((seed+Math.imul(++sceneIndex,2654435761))>>>0);
+      const card=node.classList.contains('transit-stop-card'),group=node.parentElement;
+      const sequence=card&&group?(sequences.get(group)||{gap:0}):undefined;
+      const scene=cosmicScene((seed+Math.imul(++sceneIndex,2654435761))>>>0,sequence?.previous);
+      if(sequence&&group){
+        if(!sequence.previous||sequence.gap>0)scene.showPlanet=true;
+        if(scene.showPlanet){sequence.previous=scene;sequence.gap=0;}else sequence.gap++;
+        sequences.set(group,sequence);
+      }
       node.style.setProperty('--cosmos-planet',scene.showPlanet?COSMIC_PLANETS[scene.planet]:'none');
       node.style.setProperty('--cosmos-planet-position',`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`);
       node.style.setProperty('--cosmos-planet-size',`${scene.size.toFixed(1)}px`);
@@ -60,7 +68,7 @@ export default function CosmicEffects(){
       try{light=localStorage.getItem('mks_light_effects')==='true';reduced ||= normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;}catch{}
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
-      if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));discover(document.body);}else root.style.removeProperty('--theme-decoration');
+      if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));discover(document.body);}else {root.style.removeProperty('--theme-decoration');intersection.disconnect();visible.clear();}
       allowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light});
       root.dataset.cosmicMotion=allowed?'on':'off';
       animation?.cancel();animation=null;stopStars();scheduler.refresh();

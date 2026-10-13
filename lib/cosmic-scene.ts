@@ -16,5 +16,11 @@ export const COSMIC_PLANETS=[
  planet('#f5d4a9','#a9755d','#21111b','<path d="M17 33Q45 47 79 35M18 46Q49 63 80 48M21 62Q46 78 78 65" fill="none" stroke="#f2c39b" stroke-width="6" opacity=".32"/><ellipse cx="61" cy="58" rx="8" ry="4" fill="#944c45" opacity=".5"/>'),
  planet('#d7dbee','#727994','#111522','<g fill="#41465e" opacity=".5"><circle cx="34" cy="38" r="6"/><circle cx="56" cy="32" r="4"/><circle cx="42" cy="62" r="8"/><circle cx="68" cy="54" r="5"/></g><g fill="none" stroke="#d0d4e4" opacity=".22"><circle cx="34" cy="37" r="6"/><circle cx="42" cy="61" r="8"/></g>'),
 ];
-export function cosmicScene(seed:number){const r=cosmicRandom(seed);return {planet:Math.floor(r()*COSMIC_PLANETS.length),showPlanet:r()>.27,x:28+r()*65,y:12+r()*79,size:60+r()*54,dust:Math.floor(r()*COSMIC_DUST.length),dustX:Math.floor(r()*640),dustY:Math.floor(r()*400)};}
+export function cosmicScene(seed:number,previous?:{x:number;planet:number}){const r=cosmicRandom(seed);const scene={planet:Math.floor(r()*COSMIC_PLANETS.length),showPlanet:r()>.27,x:28+r()*65,y:12+r()*79,size:60+r()*54,dust:Math.floor(r()*COSMIC_DUST.length),dustX:Math.floor(r()*640),dustY:Math.floor(r()*400)};
+ if(previous){
+  if(Math.abs(scene.x-previous.x)<26){const start=Math.max(74,previous.x+26);scene.x=previous.x>60?28+r()*Math.min(20,previous.x-54):start+r()*(93-start);}
+  if(scene.planet===previous.planet)scene.planet=(scene.planet+1+Math.floor(r()*5))%6;
+ }
+ return scene;
+}
 export const COSMIC_PANEL_SELECTOR='.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator';

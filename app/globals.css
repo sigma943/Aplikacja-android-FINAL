@@ -755,10 +755,10 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
   .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation
 ) {
-  background-image:var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)) !important;
-  background-size:var(--cosmos-planet-size,80px) var(--cosmos-planet-size,80px),640px 400px !important;
-  background-position:var(--cosmos-planet-position,78% 45%),var(--cosmos-dust-position,0px 0px) !important;
-  background-repeat:no-repeat,repeat !important;
+  background-image:var(--cosmos-readability,linear-gradient(transparent,transparent)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)) !important;
+  background-size:100% 100%,var(--cosmos-planet-size,80px) var(--cosmos-planet-size,80px),640px 400px !important;
+  background-position:center,var(--cosmos-planet-position,78% 45%),var(--cosmos-dust-position,0px 0px) !important;
+  background-repeat:no-repeat,no-repeat,repeat !important;
   border-color:var(--ui-edge);
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-panel-scope[data-panel-theme] :is(
@@ -780,3 +780,5 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 [data-cosmic-star]::after { transform:rotate(90deg); }
 
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.transit-view,[data-statistics-view]) { background-image:var(--theme-decoration); }
+
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card { --cosmos-readability:linear-gradient(180deg,rgba(8,10,18,.58),rgba(8,10,18,.22) 44%,transparent 72%); }
