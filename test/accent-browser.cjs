@@ -420,6 +420,16 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.querySelector('.transit-view').innerText.includes('Rzeszów'));
     assert.equal(await style('.transit-view button.ui-accent-solid','backgroundColor'),'rgb(139, 92, 246)');
     await overflow();await screenshot('departures-dark-purple');
+    const themeBeforeCosmos=await page.evaluate(()=>localStorage.getItem('mks_app_theme'));
+    await page.evaluate(()=>{localStorage.setItem('mks_app_theme','dark-cosmos');window.dispatchEvent(new Event('pks-profile-applied'));});
+    await page.waitForSelector('[data-ui-theme="dark-cosmos"]');
+    await page.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length>0);
+    await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+    await new Promise(resolve=>setTimeout(resolve,1200));
+    assert.equal(await page.$$eval('[data-departure-row]',els=>els.some(el=>el.getAnimations().some(animation=>animation.playState==='running'))),false,'populated Kosmos timetables update without row entrance animations');
+    await overflow();await screenshot('departures-dark-cosmos-loaded');
+    await page.evaluate(theme=>{if(theme===null)localStorage.removeItem('mks_app_theme');else localStorage.setItem('mks_app_theme',theme);window.dispatchEvent(new Event('pks-profile-applied'));},themeBeforeCosmos);
+    await page.waitForFunction(()=>!document.querySelector('.pks-theme-root[data-ui-theme="dark-cosmos"]'));
     const departureDirection=await page.$eval('[data-departure-row] h4',el=>el.textContent);
     const detailedDepartureHeight=await page.$eval('[data-departure-row]',el=>el.getBoundingClientRect().height);
     await page.evaluate(()=>document.documentElement.dataset.personalDepartures='simple');
