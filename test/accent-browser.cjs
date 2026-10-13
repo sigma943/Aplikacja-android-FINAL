@@ -209,7 +209,7 @@ const server=http.createServer((req,res)=>{
           return outline.content!=='none'&&parseFloat(outline.borderBottomWidth)===1&&outline.pointerEvents==='none';
         })),'foreground outlines cover all four card edges independently of the artwork');
         const skyArt=await page.$eval('.pks-theme-root',node=>getComputedStyle(node).backgroundImage);
-        assert.ok(skyArt.includes('sky-cloud')&&skyArt.includes('sky-mist'),'canvas includes stars and nebulae');
+        assert.ok(skyArt.includes('sky-cloud')&&skyArt.includes('star-halo'),'canvas includes the sparse sky and restrained star accents');
         assert.ok(!skyArt.includes('/themes/kosmos/')&&!skyArt.includes('corona'),'canvas never contains planets or suns');
         const stable=await captureCosmic();
         const skyBeforeOptions=await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage);
