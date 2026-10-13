@@ -1038,6 +1038,8 @@ const server=http.createServer((req,res)=>{
     await cosmosPage.goto(origin+'/cosmos-admin-fixture/',{waitUntil:'domcontentloaded'});
     await cosmosPage.waitForSelector('[data-cosmic-view="admin:devices"][data-cosmic-seed]');
     const adminSeed=await cosmosPage.$eval('[data-cosmic-view="admin:devices"]',node=>node.dataset.cosmicSeed);
+    await cosmosPage.waitForFunction(()=>typeof window.__startupTest?.loginPolicy==='function');
+    await cosmosPage.evaluate(()=>window.__startupTest.loginPolicy(true,'owner',true,true));
     await cosmosPage.waitForSelector('.admin-topbar');await cosmosPage.waitForSelector('[data-cosmic-view="admin:devices"] [data-cosmic-scene]');assert.equal(await cosmosPage.$eval('[data-cosmic-view="admin:devices"]',node=>node.dataset.cosmicSeed),adminSeed,'admin preserves the visit seed from loading to loaded data');
     const adminArt=()=>cosmosPage.$$eval('[data-cosmic-scene]',nodes=>nodes.map(node=>({key:node.dataset.cosmicScene,art:[...node.style].filter(name=>name.startsWith('--cosmos-')).map(name=>node.style.getPropertyValue(name)).join('|')})).sort((a,b)=>a.key.localeCompare(b.key)));
     const beforeData=await adminArt();await cosmosPage.evaluate(()=>{window.dispatchEvent(new Event('focus'));window.__startupTest.heartbeat();});await new Promise(resolve=>setTimeout(resolve,600));assert.deepEqual(await adminArt(),beforeData,'admin data snapshots do not randomize the existing arrangement');
