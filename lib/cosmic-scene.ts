@@ -53,7 +53,7 @@ export function cosmicScene(seed: number, previous?: {x: number; planet: number}
   const scene = {
     planet: Math.floor(r() * COSMIC_PLANETS.length), showPlanet: r() > .35,
     x: (r() < .5 ? 48 : 80) + r() * 10, y: 64 + r() * 24, size: 50 + r() * 26,
-    dust: Math.floor(r() * COSMIC_DUST.length), dustX: 50, dustY: 65, sun:r()<.08,
+    dust: Math.floor(r() * COSMIC_DUST.length), dustX: 50, dustY: 65, sun:r()<.08, starX:Math.floor(r()*480), starY:Math.floor(r()*480),
   };
   if (previous) {
     // Alternate the lower middle and outer edge, away from titles and favourite icons.
@@ -82,6 +82,7 @@ export function cosmicPanelStyle(seed:number,departures=false){
     '--cosmos-planet-size':departures?'48px':`${scene.size.toFixed(1)}px`,
     '--cosmos-dust':COSMIC_DUST[scene.dust],
     '--cosmos-dust-position':`${scene.dustX}% ${scene.dustY}%`,
+    '--cosmos-star-position':`${scene.starX}px ${scene.starY}px`,
     '--cosmos-secondary-orb':seed%7===0?COSMIC_SUN:COSMIC_PLANETS[(scene.planet+3)%COSMIC_PLANETS.length],
   };
 }

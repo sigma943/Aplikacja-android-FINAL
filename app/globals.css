@@ -764,12 +764,13 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   --cosmos-planet-size:64px;
   --cosmos-dust:var(--theme-decoration);
   --cosmos-dust-position:50% 50%;
+  --cosmos-star-position:center top;
   background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)),var(--cosmos-sky,var(--theme-decoration)) !important;
   /* One complete image per panel: random pixel offsets of a repeated tile
      expose hard vertical/horizontal boundaries inside the nebula. */
   /* Fit artwork to panel width, never magnify it to a long timetable's height. */
   background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,640px) auto,480px 480px !important;
-  background-position:center,var(--cosmos-planet-position,84% 78%),var(--cosmos-dust-position,50% 50%),center !important;
+  background-position:center,var(--cosmos-planet-position,84% 78%),var(--cosmos-dust-position,50% 50%),var(--cosmos-star-position,center top) !important;
   background-repeat:no-repeat,no-repeat,no-repeat,repeat !important;
   /* Decode transparent planet images normally; blended GPU layers can retain
      stale clipping bounds when Android WebView resizes or scrolls these cards. */
@@ -861,7 +862,7 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'][data-cosmic-expanded='true'] {
   background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(0,0,0,.65),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-secondary-orb,none),var(--cosmos-dust),var(--cosmos-sky,var(--theme-decoration)) !important;
   background-size:100% 100%,48px auto,48px auto,min(100%,640px) auto,480px 480px !important;
-  background-position:center,var(--cosmos-planet-position),72% calc(100% - 56px),var(--cosmos-dust-position),center top !important;
+  background-position:center,var(--cosmos-planet-position),72% calc(100% - 56px),var(--cosmos-dust-position),var(--cosmos-star-position,center top) !important;
   background-repeat:no-repeat,no-repeat,no-repeat,no-repeat,repeat !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-navigation {

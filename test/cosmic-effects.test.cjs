@@ -110,3 +110,11 @@ test('canvas skies are seeded, contain stars and nebulae, and never contain plan
  assert.ok((svg.match(/<circle/g)||[]).length>=300);assert.match(svg,/sky-cloud/);assert.match(svg,/sky-mist/);assert.match(svg,/data-galaxy="spiral"/);assert.match(svg,/star-halo/);
  assert.doesNotMatch(svg,/planet|sun|corona|<image/);
 });
+
+
+test('panel starfields and galaxies have independent stable offsets, never a repeated column',()=>{
+ const {cosmicPanelStyle}=load('lib/cosmic-scene.ts');
+ const positions=Array.from({length:40},(_,seed)=>cosmicPanelStyle(seed)['--cosmos-star-position']);
+ assert.ok(new Set(positions).size>35);
+ assert.equal(cosmicPanelStyle(93)['--cosmos-star-position'],cosmicPanelStyle(93)['--cosmos-star-position']);
+});

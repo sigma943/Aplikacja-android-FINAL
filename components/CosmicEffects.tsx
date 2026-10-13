@@ -59,6 +59,7 @@ export default function CosmicEffects(){
       node.style.setProperty('--cosmos-planet-size',`${scene.size.toFixed(1)}px`);
       node.style.setProperty('--cosmos-dust',COSMIC_DUST[scene.dust]);
       node.style.setProperty('--cosmos-dust-position',`${scene.dustX}% ${scene.dustY}%`);
+      node.style.setProperty('--cosmos-star-position',`${scene.starX}px ${scene.starY}px`);
       node.dataset.cosmicScene=key;
       node.dataset.cosmicVisit=seed||String(session.epoch);
       placed.set(node,{epoch:session.epoch,key});
