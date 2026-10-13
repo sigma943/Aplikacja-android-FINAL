@@ -19,7 +19,7 @@ export default function CosmicEffects(){
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
     const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
     const session=visitSession??=cosmicVisitSession(crypto.getRandomValues(new Uint32Array(1))[0]);
-    const sky=cosmicSky(crypto.getRandomValues(new Uint32Array(1))[0]);
+    const sky=cosmicSky();
     let sequences=new WeakMap<Element,{previous?:ReturnType<typeof cosmicScene>;gap:number}>();
     const stars:Animation[]=[],placed=new WeakMap<Element,{epoch:number;key:string}>();
     const panelKey=(node:HTMLElement)=>{

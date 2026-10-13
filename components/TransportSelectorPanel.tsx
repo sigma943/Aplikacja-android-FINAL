@@ -137,7 +137,7 @@ export default function TransportSelectorPanel({
             transition={{ type: 'spring', stiffness: 360, damping: 30 }}
             ref={dialog}
             role="dialog" aria-modal="true" aria-label="Przewoźnicy"
-            data-carrier-sheet data-glass={transparentUI ? 'on' : 'off'}
+            data-carrier-sheet data-cosmic-panel="map-carriers" data-glass={transparentUI ? 'on' : 'off'}
             onClick={(event) => event.stopPropagation()}
             className={`flex max-h-[calc(100dvh-96px-env(safe-area-inset-bottom))] w-full flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:max-h-[min(720px,calc(100dvh-64px))] md:max-w-[600px] ${theme.shell}`}
           >

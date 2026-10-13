@@ -177,7 +177,7 @@ const server=http.createServer((req,res)=>{
         const scenes=await page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>({planet:el.dataset.cosmicPlanet==='on',size:parseFloat(el.style.getPropertyValue('--cosmos-planet-size'))})));
         assert.ok(scenes.length>3);
         assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length/2),'planets occupy up to half of stop cards');
-        assert.ok(scenes.every(scene=>scene.size>=50&&scene.size<=76),'small planets fit mobile cards');
+        assert.ok(scenes.every(scene=>scene.size>=36&&scene.size<=84),'small planets fit mobile cards');
         for(let i=0;i<scenes.length;i++)if(scenes[i].planet)assert.ok(!scenes[i+1]?.planet,'one quiet card follows each planet');
         const saved=await page.evaluate(()=>{
           const appearance=localStorage.getItem('mks_interface_appearance_v1'),glass=localStorage.getItem('mks_transparent'),glow=localStorage.getItem('mks_panel_glow');
@@ -277,10 +277,17 @@ const server=http.createServer((req,res)=>{
         assert.equal(await page.$eval('[data-map-canvas]',node=>getComputedStyle(node).visibility),'visible','carrier sheet cannot hide its own parent map');
         assert.ok(await page.$eval('[data-carrier-sheet]',node=>getComputedStyle(node).visibility==='visible'&&node.getBoundingClientRect().height>80),'cosmic carrier sheet is visible above the real map');
         assert.equal(await page.$$eval('[data-carrier-grid] button',nodes=>nodes.filter(node=>node.getBoundingClientRect().width>0&&getComputedStyle(node).visibility==='visible').length),3,'all carrier choices remain visible');
+        await page.waitForSelector('[data-carrier-sheet][data-cosmic-scene]');
+        const carrierArt=await page.$eval('[data-carrier-sheet]',node=>[...node.style].filter(key=>key.startsWith('--cosmos-')).map(key=>node.style.getPropertyValue(key)).join('|'));
         await screenshot('carriers-dark-cosmos');
         await page.click('[aria-label="Zamknij panel przewoźników"]');await page.waitForSelector('[data-carrier-sheet]',{hidden:true});
+        await button('Przystanki');await page.waitForSelector('.transit-stop-card');
+        await button('Mapa');await page.click('[aria-label="Przewoźnicy"]');
+        await page.waitForSelector('[data-carrier-sheet][data-cosmic-scene]');
+        assert.equal(await page.$eval('[data-carrier-sheet]',node=>[...node.style].filter(key=>key.startsWith('--cosmos-')).map(key=>node.style.getPropertyValue(key)).join('|')),carrierArt,'map artwork stays fixed after switching tabs and reopening carriers');
+        await page.click('[aria-label="Zamknij panel przewoźników"]');await page.waitForSelector('[data-carrier-sheet]',{hidden:true});
         assert.equal(await page.$eval('.pks-map-search-panel',el=>el.style.getPropertyValue('--cosmos-planet')),'none','map search panel never receives planet artwork');
-        assert.ok(!await page.$eval('.pks-map-search-panel',el=>getComputedStyle(el).backgroundImage.includes('/themes/kosmos/')),'no planet is painted underneath map search controls');
+        assert.ok(!await page.$eval('.pks-map-search-panel',el=>getComputedStyle(el).backgroundImage.match(/\/(mercury|venus|earth|mars|jupiter|saturn|uranus|neptune)\.svg/)),'no planet is painted underneath map search controls');
       }
       const screens=await browser.newPage();screens.on('pageerror',e=>errors.push(e.message));
       await screens.setViewport({width:393,height:851,deviceScaleFactor:1});

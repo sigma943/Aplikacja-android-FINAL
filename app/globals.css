@@ -743,7 +743,7 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   --ui-canvas:#000000; --ui-surface:#020306; --ui-raised:#0b0c14;
   --panel-glow-image:none !important;
   --ui-glass:#020306; --ui-glass-row:#0b0c14;
-  --ui-text:#f3f1ff; --ui-muted:#b9bdcf; --ui-edge:rgb(160 171 221 / 19%);
+  --ui-text:#f3f1ff; --ui-muted:#b9bdcf; --ui-edge:rgb(157 158 184 / 20%);
 }
 .pks-theme-root[data-ui-theme='dark-cosmos'] { background-color:var(--ui-canvas) !important; background-image:var(--theme-decoration); }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) {
@@ -762,14 +762,14 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   --cosmos-planet:none;
   --cosmos-planet-position:84% 78%;
   --cosmos-planet-size:64px;
-  --cosmos-dust:var(--theme-decoration);
+  --cosmos-dust:none;
   --cosmos-dust-position:50% 50%;
   --cosmos-star-position:center top;
-  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-dust,var(--theme-decoration)),var(--cosmos-sky,var(--theme-decoration)) !important;
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(2,3,6,.86),rgba(2,3,6,.12) 76%)),var(--cosmos-planet,none),var(--cosmos-dust,none),var(--cosmos-sky,var(--theme-decoration)) !important;
   /* One complete image per panel: random pixel offsets of a repeated tile
      expose hard vertical/horizontal boundaries inside the nebula. */
   /* Fit artwork to panel width, never magnify it to a long timetable's height. */
-  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,640px) auto,480px 480px !important;
+  background-size:100% 100%,var(--cosmos-planet-size,64px) auto,min(100%,480px) auto,480px 480px !important;
   background-position:center,var(--cosmos-planet-position,84% 78%),var(--cosmos-dust-position,50% 50%),var(--cosmos-star-position,center top) !important;
   background-repeat:no-repeat,no-repeat,no-repeat,repeat !important;
   /* Decode transparent planet images normally; blended GPU layers can retain
@@ -833,7 +833,7 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card {
   --cosmos-readability:linear-gradient(105deg,rgba(0,0,0,.92),rgba(0,0,0,.55) 48%,transparent 82%);
   box-shadow:none !important;
-  border-color:rgb(167 154 226 / 24%) !important;
+  border-color:rgb(157 158 184 / 18%) !important;
   position:relative;
   transform:none !important;
   will-change:auto !important;
@@ -845,7 +845,7 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
   content:'';
   position:absolute;
   inset:-1px;
-  border:1px solid rgb(167 154 226 / 34%);
+  border:1px solid rgb(157 158 184 / 20%);
   border-radius:inherit;
   pointer-events:none;
   z-index:2;
@@ -861,12 +861,13 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'] { min-height:0; }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'][data-cosmic-expanded='true'] {
   background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(0,0,0,.65),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-secondary-orb,none),var(--cosmos-dust),var(--cosmos-sky,var(--theme-decoration)) !important;
-  background-size:100% 100%,48px auto,48px auto,min(100%,640px) auto,480px 480px !important;
+  background-size:100% 100%,48px auto,48px auto,min(100%,480px) auto,480px 480px !important;
   background-position:center,var(--cosmos-planet-position),72% calc(100% - 56px),var(--cosmos-dust-position),var(--cosmos-star-position,center top) !important;
   background-repeat:no-repeat,no-repeat,no-repeat,no-repeat,repeat !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-navigation {
   --cosmos-planet:none;
+  --cosmos-dust:none;
   --cosmos-readability:linear-gradient(180deg,rgba(0,0,0,.7),#020306);
   background-color:#020306 !important;
 }
@@ -877,3 +878,6 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
 .personal-effects { min-width:0; border:0; padding:0; margin:0; display:grid; gap:12px; }
 .personal-effects[data-cosmic-locked='true'] { opacity:.45; }
 .personal-effects[data-cosmic-locked='true'] :is(input,button) { cursor:not-allowed; }
+
+/* Small nested controls keep the quiet glass-like treatment of the reference. */
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(input,.pks-option-card,[data-carrier-sheet] .transit-card) { --cosmos-planet:none !important; --cosmos-dust:none !important; }

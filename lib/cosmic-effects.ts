@@ -1,7 +1,7 @@
 export const COSMIC_METEOR_INTERVAL=8000;
 export const COSMIC_METEOR_DURATION=780;
 export const COSMIC_TWINKLE_INTERVAL=9000;
-export const COSMIC_STAR_POSITIONS=[[16,18],[77,31],[39,54],[87,76],[23,86],[61,12],[55,70],[8,43],[91,48],[45,24],[69,88],[30,65],[82,9],[12,72],[57,39],[40,92]] as const;
+export const COSMIC_STAR_POSITIONS=[[77,31],[39,54],[87,76],[23,86]] as const;
 export function cosmicMotionAllowed(value:{theme:string;hidden:boolean;nativeActive:boolean;reducedMotion:boolean;lightEffects:boolean;hasRegion?:boolean}){
   return value.theme==='dark-cosmos'&&!value.hidden&&value.nativeActive&&!value.reducedMotion&&!value.lightEffects&&value.hasRegion!==false;
 }
