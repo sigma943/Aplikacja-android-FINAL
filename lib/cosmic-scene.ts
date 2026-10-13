@@ -37,7 +37,7 @@ export function cosmicScene(seed: number, previous?: {x: number; planet: number}
   const scene = {
     planet: Math.floor(r() * COSMIC_PLANETS.length), showPlanet: r() > .68,
     x: (r() < .5 ? 48 : 80) + r() * 10, y: 64 + r() * 24, size: 50 + r() * 26,
-    dust: Math.floor(r() * COSMIC_DUST.length), dustX: -Math.floor(r() * 640), dustY: -Math.floor(r() * 400),
+    dust: Math.floor(r() * COSMIC_DUST.length), dustX: Math.floor(r() * 101), dustY: Math.floor(r() * 101),
   };
   if (previous) {
     // Alternate the lower middle and outer edge, away from titles and favourite icons.
@@ -55,3 +55,24 @@ export function cosmicListScene(seed: number, previous?: ReturnType<typeof cosmi
 }
 
 export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator';
+
+export function cosmicKeySeed(seed:number,key:string){
+  let hash=seed>>>0;
+  for(let i=0;i<key.length;i++)hash=Math.imul(hash^key.charCodeAt(i),16777619)>>>0;
+  return hash;
+}
+
+/** A visit belongs to an actual navigation tab, never to a DOM node or refresh. */
+export function cosmicVisitSession(seed:number){
+  let tab:string|null=null,epoch=0;
+  const scenes=new Map<string,ReturnType<typeof cosmicScene>>();
+  return {
+    get tab(){return tab;},get epoch(){return epoch;},
+    enter(next:string){if(next===tab)return false;tab=next;epoch++;scenes.clear();return true;},
+    scene(key:string,create:(seed:number)=>ReturnType<typeof cosmicScene>){
+      let scene=scenes.get(key);
+      if(!scene){scene=create(cosmicKeySeed(seed,`${epoch}:${tab}:${key}`));scenes.set(key,scene);}
+      return scene;
+    },
+  };
+}

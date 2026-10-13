@@ -63,3 +63,19 @@ test('all eight planet photographs are packaged locally for offline Android use'
   assert.match(sprite,/<feColorMatrix/);assert.doesNotMatch(sprite,/<animate|href="https?:/);
  }
 });
+
+test('cosmic scenes survive repeated refreshes and recreated nodes, and reset only on real tab entries',()=>{
+ const {cosmicVisitSession,cosmicScene}=load('lib/cosmic-scene.ts');const session=cosmicVisitSession(943);let created=0;
+ const create=seed=>{created++;return cosmicScene(seed);};
+ assert.equal(session.enter('stops'),true);const epoch=session.epoch,first=session.scene('stop:babica-80',create);
+ for(let i=0;i<100;i++){assert.equal(session.enter('stops'),false);assert.strictEqual(session.scene('stop:babica-80',create),first);}
+ assert.equal(created,1);assert.equal(session.epoch,epoch);
+ session.scene('stop:other-new-row',create);assert.strictEqual(session.scene('stop:babica-80',create),first);
+ session.enter('map');session.enter('stops');const returned=session.scene('stop:babica-80',create);assert.notDeepEqual(returned,first);
+ const restart=cosmicVisitSession(944);restart.enter('stops');assert.notDeepEqual(restart.scene('stop:babica-80',create),first);
+});
+
+test('panel dust uses a bounded cover position instead of offsets crossing repeated tile edges',()=>{
+ const {cosmicScene}=load('lib/cosmic-scene.ts');
+ for(let i=0;i<300;i++){const scene=cosmicScene(i);assert.ok(scene.dustX>=0&&scene.dustX<=100);assert.ok(scene.dustY>=0&&scene.dustY<=100);}
+});
