@@ -1,6 +1,7 @@
 'use client';
 import {bundledMarcelRoute} from '@/lib/marcel-route-assets';
 import {correctMarcelNiebylecRoute} from '@/lib/marcel-niebylec-route';
+import {correctPksStationJunction} from '@/lib/pks-station-junction';
 
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {loadStopPlatforms} from '@/lib/stop-platform-position';
@@ -29,7 +30,7 @@ import {MapStateTracker, MapCenterer, MapClickListener} from '@/components/map/M
 import {VehicleMarkerLayer} from '@/components/map/VehicleMarkers';
 import {SelectedStopPin, CatalogStopsLayer, RouteStopsLayer} from '@/components/map/StopLayers';
 
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v12-contiguous-stop-waypoints';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v13-station-junction';
 
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 
@@ -212,7 +213,7 @@ export default function BusMap({
 
     const suppliedGeometry = selectedVehicle.routeGeometry;
     if (suppliedGeometry && suppliedGeometry.length > 1 && roadRouteMatchesStops(suppliedGeometry, routeGeometryStops.map(stop => [stop.lat, stop.lon]), 180)) {
-      setSnappedRoute(simplifyRouteForPaint(correctMarcelNiebylecRoute(suppliedGeometry,selectedVehicle.provider)));
+      setSnappedRoute(simplifyRouteForPaint(correctPksStationJunction(correctMarcelNiebylecRoute(suppliedGeometry,selectedVehicle.provider),selectedVehicle.provider)));
       return;
     }
 
@@ -231,7 +232,7 @@ export default function BusMap({
       const localRoute = await readPersistentRouteGeometry(routeKey, routeGeometryVersion);
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (localRoute.length > 1 && (routeMode === 'rail' || roadRouteMatchesStops(localRoute, routeGeometryStops.map(stop => [stop.lat,stop.lon]), 180))) {
-        const refinedLocalRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(correctMarcelNiebylecRoute(localRoute,selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : localRoute);
+        const refinedLocalRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(correctPksStationJunction(correctMarcelNiebylecRoute(localRoute,selectedVehicle.provider),selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : localRoute);
         refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
         refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
         setSnappedRoute(refinedLocalRoute);
@@ -245,7 +246,7 @@ export default function BusMap({
         : [];
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (officialRoute.length > 1) {
-        const refinedOfficialRoute = simplifyRouteForPaint(cleanRoadJunctionLoops(correctMarcelNiebylecRoute(officialRoute,selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])));
+        const refinedOfficialRoute = simplifyRouteForPaint(cleanRoadJunctionLoops(correctPksStationJunction(correctMarcelNiebylecRoute(officialRoute,selectedVehicle.provider),selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])));
         refinedRouteCacheRef.current.set(routeKey, refinedOfficialRoute);
         refinedRouteByVehicleRef.current.set(currentIdentity, refinedOfficialRoute);
         writePersistentRouteGeometry(routeKey, refinedOfficialRoute, routeGeometryVersion);
@@ -274,7 +275,7 @@ export default function BusMap({
           .map(([lon, lat]) => [lat, lon] as [number, number])
           .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
         if (points.length > 1) {
-          const refinedRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(correctMarcelNiebylecRoute(points,selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : points);
+          const refinedRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(correctPksStationJunction(correctMarcelNiebylecRoute(points,selectedVehicle.provider),selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : points);
           refinedRouteCacheRef.current.set(routeKey, refinedRoute);
           if (response.cacheKey) refinedRouteCacheRef.current.set(response.cacheKey, refinedRoute);
           refinedRouteByVehicleRef.current.set(currentIdentity, refinedRoute);

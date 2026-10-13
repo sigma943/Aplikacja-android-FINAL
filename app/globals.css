@@ -806,11 +806,11 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 [data-cosmic-star] { position:absolute; width:6px; height:6px; opacity:0; background:radial-gradient(circle,#f4f1ff 0 10%,#b4caff66 16%,transparent 65%); }
 [data-cosmic-star]:nth-child(3n) { width:4px; height:4px; }
 
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.transit-view,[data-statistics-view]),.pks-theme-root[data-ui-theme='dark-cosmos'] {
-  background-image:var(--theme-decoration);
-  background-size:min(100%,640px) auto;
-  background-position:center;
-  background-repeat:no-repeat;
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(.transit-view,[data-statistics-view],.pks-panel-scope[data-cosmic-view]),.pks-theme-root[data-ui-theme='dark-cosmos'] {
+  background-image:var(--cosmos-ambient-orb,none),var(--cosmos-sky,var(--theme-decoration));
+  background-size:76px auto,min(100%,640px) auto;
+  background-position:88% 82%,center top;
+  background-repeat:no-repeat,repeat;
 }
 
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card {
@@ -828,6 +828,15 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'] {
   min-height:160px;
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-sky),linear-gradient(135deg,#080c18,#04060e 62%,#0b0c19) !important;
+  background-position:center,var(--cosmos-planet-position),center top,center !important;
+  background-repeat:no-repeat,no-repeat,repeat,no-repeat !important;
+}
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-panel='stop-departures'][data-cosmic-expanded='true'] {
+  background-image:var(--cosmos-readability,linear-gradient(110deg,rgba(3,5,12,.48),transparent 76%)),var(--cosmos-planet,none),var(--cosmos-secondary-orb,none),var(--cosmos-sky),linear-gradient(135deg,#080c18,#04060e 62%,#0b0c19) !important;
+  background-size:100% 100%,56px auto,56px auto,min(100%,640px) auto,100% 100% !important;
+  background-position:center,var(--cosmos-planet-position),72% calc(100% - 32px),center top,center !important;
+  background-repeat:no-repeat,no-repeat,no-repeat,repeat,no-repeat !important;
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .pks-navigation {
   --cosmos-planet:none;

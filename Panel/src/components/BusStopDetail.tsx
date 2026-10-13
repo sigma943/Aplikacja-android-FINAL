@@ -325,7 +325,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                </div>
              </div>
               
-             <motion.div {...cosmicPanel('stop-departures')} layout={!cosmos} className={`backdrop-blur-2xl rounded-[22px] border overflow-hidden ${departuresCardClass}`}>
+             <motion.div {...cosmicPanel('stop-departures')} data-cosmic-expanded={showAllDepartures} layout={!cosmos} className={`backdrop-blur-2xl rounded-[22px] border overflow-hidden ${departuresCardClass}`}>
                 {isLoading ? (
                   <div className="space-y-1.5 animate-pulse p-4">
                     {[1, 2, 3, 4].map((i) => (

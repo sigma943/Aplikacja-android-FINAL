@@ -5,7 +5,7 @@ import {readStatisticsAccess, statisticsPermission, statisticsAccessChange, type
 import {uiAccentVariables} from '@/lib/ui-accent';
 
 import type {CSSProperties} from 'react';
-import {useState, useEffect, useMemo} from 'react';
+import {useState, useEffect, useLayoutEffect, useMemo} from 'react';
 import {useAppBack} from '@/lib/use-app-back';
 import {X} from 'lucide-react';
 import {Sidebar} from './components/Sidebar';
@@ -75,6 +75,8 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
   const reduceMotion = useReducedMotion();
   const [activeView, setActiveView] = useState('devices');
+  const [cosmicScope,setCosmicScope]=useState<{view:string;seed:number}|null>(null);
+  useLayoutEffect(()=>{setCosmicScope(previous=>previous?.view===activeView?previous:{view:activeView,seed:crypto.getRandomValues(new Uint32Array(1))[0]});},[activeView]);
   const [selectedDeviceForRole, setSelectedDeviceForRole] = useState<Device | null>(null);
   const [selectedDeviceForBan, setSelectedDeviceForBan] = useState<Device | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -266,7 +268,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#040609] flex items-center justify-center text-white">Ładowanie...</div>
+      <div data-cosmic-view={`admin:${activeView}`} data-cosmic-seed={cosmicScope?.seed} data-panel-theme={isDarkTheme?'dark':'light'} className="pks-panel-scope min-h-screen bg-[#040609] flex items-center justify-center text-white">Ładowanie...</div>
     );
   }
 
@@ -981,6 +983,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       }
       style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
       data-cosmic-view={`admin:${activeView}`}
+      data-cosmic-seed={cosmicScope?.seed}
       data-glass={embedded && transparentUI ? 'on' : 'off'}
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >

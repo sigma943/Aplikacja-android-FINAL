@@ -28,6 +28,16 @@ function dust(seed: number) {
 }
 export const COSMIC_DUST = [dust(731), dust(1929), dust(4491), dust(8764)];
 
+/** Seamless sky for long canvases; its stars never grow with content height. */
+function sky(){
+  const random=cosmicRandom(943731);
+  const stars=Array.from({length:180},()=>`<circle cx="${(2+random()*636).toFixed(1)}" cy="${(2+random()*636).toFixed(1)}" r="${(.25+random()*.55).toFixed(2)}" opacity="${(.12+random()*.26).toFixed(2)}"/>`).join('');
+  const clouds=Array.from({length:18},()=>{const x=random()*640,y=110+random()*420,rx=50+random()*95,ry=22+random()*35;return [-640,0,640].map(offset=>`<ellipse cx="${(x+offset).toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="url(#sky-cloud)" opacity=".55"/>`).join('');}).join('');
+  return url(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><defs><radialGradient id="sky-cloud"><stop stop-color="#756899" stop-opacity=".2"/><stop offset=".5" stop-color="#344962" stop-opacity=".08"/><stop offset="1" stop-color="#080b17" stop-opacity="0"/></radialGradient></defs>${clouds}<g fill="#becae7">${stars}</g></svg>`);
+}
+export const COSMIC_SKY=sky();
+export const COSMIC_SUN=url('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><defs><radialGradient id="corona"><stop stop-color="#ffbc56" stop-opacity=".22"/><stop offset=".6" stop-color="#f18a38" stop-opacity=".08"/><stop offset="1" stop-color="#f18a38" stop-opacity="0"/></radialGradient><radialGradient id="sun"><stop stop-color="#fff0b1"/><stop offset=".65" stop-color="#ffc35c"/><stop offset="1" stop-color="#e99039"/></radialGradient></defs><circle cx="48" cy="48" r="44" fill="url(#corona)"/><circle cx="48" cy="48" r="22" fill="url(#sun)"/><g fill="#cf7634" opacity=".17"><circle cx="38" cy="41" r="2"/><circle cx="53" cy="55" r="3"/><circle cx="57" cy="37" r="1.6"/><circle cx="41" cy="58" r="1.5"/></g></svg>');
+
 /** Real NASA photographs, kept in their original aspect ratios and packaged offline. */
 export const COSMIC_PLANET_NAMES = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'] as const;
 export const COSMIC_PLANETS = COSMIC_PLANET_NAMES.map(name => `url("/themes/kosmos/${name}.svg")`);
@@ -37,7 +47,7 @@ export function cosmicScene(seed: number, previous?: {x: number; planet: number}
   const scene = {
     planet: Math.floor(r() * COSMIC_PLANETS.length), showPlanet: r() > .68,
     x: (r() < .5 ? 48 : 80) + r() * 10, y: 64 + r() * 24, size: 50 + r() * 26,
-    dust: Math.floor(r() * COSMIC_DUST.length), dustX: 50, dustY: 65,
+    dust: Math.floor(r() * COSMIC_DUST.length), dustX: 50, dustY: 65, sun:r()<.08,
   };
   if (previous) {
     // Alternate the lower middle and outer edge, away from titles and favourite icons.
@@ -55,16 +65,18 @@ export function cosmicListScene(seed: number, previous?: ReturnType<typeof cosmi
 }
 
 export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator';
+export function cosmicOrb(scene:ReturnType<typeof cosmicScene>){return scene.sun?COSMIC_SUN:COSMIC_PLANETS[scene.planet];}
 
 /** React-owned panels keep these exact styles throughout one mounted visit. */
 export function cosmicPanelStyle(seed:number,departures=false){
   const scene=cosmicScene(seed);
   return {
-    '--cosmos-planet':departures||scene.showPlanet?COSMIC_PLANETS[scene.planet]:'none',
+    '--cosmos-planet':departures||scene.showPlanet?cosmicOrb(scene):'none',
     '--cosmos-planet-position':departures?'76% 96px':`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`,
     '--cosmos-planet-size':departures?'56px':`${scene.size.toFixed(1)}px`,
     '--cosmos-dust':COSMIC_DUST[scene.dust],
     '--cosmos-dust-position':`${scene.dustX}% ${scene.dustY}%`,
+    '--cosmos-secondary-orb':seed%7===0?COSMIC_SUN:COSMIC_PLANETS[(scene.planet+3)%COSMIC_PLANETS.length],
   };
 }
 

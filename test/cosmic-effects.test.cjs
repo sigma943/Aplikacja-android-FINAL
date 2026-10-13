@@ -59,8 +59,10 @@ test('all eight planet photographs are packaged locally for offline Android use'
   const photo=fs.readFileSync(`public/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.jpg`);
   assert.equal(photo.readUInt16BE(0),0xffd8);assert.ok(photo.length>1000&&photo.length<100000);
   const sprite=fs.readFileSync(`public/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.svg`,'utf8');
-  assert.ok(sprite.includes(photo.toString('base64')),'sprites embed the unchanged NASA photograph');
-  assert.match(sprite,/<feColorMatrix/);assert.doesNotMatch(sprite,/<animate|href="https?:/);
+  const decoded=require('pngjs').PNG.sync.read(Buffer.from(sprite.match(/data:image\/png;base64,([^" ]+)/)[1],'base64'));
+  const source=require('jpeg-js').decode(photo,{useTArray:true});assert.equal(decoded.width,source.width);assert.equal(decoded.height,source.height);
+  for(let offset=0;offset<source.data.length;offset+=4096){assert.deepEqual([...decoded.data.slice(offset,offset+3)],[...source.data.slice(offset,offset+3)]);assert.equal(decoded.data[offset+3],Math.min(255,4*(source.data[offset]+source.data[offset+1]+source.data[offset+2])));}
+  assert.doesNotMatch(sprite,/<filter|<feColorMatrix|<animate|href="https?:/);
  }
 });
 
@@ -81,8 +83,8 @@ test('panel dust uses a bounded cover position instead of offsets crossing repea
 });
 
 test('cosmic nebulae contain fine stars without oversized cross shapes, and departures always have one modest planet',()=>{
- const {COSMIC_DUST,COSMIC_PLANETS,cosmicPanelStyle}=load('lib/cosmic-scene.ts');
+ const {COSMIC_DUST,COSMIC_PLANETS,COSMIC_SUN,cosmicPanelStyle}=load('lib/cosmic-scene.ts');
  for(const image of COSMIC_DUST){const svg=decodeURIComponent(image);assert.doesNotMatch(svg,/<path|<rect/);assert.ok((svg.match(/<circle/g)||[]).length>=350);const radii=[...svg.matchAll(/\br="([\d.]+)"/g)].map(match=>Number(match[1]));assert.ok(Math.max(...radii)<=4);}
- for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.ok(COSMIC_PLANETS.includes(style['--cosmos-planet']));assert.equal(style['--cosmos-planet-size'],'56px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
+ for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.ok([...COSMIC_PLANETS,COSMIC_SUN].includes(style['--cosmos-planet']));assert.equal(style['--cosmos-planet-size'],'56px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
  const {COSMIC_STAR_POSITIONS,COSMIC_TWINKLE_INTERVAL}=load('lib/cosmic-effects.ts');assert.ok(COSMIC_STAR_POSITIONS.length>=12&&COSMIC_STAR_POSITIONS.length<=18);assert.ok(COSMIC_TWINKLE_INTERVAL>=9000);
 });
