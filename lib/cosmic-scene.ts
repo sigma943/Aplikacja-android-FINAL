@@ -24,7 +24,7 @@ export const COSMIC_SKY = cosmicSky();
 /** Real NASA photographs, kept in their original aspect ratios and packaged offline. */
 export const COSMIC_PLANET_NAMES = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'] as const;
 
-export type CosmicPanelKind = 'stop-card' | 'content' | 'row' | 'controls' | 'admin';
+export type CosmicPanelKind = 'stop-card' | 'content' | 'row' | 'controls' | 'admin' | 'ornament';
 
 /** A seeded, stratified field. Rejection sampling spaces bright stars apart;
  * the left reading zone has dimmer stars and no galaxies or diffraction spikes.
@@ -43,23 +43,10 @@ export function cosmicPanelSky(seed: number, kind: CosmicPanelKind = 'content') 
     const opacity=x<220?.18+r()*.2:.5+r()*.4;
     return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">${bright?`<circle r="${(3+r()*3).toFixed(1)}" fill="url(#halo)"/><path d="M-3 0H3M0 -3V3" stroke="${color}" stroke-width=".35" opacity=".6"/>`:''}<circle r="${size.toFixed(2)}" fill="${color}" opacity="${opacity.toFixed(2)}"/></g>`;
   }).join('');
-  // Twelve layout families, with independently varied inclination, scale,
-  // colour and spiral pitch; a small satellite never overlaps the main galaxy.
-  const family=Math.floor(r()*12),cx=285+r()*125,cy=32+r()*110;
-  const galaxies=Array.from({length:dense?1:2},(_,index)=>{
-    const x=index?245+r()*22:cx,y=index?(cy<90?140:28):cy;
-    const radius=(index?7:12)+r()*(index?4:12),tilt=-65+r()*130,flat=.25+r()*.38;
-    const color=palette[(family+index)%palette.length];
-    const arms=Array.from({length:family%2+2},(_,arm)=>{
-      const points=Array.from({length:24},(_,step)=>{
-        const t=step/23,angle=t*(4+family*.12)+arm*Math.PI*2/(family%2+2),rad=2+t*radius;
-        return `${(Math.cos(angle)*rad).toFixed(1)} ${(Math.sin(angle)*rad*flat).toFixed(1)}`;
-      });
-      return `<path d="M${points.join('L')}" fill="none" stroke="${color}" stroke-width=".65" opacity=".38"/>`;
-    }).join('');
-    return `<g data-galaxy="${family%3}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${tilt.toFixed(1)})"><ellipse rx="${(radius*1.5).toFixed(1)}" ry="${(radius*flat).toFixed(1)}" fill="url(#halo)"/>${family%3===0?`<ellipse rx="${radius.toFixed(1)}" ry="${(radius*flat*.3).toFixed(1)}" fill="none" stroke="${color}" opacity=".3"/>`:arms}<ellipse rx="2.1" ry="1.1" fill="#ffe5c2" opacity=".65"/><circle r=".65" fill="#fff7df" opacity=".9"/></g>`;
-  }).join('');
-  return url(`<svg xmlns="http://www.w3.org/2000/svg" width="480" height="180" viewBox="0 0 480 180"><defs><radialGradient id="sky-cloud"><stop stop-color="${palette[family%palette.length]}" stop-opacity=".065"/><stop offset="1" stop-opacity="0"/></radialGradient><radialGradient id="halo"><stop stop-color="#d8eaff" stop-opacity=".45"/><stop offset=".25" stop-color="#9bbcff" stop-opacity=".12"/><stop offset="1" stop-color="#9bbcff" stop-opacity="0"/></radialGradient></defs><ellipse cx="${cx.toFixed(1)}" cy="90" rx="140" ry="85" fill="url(#sky-cloud)"/>${stars}${galaxies}</svg>`);
+  const family=Math.floor(r()*12),cx=285+r()*125;
+  // Real galactic photographs live in the compressed dust atlas; this layer
+  // contributes only fine stars so no symbolic spiral can resemble a ring.
+  return url(`<svg xmlns="http://www.w3.org/2000/svg" width="480" height="180" viewBox="0 0 480 180"><defs><radialGradient id="sky-cloud"><stop stop-color="${palette[family%palette.length]}" stop-opacity=".065"/><stop offset="1" stop-opacity="0"/></radialGradient><radialGradient id="halo"><stop stop-color="#d8eaff" stop-opacity=".45"/><stop offset=".25" stop-color="#9bbcff" stop-opacity=".12"/><stop offset="1" stop-color="#9bbcff" stop-opacity="0"/></radialGradient></defs><ellipse cx="${cx.toFixed(1)}" cy="90" rx="140" ry="85" fill="url(#sky-cloud)"/>${stars}</svg>`);
 }
 
 /** Identity, visit and surface role choose independent channels. Changing the
@@ -80,14 +67,16 @@ export function cosmicScene(seed: number, _previous?: {x: number; planet: number
  * and administrative cards get their own galaxies without competing with text. */
 export function cosmicPanelScene(seed:number,kind:CosmicPanelKind){
   const scene=cosmicScene(seed,undefined,undefined,kind);
-  return {...scene,showPlanet:kind==='stop-card'&&scene.showPlanet};
+  return {...scene,showPlanet:kind==='ornament'||kind==='stop-card'&&scene.showPlanet};
 }
 
-export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator,.personal-group,[data-interface-panel],[data-interface-card],.widget-settings-card,.widget-personalization,[data-departure-row],[data-cosmic-surface]';
-export function cosmicOrb(scene:ReturnType<typeof cosmicScene>){
+export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator,.personal-group,[data-interface-panel],[data-interface-card],.widget-settings-card,.widget-personalization,[data-departure-row],[data-cosmic-surface],[data-cosmic-orbit]';
+export function cosmicOrbSrc(scene:ReturnType<typeof cosmicScene>){
   const name=COSMIC_PLANET_NAMES[scene.planet];
-  return `url("/themes/kosmos/${[0,3,5].includes(scene.planet)?'reference-':''}${name}.svg")`;
+  return `/themes/kosmos/${[0,3,5].includes(scene.planet)?'reference-':''}${name}.svg`;
 }
+export function cosmicOrb(scene:ReturnType<typeof cosmicScene>){return `url("${cosmicOrbSrc(scene)}")`;}
+
 
 export function cosmicKeySeed(seed:number,key:string){
   let hash=seed>>>0;

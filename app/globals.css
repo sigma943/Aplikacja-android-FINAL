@@ -853,7 +853,7 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
   pointer-events:none;
   z-index:2;
 }
-:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card > div:first-child {
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card > [data-stop-card-icon] {
   background-color:#0b0c14;
   border-color:rgb(167 154 226 / 25%);
 }
@@ -939,4 +939,39 @@ html[data-cosmic-theme='on'] body {
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-carrier='train'][data-cosmic-highlighted='true'] {
   background-color:#102753 !important;
   background-image:linear-gradient(#3b82f622,#3b82f622),var(--cosmos-dust),var(--cosmos-panel-sky,var(--cosmos-sky)) !important;
+}
+
+/* Loading must cover the decorated document with one solid selected colour. */
+.pks-loading-screen[data-startup-theme] { background-image:none !important; }
+html:has(.pks-loading-screen),html:has(.pks-loading-screen) body { background-image:none !important; }
+
+/* An independent image layer travels with the card during FLIP and scrolling.
+   WebView no longer reuses the card's multi-background raster for the planet. */
+[data-cosmic-card-art],.cosmic-orbit { display:none; }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card[data-cosmic-scene] { background-image:none !important; isolation:isolate; }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) [data-cosmic-card-art] {
+  display:block; position:absolute; inset:1px; border-radius:inherit; overflow:hidden;
+  z-index:0; pointer-events:none; contain:paint; transform:translateZ(0); backface-visibility:hidden;
+  background-color:#020306;
+  background-image:var(--cosmos-dust,none),var(--cosmos-panel-sky,var(--cosmos-sky));
+  background-size:min(100%,480px) auto,480px 180px;
+  background-position:var(--cosmos-dust-position,center),right center;
+  background-repeat:no-repeat,repeat;
+}
+[data-cosmic-card-art]::after { content:''; position:absolute; inset:0; z-index:2; background:var(--cosmos-readability); pointer-events:none; }
+[data-cosmic-card-orb] {
+  position:absolute; left:var(--cosmos-orb-left); top:var(--cosmos-orb-top);
+  width:var(--cosmos-planet-size); height:var(--cosmos-planet-size); object-fit:contain;
+  z-index:1; transform:translateZ(0); backface-visibility:hidden; pointer-events:none;
+}
+[data-cosmic-card-orb][hidden] { display:none; }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .transit-stop-card > :not([data-cosmic-card-art]) { position:relative; z-index:1; }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .cosmic-orbit {
+  display:flex; width:84px; height:48px; flex:none; align-items:center; justify-content:space-between;
+  pointer-events:none; overflow:hidden; background-color:transparent !important; background-image:none !important;
+}
+.cosmic-orbit img { display:block; width:44px; height:44px; object-fit:contain; }
+.cosmic-orbit [data-cosmic-orbit-sun] { width:36px; height:36px; }
+:is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) .cosmic-orbit-wide {
+  width:100%; height:54px; justify-content:flex-end; gap:16px; padding:3px 20px;
 }

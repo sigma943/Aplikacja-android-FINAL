@@ -6,7 +6,7 @@ import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {COSMIC_METEOR_DURATION,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
 
-import {COSMIC_DUST,cosmicSky,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicOrb,cosmicScene,cosmicPanelScene,cosmicVisitSession} from '@/lib/cosmic-scene';
+import {COSMIC_DUST,cosmicSky,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicOrb,cosmicOrbSrc,cosmicScene,cosmicPanelScene,cosmicVisitSession} from '@/lib/cosmic-scene';
 
 let visitSession:ReturnType<typeof cosmicVisitSession>|null=null;
 
@@ -22,6 +22,7 @@ export default function CosmicEffects(){
     const stars:Animation[]=[],placed=new WeakMap<Element,{epoch:number;key:string}>();
     const panelKey=(node:HTMLElement)=>{
       if(node.dataset.stopCardId)return `stop:${node.dataset.stopCardId}`;
+      if(node.dataset.cosmicOrbit)return `orbit:${node.dataset.cosmicOrbit}`;
       if(node.dataset.cosmicPanel)return `${node.closest<HTMLElement>('[data-cosmic-view]')?.dataset.cosmicView||'app'}:panel:${node.dataset.cosmicPanel}`;
       if(node.classList.contains('admin-topbar'))return 'admin:topbar';
       if(node.classList.contains('pks-personal-panel'))return 'admin:sidebar';
@@ -38,12 +39,19 @@ export default function CosmicEffects(){
     const place=(node:HTMLElement)=>{
       const {key}=scopedKey(node);
       const scene=session.scene(key,nextSeed=>{
-        const kind=node.hasAttribute('data-stop-card-id')?'stop-card':node.matches('[data-departure-row],[data-cosmic-surface=route-row]')?'row':node.closest('[data-cosmic-view^=admin]')?'admin':node.matches('.pks-map-search-panel,.pks-option-card')?'controls':'content';
+        const kind=node.hasAttribute('data-cosmic-orbit')?'ornament':node.hasAttribute('data-stop-card-id')?'stop-card':node.matches('[data-departure-row],[data-cosmic-surface=route-row]')?'row':node.closest('[data-cosmic-view^=admin]')?'admin':node.matches('.pks-map-search-panel,.pks-option-card')?'controls':'content';
         const value=cosmicPanelScene(nextSeed,kind);
         return value;
       });
       node.style.setProperty('--cosmos-planet',scene.showPlanet?cosmicOrb(scene):'none');
       node.style.setProperty('--cosmos-secondary-orb','none');
+      node.style.setProperty('--cosmos-orb-left',`calc(${scene.x.toFixed(2)}% - ${(scene.x*scene.size/100).toFixed(2)}px)`);
+      node.style.setProperty('--cosmos-orb-top',`calc(${scene.y.toFixed(2)}% - ${(scene.y*scene.size/100).toFixed(2)}px)`);
+      const orb=node.querySelector<HTMLImageElement>('[data-cosmic-card-orb],[data-cosmic-orbit-planet]');
+      if(orb){
+        if(scene.showPlanet){const src=cosmicOrbSrc(scene);if(orb.getAttribute('src')!==src)orb.src=src;orb.hidden=false;}
+        else orb.hidden=true;
+      }
       node.style.setProperty('--cosmos-planet-position',`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`);
       node.style.setProperty('--cosmos-planet-size',`${scene.size.toFixed(1)}px`);
       node.style.setProperty('--cosmos-dust',COSMIC_DUST[scene.dust]);

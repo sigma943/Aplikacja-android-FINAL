@@ -186,6 +186,33 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(id=>{const transform=document.querySelector(`[data-stop-card-id="${id}"]`).style.transform;return transform&&transform!=='none';},{},favoriteId);
         await new Promise(resolve=>setTimeout(resolve,700));
         assert.deepEqual(await snapshot(),beforeFavorite,'favorite reordering preserves every existing scene by stop identity');
+        // Exercise independent image layers at phone density after FLIP moved
+        // the cards. A mathematically correct CSS position cannot detect a
+        // WebView that actually paints only half of a planet.
+        const planetScroll=await page.$eval('[data-stop-list-scroll]',node=>node.scrollTop);
+        await page.setViewport({width:393,height:851,deviceScaleFactor:2.5});
+        await page.$$eval('[data-cosmic-card-orb]:not([hidden])',nodes=>{const img=nodes.find(n=>!n.src.includes('/reference-'));if(img)img.closest('.transit-stop-card').scrollIntoView({block:'center'});});
+        await page.waitForFunction(()=>[...document.querySelectorAll('[data-cosmic-card-orb]:not([hidden])')].every(img=>img.complete&&img.naturalWidth>0));
+        await new Promise(resolve=>setTimeout(resolve,200));
+        const planetBoxes=await page.$$eval('[data-cosmic-card-orb]:not([hidden])',nodes=>nodes.filter(img=>{const r=img.closest('.transit-stop-card').getBoundingClientRect();return r.top>=0&&r.bottom<innerHeight-70&&!img.src.includes('/reference-');}).map(img=>({rect:img.getBoundingClientRect().toJSON(),src:img.src})));
+        assert.ok(planetBoxes.length>0,'complete planet images are visible after favourite reordering');
+        const {PNG}=require('pngjs');
+        const planetsPainted=PNG.sync.read(Buffer.from(await page.screenshot({path:'test/ui-previews/cosmos-planets-after-favorite-high-dpi.png'})));
+        await page.$$eval('[data-cosmic-card-orb]',nodes=>nodes.forEach(img=>img.style.visibility='hidden'));
+        const planetsHidden=PNG.sync.read(Buffer.from(await page.screenshot()));
+        await page.$$eval('[data-cosmic-card-orb]',nodes=>nodes.forEach(img=>img.style.removeProperty('visibility')));
+        const scale=planetsPainted.width/393;
+        for(const {rect,src} of planetBoxes){
+          const count=(from,to)=>{let changed=0;
+            for(let y=Math.ceil((rect.top+rect.height*from)*scale);y<Math.floor((rect.top+rect.height*to)*scale);y++)for(let x=Math.ceil((rect.left+rect.width*.2)*scale);x<Math.floor((rect.left+rect.width*.8)*scale);x++){
+              const i=(y*planetsPainted.width+x)*4;if(Math.max(...[0,1,2].map(c=>Math.abs(planetsPainted.data[i+c]-planetsHidden.data[i+c])))>=8)changed++;
+            }return changed;};
+          const upper=count(.2,.5),lower=count(.5,.8);
+          assert.ok(upper>10&&lower>10,'both halves of the planet are actually painted: '+JSON.stringify({src,upper,lower}));
+        }
+        await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+        await page.$eval('[data-stop-list-scroll]',(node,top)=>node.scrollTop=top,planetScroll);
+        await new Promise(resolve=>setTimeout(resolve,100));
         await page.evaluate(()=>{
           const node=document.querySelector('.transit-stop-card');
           const clone=node.cloneNode(true);for(const key of [...clone.style])if(key.startsWith('--cosmos-'))clone.style.removeProperty(key);
@@ -234,6 +261,8 @@ const server=http.createServer((req,res)=>{
           await button('Opcje');await page.waitForSelector('[data-options-sheet]');
           await page.click('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');
           await new Promise(resolve=>setTimeout(resolve,650));
+          await page.waitForFunction(()=>[...document.querySelectorAll('[data-cosmic-orbit=options] img')].every(img=>img.complete&&img.naturalWidth>0));
+          assert.ok(await page.$eval('[data-cosmic-orbit=options]',node=>{const box=node.getBoundingClientRect();return box.width>70&&[...node.querySelectorAll('img')].every(img=>{const r=img.getBoundingClientRect();return r.width>20&&r.left>=box.left&&r.right<=box.right;});}),'options show a planet and sun clear of the title and controls');
           assert.deepEqual(await captureCosmic(),stable,'opening options and previewing settings never changes the underlying stop layout');
           const locked=await page.$$eval('[aria-label="Efekt szkła"],[aria-label="Miękka poświata paneli"]',els=>els.map(el=>({disabled:el.matches(':disabled'),checked:el.checked,grey:Number(getComputedStyle(el.closest('fieldset')).opacity)<1})));
           assert.equal(locked.length,2);assert.ok(locked.every(value=>value.disabled&&!value.checked&&value.grey),'both effects are visibly greyed out, switched off and disabled in Kosmos');
@@ -247,7 +276,7 @@ const server=http.createServer((req,res)=>{
         await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
         await new Promise(resolve=>setTimeout(resolve,8500));
         assert.deepEqual(await captureCosmic(),stable,'focus, appearance refreshes and meteor ticks never randomize existing scenes');
-        assert.ok(await page.$$eval('.transit-stop-card',els=>els.every(el=>{const style=getComputedStyle(el);return style.backgroundRepeat.split(',').slice(0,2).every(value=>value.trim()==='no-repeat')&&!style.backgroundSize.includes('cover')&&style.backgroundImage.includes('sky-cloud')&&style.backgroundImage.includes('/themes/kosmos/deep-space-');})),'planets never tile and each card has a local Hubble composition over the sparse starfield');
+        assert.ok(await page.$$eval('.transit-stop-card',els=>els.every(el=>{const art=el.querySelector('[data-cosmic-card-art]'),style=getComputedStyle(art),orb=el.querySelector('[data-cosmic-card-orb]');return getComputedStyle(el).backgroundImage==='none'&&getComputedStyle(art).transform!=='none'&&style.backgroundRepeat.split(',')[0].trim()==='no-repeat'&&!style.backgroundSize.includes('cover')&&style.backgroundImage.includes('sky-cloud')&&style.backgroundImage.includes('/themes/kosmos/deep-space-')&&Boolean(orb);})),'independent image layers paint complete card scenes without using the moving card background');
         await page.type('input[placeholder*="Babica"]','Albigowa');
         await page.waitForFunction(count=>{const titles=[...document.querySelectorAll('.transit-stop-card h3')];return titles.length>0&&titles.length<count&&titles.every(el=>el.textContent.includes('Albigowa'));},{},stable.length);
         await page.click('[aria-label="Wyczysc wyszukiwanie"]');
@@ -316,8 +345,8 @@ const server=http.createServer((req,res)=>{
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
         assert.equal(background,mode==='dark-cosmos'?'rgb(0, 0, 0)':mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
         const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
-        if(mode==='dark-cosmos')assert.ok(decoration.includes('sky-cloud')&&decoration.includes('/themes/kosmos/deep-space-'),'all cosmic startup screens show stars and nebulae');
-        else if(kind==='loading')assert.equal(decoration,'none','other loading themes keep a uniform background');
+        if(mode==='dark-cosmos'&&kind!=='loading')assert.ok(decoration.includes('sky-cloud')&&decoration.includes('/themes/kosmos/deep-space-'),'non-loading cosmic screens retain stars and nebulae');
+        else if(kind==='loading')assert.equal(decoration,'none','every loading theme keeps a uniform background');
         else assert.ok(decoration.includes('svg'));
         if(kind==='loading'&&mode==='dark-cosmos')assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');
         if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
@@ -1148,6 +1177,10 @@ const server=http.createServer((req,res)=>{
       assert.equal(await cosmosPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       await cosmosPage.screenshot({path:'test/ui-previews/cosmos-operators-'+width+'.png'});
     }
+    await cosmosPage.waitForFunction(()=>[...document.querySelectorAll('[data-cosmic-orbit] img')].every(img=>img.complete&&img.naturalWidth>0));
+    assert.ok(await cosmosPage.$eval('[data-cosmic-orbit=admin]',node=>{
+      const box=node.getBoundingClientRect();return [...node.querySelectorAll('img')].every(img=>{const r=img.getBoundingClientRect();return r.width>20&&r.left>=box.left&&r.right<=box.right&&r.top>=box.top&&r.bottom<=box.bottom;});
+    }),'administration has a planet and sun in a reserved strip, inside their bounds');
     await cosmosPage.setViewport({width:393,height:851,deviceScaleFactor:1});
     await cosmosPage.click('[aria-label^="Menu administratora"]');
     await new Promise(resolve=>setTimeout(resolve,300));

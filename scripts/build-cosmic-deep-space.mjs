@@ -6,6 +6,7 @@ import sharp from 'sharp';
 // Inline WebP remains self-contained and works offline inside CSS SVG images.
 const photo = async name => `data:image/webp;base64,${(await sharp(fileURLToPath(new URL('../assets/cosmos-source/'+name,import.meta.url))).resize({width:512,withoutEnlargement:true}).webp({quality:85,effort:6}).toBuffer()).toString('base64')}`;
 const nebula = await photo('orion.png'), galaxy = await photo('sombrero.png');
+const whirlpool=`data:image/webp;base64,${(await sharp(fileURLToPath(new URL('../assets/cosmos-source/whirlpool.jpg',import.meta.url))).extract({left:45,top:12,width:850,height:850}).resize(384,384).webp({quality:84,effort:6}).toBuffer()).toString('base64')}`;
 // Reference compositions: all bright detail stays to the right of the text.
 for (let i = 0; i < 4; i++) {
   let state=731+i*943;
@@ -18,19 +19,11 @@ for (let i = 0; i < 4; i++) {
     return `<g transform="translate(${x} ${y})">${bright?`<circle r="${3+random()*4}" fill="url(#spark)"/><path d="M-3 0H3M0 -3V3" stroke="${color}" stroke-width=".3" opacity=".65"/>`:''}<circle r="${radius}" fill="${color}" opacity="${(.3+random()*.65).toFixed(2)}"/></g>`;
   }).join('');
   const spark='';
-  const galaxyArt=[0,1].map(j=>{
-    const x=[405,410,345,425][i]-j*42,y=[97,99,28,42][i]+j*22;
-    const w=j?26:42+random()*14,h=w/2;
-    if((i+j)%2===0){
-      const arms=Array.from({length:3},(_,arm)=>{
-        const points=Array.from({length:40},(_,step)=>{const t=step/39,angle=t*5+arm*Math.PI*2/3,r=t*w*.45;return `${(Math.cos(angle)*r).toFixed(2)} ${(Math.sin(angle)*r*.45).toFixed(2)}`;});
-        return `<path d="M${points.join('L')}" fill="none" stroke="${i===2?'#e3aa9d':'#a4c9ee'}" stroke-width="1.2" opacity=".28"/>`;
-      }).join('');
-      return `<g transform="translate(${x} ${y}) rotate(${-30+i*18})"><ellipse rx="${w/2}" ry="${h/2}" fill="url(#spark)" opacity=".6"/>${arms}<ellipse rx="3.5" ry="1.8" fill="#ffe8c8" opacity=".7"/><ellipse rx="1.3" ry=".7" fill="#fff6e7" opacity=".9"/></g>`;
-    }
-    return `<g transform="translate(${x} ${y}) rotate(${-38+i*21+j*35})"><image x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" href="${galaxy}" mask="url(#galaxy-edge)" opacity="${j?.4:.78}"/></g>`;
-  }).join('');
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="480" height="128" viewBox="0 0 480 128"><defs><linearGradient id="panel-edge" x2="0" y2="1"><stop stop-color="white" stop-opacity="0"/><stop offset=".12" stop-color="white"/><stop offset=".85" stop-color="white"/><stop offset="1" stop-color="white" stop-opacity="0"/></linearGradient><mask id="panel-fade"><rect width="480" height="128" fill="url(#panel-edge)"/></mask><radialGradient id="fade"><stop stop-color="white"/><stop offset=".4" stop-color="white" stop-opacity=".6"/><stop offset="1" stop-color="white" stop-opacity="0"/></radialGradient><radialGradient id="spark"><stop stop-color="#cfeaff" stop-opacity=".6"/><stop offset=".25" stop-color="#75baff" stop-opacity=".15"/><stop offset="1" stop-color="#75baff" stop-opacity="0"/></radialGradient><mask id="cloud-edge"><ellipse cx="${[335,360,320,340][i]}" cy="70" rx="140" ry="90" fill="url(#fade)"/></mask><mask id="galaxy-edge"><ellipse rx="24" ry="12" fill="url(#fade)"/></mask></defs><g mask="url(#panel-fade)"><image x="190" y="-32" width="280" height="200" preserveAspectRatio="xMidYMid slice" href="${nebula}" mask="url(#cloud-edge)" opacity="${[.26,.12,.16,.33][i]}"/>${stars}${spark}${galaxyArt}</g></svg>`;
+  // A photographic galaxy with a genuine stellar bulge and dust lane.
+  // Face-on Whirlpool and edge-on Sombrero preserve real dust lanes and arms.
+  const spiral=i%2===0,w=spiral?64:54,h=spiral?w:w*246/512;
+  const galaxyArt=`<g data-galaxy="photograph" transform="translate(${[405,410,345,412][i]} ${[92,90,32,40][i]}) rotate(${-28+i*17})"><image x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" href="${spiral?whirlpool:galaxy}" mask="url(#galaxy-edge)" opacity=".82"/></g>`;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="480" height="128" viewBox="0 0 480 128"><defs><linearGradient id="panel-edge" x2="0" y2="1"><stop stop-color="white" stop-opacity="0"/><stop offset=".12" stop-color="white"/><stop offset=".85" stop-color="white"/><stop offset="1" stop-color="white" stop-opacity="0"/></linearGradient><mask id="panel-fade"><rect width="480" height="128" fill="url(#panel-edge)"/></mask><radialGradient id="fade"><stop stop-color="white"/><stop offset=".4" stop-color="white" stop-opacity=".6"/><stop offset="1" stop-color="white" stop-opacity="0"/></radialGradient><radialGradient id="spark"><stop stop-color="#cfeaff" stop-opacity=".6"/><stop offset=".25" stop-color="#75baff" stop-opacity=".15"/><stop offset="1" stop-color="#75baff" stop-opacity="0"/></radialGradient><mask id="cloud-edge"><ellipse cx="${[335,360,320,340][i]}" cy="70" rx="140" ry="90" fill="url(#fade)"/></mask><radialGradient id="galaxy-fade"><stop stop-color="white"/><stop offset=".68" stop-color="white" stop-opacity=".9"/><stop offset="1" stop-color="white" stop-opacity="0"/></radialGradient><mask id="galaxy-edge"><ellipse rx="${w/2}" ry="${h/2}" fill="url(#galaxy-fade)"/></mask></defs><g mask="url(#panel-fade)"><image x="190" y="-32" width="280" height="200" preserveAspectRatio="xMidYMid slice" href="${nebula}" mask="url(#cloud-edge)" opacity="${[.26,.12,.16,.33][i]}"/>${stars}${spark}${galaxyArt}</g></svg>`;
   writeFileSync(fileURLToPath(new URL(`deep-space-${i}.svg`,root)),svg+'\n');
 }
 // Shade the existing NASA planet sprites with vector overlays. The source
@@ -47,3 +40,9 @@ for(const name of ['mars','mercury','saturn']){
   }
   writeFileSync(fileURLToPath(new URL(`reference-${name}.svg`,root)),svg);
 }
+
+// A bounded, filled solar disc with granulation and a soft corona, offline.
+let solarState=943731;
+const solarRandom=()=>{solarState=(Math.imul(solarState,1664525)+1013904223)>>>0;return solarState/4294967296;};
+const granules=Array.from({length:240},()=>{const angle=solarRandom()*Math.PI*2,r=Math.sqrt(solarRandom())*29;return `<circle cx="${(48+Math.cos(angle)*r).toFixed(2)}" cy="${(48+Math.sin(angle)*r).toFixed(2)}" r="${(.3+solarRandom()*.9).toFixed(2)}" fill="${solarRandom()>.5?'#fff3af':'#a94e19'}" opacity=".22"/>`;}).join('');
+writeFileSync(fileURLToPath(new URL('sun.svg',root)),`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><defs><radialGradient id="corona"><stop stop-color="#ffd36e" stop-opacity=".45"/><stop offset=".7" stop-color="#ed9d37" stop-opacity=".16"/><stop offset="1" stop-color="#ed9d37" stop-opacity="0"/></radialGradient><radialGradient id="disc"><stop stop-color="#fff4bd"/><stop offset=".5" stop-color="#ffd574"/><stop offset=".9" stop-color="#f3ac46"/><stop offset="1" stop-color="#cc702b"/></radialGradient></defs><circle cx="48" cy="48" r="46" fill="url(#corona)"/><circle cx="48" cy="48" r="30" fill="url(#disc)"/>${granules}</svg>`);

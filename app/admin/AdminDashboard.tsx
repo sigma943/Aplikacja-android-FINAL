@@ -1,4 +1,5 @@
 'use client';
+import CosmicOrbit from '@/components/CosmicOrbit';
 import {isNewLoginBlocked,newLoginsEnabled} from '@/lib/login-policy';
 import {motion, useReducedMotion} from 'motion/react';
 import {readStatisticsAccess, statisticsPermission, statisticsAccessChange, type StatisticsAccess} from '@/lib/admin/statistics-access';
@@ -1218,6 +1219,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <CosmicOrbit scope="admin" wide/>
         {embedded && onExit && (
           <div data-interface-panel className="admin-topbar sticky top-0 z-30 hidden justify-end bg-[#040609]/90 px-4 py-4 backdrop-blur md:flex md:px-6">
             <button

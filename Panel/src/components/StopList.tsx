@@ -270,7 +270,8 @@ export default function StopList({
           onStopSelect(stop);
         }}
       >
-        <div
+        <span data-cosmic-card-art aria-hidden="true"><img data-cosmic-card-orb alt="" decoding="async" /></span>
+        <div data-stop-card-icon
           className={`mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors duration-150 ${
             isBus
               ? 'ui-accent-soft'

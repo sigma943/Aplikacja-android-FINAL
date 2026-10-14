@@ -35,7 +35,7 @@ test('seeded composition channels vary widely within the catalogue safe strip',(
  }
  assert.equal(families.size,12);assert.equal(variants.size,500);
  const sky=decodeURIComponent(cosmicPanelSky(731,'row'));
- assert.match(sky,/data-galaxy=/);assert.doesNotMatch(sky,/<filter|<animate|<image/);
+ assert.doesNotMatch(sky,/data-galaxy=/);assert.doesNotMatch(sky,/<filter|<animate|<image|fill="none" stroke="#(?:e|d|c|b|a|8)/);
  const stars=[...sky.matchAll(/<g transform="translate\(([\d.]+) ([\d.]+)\)">/g)].map(m=>({x:+m[1],y:+m[2]}));
  assert.ok(stars.length>=35);for(let a=0;a<stars.length;a++)for(let b=a+1;b<stars.length;b++)assert.ok(Math.hypot(stars[a].x-stars[b].x,stars[a].y-stars[b].y)>=4.8,'stars keep their minimum separation');
  assert.equal(cosmicPanelSky(731,'row'),cosmicPanelSky(731,'row'));assert.notEqual(cosmicPanelSky(731,'row'),cosmicPanelSky(732,'row'));
@@ -90,7 +90,7 @@ test('cosmic nebulae contain fine stars without oversized cross shapes, and dens
  for(const image of COSMIC_DUST){
   const filename=image.match(/url\("([^\"]+)"\)/)[1];
   const svg=require('node:fs').readFileSync('public'+filename,'utf8');
-  assert.match(svg,/data:image\/webp;base64,/);assert.match(svg,/<mask/);assert.ok(Buffer.byteLength(svg)<100000,'panel atlas must not duplicate full-size photographic masters');
+  assert.match(svg,/data:image\/webp;base64,/);assert.match(svg,/<mask/);assert.match(svg,/data-galaxy="photograph"/);assert.ok(Buffer.byteLength(svg)<110000,'panel atlas must not duplicate full-size photographic masters');
   assert.doesNotMatch(svg,/<filter|<animate|href="https?:/);
  }
 
@@ -185,4 +185,14 @@ test('large virtual catalogues reconstruct evicted scenes without rerolling',()=
  const first=session.scene('stop:first',create);
  for(let i=0;i<1200;i++)session.scene('stop:'+i,create);
  assert.deepEqual(session.scene('stop:first',create),first);
+});
+
+test('reserved ornaments offer a planet and a local sun without placing them in dense controls',()=>{
+ const {cosmicPanelScene,cosmicOrbSrc}=load('lib/cosmic-scene.ts');const fs=require('node:fs');
+ for(let seed=0;seed<60;seed++){
+  const ornament=cosmicPanelScene(seed,'ornament');assert.equal(ornament.showPlanet,true);assert.ok(fs.existsSync('public'+cosmicOrbSrc(ornament)));
+  for(const kind of ['admin','controls','row'])assert.equal(cosmicPanelScene(seed,kind).showPlanet,false);
+ }
+ const sun=fs.readFileSync('public/themes/kosmos/sun.svg','utf8');assert.match(sun,/id="corona"/);assert.doesNotMatch(sun,/<filter|<animate|href="https?:/);
+ for(let i=0;i<4;i++)assert.doesNotMatch(fs.readFileSync('public/themes/kosmos/deep-space-'+i+'.svg','utf8'),/<path d="M[^"]+" fill="none" stroke=/,'galaxies use photographs rather than outline rings');
 });
