@@ -12,35 +12,49 @@ The eight planet photographs are packaged locally; no external image requests ar
 - Neptune: https://science.nasa.gov/wp-content/uploads/2024/03/pia01492-neptune-full-disk-16x9-1.jpg?w=1024
 
 
-## Reference redesign (based on Actions build 309)
+## Photographs and packaging
 
-The sky now contains 96 tiny stars per tile (previously 520), with only four
-animated accents. Panels no longer stack a second generated starfield. Planets
-range from 36 to 84 CSS px including the original photo margins. Map decoration
-uses a fixed seed and panel identity, so navigation, carrier sheets and app
-restarts never randomize its layout. Other tabs retain their visit behavior.
+Local Hubble photographs provide the Orion nebula, Sombrero galaxy and M51
+Whirlpool galaxy. Full credits and source links are in Options and
+`assets/cosmos-source/README.md`. The masters stay outside Android public assets.
+`scripts/build-cosmic-deep-space.mjs` resizes and compresses the photographs into
+self-contained offline SVG/WebP sprites with feathered boundaries. Four nebula
+atlases contain no fixed galaxies or stars; two small shared galaxy sprites are
+placed independently. There are no image filters or per-card duplicated photos.
 
-Local Hubble photographs replace the drawn galaxy spirals and nebula stripes:
+## Composition engine, version 2
 
-- `sombrero.png`: [Sombrero Galaxy](https://science.nasa.gov/asset/hubble/sombrero-galaxy/).
-  Credit: NASA and The Hubble Heritage Team (STScI/AURA).
-- `orion.png`: [Orion Nebula](https://science.nasa.gov/asset/hubble/orion-nebula-3/).
-  Credit: NASA, ESA, Hubble Space Telescope Orion Treasury Project Team,
-  Massimo Robberto (STScI, ESA).
+`cosmicComposition` builds a fresh plan from surface identity and visit seed.
+Separate named random streams choose photographic identity, geometry, nebulae,
+star detail and ornament orientation. The planner evaluates 96 low-discrepancy
+candidates per major body, rejects bounds and protected reading/control zones,
+and scores clearance and visual balance. Galaxies have their own positions and
+sizes; a bounded fallback reduces galaxy size if there is insufficient space.
+There is no slot number, list ordinal or twelve-template cycle.
 
-`scripts/build-cosmic-deep-space.mjs` embeds the original downloaded PNGs into
-four SVG compositions with soft masks and low opacity. No filters, network
-requests, animation loops or image blending are needed at runtime.
+`cosmicPanelSky` constructs a static blue-noise starfield. It evaluates twelve
+candidates per star, mixes a distant cluster with the wider field, spaces bright
+halos farther apart, protects major bodies and dims the reading column. Surface
+roles choose the detail budget: dense rows/controls use fewer stars. Different
+radii, colours and brightness provide depth without animation loops.
 
+`cosmicProject` fits that same plan to actual CSS pixels, checking full sprite
+bounds, favourite-button space and planet/galaxy separation. A ResizeObserver
+reprojects only when panel dimensions change; it never changes the seed or
+photographic identity. Stop planets remain independent composited image layers,
+so favourite FLIP animation cannot reuse a clipped multi-background raster.
+Admin and Options reserve a separate ornament strip for a planet and sun.
+Interactive map panels and dense rows receive no planetary discs.
 
-## Reference compositions and navigation algorithm
+`cosmicVisitSession` keys cached scenes by stable surface identity and committed
+tab visit. Discovery order, favourites, filters, Firebase refresh, DOM recreation,
+loading renders and Options overlays cannot start a new visit. Evicted virtual
+rows reconstruct the exact same scene. Real navigation starts a new visit; map
+artwork keeps its fixed seed across navigation and app restarts. Loading always
+uses a solid background.
 
-The theme uses four authored slots matching the supplied screenshot: a small
-upper-right crescent, a ringed planet with a lower-right galaxy, a low crescent,
-and a quiet nebula. Stops use their initial slot modulo four and stable stop ID;
-filtering or asynchronous insertion does not replace a cached composition.
-Vector shadows over the existing NASA planet sprites provide restrained phases.
-The theme creates no new random seed from a loading screen, DOM mutation,
-Firebase snapshot, modal mount or layout animation. Only actual tab clicks start
-a new visit. Startup binds the navigation name without clearing existing scenes.
-The map retains its fixed seed across navigation and app restarts.
+Tests cover 500 canonical plans, thousands of responsive projections, protected
+zones, inter-body clearance, deterministic reconstruction and visit ownership.
+Browser checks measure real image bounds at 320/393/707 px, compare both rendered
+halves of planets at DPR 2.5 after favourite movement, and inspect departure rows,
+Admin, Options, loading and map containment.

@@ -191,6 +191,26 @@ const server=http.createServer((req,res)=>{
           const left=(rect.width-size)*x/100,top=(rect.height-size)*y/100;
           return left>=0&&left+size<=rect.width&&top>=0&&top+size<=rect.height&&size<=rect.width*.28;
         })),'planet bounds stay inside responsive card backgrounds');
+        // The same immutable scene must fit multiple real phone/tablet widths.
+        // Verify rendered image rectangles and the galaxy's CSS geometry, not
+        // just the random numbers returned by the pure scene planner.
+        for(const width of [320,393,707]){
+          await page.setViewport({width,height:851,deviceScaleFactor:1});
+          await new Promise(resolve=>setTimeout(resolve,150));
+          const bounds=await page.$$eval('.transit-stop-card[data-cosmic-scene]',nodes=>nodes.map(node=>{
+            const art=node.querySelector('[data-cosmic-card-art]'),img=node.querySelector('[data-cosmic-card-orb]'),r=art.getBoundingClientRect(),p=img.getBoundingClientRect();
+            const size=parseFloat(node.style.getPropertyValue('--cosmos-galaxy-size'));
+            const [x,y]=node.style.getPropertyValue('--cosmos-galaxy-position').split(' ').map(parseFloat);
+            const gx=r.left+(r.width-size)*x/100+size/2,gy=r.top+(r.height-size)*y/100+size/2;
+            return {version:node.dataset.cosmicLayout,planet:!img.hidden,inside:img.hidden||p.left>=r.left-.1&&p.top>=r.top-.1&&p.right<=r.right+.1&&p.bottom<=r.bottom+.1,
+              galaxyInside:!size||gx-size/2>=r.left-.1&&gy-size/2>=r.top-.1&&gx+size/2<=r.right+.1&&gy+size/2<=r.bottom+.1,
+              gap:img.hidden||!size?100:Math.hypot(gx-p.left-p.width/2,gy-p.top-p.height/2)-size/2-p.width/2};
+          }));
+          assert.ok(bounds.every(b=>b.version==='2'&&b.inside&&b.galaxyInside&&b.gap>=7),'new solver fits whole separated bodies at '+width+': '+JSON.stringify(bounds));
+          await screenshot('cosmos-layout-v2-'+width);
+        }
+        await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+        await new Promise(resolve=>setTimeout(resolve,150));
         const snapshot=()=>page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>Object.fromEntries(els.map(el=>[el.dataset.stopCardId,[...el.style].filter(key=>key.startsWith('--cosmos-')).map(key=>[key,el.style.getPropertyValue(key)])])));
         const beforeFavorite=await snapshot();
         const favoriteId=await page.evaluate(()=>{const card=document.querySelectorAll('.transit-stop-card')[3];card.querySelector('button').click();return card.dataset.stopCardId;});

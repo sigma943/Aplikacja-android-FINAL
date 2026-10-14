@@ -25,20 +25,43 @@ test('Kosmos replaces Aurora, stays black at first paint, survives backups and u
  const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<70000);assert.match(atlas,/id="sky-cloud"/);assert.ok((atlas.match(/<circle /g)||[]).length<=110);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
 });
 
-test('seeded composition channels vary widely within the catalogue safe strip',()=>{
- const {cosmicScene,cosmicPanelScene,cosmicPanelSky}=load('lib/cosmic-scene.ts');
- const variants=new Set(),families=new Set();
+test('new composition solver protects reading and controls, separates complete bodies and has no fixed slot cycle',()=>{
+ const {cosmicComposition,cosmicPanelScene,cosmicPanelSky}=load('lib/cosmic-scene.ts');
+ const variants=new Set(),families=new Set(),planets=new Set(),galaxies=new Set();
  for(let seed=0;seed<500;seed++){
-  const scene=cosmicScene(seed);assert.ok(scene.x>=64&&scene.x<=73);assert.ok(scene.y>=18&&scene.y<=80);assert.ok(scene.size>=52&&scene.size<=76);
-  assert.deepEqual(scene,cosmicScene(seed));variants.add(scene.x+':'+scene.y);families.add(scene.layout);
+  const scene=cosmicPanelScene(seed,'stop-card'),plan=cosmicComposition(seed,'stop-card');
+  assert.equal(scene.version,2);assert.ok(scene.size>=52&&scene.size<=76);
+  assert.deepEqual(scene,cosmicPanelScene(seed,'stop-card'));variants.add(scene.x+':'+scene.y);families.add(scene.layout);planets.add(scene.planet);galaxies.add(scene.galaxy);
+  for(const body of plan.bodies){
+   assert.ok(body.x-body.radius>=9&&body.x+body.radius<=471&&body.y-body.radius>=9&&body.y+body.radius<=171);
+   for(const zone of plan.protectedZones){const dx=Math.max(zone.left-body.x,0,body.x-zone.right),dy=Math.max(zone.top-body.y,0,body.y-zone.bottom);assert.ok(Math.hypot(dx,dy)>=body.radius+5.99);}
+  }
+  if(plan.bodies.length===2)assert.ok(Math.hypot(plan.bodies[0].x-plan.bodies[1].x,plan.bodies[0].y-plan.bodies[1].y)>=plan.bodies[0].radius+plan.bodies[1].radius+11.99);
   for(const kind of ['content','row','controls','admin'])assert.equal(cosmicPanelScene(seed,kind).showPlanet,false);
  }
- assert.equal(families.size,12);assert.equal(variants.size,500);
+ assert.equal(families.size,500);assert.ok(variants.size>350);assert.equal(planets.size,8);assert.equal(galaxies.size,2);
  const sky=decodeURIComponent(cosmicPanelSky(731,'row'));
  assert.doesNotMatch(sky,/data-galaxy=/);assert.doesNotMatch(sky,/<filter|<animate|<image|fill="none" stroke="#(?:e|d|c|b|a|8)/);
  const stars=[...sky.matchAll(/<g transform="translate\(([\d.]+) ([\d.]+)\)">/g)].map(m=>({x:+m[1],y:+m[2]}));
  assert.ok(stars.length>=35);for(let a=0;a<stars.length;a++)for(let b=a+1;b<stars.length;b++)assert.ok(Math.hypot(stars[a].x-stars[b].x,stars[a].y-stars[b].y)>=4.8,'stars keep their minimum separation');
  assert.equal(cosmicPanelSky(731,'row'),cosmicPanelSky(731,'row'));assert.notEqual(cosmicPanelSky(731,'row'),cosmicPanelSky(732,'row'));
+});
+
+test('responsive projection keeps bodies whole and separated at phone, tablet and extreme panel dimensions',()=>{
+ const {cosmicPanelScene,cosmicProject}=load('lib/cosmic-scene.ts');
+ const scenes=Array.from({length:300},(_,seed)=>cosmicPanelScene(seed,'stop-card'));
+ for(const [width,height] of [[1,1],[84,48],[280,92],[320,110],[393,120],[707,180],[1024,240],[320,4000]]){
+  let visible=0;
+  for(const scene of scenes){
+   const original=JSON.stringify(scene),p=cosmicProject(scene,width,height);
+   assert.ok(p.left>=0&&p.top>=0&&p.left+p.size<=width+.01&&p.top+p.size<=height+.01,`${width}x${height}: planet bounds`);
+   assert.deepEqual(p,cosmicProject(scene,width,height));assert.equal(JSON.stringify(scene),original);
+   if(p.galaxy){const g=p.galaxy,r=g.size/2;visible++;assert.ok(g.x-r>=0&&g.y-r>=0&&g.x+r<=width&&g.y+r<=height);
+    if(scene.showPlanet)assert.ok(Math.hypot(g.x-p.planet.x,g.y-p.planet.y)>=r+p.planet.radius+8.99);
+   }
+  }
+  if(width>=320&&height>=110)assert.ok(visible>200,'free space produces galaxies instead of hiding all detail');
+ }
 });
 
 test('loading, recreated nodes and discovery order cannot reroll identity-based scenes',()=>{
@@ -90,7 +113,7 @@ test('cosmic nebulae contain fine stars without oversized cross shapes, and dens
  for(const image of COSMIC_DUST){
   const filename=image.match(/url\("([^\"]+)"\)/)[1];
   const svg=require('node:fs').readFileSync('public'+filename,'utf8');
-  assert.match(svg,/data:image\/webp;base64,/);assert.match(svg,/<mask/);assert.match(svg,/data-galaxy="photograph"/);assert.ok(Buffer.byteLength(svg)<110000,'panel atlas must not duplicate full-size photographic masters');
+  assert.match(svg,/data:image\/webp;base64,/);assert.match(svg,/<mask/);assert.doesNotMatch(svg,/data-galaxy="photograph"/,'nebula atlas must not carry a fixed galaxy that bypasses the solver');assert.ok(Buffer.byteLength(svg)<110000,'panel atlas must not duplicate full-size photographic masters');
   assert.doesNotMatch(svg,/<filter|<animate|href="https?:/);
  }
 
@@ -193,6 +216,7 @@ test('reserved ornaments offer a planet and a local sun without placing them in 
   const ornament=cosmicPanelScene(seed,'ornament');assert.equal(ornament.showPlanet,true);assert.ok(fs.existsSync('public'+cosmicOrbSrc(ornament)));
   for(const kind of ['admin','controls','row'])assert.equal(cosmicPanelScene(seed,kind).showPlanet,false);
  }
+ for(const name of ['whirlpool','sombrero']){const sprite=fs.readFileSync('public/themes/kosmos/galaxy-'+name+'.svg','utf8');assert.match(sprite,/data-galaxy="photograph"/);assert.match(sprite,/data:image\/webp;base64,/);assert.ok(Buffer.byteLength(sprite)<60000);assert.doesNotMatch(sprite,/<filter|<animate|href="https?:/);}
  const sun=fs.readFileSync('public/themes/kosmos/sun.svg','utf8');assert.match(sun,/id="corona"/);assert.doesNotMatch(sun,/<filter|<animate|href="https?:/);
  for(let i=0;i<4;i++)assert.doesNotMatch(fs.readFileSync('public/themes/kosmos/deep-space-'+i+'.svg','utf8'),/<path d="M[^"]+" fill="none" stroke=/,'galaxies use photographs rather than outline rings');
 });

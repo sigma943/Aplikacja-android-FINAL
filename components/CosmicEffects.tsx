@@ -6,7 +6,7 @@ import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {COSMIC_METEOR_DURATION,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
 
-import {COSMIC_DUST,cosmicSky,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicOrb,cosmicOrbSrc,cosmicScene,cosmicPanelScene,cosmicVisitSession} from '@/lib/cosmic-scene';
+import {COSMIC_DUST,cosmicSky,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicOrb,cosmicOrbSrc,cosmicScene,cosmicProject,cosmicPanelScene,cosmicVisitSession} from '@/lib/cosmic-scene';
 
 let visitSession:ReturnType<typeof cosmicVisitSession>|null=null;
 
@@ -33,7 +33,24 @@ export default function CosmicEffects(){
       const label=(heading?.getAttribute('aria-label')||heading?.textContent||'').replace(/\s+/g,' ').trim();
       return `${scope}:${kind}:${label}`;
     };
-    const scopedKey=(node:HTMLElement)=>({key:panelKey(node),seed:undefined as string|undefined});
+    const scopedKey=(node:HTMLElement)=>({key:panelKey(node)});
+    const projections=new WeakMap<HTMLElement,{scene:ReturnType<typeof cosmicScene>;width:number;height:number}>();
+    const project=(node:HTMLElement,scene:ReturnType<typeof cosmicScene>,width:number,height:number)=>{
+      const old=projections.get(node);if(old?.scene===scene&&old.width===width&&old.height===height)return;
+      projections.set(node,{scene,width,height});
+      if(width<=0||height<=0)return;
+      const fitted=cosmicProject(scene,width,height);
+      node.style.setProperty('--cosmos-orb-left',`${fitted.left.toFixed(2)}px`);
+      node.style.setProperty('--cosmos-orb-top',`${fitted.top.toFixed(2)}px`);
+      node.style.setProperty('--cosmos-planet-position',`${fitted.x.toFixed(2)}% ${fitted.y.toFixed(2)}%`);
+      node.style.setProperty('--cosmos-planet-size',`${fitted.size.toFixed(2)}px`);
+      node.style.setProperty('--cosmos-galaxy-size',`${fitted.galaxySize.toFixed(2)}px`);
+      node.style.setProperty('--cosmos-galaxy-position',`${fitted.galaxyX.toFixed(2)}% ${fitted.galaxyY.toFixed(2)}%`);
+      node.style.setProperty('--cosmos-galaxy',fitted.galaxySize?`url("/themes/kosmos/galaxy-${scene.galaxy?'sombrero':'whirlpool'}.svg")`:'none');
+    };
+    const resize=new ResizeObserver(entries=>{
+      for(const {target} of entries){const node=target as HTMLElement,old=projections.get(node);if(old)project(node,old.scene,node.clientWidth,node.clientHeight);}
+    });
     // The committed active tab is the only navigation source. Missing tabs
     // during startup/loading are ignored, and data view mutations never enter.
     const place=(node:HTMLElement)=>{
@@ -45,20 +62,19 @@ export default function CosmicEffects(){
       });
       node.style.setProperty('--cosmos-planet',scene.showPlanet?cosmicOrb(scene):'none');
       node.style.setProperty('--cosmos-secondary-orb','none');
-      node.style.setProperty('--cosmos-orb-left',`calc(${scene.x.toFixed(2)}% - ${(scene.x*scene.size/100).toFixed(2)}px)`);
-      node.style.setProperty('--cosmos-orb-top',`calc(${scene.y.toFixed(2)}% - ${(scene.y*scene.size/100).toFixed(2)}px)`);
       const ownsOrb=node.hasAttribute('data-stop-card-id')||node.hasAttribute('data-cosmic-orbit');
       const orb=ownsOrb?node.querySelector<HTMLImageElement>('[data-cosmic-card-orb],[data-cosmic-orbit-planet]'):null;
       if(orb){
         if(scene.showPlanet){const src=cosmicOrbSrc(scene);if(orb.getAttribute('src')!==src)orb.src=src;orb.hidden=false;}
         else orb.hidden=true;
       }
-      node.style.setProperty('--cosmos-planet-position',`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`);
-      node.style.setProperty('--cosmos-planet-size',`${scene.size.toFixed(1)}px`);
       node.style.setProperty('--cosmos-dust',COSMIC_DUST[scene.dust]);
       node.style.setProperty('--cosmos-dust-position',`${scene.dustX}% ${scene.dustY}%`);
       node.style.setProperty('--cosmos-star-position',`${scene.starX}px ${scene.starY}px`);
       node.style.setProperty('--cosmos-panel-sky',scene.sky);
+      node.style.setProperty('--cosmos-orbit-direction',scene.orbitReverse?'row-reverse':'row');
+      project(node,scene,node.clientWidth,node.clientHeight);resize.observe(node);
+      node.dataset.cosmicLayout=String(scene.version);
       node.dataset.cosmicScene=key;
       node.dataset.cosmicVisit=String(session.epoch);
       placed.set(node,{epoch:session.epoch,key});
@@ -98,6 +114,7 @@ export default function CosmicEffects(){
         for(const node of [...record.addedNodes,...record.removedNodes])if(node instanceof Element){
           if(node.matches(regionSelector)||node.querySelector(regionSelector))regionsChanged=true;
           if(node.isConnected)added.push(node);
+          else {resize.unobserve(node);for(const child of node.querySelectorAll(COSMIC_PANEL_SELECTOR))resize.unobserve(child);}
         }
       }
       // Resolve the final visible view before decorating any newly mounted panels.
@@ -132,7 +149,8 @@ export default function CosmicEffects(){
       if(theme==='dark-cosmos'){
         const canvas=session.scene('canvas:primary',seed=>({...cosmicScene(seed),sky:cosmicSky(seed)}));
         root.style.setProperty('--cosmos-canvas-dust',COSMIC_DUST[canvas.dust]);
-        root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',canvas.sky);discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-canvas-orb');root.style.removeProperty('--cosmos-canvas-dust');}
+        root.style.setProperty('--cosmos-canvas-galaxy-position',`${66+canvas.dustX*.22}% ${14+canvas.dustY*.24}vh,${8+canvas.dustY*.22}% ${61+canvas.dustX*.27}vh`);
+        root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',canvas.sky);discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-canvas-orb');root.style.removeProperty('--cosmos-canvas-dust');root.style.removeProperty('--cosmos-canvas-galaxy-position');}
       const changed=nextRegion!==region;region=nextRegion;measure();
       const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region)});
       if(nextAllowed!==allowed||changed){
@@ -147,12 +165,12 @@ export default function CosmicEffects(){
     const native=Capacitor.isNativePlatform()?App.addListener('appStateChange',state=>{nativeActive=state.isActive;update();}):null;
     native?.catch(()=>{});
     return ()=>{
-      disposed=true;if(settle!==null)clearTimeout(settle);scheduler.stop();animation?.cancel();stopStars();observer.disconnect();
+      disposed=true;if(settle!==null)clearTimeout(settle);scheduler.stop();animation?.cancel();stopStars();observer.disconnect();resize.disconnect();
       for(const event of ['storage','focus','pks-interface-appearance','pks-profile-applied'])window.removeEventListener(event,update);
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);
       native?.then(handle=>handle.remove()).catch(()=>{});
-      delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-canvas-orb');root.style.removeProperty('--cosmos-canvas-dust');
+      delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-canvas-orb');root.style.removeProperty('--cosmos-canvas-dust');root.style.removeProperty('--cosmos-canvas-galaxy-position');
     };
   },[]);
   return <div ref={field} data-cosmic-effects aria-hidden="true">{COSMIC_STAR_POSITIONS.map((_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor/></div>;
