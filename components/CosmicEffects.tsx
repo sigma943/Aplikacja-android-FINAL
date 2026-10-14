@@ -39,7 +39,10 @@ export default function CosmicEffects(){
       const old=projections.get(node);if(old?.scene===scene&&old.width===width&&old.height===height)return;
       projections.set(node,{scene,width,height});
       if(width<=0||height<=0)return;
-      const fitted=cosmicProject(scene,width,height);
+      // Card art is inset inside the border. Use its own paint dimensions so
+      // CSS background percentages and the image's pixel coordinates agree.
+      const art=node.hasAttribute('data-stop-card-id')?node.querySelector<HTMLElement>('[data-cosmic-card-art]'):null;
+      const fitted=cosmicProject(scene,art?.clientWidth||width,art?.clientHeight||height);
       node.style.setProperty('--cosmos-orb-left',`${fitted.left.toFixed(2)}px`);
       node.style.setProperty('--cosmos-orb-top',`${fitted.top.toFixed(2)}px`);
       node.style.setProperty('--cosmos-planet-position',`${fitted.x.toFixed(2)}% ${fitted.y.toFixed(2)}%`);
