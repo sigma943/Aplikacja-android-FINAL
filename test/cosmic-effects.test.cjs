@@ -89,7 +89,7 @@ test('cosmic nebulae contain fine stars without oversized cross shapes, and depa
   assert.doesNotMatch(svg,/<filter|<animate|href="https?:/);
  }
 
- for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.match(style['--cosmos-planet'],/reference-(mars|saturn|mercury)\.svg/);assert.equal(style['--cosmos-planet-size'],'48px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
+ for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.match(style['--cosmos-planet'],/(?:reference-)?(?:mercury|venus|earth|mars|jupiter|saturn|uranus|neptune)\.svg/);assert.equal(style['--cosmos-planet-size'],'48px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
  const {COSMIC_STAR_POSITIONS,COSMIC_TWINKLE_INTERVAL}=load('lib/cosmic-effects.ts');assert.ok(COSMIC_STAR_POSITIONS.length<=4);assert.ok(COSMIC_TWINKLE_INTERVAL>=9000);
 });
 

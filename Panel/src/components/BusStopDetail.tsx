@@ -4,7 +4,6 @@ import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
 import {useForegroundRefresh} from '../../../lib/use-foreground-refresh';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import {cosmicPanelStyle,cosmicKeySeed} from '../../../lib/cosmic-scene';
 import {readAppTheme,resolveAppTheme} from '../../../lib/app-theme';
 import { ArrowLeft, MapPin, LayoutGrid, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
@@ -68,23 +67,9 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     for(const event of ['storage','pks-profile-applied','pks-interface-appearance'])window.addEventListener(event,update);
     return()=>{for(const event of ['storage','pks-profile-applied','pks-interface-appearance'])window.removeEventListener(event,update);};
   },[]);
-  const [cosmicVisit,setCosmicVisit]=useState<{stopId:string;seed:number;panels:Record<string,ReturnType<typeof cosmicPanelStyle>>}|null>(null);
-  useLayoutEffect(()=>{
-    if(!active){setCosmicVisit(null);return;}
-    setCosmicVisit(previous=>{
-      if(previous?.stopId===stop.id)return previous;
-      const seed=crypto.getRandomValues(new Uint32Array(1))[0];
-      const panels=Object.fromEntries(['stop-header','stop-days','stop-departures'].map(key=>[key,cosmicPanelStyle(cosmicKeySeed(seed,key),key==='stop-departures')]));
-      return {stopId:stop.id,seed,panels};
-    });
-  },[active,stop.id]);
-  const cosmicPanel=(key:string)=>({
-    'data-cosmic-owned':true,
-    'data-cosmic-panel':key,
-    'data-cosmic-scene':cosmicVisit?`panel:${key}`:undefined,
-    'data-cosmic-visit':cosmicVisit?String(cosmicVisit.seed):undefined,
-    style:cosmicVisit?.panels[key] as React.CSSProperties|undefined,
-  });
+  // All panels share the tab visit cache, including recreated detail screens.
+  const cosmicPanel=(key:string)=>({'data-cosmic-panel':key});
+
   const [showWidget,setShowWidget]=useState(false);
   const todayKey = warsawDateIso();
   const days = useMemo(getDynamicDays,[todayKey]);

@@ -16,7 +16,7 @@ export const COSMIC_DUST = [0, 1, 2, 3].map(index => `url("/themes/kosmos/deep-s
 /** A single sparse sky layer, shared by first paint and mounted screens. */
 export function cosmicSky(seed = 943731) {
   const random = cosmicRandom(seed);
-  const stars = Array.from({length: 96}, () => `<circle cx="${(2 + random() * 636).toFixed(1)}" cy="${(2 + random() * 636).toFixed(1)}" r="${(.28 + random() * .56).toFixed(2)}" opacity="${(.22 + random() * .40).toFixed(2)}"/>`).join('');
+  const stars = Array.from({length: 96}, () => `<circle cx="${(2 + random() * 636).toFixed(1)}" cy="${(2 + random() * 636).toFixed(1)}" r="${(.25 + random() ** 3 * 1.25).toFixed(2)}" fill="${['#cce6ff','#8fc8ff','#ffe0ac','#f3b2a2','#cab6ff'][Math.floor(random()*5)]}" opacity="${(.3 + random() * .60).toFixed(2)}"/>`).join('');
   const sparks = [[116, 193], [511, 461]].map(([x, y]) => `<g transform="translate(${x} ${y})"><circle r="4" fill="url(#star-halo)"/><path d="M-3 0H3M0 -3V3" stroke="#b6d5f5" stroke-width=".3" opacity=".4"/><circle r=".55" fill="#d7e7ff"/></g>`).join('');
   return url(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><defs><radialGradient id="sky-cloud"><stop stop-color="#373052" stop-opacity=".13"/><stop offset="1" stop-color="#080b17" stop-opacity="0"/></radialGradient><radialGradient id="star-halo"><stop stop-color="#dfedff" stop-opacity=".4"/><stop offset=".25" stop-color="#88b8ed" stop-opacity=".12"/><stop offset="1" stop-color="#88b8ed" stop-opacity="0"/></radialGradient></defs><ellipse cx="460" cy="360" rx="160" ry="95" fill="url(#sky-cloud)"/><g fill="#becae7">${stars}</g>${sparks}</svg>`);
 }
@@ -33,7 +33,7 @@ export function cosmicScene(seed: number, _previous?: {x: number; planet: number
   const r = cosmicRandom(seed), layout = slot===undefined?Math.floor(r()*4):Math.abs(slot)%4;
   const positions = [{x:74,y:5,size:66},{x:71,y:56,size:90},{x:73,y:95,size:70},{x:76,y:68,size:64}];
   return {
-    ...positions[layout], planet: [3,5,0,2][layout], showPlanet: layout !== 3,
+    ...positions[layout], planet: slot===undefined?Math.floor(r()*8):[3,5,0,2][layout], showPlanet: layout !== 3,
     dust: layout, dustX:50, dustY:50, sun:false,
     starX:Math.floor(r()*480), starY:Math.floor(r()*480),
   };
@@ -45,7 +45,10 @@ export function cosmicListScene(seed: number, _previous?: ReturnType<typeof cosm
 }
 
 export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator';
-export function cosmicOrb(scene:ReturnType<typeof cosmicScene>){return `url("/themes/kosmos/reference-${scene.planet===5?'saturn':scene.planet===3?'mars':'mercury'}.svg")`;}
+export function cosmicOrb(scene:ReturnType<typeof cosmicScene>){
+  const name=COSMIC_PLANET_NAMES[scene.planet];
+  return `url("/themes/kosmos/${[0,3,5].includes(scene.planet)?'reference-':''}${name}.svg")`;
+}
 
 /** React-owned panels keep these exact styles throughout one mounted visit. */
 export function cosmicPanelStyle(seed:number,departures=false){

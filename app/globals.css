@@ -810,7 +810,7 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 
 /* A black starfield across the app, with a different fine nebula in each card. */
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'],[data-startup-theme='dark-cosmos']) {
-  --cosmos-canvas-art:var(--cosmos-sky,var(--theme-decoration)),linear-gradient(#000000,#020306);
+  --cosmos-canvas-art:none;
 }
 .pks-theme-root[data-ui-theme='dark-cosmos'],
 html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel-scope[data-cosmic-view]),
@@ -835,8 +835,6 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
   box-shadow:none !important;
   border-color:rgb(170 151 207 / 20%) !important;
   position:relative;
-  transform:none !important;
-  will-change:auto !important;
   opacity:1 !important;
   background-attachment:scroll !important;
 }
@@ -881,3 +879,20 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
 
 /* Small nested controls keep the quiet glass-like treatment of the reference. */
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(input,.pks-option-card,[data-carrier-sheet] .transit-card) { --cosmos-planet:none !important; --cosmos-dust:none !important; }
+
+/* Keep the canvas plain; celestial detail belongs to panels. */
+html[data-cosmic-theme='on'] .pks-navigation { background-image:none !important; }
+html[data-cosmic-theme='on'] [data-cosmic-star] { display:none; }
+/* Android WebView can reuse stale backdrop clipping rectangles after a card
+   moves or resizes. Paint decorated surfaces normally, with their own outline. */
+html[data-panel-glow='on'] :is(.pks-glass-frame,.pks-panel-scope,.transit-card,.transit-surface,.map-detail-shell,.pks-map-search-panel,.pks-options-sheet,[data-carrier-sheet],.pks-personal-card,.pks-personal-panel,.admin-topbar,.widget-generator,.pks-navigation) {
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  background-origin:border-box;
+  background-clip:border-box;
+}
+.transit-stop-card { position:relative; }
+.transit-stop-card::after {
+  content:''; position:absolute; inset:-1px; border:1px solid var(--transit-border);
+  border-radius:inherit; pointer-events:none;
+}

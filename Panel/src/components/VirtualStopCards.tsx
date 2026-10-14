@@ -1,3 +1,4 @@
+import {motion,useReducedMotion} from 'motion/react';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState,type ReactNode,type RefObject} from 'react';
 import type {Stop} from '../types';
 import {virtualListWindow} from '../../../lib/virtual-list';
@@ -5,6 +6,7 @@ const measuredHeights=new Map<string,number>();
 let measuredWidth=0;
 function MeasuredRow({id,top,onHeight,children}:{id:string;top:number;onHeight:(id:string,height:number)=>void;children:ReactNode}){
   const node=useRef<HTMLDivElement>(null);
+  const reduced=useReducedMotion();
   useLayoutEffect(()=>{
     if(!node.current)return;
     const element=node.current;
@@ -12,7 +14,7 @@ function MeasuredRow({id,top,onHeight,children}:{id:string;top:number;onHeight:(
     const observer=new ResizeObserver(measure);observer.observe(element);measure();
     return()=>observer.disconnect();
   },[id,onHeight]);
-  return <div ref={node} style={{position:'absolute',top,left:0,right:0}}>{children}</div>;
+  return <motion.div ref={node} layout={reduced?false:'position'} transition={{layout:{type:'spring',stiffness:230,damping:30}}} style={{position:'absolute',top,left:0,right:0}}>{children}</motion.div>;
 }
 export default function VirtualStopCards({stops,scroll,render,onVisible}:{stops:Stop[];scroll:RefObject<HTMLDivElement|null>;render:(stop:Stop,index:number)=>ReactNode;onVisible?:(stops:Stop[])=>void}){
   const heights=useRef(measuredHeights);

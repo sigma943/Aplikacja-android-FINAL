@@ -133,11 +133,7 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
         await page.waitForFunction(()=>document.querySelector('[data-cosmic-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:12000,polling:25});
         assert.equal(await page.$$eval('[data-cosmic-meteor]',els=>els.length),1);
-        assert.ok(await page.$$eval('[data-cosmic-star]',els=>els.some(el=>el.getAnimations().some(a=>a.playState==='running'))),'small stars twinkle');
-        const twinkles=await page.$$eval('[data-cosmic-star]',els=>els.flatMap(el=>el.getAnimations().map(animation=>{const timing=animation.effect.getTiming();return {duration:timing.duration,infinite:timing.iterations===Infinity,frames:animation.effect.getKeyframes().map(frame=>frame.transform)};})));
-        assert.ok(twinkles.length>0&&twinkles.every(timing=>timing.duration>=6400&&timing.infinite),'individual stars twinkle slowly and continuously');
-        assert.ok(new Set(twinkles.map(timing=>timing.duration)).size>1,'stars have independent rhythms');
-        assert.ok(twinkles.every(star=>new Set(star.frames).size>1),'stars slowly recede as they twinkle');
+        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0,'plain cosmic canvas has no animated stars');
         const cosmicPaint=await page.$$eval('[data-cosmic-scene]',els=>els.map(el=>{const style=getComputedStyle(el);return {node:el.className,blend:style.backgroundBlendMode,blur:style.backdropFilter};}));
         assert.ok(cosmicPaint.every(style=>style.blend.split(',').every(mode=>mode.trim()==='normal')&&style.blur==='none'),'cosmic surfaces use ordinary image painting without blended or blurred panel layers: '+JSON.stringify(cosmicPaint.filter(style=>style.blend.split(',').some(mode=>mode.trim()!=='normal')||style.blur!=='none')));
         const layouts=await page.$$eval('[data-cosmic-scene]',els=>els.map(el=>el.style.getPropertyValue('--cosmos-planet-position')));
@@ -176,9 +172,23 @@ const server=http.createServer((req,res)=>{
 
         const scenes=await page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>({planet:el.dataset.cosmicPlanet==='on',size:parseFloat(el.style.getPropertyValue('--cosmos-planet-size'))})));
         assert.ok(scenes.length>3);
-        assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length*.75),'one quiet composition in each four reference cards');
+        assert.ok(scenes.some(scene=>scene.planet),'some stable compositions include planets');
         assert.ok(scenes.every(scene=>scene.size>=64&&scene.size<=90),'small planets fit mobile cards');
-        for(let i=3;i<scenes.length;i+=4)assert.equal(scenes[i].planet,false,'every fourth reference card remains quiet');
+        const snapshot=()=>page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>Object.fromEntries(els.map(el=>[el.dataset.stopCardId,[...el.style].filter(key=>key.startsWith('--cosmos-')).map(key=>[key,el.style.getPropertyValue(key)])])));
+        const beforeFavorite=await snapshot();
+        const favoriteId=await page.evaluate(()=>{const card=document.querySelectorAll('.transit-stop-card')[3];card.querySelector('button').click();return card.dataset.stopCardId;});
+        await page.waitForFunction(id=>{const transform=document.querySelector(`[data-stop-card-id="${id}"]`).style.transform;return transform&&transform!=='none';},{},favoriteId);
+        await new Promise(resolve=>setTimeout(resolve,700));
+        assert.deepEqual(await snapshot(),beforeFavorite,'favorite reordering preserves every existing scene by stop identity');
+        await page.evaluate(()=>{
+          const node=document.querySelector('.transit-stop-card');
+          const clone=node.cloneNode(true);for(const key of [...clone.style])if(key.startsWith('--cosmos-'))clone.style.removeProperty(key);
+          node.after(clone);window.__sceneClone=clone;window.dispatchEvent(new Event('focus'));
+        });
+        await new Promise(resolve=>setTimeout(resolve,100));
+        assert.deepEqual(await snapshot(),beforeFavorite,'recreated rows recover the same tab visit artwork');
+        await page.evaluate(id=>{window.__sceneClone.remove();delete window.__sceneClone;document.querySelector(`[data-stop-card-id="${id}"] button`).click();},favoriteId);
+        await new Promise(resolve=>setTimeout(resolve,800));
         const saved=await page.evaluate(()=>{
           const appearance=localStorage.getItem('mks_interface_appearance_v1'),glass=localStorage.getItem('mks_transparent'),glow=localStorage.getItem('mks_panel_glow');
           localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({...JSON.parse(appearance||'{}'),density:'spacious',textScale:120,glassOpacity:35,glassBlur:28}));
@@ -209,7 +219,7 @@ const server=http.createServer((req,res)=>{
           return outline.content!=='none'&&parseFloat(outline.borderBottomWidth)===1&&outline.pointerEvents==='none';
         })),'foreground outlines cover all four card edges independently of the artwork');
         const skyArt=await page.$eval('.pks-theme-root',node=>getComputedStyle(node).backgroundImage);
-        assert.ok(skyArt.includes('sky-cloud')&&skyArt.includes('star-halo'),'canvas includes the sparse sky and restrained star accents');
+        assert.equal(skyArt,'none','cosmic canvas stays uniform without stars');
         assert.ok(!skyArt.includes('/themes/kosmos/')&&!skyArt.includes('corona'),'canvas never contains planets or suns');
         const stable=await captureCosmic();
         const skyBeforeOptions=await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage);
@@ -1082,7 +1092,7 @@ const server=http.createServer((req,res)=>{
     await cosmosPage.evaluate(()=>[...document.querySelectorAll('button')].find(node=>node.textContent.includes('Pokaż wszystkie odjazdy')).click());
     await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===20);
     const expandedPaint=await cosmosPage.$eval('[data-cosmic-expanded="true"]',node=>{const style=getComputedStyle(node.closest('.pks-theme-root'));return {image:style.backgroundImage,repeat:style.backgroundRepeat,size:style.backgroundSize};});
-    assert.ok(expandedPaint.repeat.includes('repeat'),'expanded timetables keep a starfield for their whole height');assert.ok(expandedPaint.image.includes('sky-cloud'),'expanded timetables keep nebulae below the first five departures');assert.ok(!expandedPaint.size.includes('cover'),'stars are never enlarged to the full timetable height');
+    assert.equal(expandedPaint.image,'none','expanded timetables preserve a plain cosmic canvas');
     await cosmosPage.$eval('.transit-view',node=>node.scrollTop=650);await new Promise(resolve=>setTimeout(resolve,150));
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-expanded-departures.png'});
     const effects=await cosmosPage.$eval('[data-cosmic-effects]',node=>node.getBoundingClientRect().toJSON());assert.ok(effects.height>=850,'twinkles cover gaps between panels, not just one card');
