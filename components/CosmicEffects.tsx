@@ -34,17 +34,8 @@ export default function CosmicEffects(){
       return `${scope}:${kind}:${label}`;
     };
     const scopedKey=(node:HTMLElement)=>({key:panelKey(node),seed:undefined as string|undefined});
-    // Only user navigation starts a visit. Loading placeholders, added rows,
-    // Firebase snapshots, overlay mounts and animation frames never do.
-    const navigate=(event:Event)=>{
-      if(!(event.target instanceof Element))return;
-      const nav=event.target.closest<HTMLElement>('[data-nav-item]');
-      if(nav&&!nav.matches(':disabled')&&!nav.closest('.personal-preview-scene')){
-        const tab=nav.dataset.navItem;
-        if(tab&&tab!=='options')session.enter(`${tab}:tab`);
-      }
-    };
-    document.addEventListener('click',navigate,true);
+    // The committed active tab is the only navigation source. Missing tabs
+    // during startup/loading are ignored, and data view mutations never enter.
     const place=(node:HTMLElement)=>{
       const {key}=scopedKey(node);
       const scene=session.scene(key,nextSeed=>{
@@ -139,12 +130,8 @@ export default function CosmicEffects(){
       try{light=localStorage.getItem('mks_light_effects')==='true';reduced ||= normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;}catch{}
       const active=[...document.querySelectorAll<HTMLElement>('.pks-navigation [data-nav-item][aria-current="page"]')].find(node=>!node.closest('.personal-preview-scene'));
       const optionsOpen=active?.dataset.navItem==='options'||Boolean(document.querySelector('.pks-options-sheet'));
-      const tab=optionsOpen?session.tab?.split(':',1)[0]||'root':active?.dataset.navItem||'root';
       const nextRegion=findRegion();
-      if(session.tab===null||session.tab==='root:tab')session.bind(`${tab}:tab`);
-      else if(!optionsOpen&&session.tab!==`${tab}:tab`)session.enter(`${tab}:tab`);
-      // Active navigation may appear after startup; bind it without clearing
-      // already created scenes. Subsequent epochs come exclusively from clicks.
+      session.sync(active?.dataset.navItem,optionsOpen);
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
       if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',sky);discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');}
@@ -163,7 +150,7 @@ export default function CosmicEffects(){
     const native=Capacitor.isNativePlatform()?App.addListener('appStateChange',state=>{nativeActive=state.isActive;update();}):null;
     native?.catch(()=>{});
     return ()=>{
-      disposed=true;document.removeEventListener('click',navigate,true);if(settle!==null)clearTimeout(settle);scheduler.stop();animation?.cancel();stopStars();observer.disconnect();
+      disposed=true;if(settle!==null)clearTimeout(settle);scheduler.stop();animation?.cancel();stopStars();observer.disconnect();
       for(const event of ['storage','focus','pks-interface-appearance','pks-profile-applied'])window.removeEventListener(event,update);
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);

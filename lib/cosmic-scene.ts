@@ -74,6 +74,13 @@ export function cosmicVisitSession(seed:number){
   return {
     get tab(){return tab;},get epoch(){return epoch;},
     bind(next:string){if(tab===null||tab==='root:tab')tab=next;},
+    sync(next:string|undefined,overlay=false){
+      if(!next||overlay||next==='options')return false;
+      const key=next.includes(':')?next:`${next}:tab`;
+      if(tab===null||tab==='root:tab'){tab=key;return false;}
+      if(key===tab)return false;
+      tab=key;epoch++;scenes.clear();return true;
+    },
     enter(next:string,overlay=false){if(overlay||next===tab)return false;tab=next;epoch++;scenes.clear();return true;},
     scene(key:string,create:(seed:number)=>ReturnType<typeof cosmicScene>){
       let scene=scenes.get(key);

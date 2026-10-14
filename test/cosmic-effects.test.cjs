@@ -134,3 +134,17 @@ test('map scenes never re-roll across navigation, overlays or a fresh process se
  const restart=cosmicVisitSession(999);restart.enter('map:tab');
  assert.deepEqual(restart.scene('panel:carriers',cosmicScene),first);
 });
+
+test('missing navigation during loading and overlay tabs never advance the scene epoch',()=>{
+ const {cosmicVisitSession,cosmicScene}=load('lib/cosmic-scene.ts');
+ const session=cosmicVisitSession(123);session.sync('stops');
+ const epoch=session.epoch,first=session.scene('panel:stops-header',cosmicScene);
+ for(let i=0;i<100;i++){
+  assert.equal(session.sync(undefined),false);assert.equal(session.sync('stops'),false);
+  assert.equal(session.sync('options',true),false);assert.equal(session.epoch,epoch);
+  assert.strictEqual(session.scene('panel:stops-header',cosmicScene),first);
+ }
+ assert.equal(session.sync('map'),true);assert.equal(session.epoch,epoch+1);
+ assert.equal(session.sync('map'),false);assert.equal(session.sync(undefined),false);
+ assert.equal(session.sync('stops'),true);assert.equal(session.epoch,epoch+2);
+});
