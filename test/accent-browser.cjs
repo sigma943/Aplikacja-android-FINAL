@@ -173,7 +173,13 @@ const server=http.createServer((req,res)=>{
         const scenes=await page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>({planet:el.dataset.cosmicPlanet==='on',size:parseFloat(el.style.getPropertyValue('--cosmos-planet-size'))})));
         assert.ok(scenes.length>3);
         assert.ok(scenes.some(scene=>scene.planet),'some stable compositions include planets');
-        assert.ok(scenes.every(scene=>scene.size>=64&&scene.size<=90),'small planets fit mobile cards');
+        assert.ok(scenes.every(scene=>scene.size>=52&&scene.size<=76),'small planets fit mobile cards');
+        assert.ok(await page.$$eval('.transit-stop-card[data-cosmic-planet=on]',nodes=>nodes.every(node=>{
+          const rect=node.getBoundingClientRect(),size=parseFloat(node.style.getPropertyValue('--cosmos-planet-size'));
+          const [x,y]=node.style.getPropertyValue('--cosmos-planet-position').split(' ').map(parseFloat);
+          const left=(rect.width-size)*x/100,top=(rect.height-size)*y/100;
+          return left>=0&&left+size<=rect.width&&top>=0&&top+size<=rect.height&&size<=rect.width*.28;
+        })),'planet bounds stay inside responsive card backgrounds');
         const snapshot=()=>page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>Object.fromEntries(els.map(el=>[el.dataset.stopCardId,[...el.style].filter(key=>key.startsWith('--cosmos-')).map(key=>[key,el.style.getPropertyValue(key)])])));
         const beforeFavorite=await snapshot();
         const favoriteId=await page.evaluate(()=>{const card=document.querySelectorAll('.transit-stop-card')[3];card.querySelector('button').click();return card.dataset.stopCardId;});
