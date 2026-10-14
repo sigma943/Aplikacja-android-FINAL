@@ -44,7 +44,7 @@ export function cosmicListScene(seed: number, _previous?: ReturnType<typeof cosm
   return cosmicScene(seed);
 }
 
-export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator';
+export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator,.personal-group,[data-interface-panel],[data-interface-card],.widget-settings-card,.widget-personalization';
 export function cosmicOrb(scene:ReturnType<typeof cosmicScene>){
   const name=COSMIC_PLANET_NAMES[scene.planet];
   return `url("/themes/kosmos/${[0,3,5].includes(scene.planet)?'reference-':''}${name}.svg")`;

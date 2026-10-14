@@ -754,7 +754,8 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
 }
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
-  .admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation
+  .admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation,
+  .personal-group,[data-interface-panel],[data-interface-card],.widget-settings-card,.widget-personalization
 ) {
   /* Each panel owns its scene. Newly mounted children must not briefly borrow
      their parent's planet while waiting for scene discovery. Inline placement
@@ -810,19 +811,19 @@ html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-scre
 
 /* A black starfield across the app, with a different fine nebula in each card. */
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'],[data-startup-theme='dark-cosmos']) {
-  --cosmos-canvas-art:none;
+  --cosmos-canvas-art:var(--cosmos-canvas-orb,url("/themes/kosmos/neptune.svg")),var(--cosmos-canvas-dust,url("/themes/kosmos/deep-space-0.svg")),url("/themes/kosmos/deep-space-2.svg"),var(--cosmos-sky,var(--theme-decoration,var(--startup-decoration,none))),linear-gradient(#000000,#020306);
 }
 .pks-theme-root[data-ui-theme='dark-cosmos'],
 html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel-scope[data-cosmic-view]),
 [data-startup-theme='dark-cosmos'] {
   background-image:var(--cosmos-canvas-art) !important;
-  background-size:480px 480px,100% 100% !important;
-  background-position:center top,center !important;
-  background-repeat:repeat,no-repeat !important;
+  background-size:76px auto,min(95vw,900px) auto,min(90vw,800px) auto,480px 480px,100% 100% !important;
+  background-position:88% 12vh,right 26vh,left 74vh,center top,center !important;
+  background-repeat:no-repeat,no-repeat,no-repeat,repeat,no-repeat !important;
 }
 /* Only inactive tabs hide the map; overlays live inside this same container. */
 .pks-theme-root[data-ui-theme='dark-cosmos'] [data-map-canvas][inert] { visibility:hidden; }
-.pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-view,[data-statistics-view],.pks-panel-scope[data-cosmic-view],[data-cosmic-canvas]) {
+.pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-view:not(.widget-generator),[data-statistics-view],.pks-panel-scope[data-cosmic-view],[data-cosmic-canvas]) {
   background-image:none !important;
   background-color:transparent !important;
   -webkit-backdrop-filter:none !important;
@@ -880,8 +881,7 @@ html[data-cosmic-theme='on'] :is(.transit-view,[data-statistics-view],.pks-panel
 /* Small nested controls keep the quiet glass-like treatment of the reference. */
 :is(html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos']) :is(input,.pks-option-card,[data-carrier-sheet] .transit-card) { --cosmos-planet:none !important; --cosmos-dust:none !important; }
 
-/* Keep the canvas plain; celestial detail belongs to panels. */
-html[data-cosmic-theme='on'] .pks-navigation { background-image:none !important; }
+/* The shared sky continues behind navigation and full-screen surfaces. */
 html[data-cosmic-theme='on'] [data-cosmic-star] { display:none; }
 /* Android WebView can reuse stale backdrop clipping rectangles after a card
    moves or resizes. Paint decorated surfaces normally, with their own outline. */
@@ -895,4 +895,21 @@ html[data-panel-glow='on'] :is(.pks-glass-frame,.pks-panel-scope,.transit-card,.
 .transit-stop-card::after {
   content:''; position:absolute; inset:-1px; border:1px solid var(--transit-border);
   border-radius:inherit; pointer-events:none;
+}
+
+html[data-cosmic-theme='on'] body {
+  background-color:#000000;
+  background-image:var(--cosmos-canvas-art);
+  background-size:76px auto,min(95vw,900px) auto,min(90vw,800px) auto,480px 480px,100% 100%;
+  background-position:88% 12vh,right 26vh,left 74vh,center top,center;
+  background-repeat:no-repeat,no-repeat,no-repeat,repeat,no-repeat;
+}
+/* Full-screen map keeps its geography and gestures; artwork is a quiet,
+   stationary overlay, independent of Leaflet's moving panes. */
+.pks-theme-root[data-ui-theme='dark-cosmos'] [data-map-canvas]::after {
+  content:''; position:absolute; inset:0; z-index:450; pointer-events:none;
+  background-image:var(--cosmos-canvas-orb,url("/themes/kosmos/neptune.svg")),var(--cosmos-canvas-dust,url("/themes/kosmos/deep-space-0.svg")),var(--cosmos-sky,var(--theme-decoration));
+  background-size:76px auto,min(95vw,900px) auto,480px 480px;
+  background-position:88% 12vh,right 26vh,center top;
+  background-repeat:no-repeat,no-repeat,repeat; opacity:.22;
 }

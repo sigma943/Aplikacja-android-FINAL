@@ -122,7 +122,11 @@ export default function CosmicEffects(){
       session.sync(tab,tab==='options');
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
-      if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',sky);discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');}
+      if(theme==='dark-cosmos'){
+        const canvas=session.scene('canvas:primary',cosmicScene);
+        root.style.setProperty('--cosmos-canvas-orb',cosmicOrb(canvas));
+        root.style.setProperty('--cosmos-canvas-dust',COSMIC_DUST[canvas.dust]);
+        root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',sky);discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-canvas-orb');root.style.removeProperty('--cosmos-canvas-dust');}
       const changed=nextRegion!==region;region=nextRegion;measure();
       const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region)});
       if(nextAllowed!==allowed||changed){
@@ -142,7 +146,7 @@ export default function CosmicEffects(){
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);
       native?.then(handle=>handle.remove()).catch(()=>{});
-      delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');
+      delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-canvas-orb');root.style.removeProperty('--cosmos-canvas-dust');
     };
   },[]);
   return <div ref={field} data-cosmic-effects aria-hidden="true">{COSMIC_STAR_POSITIONS.map((_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor/></div>;

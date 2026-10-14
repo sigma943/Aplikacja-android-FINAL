@@ -122,7 +122,7 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundColor),`rgb(${[1,3,5].map(index=>parseInt(canvas.slice(index,index+2),16)).join(', ')})`);
       assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),mode==='dark-cosmos'?'off':'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),mode==='dark-cosmos'?'false':'true');
       const pattern=await page.$eval(mode==='dark-cosmos'?'.pks-theme-root':'[data-options-sheet]',el=>getComputedStyle(el).backgroundImage);
-      if(mode==='dark-cosmos')assert.equal(pattern,'none','cosmic canvas is uniform without stars');else {assert.ok(pattern.includes('svg'),'selected theme has static decorations');assert.ok(pattern.includes('radial-gradient'),'decoration and glow are both present');}
+      if(mode==='dark-cosmos'){assert.ok(pattern.includes('sky-cloud')&&pattern.includes('/themes/kosmos/deep-space-'),'cosmic canvas includes stars and nebulae throughout the app');assert.ok(await page.$$eval('.personal-group[data-cosmic-scene]',els=>els.length>0),'settings groups receive celestial artwork too');}else {assert.ok(pattern.includes('svg'),'selected theme has static decorations');assert.ok(pattern.includes('radial-gradient'),'decoration and glow are both present');}
       if(mode==='dark-cosmos'){
         assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Aurora')),false);
         const planetImages=await page.evaluate(async()=>Promise.all(['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune'].map(async name=>{
@@ -219,8 +219,8 @@ const server=http.createServer((req,res)=>{
           return outline.content!=='none'&&parseFloat(outline.borderBottomWidth)===1&&outline.pointerEvents==='none';
         })),'foreground outlines cover all four card edges independently of the artwork');
         const skyArt=await page.$eval('.pks-theme-root',node=>getComputedStyle(node).backgroundImage);
-        assert.equal(skyArt,'none','cosmic canvas stays uniform without stars');
-        assert.ok(!skyArt.includes('/themes/kosmos/')&&!skyArt.includes('corona'),'canvas never contains planets or suns');
+        assert.ok(skyArt.includes('sky-cloud')&&skyArt.includes('/themes/kosmos/deep-space-'),'cosmic artwork covers the canvas beyond cards');
+        assert.ok(skyArt.includes('/themes/kosmos/'),'global canvas has its own stable celestial composition');
         const stable=await captureCosmic();
         const skyBeforeOptions=await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage);
         for(let repeat=0;repeat<2;repeat++){
@@ -278,8 +278,10 @@ const server=http.createServer((req,res)=>{
       await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
       if(mode==='dark-cosmos'){
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
-        assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','cosmic effects never overlay the bare map');assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map is visible again after closing the cosmic panels');
+        assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','map keeps static celestial decoration without meteor animations');assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map is visible again after closing the cosmic panels');
         assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
+        const mapSky=await page.$eval('[data-map-canvas]',el=>{const s=getComputedStyle(el,'::after');return {image:s.backgroundImage,pointer:s.pointerEvents};});
+        assert.ok(mapSky.image.includes('sky-cloud')&&mapSky.image.includes('/themes/kosmos/deep-space-'),'map receives stationary stars, planets and nebulae too');assert.equal(mapSky.pointer,'none','map decoration cannot intercept map gestures');
         await button('Opcje');await page.waitForSelector('[data-options-sheet]');
         assert.equal(await page.$eval('[data-map-canvas]',node=>getComputedStyle(node).visibility),'visible','opening options or switching to Kosmos must never hide the parent map');
         await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
@@ -307,7 +309,7 @@ const server=http.createServer((req,res)=>{
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
         assert.equal(background,mode==='dark-cosmos'?'rgb(0, 0, 0)':mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
         const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
-        if(mode==='dark-cosmos')assert.equal(decoration,'none','all cosmic startup screens keep a uniform background');
+        if(mode==='dark-cosmos')assert.ok(decoration.includes('sky-cloud')&&decoration.includes('/themes/kosmos/deep-space-'),'all cosmic startup screens show stars and nebulae');
         else if(kind==='loading')assert.equal(decoration,'none','other loading themes keep a uniform background');
         else assert.ok(decoration.includes('svg'));
         if(kind==='loading'&&mode==='dark-cosmos')assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');
@@ -1003,7 +1005,7 @@ const server=http.createServer((req,res)=>{
       });
       if(theme==='dark-cosmos'){assert.equal(surfaces.root,'rgba(0, 0, 0, 0)','statistics reveals the shared cosmic canvas');assert.equal(surfaces.card,'rgb(2, 3, 6)','cosmic statistics cards use opaque black backgrounds for readability');}else{assert.ok(surfaces.root.startsWith('rgb('),'statistics background is fully opaque: '+theme);assert.ok(surfaces.card.startsWith('rgb('),'statistics cards are fully opaque: '+theme);}
       assert.equal(surfaces.blur,'none');
-      if(theme==='dark-cosmos')assert.equal(surfaces.canvas,'none','statistics preserves the uniform cosmic canvas');
+      if(theme==='dark-cosmos')assert.ok(surfaces.canvas.includes('sky-cloud')&&surfaces.canvas.includes('/themes/kosmos/deep-space-'),'statistics has celestial artwork on the canvas as well as cards');
       else assert.ok(backgroundSvgs(surfaces.decoration).length>0,'statistics uses the selected theme decoration: '+theme);
       await statisticsFits();await screenshot('statistics-'+theme);
     }
@@ -1096,7 +1098,7 @@ const server=http.createServer((req,res)=>{
     await cosmosPage.evaluate(()=>[...document.querySelectorAll('button')].find(node=>node.textContent.includes('Pokaż wszystkie odjazdy')).click());
     await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===20);
     const expandedPaint=await cosmosPage.$eval('[data-cosmic-expanded="true"]',node=>{const style=getComputedStyle(node.closest('.pks-theme-root'));return {image:style.backgroundImage,repeat:style.backgroundRepeat,size:style.backgroundSize};});
-    assert.equal(expandedPaint.image,'none','expanded timetables preserve a plain cosmic canvas');
+    assert.ok(expandedPaint.image.includes('sky-cloud')&&expandedPaint.image.includes('/themes/kosmos/deep-space-'),'expanded timetables retain celestial artwork outside their rows');
     await cosmosPage.$eval('.transit-view',node=>node.scrollTop=650);await new Promise(resolve=>setTimeout(resolve,150));
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-expanded-departures.png'});
     const effects=await cosmosPage.$eval('[data-cosmic-effects]',node=>node.getBoundingClientRect().toJSON());assert.ok(effects.height>=850,'twinkles cover gaps between panels, not just one card');
