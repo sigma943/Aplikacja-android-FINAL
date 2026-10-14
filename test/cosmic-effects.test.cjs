@@ -64,6 +64,18 @@ test('responsive projection keeps bodies whole and separated at phone, tablet an
  }
 });
 
+test('projection keeps the exact chosen galaxy anchor whenever it fits, including loading-to-content height changes',()=>{
+ const {cosmicPanelScene,cosmicProject}=load('lib/cosmic-scene.ts');let stable=0;
+ for(let seed=0;seed<100;seed++){
+  const scene=cosmicPanelScene(seed,'content');
+  const a=cosmicProject(scene,393,300),b=cosmicProject(scene,393,600);
+  if(a.galaxy&&b.galaxy&&Math.abs(a.galaxyX-scene.galaxyX)<.001&&Math.abs(a.galaxyY-scene.galaxyY)<.001){
+   assert.ok(Math.abs(b.galaxyX-a.galaxyX)<.001&&Math.abs(b.galaxyY-a.galaxyY)<.001);stable++;
+  }
+ }
+ assert.ok(stable>75,'valid anchors stay fixed instead of selecting a new candidate grid point');
+});
+
 test('loading, recreated nodes and discovery order cannot reroll identity-based scenes',()=>{
  const {cosmicScene,cosmicVisitSession}=load('lib/cosmic-scene.ts');
  const session=cosmicVisitSession(731);session.bind('root:tab');

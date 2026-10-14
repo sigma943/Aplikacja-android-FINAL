@@ -78,6 +78,8 @@ export default function CosmicEffects(){
       node.style.setProperty('--cosmos-orbit-direction',scene.orbitReverse?'row-reverse':'row');
       project(node,scene,node.clientWidth,node.clientHeight);resize.observe(node);
       node.dataset.cosmicLayout=String(scene.version);
+      node.dataset.cosmicComposition=String(scene.layout);
+      node.dataset.cosmicGalaxyName=scene.galaxy?'sombrero':'whirlpool';
       node.dataset.cosmicScene=key;
       node.dataset.cosmicVisit=String(session.epoch);
       placed.set(node,{epoch:session.epoch,key});
@@ -91,6 +93,7 @@ export default function CosmicEffects(){
         const previous=placed.get(panel),scope=scopedKey(panel);
         const identityChanged=Boolean(previous&&(panel.dataset.stopCardId||panel.dataset.cosmicPanel)&&previous.key!==scope.key);
         if(!previous||identityChanged||previous.epoch!==session.epoch)place(panel);
+        else resize.observe(panel);
       }
     };
     const measure=()=>{

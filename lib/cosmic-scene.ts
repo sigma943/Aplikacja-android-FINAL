@@ -142,17 +142,17 @@ export function cosmicProject(scene:ReturnType<typeof cosmicScene>,width:number,
     const diameter=Math.min(scene.galaxySize*scale,h-2*padding,w*.25),rad=diameter/2;
     if(diameter<14)break;
     let score=-Infinity;
-    for(let i=0;i<64;i++){
-      const gx=w*.56+rad+padding+((phaseX+i*.7548776662466927)%1)*(w*.44-2*rad-2*padding);
-      const gy=rad+padding+((phaseY+i*.5698402909980532)%1)*(h-2*rad-2*padding);
+    const targetX=(w-diameter)*scene.galaxyX/100+rad,targetY=(h-diameter)*scene.galaxyY/100+rad;
+    for(let i=-1;i<64;i++){
+      const gx=i===-1?targetX:w*.56+rad+padding+((phaseX+i*.7548776662466927)%1)*(w*.44-2*rad-2*padding);
+      const gy=i===-1?targetY:rad+padding+((phaseY+i*.5698402909980532)%1)*(h-2*rad-2*padding);
       if(gx-rad<w*.55||gx+rad>w-padding||gy-rad<padding||gy+rad>h-padding)continue;
       // The favourite is central on the right; the corners remain usable.
       const dx=Math.max(w*.88-gx,0,gx-w),dy=Math.max(h*.32-gy,0,gy-h*.68);
       if(Math.hypot(dx,dy)<rad+5)continue;
       const separation=Math.hypot(gx-x,gy-y)-radius-rad;
       if(scene.showPlanet&&separation<9)continue;
-      const targetX=(w-diameter)*scene.galaxyX/100+rad,targetY=(h-diameter)*scene.galaxyY/100+rad;
-      const value=-(Math.hypot(gx-targetX,gy-targetY))+(scene.showPlanet?separation*.2:0);
+      const value=-Math.hypot(gx-targetX,gy-targetY);
       if(value>score){score=value;galaxy={x:gx,y:gy,size:diameter};}
     }
     if(galaxy)break;
