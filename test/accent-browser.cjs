@@ -307,8 +307,10 @@ const server=http.createServer((req,res)=>{
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
         assert.equal(background,mode==='dark-cosmos'?'rgb(0, 0, 0)':mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
         const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
-        if(kind==='loading'){if(mode==='dark-cosmos'){assert.ok(decoration.includes('sky-cloud')&&decoration.includes('linear-gradient'),'Kosmos retains the same sky during loading');assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');}else assert.equal(decoration,'none','other loading themes keep a uniform background');}
+        if(mode==='dark-cosmos')assert.equal(decoration,'none','all cosmic startup screens keep a uniform background');
+        else if(kind==='loading')assert.equal(decoration,'none','other loading themes keep a uniform background');
         else assert.ok(decoration.includes('svg'));
+        if(kind==='loading'&&mode==='dark-cosmos')assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');
         if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
         if(kind==='ban'||kind==='loading')await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
       }
@@ -1000,7 +1002,8 @@ const server=http.createServer((req,res)=>{
       });
       if(theme==='dark-cosmos'){assert.equal(surfaces.root,'rgba(0, 0, 0, 0)','statistics reveals the shared cosmic canvas');assert.equal(surfaces.card,'rgb(2, 3, 6)','cosmic statistics cards use opaque black backgrounds for readability');}else{assert.ok(surfaces.root.startsWith('rgb('),'statistics background is fully opaque: '+theme);assert.ok(surfaces.card.startsWith('rgb('),'statistics cards are fully opaque: '+theme);}
       assert.equal(surfaces.blur,'none');
-      assert.ok(backgroundSvgs(theme==='dark-cosmos'?surfaces.canvas:surfaces.decoration).length>0,'statistics uses the selected theme decoration: '+theme);
+      if(theme==='dark-cosmos')assert.equal(surfaces.canvas,'none','statistics preserves the uniform cosmic canvas');
+      else assert.ok(backgroundSvgs(surfaces.decoration).length>0,'statistics uses the selected theme decoration: '+theme);
       await statisticsFits();await screenshot('statistics-'+theme);
     }
     console.log('Browser: statistics navigation, unique installations, local API totals, date ranges, CSV, light/dark and 320px mobile layouts passed without backend writes.');
