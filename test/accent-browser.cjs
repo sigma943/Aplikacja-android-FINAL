@@ -266,7 +266,7 @@ const server=http.createServer((req,res)=>{
         await page.waitForSelector('.transit-stop-card');
         await page.click('.transit-stop-card');
         await page.waitForSelector('[data-cosmic-panel="stop-header"][data-cosmic-scene]');
-        assert.notDeepEqual((await captureStopPanels()).map(panel=>panel.art),stopPanels.map(panel=>panel.art),'closing and reopening stop detail creates a new composition');
+        assert.deepEqual((await captureStopPanels()).map(panel=>panel.art),stopPanels.map(panel=>panel.art),'reopening stop detail preserves the composition until leaving the tab');
         await page.click('[aria-label="Wróć do listy przystanków"]');
         await page.waitForSelector('.transit-stop-card');
         await button('Mapa');await page.waitForFunction(()=>document.querySelector('.pks-navigation [data-nav-item="map"]')?.getAttribute('aria-current')==='page');
