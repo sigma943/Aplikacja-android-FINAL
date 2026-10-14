@@ -784,7 +784,9 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   border-color:var(--ui-edge);
 }
 /* Win over saved glass/blur personalization inside panels and portal frames. */
-html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) [data-cosmic-scene] {
+/* The scope is intentionally zero-specificity: semantic route highlights
+   must outrank this default surface colour. */
+html[data-cosmic-theme='on'] :where(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) [data-cosmic-scene] {
   background-color:var(--ui-surface) !important;
   -webkit-backdrop-filter:none !important;
   backdrop-filter:none !important;
