@@ -210,7 +210,9 @@ const server=http.createServer((req,res)=>{
           await screenshot('cosmos-layout-v2-'+width);
         }
         await page.setViewport({width:393,height:851,deviceScaleFactor:1});
-        await new Promise(resolve=>setTimeout(resolve,150));
+        // Motion intentionally blocks layout animation for 250 ms after a
+        // window resize. Finish that guard before testing favourite FLIP.
+        await new Promise(resolve=>setTimeout(resolve,450));
         const snapshot=()=>page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>Object.fromEntries(els.map(el=>[el.dataset.stopCardId,[...el.style].filter(key=>key.startsWith('--cosmos-')).map(key=>[key,el.style.getPropertyValue(key)])])));
         const beforeFavorite=await snapshot();
         const favoriteId=await page.evaluate(()=>{const card=document.querySelectorAll('.transit-stop-card')[3];card.querySelector('button').click();return card.dataset.stopCardId;});
