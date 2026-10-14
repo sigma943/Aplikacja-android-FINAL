@@ -1,8 +1,11 @@
 import {readFileSync, writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 const root = new URL('../public/themes/kosmos/', import.meta.url);
-const photo = name => `data:image/png;base64,${readFileSync(new URL(name, root)).toString('base64')}`;
-const nebula = photo('orion.png'), galaxy = photo('sombrero.png');
+import sharp from 'sharp';
+// Resize the photographic masters to the maximum panel sampling size once.
+// Inline WebP remains self-contained and works offline inside CSS SVG images.
+const photo = async name => `data:image/webp;base64,${(await sharp(fileURLToPath(new URL('../assets/cosmos-source/'+name,import.meta.url))).resize({width:512,withoutEnlargement:true}).webp({quality:85,effort:6}).toBuffer()).toString('base64')}`;
+const nebula = await photo('orion.png'), galaxy = await photo('sombrero.png');
 // Reference compositions: all bright detail stays to the right of the text.
 for (let i = 0; i < 4; i++) {
   let state=731+i*943;

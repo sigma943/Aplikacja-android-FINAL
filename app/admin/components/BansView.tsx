@@ -189,7 +189,7 @@ function BanCard({ ban, canBan, onUnblock }: { ban: Ban; canBan: boolean; onUnbl
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-3xl overflow-hidden hover:border-emerald-500/20 transition-all shadow-2xl group relative">
+    <div data-cosmic-panel={`admin-ban:${ban.id}`} className="pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-3xl overflow-hidden hover:border-emerald-500/20 transition-all shadow-2xl group relative">
       <div className="p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
           <div className="flex items-center gap-4 min-w-0 flex-1">

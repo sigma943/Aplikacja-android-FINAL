@@ -447,7 +447,7 @@ function LogCard({ log }: { log: Log }) {
   const style = getIcon(log.iconType);
 
   return (
-    <div className="pks-personal-card bg-[#111623] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 transition-all group shadow-inner">
+    <div data-cosmic-panel={`admin-log:${log.id}`} className="pks-personal-card bg-[#111623] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 transition-all group shadow-inner">
       <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all group-hover:scale-110 group-hover:rotate-6 duration-300 shadow-lg", style.bg, style.border, "border")}>
         {style.icon}
       </div>

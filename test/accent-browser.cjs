@@ -221,6 +221,7 @@ const server=http.createServer((req,res)=>{
         const skyArt=await page.$eval('.pks-theme-root',node=>getComputedStyle(node).backgroundImage);
         assert.ok(skyArt.includes('sky-cloud')&&skyArt.includes('/themes/kosmos/deep-space-'),'cosmic artwork covers the canvas beyond cards');
         assert.ok(skyArt.includes('/themes/kosmos/'),'global canvas has its own stable celestial composition');
+        assert.doesNotMatch(skyArt,/(?:reference-)?(?:mercury|venus|earth|mars|jupiter|saturn|uranus|neptune)\.svg/,'global canvas cannot place planets over controls');
         const stable=await captureCosmic();
         const skyBeforeOptions=await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage);
         for(let repeat=0;repeat<2;repeat++){
@@ -257,7 +258,7 @@ const server=http.createServer((req,res)=>{
         await page.evaluate(()=>{for(const event of ['focus','storage','pks-interface-appearance','pks-profile-applied'])window.dispatchEvent(new Event(event));});
         await new Promise(resolve=>setTimeout(resolve,1200));
         assert.deepEqual(await captureStopPanels(),stopPanels,'stop detail composition survives completed loading, clock refreshes and preference events');
-        assert.notEqual(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>el.style.getPropertyValue('--cosmos-planet')),'none','every cosmic departure panel has one restrained planet');
+        assert.equal(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>el.style.getPropertyValue('--cosmos-planet')),'none','timetables reserve their space for text instead of floating planets');
         assert.equal(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>getComputedStyle(el).minHeight),'0px','planet artwork cannot stretch departure panels');
         assert.ok(await page.$eval('[data-cosmic-panel="stop-departures"]',el=>getComputedStyle(el.closest('.pks-theme-root')).backgroundSize.includes('480px')),'long timetables cannot magnify stars to their content height');
         assert.equal(await page.$$eval('[data-departure-row]',els=>els.some(el=>el.getAnimations().some(animation=>animation.playState==='running'))),false,'Kosmos refreshes departure values without replaying row entrance animations');
@@ -280,8 +281,8 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
         assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','map keeps static celestial decoration without meteor animations');assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map is visible again after closing the cosmic panels');
         assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
-        const mapSky=await page.$eval('[data-map-canvas]',el=>{const s=getComputedStyle(el,'::after');return {image:s.backgroundImage,pointer:s.pointerEvents};});
-        assert.ok(mapSky.image.includes('sky-cloud')&&mapSky.image.includes('/themes/kosmos/deep-space-'),'map receives stationary stars, planets and nebulae too');assert.equal(mapSky.pointer,'none','map decoration cannot intercept map gestures');
+        const mapSky=await page.$eval('[data-map-canvas]',el=>{const s=getComputedStyle(el,'::after');return {image:s.backgroundImage,content:s.content,pointer:s.pointerEvents};});
+        assert.equal(mapSky.image,'none','map geography has no separate decorative overlay');assert.equal(mapSky.content,'none','no planet can float out of a panel onto the map');assert.equal(mapSky.pointer,'none','map decoration cannot intercept map gestures');
         await button('Opcje');await page.waitForSelector('[data-options-sheet]');
         assert.equal(await page.$eval('[data-map-canvas]',node=>getComputedStyle(node).visibility),'visible','opening options or switching to Kosmos must never hide the parent map');
         await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
@@ -1092,16 +1093,71 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(errors,[]);
     await loginPage.close();
     const cosmosPage=await browser.newPage();cosmosPage.on('pageerror',e=>errors.push(e.message));await cosmosPage.setViewport({width:393,height:851,deviceScaleFactor:1});
+    await cosmosPage.evaluateOnNewDocument(()=>{const Base=Date,now=Date.now();window.Date=class extends Base{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};});
     await cosmosPage.goto(origin);await cosmosPage.evaluate(()=>{localStorage.setItem('mks_app_theme','dark-cosmos');localStorage.setItem('mks_light_effects','false');localStorage.removeItem('mks_interface_appearance_v1');});
     await cosmosPage.goto(origin+'/cosmos-fixture/',{waitUntil:'domcontentloaded'});
     await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===5);
     await cosmosPage.evaluate(()=>[...document.querySelectorAll('button')].find(node=>node.textContent.includes('Pokaż wszystkie odjazdy')).click());
-    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===20);
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===40);
     const expandedPaint=await cosmosPage.$eval('[data-cosmic-expanded="true"]',node=>{const style=getComputedStyle(node.closest('.pks-theme-root'));return {image:style.backgroundImage,repeat:style.backgroundRepeat,size:style.backgroundSize};});
     assert.ok(expandedPaint.image.includes('sky-cloud')&&expandedPaint.image.includes('/themes/kosmos/deep-space-'),'expanded timetables retain celestial artwork outside their rows');
+    // Check rendered pixels, not only declared CSS. Long schedules must keep
+    // visible decoration even far beyond the first background image.
+    const {PNG}=require('pngjs');
+    for(const [label,fraction] of [['top',0],['middle',.5],['bottom',1]]){
+      await cosmosPage.$eval('.transit-view',(node,fraction)=>node.scrollTop=(node.scrollHeight-node.clientHeight)*fraction,fraction);
+      await cosmosPage.waitForFunction(()=>[...document.querySelectorAll('[data-departure-row]')].every(node=>node.dataset.cosmicScene));
+      await new Promise(resolve=>setTimeout(resolve,650));
+      const visible=await cosmosPage.$$eval('[data-departure-row]',nodes=>nodes.map(node=>node.getBoundingClientRect().toJSON()).filter(r=>r.top>=4&&r.bottom<=innerHeight-4));
+      assert.ok(visible.length>=3,'several complete departure rows are visible at '+label);
+      const samples=[visible[0],visible[Math.floor(visible.length/2)],visible[visible.length-1]];
+      const decorated=PNG.sync.read(Buffer.from(await cosmosPage.screenshot({path:'test/ui-previews/cosmos-departures-'+label+'.png'})));
+      await cosmosPage.$$eval('[data-departure-row]',nodes=>nodes.forEach(node=>node.style.setProperty('background-image','none','important')));
+      const plain=PNG.sync.read(Buffer.from(await cosmosPage.screenshot()));
+      await cosmosPage.$$eval('[data-departure-row]',nodes=>nodes.forEach(node=>node.style.removeProperty('background-image')));
+      for(const rect of samples){
+        let changed=0;
+        for(let y=Math.ceil(rect.top+5);y<Math.floor(rect.bottom-5);y++)for(let x=Math.ceil(rect.left+5);x<Math.floor(rect.right-5);x++){
+          const at=(y*decorated.width+x)*4;
+          if(Math.max(...[0,1,2].map(c=>Math.abs(decorated.data[at+c]-plain.data[at+c])))>=8)changed++;
+        }
+        assert.ok(changed>=25,'visible celestial pixels in every sampled row at '+label+': '+changed);
+      }
+    }
+    const departureArtwork=()=>cosmosPage.$$eval('[data-departure-row]',nodes=>nodes.map(n=>[n.dataset.cosmicPanel,n.style.getPropertyValue('--cosmos-star-position')]));
+    const departureBeforeRefresh=await departureArtwork();
+    await cosmosPage.evaluate(()=>{window.dispatchEvent(new Event('focus'));window.dispatchEvent(new Event('pks-interface-appearance'));});
+    await new Promise(resolve=>setTimeout(resolve,100));
+    assert.deepEqual(await departureArtwork(),departureBeforeRefresh,'row decorations survive refreshes');
+    await cosmosPage.goto(origin+'/cosmos-operators-fixture/',{waitUntil:'domcontentloaded'});
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-cosmic-panel^="admin-operator:"][data-cosmic-scene]').length===3);
+    for(const width of [320,393,707]){
+      await cosmosPage.setViewport({width,height:851,deviceScaleFactor:1});
+      await new Promise(resolve=>setTimeout(resolve,300));
+      const cards=await cosmosPage.$$eval('[data-cosmic-panel^="admin-operator:"]',nodes=>nodes.map(n=>({key:n.dataset.cosmicScene,planet:n.style.getPropertyValue('--cosmos-planet'),image:getComputedStyle(n).backgroundImage,left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right,stars:n.style.getPropertyValue('--cosmos-star-position')})));
+      assert.equal(new Set(cards.map(c=>c.key)).size,3,'operator cards use distinct stable identities');
+      assert.ok(new Set(cards.map(c=>c.stars)).size>1,'operator cards do not repeat one composition');
+      assert.ok(cards.every(c=>c.planet==='none'&&!/(?:reference-)?(?:mercury|venus|earth|mars|jupiter|saturn|uranus|neptune)\.svg/.test(c.image)),'no planet covers administrative permissions');
+      assert.ok(cards.every(c=>c.left>=0&&c.right<=width),'administrator cards fit phone width '+width);
+      assert.equal(await cosmosPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+      await cosmosPage.screenshot({path:'test/ui-previews/cosmos-operators-'+width+'.png'});
+    }
+    await cosmosPage.setViewport({width:393,height:851,deviceScaleFactor:1});
+    await cosmosPage.click('[aria-label^="Menu administratora"]');
+    await new Promise(resolve=>setTimeout(resolve,300));
+    await cosmosPage.screenshot({path:'test/ui-previews/cosmos-operators-menu.png'});
+    await cosmosPage.goto(origin+'/cosmos-fixture/',{waitUntil:'domcontentloaded'});
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===5);
+    await cosmosPage.evaluate(()=>[...document.querySelectorAll('button')].find(n=>n.textContent.includes('Pokaż wszystkie odjazdy')).click());
     await cosmosPage.$eval('.transit-view',node=>node.scrollTop=650);await new Promise(resolve=>setTimeout(resolve,150));
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-expanded-departures.png'});
     const effects=await cosmosPage.$eval('[data-cosmic-effects]',node=>node.getBoundingClientRect().toJSON());assert.ok(effects.height>=850,'twinkles cover gaps between panels, not just one card');
+    await cosmosPage.goto(origin+'/cosmos-train-fixture/',{waitUntil:'domcontentloaded'});
+    await cosmosPage.waitForSelector('[data-cosmic-surface="train-detail"][data-cosmic-scene]');
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-cosmic-carrier="train"][data-cosmic-scene]').length===3);
+    assert.ok(await cosmosPage.$$eval('[data-cosmic-surface]',nodes=>nodes.every(n=>getComputedStyle(n).backgroundImage.includes('sky-cloud'))),'train header, body and route rows receive celestial backgrounds');
+    assert.equal(await cosmosPage.$eval('[data-cosmic-carrier="train"][data-cosmic-highlighted="true"]',n=>getComputedStyle(n).backgroundColor),'rgb(16, 39, 83)','train highlight retains its blue meaning');
+    await new Promise(resolve=>setTimeout(resolve,700));await cosmosPage.screenshot({path:'test/ui-previews/cosmos-train-panel.png'});
     await cosmosPage.goto(origin+'/cosmos-admin-fixture/',{waitUntil:'domcontentloaded'});
     await cosmosPage.waitForSelector('[data-cosmic-view="admin:devices"][data-cosmic-seed]');
     const adminSeed=await cosmosPage.$eval('[data-cosmic-view="admin:devices"]',node=>node.dataset.cosmicSeed);

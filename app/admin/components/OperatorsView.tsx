@@ -104,7 +104,7 @@ export function OperatorsView({
               </div>
             </div>
           </div>
-          <div className="pks-personal-card flex items-center gap-2 text-sm text-slate-400 bg-[#111623] border border-white/5 px-4 py-2 rounded-xl">
+          <div data-cosmic-panel="admin-operators-summary" className="pks-personal-card flex items-center gap-2 text-sm text-slate-400 bg-[#111623] border border-white/5 px-4 py-2 rounded-xl">
              <Users size={16} className="text-sky-400" />
              <span>Łącznie administratorów: <strong className="text-white ml-1">{filteredOperators.length}</strong></span>
           </div>
@@ -236,7 +236,7 @@ function StatCard({ title, value, subtitle, icon, color }: any) {
   };
 
   return (
-    <div className="pks-personal-card bg-[#111623] border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+    <div data-cosmic-panel={`operator-stat:${title}`} className="pks-personal-card bg-[#111623] border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
       <div className="flex items-center gap-2 text-slate-400 mb-2">
         {icon} <span className="text-xl font-bold text-white">{value}</span>
       </div>
@@ -265,8 +265,8 @@ function OperatorCard({
   const showActions = !isSelf && canManage;
   
   return (
-    <div className="pks-personal-card bg-[#111623] border border-white/5 rounded-2xl p-4 flex items-center justify-between group hover:border-white/10 transition-all hover:bg-white/[0.02] shadow-lg">
-      <div className="flex items-start gap-4">
+    <div data-cosmic-panel={`admin-operator:${operator.id}`} className="pks-personal-card bg-[#111623] border border-white/5 rounded-2xl p-4 flex items-center justify-between gap-3 group hover:border-white/10 transition-all hover:bg-white/[0.02] shadow-lg">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
         {/* Avatar */}
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/5 bg-gradient-to-br from-white/10 to-transparent text-lg font-bold text-white">
           {operator.role === 'WŁAŚCICIEL' ? (
@@ -278,9 +278,9 @@ function OperatorCard({
           )}
         </div>
         
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="text-sm font-bold text-slate-200 transition-colors group-hover:text-white sm:text-base">
+            <span className="text-sm font-bold break-words [overflow-wrap:anywhere] text-slate-200 transition-colors group-hover:text-white sm:text-base">
               {operator.name}
             </span>
             <Badge role={operator.role} />
@@ -303,7 +303,7 @@ function OperatorCard({
         </div>
       </div>
 
-      <div className="flex flex-col items-end gap-2 pr-2">
+      <div className="flex w-[4.5rem] shrink-0 flex-col items-end gap-2">
         <div className="relative">
           {isSelf ? (
             <span className="whitespace-nowrap rounded-lg border border-white/10 px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-slate-500 sm:px-2 sm:text-[10px] sm:tracking-widest">
@@ -311,6 +311,7 @@ function OperatorCard({
             </span>
           ) : showActions ? (
           <button 
+            aria-label={`Menu administratora ${operator.name}`}
             onClick={() => setShowMenu(!showMenu)} 
             onBlur={() => setTimeout(() => setShowMenu(false), 200)}
             className="text-slate-500 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"

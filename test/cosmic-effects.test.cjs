@@ -25,14 +25,20 @@ test('Kosmos replaces Aurora, stays black at first paint, survives backups and u
  const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<70000);assert.match(atlas,/id="sky-cloud"/);assert.ok((atlas.match(/<circle /g)||[]).length<=110);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
 });
 
-test('reference compositions reserve the right side and keep each object in its authored slot',()=>{
- const {cosmicScene}=load('lib/cosmic-scene.ts');
- const scenes=[0,1,2,3].map(slot=>cosmicScene(123,undefined,slot));
- assert.deepEqual(scenes.map(s=>[s.planet,s.x,s.y,s.showPlanet]),[[3,74,5,true],[5,71,56,true],[0,73,95,true],[2,76,68,false]]);
- for(let seed=0;seed<100;seed++){
-  const scene=cosmicScene(seed);assert.ok(scene.x>=71&&scene.x<=76);assert.ok(scene.size>=64&&scene.size<=90);
-  assert.deepEqual(scene,cosmicScene(seed));
+test('seeded composition channels vary widely within the catalogue safe strip',()=>{
+ const {cosmicScene,cosmicPanelScene,cosmicPanelSky}=load('lib/cosmic-scene.ts');
+ const variants=new Set(),families=new Set();
+ for(let seed=0;seed<500;seed++){
+  const scene=cosmicScene(seed);assert.ok(scene.x>=64&&scene.x<=73);assert.ok(scene.y>=18&&scene.y<=80);assert.ok(scene.size>=52&&scene.size<=76);
+  assert.deepEqual(scene,cosmicScene(seed));variants.add(scene.x+':'+scene.y);families.add(scene.layout);
+  for(const kind of ['content','row','controls','admin'])assert.equal(cosmicPanelScene(seed,kind).showPlanet,false);
  }
+ assert.equal(families.size,12);assert.equal(variants.size,500);
+ const sky=decodeURIComponent(cosmicPanelSky(731,'row'));
+ assert.match(sky,/data-galaxy=/);assert.doesNotMatch(sky,/<filter|<animate|<image/);
+ const stars=[...sky.matchAll(/<g transform="translate\(([\d.]+) ([\d.]+)\)">/g)].map(m=>({x:+m[1],y:+m[2]}));
+ assert.ok(stars.length>=35);for(let a=0;a<stars.length;a++)for(let b=a+1;b<stars.length;b++)assert.ok(Math.hypot(stars[a].x-stars[b].x,stars[a].y-stars[b].y)>=4.8,'stars keep their minimum separation');
+ assert.equal(cosmicPanelSky(731,'row'),cosmicPanelSky(731,'row'));assert.notEqual(cosmicPanelSky(731,'row'),cosmicPanelSky(732,'row'));
 });
 
 test('loading, recreated nodes and discovery order cannot reroll identity-based scenes',()=>{
@@ -50,11 +56,10 @@ test('loading, recreated nodes and discovery order cannot reroll identity-based 
 });
 
 test('all eight planet photographs are packaged locally for offline Android use',()=>{
- const fs=require('node:fs');const {COSMIC_PLANET_NAMES,COSMIC_PLANETS}=load('lib/cosmic-scene.ts');
+ const fs=require('node:fs');const {COSMIC_PLANET_NAMES}=load('lib/cosmic-scene.ts');
  assert.deepEqual([...COSMIC_PLANET_NAMES],['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune']);
  for(let i=0;i<COSMIC_PLANET_NAMES.length;i++){
-  assert.equal(COSMIC_PLANETS[i],`url("/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.svg")`);
-  const photo=fs.readFileSync(`public/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.jpg`);
+  const photo=fs.readFileSync(`assets/cosmos-source/${COSMIC_PLANET_NAMES[i]}.jpg`);
   assert.equal(photo.readUInt16BE(0),0xffd8);assert.ok(photo.length>1000&&photo.length<100000);
   const sprite=fs.readFileSync(`public/themes/kosmos/${COSMIC_PLANET_NAMES[i]}.svg`,'utf8');
   const decoded=require('pngjs').PNG.sync.read(Buffer.from(sprite.match(/data:image\/png;base64,([^" ]+)/)[1],'base64'));
@@ -80,16 +85,16 @@ test('panel dust uses a bounded cover position instead of offsets crossing repea
  for(let i=0;i<300;i++){const scene=cosmicScene(i);assert.ok(scene.dustX>=0&&scene.dustX<=100);assert.ok(scene.dustY>=0&&scene.dustY<=100);}
 });
 
-test('cosmic nebulae contain fine stars without oversized cross shapes, and departures always have one modest planet',()=>{
- const {COSMIC_DUST,COSMIC_PLANETS,COSMIC_SUN,cosmicPanelStyle}=load('lib/cosmic-scene.ts');
+test('cosmic nebulae contain fine stars without oversized cross shapes, and dense timetable surfaces reserve their space for text',()=>{
+ const {COSMIC_DUST,cosmicPanelScene}=load('lib/cosmic-scene.ts');
  for(const image of COSMIC_DUST){
   const filename=image.match(/url\("([^\"]+)"\)/)[1];
   const svg=require('node:fs').readFileSync('public'+filename,'utf8');
-  assert.match(svg,/data:image\/png;base64,/);assert.match(svg,/<mask/);
+  assert.match(svg,/data:image\/webp;base64,/);assert.match(svg,/<mask/);assert.ok(Buffer.byteLength(svg)<100000,'panel atlas must not duplicate full-size photographic masters');
   assert.doesNotMatch(svg,/<filter|<animate|href="https?:/);
  }
 
- for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.match(style['--cosmos-planet'],/(?:reference-)?(?:mercury|venus|earth|mars|jupiter|saturn|uranus|neptune)\.svg/);assert.equal(style['--cosmos-planet-size'],'48px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
+ for(let seed=0;seed<40;seed++){const scene=cosmicPanelScene(seed,'row');assert.equal(scene.showPlanet,false);assert.deepEqual(scene,cosmicPanelScene(seed,'row'));}
  const {COSMIC_STAR_POSITIONS,COSMIC_TWINKLE_INTERVAL}=load('lib/cosmic-effects.ts');assert.ok(COSMIC_STAR_POSITIONS.length<=4);assert.ok(COSMIC_TWINKLE_INTERVAL>=9000);
 });
 
@@ -117,10 +122,10 @@ test('canvas skies are seeded, contain stars and nebulae, and never contain plan
 
 
 test('panel starfields and galaxies have independent stable offsets, never a repeated column',()=>{
- const {cosmicPanelStyle}=load('lib/cosmic-scene.ts');
- const positions=Array.from({length:40},(_,seed)=>cosmicPanelStyle(seed)['--cosmos-star-position']);
+ const {cosmicPanelScene}=load('lib/cosmic-scene.ts');
+ const positions=Array.from({length:40},(_,seed)=>cosmicPanelScene(seed,'row').sky);
  assert.ok(new Set(positions).size>35);
- assert.equal(cosmicPanelStyle(93)['--cosmos-star-position'],cosmicPanelStyle(93)['--cosmos-star-position']);
+ assert.equal(cosmicPanelScene(93,'row').sky,cosmicPanelScene(93,'row').sky);
 });
 
 // Map artwork must survive actual navigation, modal changes and app restarts.
@@ -147,4 +152,37 @@ test('missing navigation during loading and overlay tabs never advance the scene
  assert.equal(session.sync('map'),true);assert.equal(session.epoch,epoch+1);
  assert.equal(session.sync('map'),false);assert.equal(session.sync(undefined),false);
  assert.equal(session.sync('stops'),true);assert.equal(session.epoch,epoch+2);
+});
+
+
+test('interactive panels and rows never receive planets, catalogue scenes remain stable and varied',()=>{
+ const {cosmicPanelScene}=load('lib/cosmic-scene.ts');
+ let withPlanets=0;const samples=new Set();
+ for(let seed=0;seed<100;seed++){
+  assert.equal(cosmicPanelScene(seed,'content').showPlanet,false);
+  const card=cosmicPanelScene(seed,'stop-card');withPlanets+=Number(card.showPlanet);
+  assert.deepEqual(card,cosmicPanelScene(seed,'stop-card'));
+  samples.add(card.starX+':'+card.starY);
+ }
+ assert.ok(withPlanets>0&&withPlanets<100);assert.ok(samples.size>90);
+});
+
+// Masters feed the asset generators; shipping them alongside baked sprites
+// needlessly duplicates nearly a megabyte in every offline installation.
+test('Android public assets contain only runtime cosmos sprites and bounded carrier logos',()=>{
+ const fs=require('node:fs');
+ assert.ok(fs.readdirSync('public/themes/kosmos').every(name=>name.endsWith('.svg')));
+ for(const name of ['orion.png','sombrero.png','earth.jpg'])assert.ok(fs.existsSync('assets/cosmos-source/'+name));
+ for(const name of ['pks','mpk-rzeszow','marcel']){
+  const file=fs.readFileSync('public/dodaj/'+name+'.png');const image=require('pngjs').PNG.sync.read(file);
+  assert.ok(image.width>=384&&image.width<=512);assert.ok(file.length<250000);
+ }
+});
+
+test('large virtual catalogues reconstruct evicted scenes without rerolling',()=>{
+ const {cosmicVisitSession,cosmicPanelScene}=load('lib/cosmic-scene.ts');
+ const session=cosmicVisitSession(731);session.sync('stops');const create=seed=>cosmicPanelScene(seed,'stop-card');
+ const first=session.scene('stop:first',create);
+ for(let i=0;i<1200;i++)session.scene('stop:'+i,create);
+ assert.deepEqual(session.scene('stop:first',create),first);
 });

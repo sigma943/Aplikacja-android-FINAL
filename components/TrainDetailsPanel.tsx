@@ -137,6 +137,8 @@ export default function TrainDetailsPanel({
   return (
     <motion.div
       key="train-panel-map"
+      data-cosmic-surface="train-detail"
+      data-cosmic-panel={`train:${vehicle.id}`}
       initial={{ y: '100%', opacity: 0.5 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: '100%', opacity: 0.5 }}
@@ -144,7 +146,7 @@ export default function TrainDetailsPanel({
       className="absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 z-50 flex max-h-[calc(72vh-24px)] flex-col overflow-hidden rounded-t-3xl border border-white/12 bg-[#03100d]/96 text-white shadow-2xl md:bottom-4 md:left-4 md:right-auto md:mb-0 md:max-h-[88vh] md:w-[420px] md:rounded-3xl"
     >
       <motion.div
-        className="relative shrink-0 overflow-hidden px-5 pb-5 pt-4 text-white md:px-6 md:pb-6"
+        data-cosmic-surface="train-header" data-cosmic-panel={`train-header:${vehicle.id}`} className="relative shrink-0 overflow-hidden px-5 pb-5 pt-4 text-white md:px-6 md:pb-6"
         style={{ background: `radial-gradient(circle at 12% 0%, #0d66ff 0%, ${TRAIN_BLUE} 42%, #062069 100%)` }}
         onClick={onToggleExpanded}
         drag="y"
@@ -259,11 +261,12 @@ export default function TrainDetailsPanel({
                   <button
                     type="button"
                     key={`${stop.id}-${index}`}
+                    data-cosmic-panel={`train-route:${vehicle.id}:${stop.id}`}
                     onClick={() => onStopSelect(String(stop.id))}
                     className={`relative mb-2 flex w-full gap-4 text-left transition ${muted ? 'opacity-45' : 'opacity-100'}`}
                   >
                     <span className={`relative z-10 mt-5 h-7 w-7 shrink-0 rounded-full border-4 ${highlighted ? 'border-white bg-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.8)]' : index === 0 ? 'border-blue-500 bg-white' : 'border-blue-500 bg-slate-950'}`} />
-                    <span className={`flex min-h-[74px] flex-1 items-center justify-between gap-3 rounded-lg border p-3 ${highlighted ? 'border-blue-300/50 bg-blue-500/18' : 'border-white/10 bg-white/[0.04]'}`}>
+                    <span data-cosmic-surface="route-row" data-cosmic-carrier="train" data-cosmic-panel={`train-row:${vehicle.id}:${stop.id}`} data-cosmic-highlighted={highlighted} className={`flex min-h-[74px] flex-1 items-center justify-between gap-3 rounded-lg border p-3 ${highlighted ? 'border-blue-300/50 bg-blue-500/18' : 'border-white/10 bg-white/[0.04]'}`}>
                       <span className="min-w-0">
                         <span className="block truncate text-xl font-black tracking-normal">{stop.name}</span>
                         <span className="mt-1 flex items-center gap-2 text-lg font-medium text-white">

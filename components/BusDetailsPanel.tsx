@@ -67,7 +67,7 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                      aria-label={isBusPanelExpanded ? 'Zwiń panel autobusu' : 'Rozwiń panel autobusu'}
                      aria-expanded={isBusPanelExpanded}
                      onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();setIsBusPanelExpanded(value => !value);}}}
-                     data-vehicle-header data-ui-mode={isDark ? 'dark' : 'light'}
+                     data-cosmic-surface="vehicle-header" data-cosmic-panel={`vehicle-header:${selectedBus.id}`} data-vehicle-header data-ui-mode={isDark ? 'dark' : 'light'}
                      className="p-3 pb-5 md:p-6 md:pb-8 text-white relative shrink-0 cursor-pointer touch-none overflow-hidden" 
                      style={selectedBusHeaderStyle}
                      {...busDrag.handle}
@@ -213,6 +213,9 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                                   <div 
                                      key={`${sch.id || idx}-${idx}`} 
                                      data-route-stop-id={sch.id}
+                                     data-cosmic-surface="route-row"
+                                     data-cosmic-panel={`vehicle-route:${selectedBus.id}:${sch.id || idx}`}
+                                     data-cosmic-highlighted={isHighlighted}
                                      onClick={() => {
                                        if (sch.id) {
                                          openVehicleRouteStop(sch.id.toString());
