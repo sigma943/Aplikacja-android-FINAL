@@ -47,7 +47,8 @@ export default function CosmicEffects(){
       node.style.setProperty('--cosmos-secondary-orb','none');
       node.style.setProperty('--cosmos-orb-left',`calc(${scene.x.toFixed(2)}% - ${(scene.x*scene.size/100).toFixed(2)}px)`);
       node.style.setProperty('--cosmos-orb-top',`calc(${scene.y.toFixed(2)}% - ${(scene.y*scene.size/100).toFixed(2)}px)`);
-      const orb=node.querySelector<HTMLImageElement>('[data-cosmic-card-orb],[data-cosmic-orbit-planet]');
+      const ownsOrb=node.hasAttribute('data-stop-card-id')||node.hasAttribute('data-cosmic-orbit');
+      const orb=ownsOrb?node.querySelector<HTMLImageElement>('[data-cosmic-card-orb],[data-cosmic-orbit-planet]'):null;
       if(orb){
         if(scene.showPlanet){const src=cosmicOrbSrc(scene);if(orb.getAttribute('src')!==src)orb.src=src;orb.hidden=false;}
         else orb.hidden=true;

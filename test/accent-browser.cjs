@@ -19,6 +19,17 @@ const server=http.createServer((req,res)=>{
   const page=await browser.newPage();const errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   fs.mkdirSync('test/ui-previews',{recursive:true});
+  const stableClick=async selector=>{
+    await page.evaluate(()=>delete window.__clickGeometry);
+    await page.waitForFunction(selector=>{
+      const node=document.querySelector(selector);if(!node)return false;
+      const r=node.getBoundingClientRect(),values=[r.x,r.y,r.width,r.height],old=window.__clickGeometry;
+      const count=old&&values.every((v,i)=>Math.abs(v-old.values[i])<.25)?old.count+1:0;
+      window.__clickGeometry={values,count};
+      return count>=4&&r.width>0&&r.height>0&&r.top>=0&&r.bottom<=innerHeight;
+    },{polling:50,timeout:5000},selector);
+    await page.click(selector);
+  };
   try{
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
@@ -77,7 +88,7 @@ const server=http.createServer((req,res)=>{
     const accent=async name=>{
       console.log('Selecting accent:',name);
       await button('Opcje');await page.waitForSelector('[role="dialog"]');
-      await page.click('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');
+      await stableClick('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');
       await page.click(`[aria-label="Kolor akcentu: ${name}"]`);
       await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
     };
@@ -116,7 +127,7 @@ const server=http.createServer((req,res)=>{
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
     const beforeNewThemes=await page.evaluate(()=>({...localStorage}));
     for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff'],['Kosmos','dark-cosmos','#000000']]){
-      await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+      await button('Opcje');await page.waitForSelector('[data-options-sheet]');await stableClick('#options-personal-tab');
       await page.waitForSelector(`[aria-label="Zestaw: ${name}"]`);
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
       assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundColor),`rgb(${[1,3,5].map(index=>parseInt(canvas.slice(index,index+2),16)).join(', ')})`);
@@ -259,7 +270,7 @@ const server=http.createServer((req,res)=>{
         const skyBeforeOptions=await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage);
         for(let repeat=0;repeat<2;repeat++){
           await button('Opcje');await page.waitForSelector('[data-options-sheet]');
-          await page.click('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');
+          await stableClick('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');
           await new Promise(resolve=>setTimeout(resolve,650));
           await page.waitForFunction(()=>[...document.querySelectorAll('[data-cosmic-orbit=options] img')].every(img=>img.complete&&img.naturalWidth>0));
           assert.ok(await page.$eval('[data-cosmic-orbit=options]',node=>{const box=node.getBoundingClientRect();return box.width>70&&[...node.querySelectorAll('img')].every(img=>{const r=img.getBoundingClientRect();return r.width>20&&r.left>=box.left&&r.right<=box.right;});}),'options show a planet and sun clear of the title and controls');
@@ -369,7 +380,7 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforeNewThemes);
     await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-ui-theme="dark-oled"]');
     const beforePink=await page.evaluate(()=>({...localStorage}));
-    await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+    await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await stableClick('#options-personal-tab');
     await page.$eval('[aria-label="Zestaw: Różowy"]',el=>el.click());
     await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()==='#c02674');
@@ -634,7 +645,7 @@ const server=http.createServer((req,res)=>{
     // Exercise real preferences against the map, reload persistence and the compact editor.
     const savedAppearance=await page.evaluate(()=>Object.fromEntries(['mks_app_theme','mks_theme','mks_transparent','mks_panel_glow','mks_panel_glow_strength','mks_light_effects','mks_interface_appearance_v1'].map(k=>[k,localStorage.getItem(k)])));
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');
-    await page.click('#options-personal-tab');await page.waitForSelector('[data-interface-preview]');
+    await stableClick('#options-personal-tab');await page.waitForSelector('[data-interface-preview]');
     assert.ok(await page.$$eval('[data-personalization-panel] details',els=>els.length)>=7);
     const openGroup=async text=>page.evaluate(label=>[...document.querySelectorAll('.personal-group summary')].find(el=>el.textContent.includes(label)).parentElement.open=true,text);
     const choose=async(legend,name)=>page.evaluate((title,label)=>[...document.querySelectorAll('.personal-field')].find(el=>el.querySelector('legend').textContent===title).querySelectorAll('button').forEach(button=>{if(button.textContent.trim()===label)button.click();}),legend,name);
@@ -730,7 +741,7 @@ const server=http.createServer((req,res)=>{
     await page.reload({waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>document.documentElement.dataset.personalRadius==='true'&&document.documentElement.dataset.personalLabels==='false'&&getComputedStyle(document.querySelector('.pks-map-surface')).borderTopLeftRadius==='36px');
     assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).borderTopLeftRadius),'36px','saved shape survives app restart');
-    await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+    await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await stableClick('#options-personal-tab');
     await screenshot('personalization-dark');
     await page.$eval('[data-options-scroll]',el=>el.scrollTo(0,el.scrollHeight));
     assert.ok(await page.$eval('.personal-preview-wrap',el=>el.getBoundingClientRect().bottom)<await page.$eval('[data-options-scroll]',el=>el.getBoundingClientRect().top),'preview scrolls away instead of covering settings');
