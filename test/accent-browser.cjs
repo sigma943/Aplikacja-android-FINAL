@@ -194,7 +194,7 @@ const server=http.createServer((req,res)=>{
         await page.$$eval('[data-cosmic-card-orb]:not([hidden])',nodes=>{const img=nodes.find(n=>!n.src.includes('/reference-'));if(img)img.closest('.transit-stop-card').scrollIntoView({block:'center'});});
         await page.waitForFunction(()=>[...document.querySelectorAll('[data-cosmic-card-orb]:not([hidden])')].every(img=>img.complete&&img.naturalWidth>0));
         await new Promise(resolve=>setTimeout(resolve,200));
-        const planetBoxes=await page.$$eval('[data-cosmic-card-orb]:not([hidden])',nodes=>nodes.filter(img=>{const r=img.closest('.transit-stop-card').getBoundingClientRect();return r.top>=0&&r.bottom<innerHeight-70&&!img.src.includes('/reference-');}).map(img=>({rect:img.getBoundingClientRect().toJSON(),src:img.src})));
+        const planetBoxes=await page.$$eval('[data-cosmic-card-orb]:not([hidden])',nodes=>nodes.filter(img=>{const r=img.closest('.transit-stop-card').getBoundingClientRect();const viewport=document.querySelector('[data-stop-list-scroll]').getBoundingClientRect();return r.top>=Math.max(0,viewport.top)&&r.bottom<Math.min(innerHeight-70,viewport.bottom)&&!img.src.includes('/reference-');}).map(img=>({rect:img.getBoundingClientRect().toJSON(),src:img.src})));
         assert.ok(planetBoxes.length>0,'complete planet images are visible after favourite reordering');
         const {PNG}=require('pngjs');
         const planetsPainted=PNG.sync.read(Buffer.from(await page.screenshot({path:'test/ui-previews/cosmos-planets-after-favorite-high-dpi.png'})));
