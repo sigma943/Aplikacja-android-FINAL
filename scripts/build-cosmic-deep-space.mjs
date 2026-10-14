@@ -19,7 +19,11 @@ for(const name of ['mars','mercury','saturn']){
   let svg=readFileSync(new URL(name+'.svg',root),'utf8');
   const [,width,height]=svg.match(/width="(\d+)" height="(\d+)"/).map(Number);
   const cx=name==='saturn'?278:256,cy=name==='saturn'?70:height/2,r=name==='saturn'?62:130;
-  const shade=`<defs><clipPath id="disc"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath><linearGradient id="night"><stop stop-color="#02050b" stop-opacity=".10"/><stop offset=".2" stop-color="#010207" stop-opacity=".8"/><stop offset=".45" stop-color="#000104" stop-opacity=".99"/></linearGradient></defs><circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#night)"/><circle cx="${cx+22}" cy="${cy-4}" r="${r-2}" fill="#000104" opacity=".98" clip-path="url(#disc)"/>`;
+  const shade=`<defs><clipPath id="disc"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath><linearGradient id="night"><stop stop-color="#02050b" stop-opacity=".10"/><stop offset=".2" stop-color="#010207" stop-opacity=".8"/><stop offset=".45" stop-color="#000104" stop-opacity=".99"/></linearGradient></defs><circle cx="${cx}" cy="${cy}" r="${r}" fill="#000104" opacity=".08"/><circle cx="${cx-27}" cy="${cy-4}" r="${r-2}" fill="#000104" opacity=".97" clip-path="url(#disc)"/>`;
   svg=svg.replace('<image ',`<image opacity="${name==='saturn'?'.52':'.78'}" `).replace('</svg>',shade+'</svg>');
+  if(name==='saturn'){
+    const contents=svg.slice(svg.indexOf('>')+1,svg.lastIndexOf('</svg>'));
+    svg=`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="300" viewBox="0 0 512 300"><g transform="translate(0 60) rotate(-24 256 85)">${contents}</g></svg>`;
+  }
   writeFileSync(fileURLToPath(new URL(`reference-${name}.svg`,root)),svg);
 }

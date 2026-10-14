@@ -141,7 +141,8 @@ export default function CosmicEffects(){
       const optionsOpen=active?.dataset.navItem==='options'||Boolean(document.querySelector('.pks-options-sheet'));
       const tab=optionsOpen?session.tab?.split(':',1)[0]||'root':active?.dataset.navItem||'root';
       const nextRegion=findRegion();
-      session.bind(`${tab}:tab`);
+      if(session.tab===null||session.tab==='root:tab')session.bind(`${tab}:tab`);
+      else if(!optionsOpen&&session.tab!==`${tab}:tab`)session.enter(`${tab}:tab`);
       // Active navigation may appear after startup; bind it without clearing
       // already created scenes. Subsequent epochs come exclusively from clicks.
       const theme=resolveAppTheme(readAppTheme());
