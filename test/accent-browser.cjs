@@ -611,6 +611,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[aria-label="Miękka poświata paneli"]',el=>el.checked),false);
     await page.$eval('[aria-label="Miękka poświata paneli"]',el=>el.click());
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow==='on');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-map-surface')).backdropFilter==='none');
     const glowBlur=await page.$eval('.pks-map-surface',el=>getComputedStyle(el).backdropFilter);
     await range('Siła miękkiej poświaty','End');
     await page.waitForFunction(()=>localStorage.getItem('mks_panel_glow_strength')==='100');
@@ -626,7 +627,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[aria-label="Kolor miękkiej poświaty"]',el=>el.value),'#8b5cf6');
     await page.$eval('[aria-label="Kolor poświaty: Turkusowy"]',el=>el.click());
 
-    assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).backdropFilter),glowBlur,'soft patches preserve glass');
+    assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).backdropFilter),glowBlur,'glowing panels keep ordinary painting without stale backdrop clipping');
     await sameChrome();
     for(const selector of ['[data-options-sheet]','.pks-navigation','.personal-group']){
       assert.match(await page.$eval(selector,el=>getComputedStyle(el).backgroundImage),/radial-gradient/,'glow reaches settings, cards and navigation');
