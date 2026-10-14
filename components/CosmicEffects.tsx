@@ -1,26 +1,25 @@
 'use client';
-import {useEffect,useRef} from 'react';
+import {useLayoutEffect,useRef} from 'react';
 import {Capacitor} from '@capacitor/core';
 import {App} from '@capacitor/app';
 import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {COSMIC_METEOR_DURATION,COSMIC_TWINKLE_INTERVAL,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
 
-import {COSMIC_DUST,cosmicSky,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicKeySeed,cosmicOrb,cosmicScene,cosmicListScene,cosmicVisitSession} from '@/lib/cosmic-scene';
+import {COSMIC_DUST,cosmicSky,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicOrb,cosmicScene,cosmicVisitSession} from '@/lib/cosmic-scene';
 
 let visitSession:ReturnType<typeof cosmicVisitSession>|null=null;
 
 /** Static artwork, slow independent twinkles and meteors clipped to space panels. */
 export default function CosmicEffects(){
   const streak=useRef<HTMLSpanElement>(null),field=useRef<HTMLDivElement>(null);
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     const root=document.documentElement,media=matchMedia('(prefers-reduced-motion: reduce)');
     let nativeActive=true,allowed=false,animation:Animation|null=null,disposed=false;
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
     const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
     const session=visitSession??=cosmicVisitSession(crypto.getRandomValues(new Uint32Array(1))[0]);
     const sky=cosmicSky();
-    let sequences=new WeakMap<Element,{previous?:ReturnType<typeof cosmicScene>;gap:number}>();
     const stars:Animation[]=[],placed=new WeakMap<Element,{epoch:number;key:string}>();
     const panelKey=(node:HTMLElement)=>{
       if(node.dataset.stopCardId)return `stop:${node.dataset.stopCardId}`;
@@ -28,32 +27,32 @@ export default function CosmicEffects(){
       if(node.classList.contains('admin-topbar'))return 'admin:topbar';
       if(node.classList.contains('pks-personal-panel'))return 'admin:sidebar';
       if(node.id)return `id:${node.id}`;
-      const path:string[]=[];
-      for(let element:Element|null=node;element&&element!==document.body;element=element.parentElement){
-        if(element.id){path.unshift(`#${element.id}`);break;}
-        const index=element.parentElement?[...element.parentElement.children].indexOf(element):0;
-        path.unshift(`${element.tagName}:${index}`);
+      const scope=node.closest<HTMLElement>('[data-cosmic-view]')?.dataset.cosmicView||'app';
+      const kind=[...node.classList].find(name=>/^(transit-|pks-|admin-|widget-)/.test(name))||node.tagName;
+      const heading=node.querySelector('h1,h2,h3,[aria-label]');
+      const label=(heading?.getAttribute('aria-label')||heading?.textContent||'').replace(/\s+/g,' ').trim();
+      return `${scope}:${kind}:${label}`;
+    };
+    const scopedKey=(node:HTMLElement)=>({key:panelKey(node),seed:undefined as string|undefined});
+    // Only user navigation starts a visit. Loading placeholders, added rows,
+    // Firebase snapshots, overlay mounts and animation frames never do.
+    const navigate=(event:Event)=>{
+      if(!(event.target instanceof Element))return;
+      const nav=event.target.closest<HTMLElement>('[data-nav-item]');
+      if(nav&&!nav.matches(':disabled')&&!nav.closest('.personal-preview-scene')){
+        const tab=nav.dataset.navItem;
+        if(tab&&tab!=='options')session.enter(`${tab}:tab`);
       }
-      return path.join('/');
     };
-    const scopedKey=(node:HTMLElement)=>{
-      const seed=node.closest<HTMLElement>('[data-cosmic-seed]')?.dataset.cosmicSeed;
-      return {seed,key:(seed?`scope:${seed}:`:'')+panelKey(node)};
-    };
+    document.addEventListener('click',navigate,true);
     const place=(node:HTMLElement)=>{
-      const card=node.classList.contains('transit-stop-card'),group=node.parentElement;
-      const sequence=card&&group?(sequences.get(group)||{gap:2}):undefined;
-      const {key,seed}=scopedKey(node);
+      const {key}=scopedKey(node);
       const scene=session.scene(key,nextSeed=>{
-        if(seed)nextSeed=cosmicKeySeed(Number(seed),panelKey(node));
-        const value=sequence?cosmicListScene(nextSeed,sequence.previous,sequence.gap):cosmicScene(nextSeed);
+        const value=cosmicScene(nextSeed,undefined,node.dataset.cosmicSlot===undefined?undefined:Number(node.dataset.cosmicSlot));
         if(node.classList.contains('pks-map-search-panel'))value.showPlanet=false;
+        if(node.classList.contains('transit-surface'))Object.assign(value,{planet:0,showPlanet:true,x:97,y:0,size:66,dust:0});
         return value;
       });
-      if(sequence&&group){
-        if(scene.showPlanet){sequence.previous=scene;sequence.gap=0;}else sequence.gap++;
-        sequences.set(group,sequence);
-      }
       node.style.setProperty('--cosmos-planet',scene.showPlanet?cosmicOrb(scene):'none');
       node.style.setProperty('--cosmos-planet-position',`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`);
       node.style.setProperty('--cosmos-planet-size',`${scene.size.toFixed(1)}px`);
@@ -61,7 +60,7 @@ export default function CosmicEffects(){
       node.style.setProperty('--cosmos-dust-position',`${scene.dustX}% ${scene.dustY}%`);
       node.style.setProperty('--cosmos-star-position',`${scene.starX}px ${scene.starY}px`);
       node.dataset.cosmicScene=key;
-      node.dataset.cosmicVisit=seed||String(session.epoch);
+      node.dataset.cosmicVisit=String(session.epoch);
       placed.set(node,{epoch:session.epoch,key});
       node.dataset.cosmicPlanet=scene.showPlanet?'on':'off';
       node.dataset.cosmicPlanetName=scene.sun?'sun':COSMIC_PLANET_NAMES[scene.planet];
@@ -70,13 +69,9 @@ export default function CosmicEffects(){
       const panels=[...(node.matches(COSMIC_PANEL_SELECTOR)?[node]:[]),...node.querySelectorAll(COSMIC_PANEL_SELECTOR)];
       for(const panel of panels){
         if(!(panel instanceof HTMLElement)||panel.hasAttribute('data-cosmic-owned'))continue;
-        // Admin chooses its visit seed before any panel may receive artwork.
-        // Otherwise loading first paints a global scene, then replaces it.
-        const adminScope=panel.closest<HTMLElement>('[data-cosmic-view^="admin:"]');
-        if(adminScope&&!adminScope.dataset.cosmicSeed)continue;
         const previous=placed.get(panel),scope=scopedKey(panel);
-        const identityChanged=Boolean(previous&&((panel.dataset.stopCardId||panel.dataset.cosmicPanel)?previous.key!==scope.key:scope.seed?!previous.key.startsWith(`scope:${scope.seed}:`):previous.key.startsWith('scope:')));
-        if(!previous||identityChanged||(!scope.seed&&previous.epoch!==session.epoch))place(panel);
+        const identityChanged=Boolean(previous&&(panel.dataset.stopCardId||panel.dataset.cosmicPanel)&&previous.key!==scope.key);
+        if(!previous||identityChanged||previous.epoch!==session.epoch)place(panel);
       }
     };
     const measure=()=>{
@@ -146,12 +141,9 @@ export default function CosmicEffects(){
       const optionsOpen=active?.dataset.navItem==='options'||Boolean(document.querySelector('.pks-options-sheet'));
       const tab=optionsOpen?session.tab?.split(':',1)[0]||'root':active?.dataset.navItem||'root';
       const nextRegion=findRegion();
-      const logical=[...document.querySelectorAll<HTMLElement>('[data-cosmic-view]')].find(node=>!node.closest('[aria-hidden="true"],[inert],.personal-preview-scene,.pks-options-sheet'));
-      // Loading, entrance animations and panel dimensions cannot start a visit.
-      const overlay=nextRegion?.matches('[data-carrier-sheet]')?'carriers':undefined;
-      const view=overlay||logical?.dataset.cosmicView||(nextRegion?.matches('.map-detail-shell')?'map-detail':'tab');
-      // Options cover the current view; they never begin or end its visit.
-      if(session.enter(`${tab}:${view}`,optionsOpen))sequences=new WeakMap();
+      session.bind(`${tab}:tab`);
+      // Active navigation may appear after startup; bind it without clearing
+      // already created scenes. Subsequent epochs come exclusively from clicks.
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
       if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',sky);discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');}
@@ -170,7 +162,7 @@ export default function CosmicEffects(){
     const native=Capacitor.isNativePlatform()?App.addListener('appStateChange',state=>{nativeActive=state.isActive;update();}):null;
     native?.catch(()=>{});
     return ()=>{
-      disposed=true;if(settle!==null)clearTimeout(settle);scheduler.stop();animation?.cancel();stopStars();observer.disconnect();
+      disposed=true;document.removeEventListener('click',navigate,true);if(settle!==null)clearTimeout(settle);scheduler.stop();animation?.cancel();stopStars();observer.disconnect();
       for(const event of ['storage','focus','pks-interface-appearance','pks-profile-applied'])window.removeEventListener(event,update);
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);

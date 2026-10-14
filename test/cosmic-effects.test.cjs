@@ -25,30 +25,28 @@ test('Kosmos replaces Aurora, stays black at first paint, survives backups and u
  const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<70000);assert.match(atlas,/id="sky-cloud"/);assert.ok((atlas.match(/<circle /g)||[]).length<=110);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
 });
 
-test('individual cosmic panels have diverse, stable seeded positions and eight real Solar System planets',()=>{
- const {cosmicScene,COSMIC_PLANETS,COSMIC_DUST}=load('lib/cosmic-scene.ts');assert.equal(COSMIC_PLANETS.length,8);assert.equal(COSMIC_DUST.length,4);
- const scenes=Array.from({length:100},(_,i)=>cosmicScene(i*931+77));assert.ok(new Set(scenes.map(s=>s.planet)).size>=5);assert.ok(new Set(scenes.map(s=>s.x.toFixed(0))).size>15);assert.ok(new Set(scenes.map(s=>s.y.toFixed(0))).size>15);assert.ok(scenes.filter(s=>s.showPlanet).length>=50&&scenes.filter(s=>s.showPlanet).length<=85);assert.deepEqual(cosmicScene(77),cosmicScene(77));
- for(const scene of scenes){assert.ok(scene.x>=48&&scene.x<=90);assert.ok(scene.y>=64&&scene.y<=88);assert.ok(scene.size>=36&&scene.size<=84);}
-});
-
-test('successive visible planet scenes cannot align in one column or repeat their planet family',()=>{
- const {cosmicScene}=load('lib/cosmic-scene.ts');let previous=cosmicScene(11);
- for(let i=0;i<100;i++){const scene=cosmicScene(127*i+79,previous);assert.ok(Math.abs(scene.x-previous.x)>=22);assert.notEqual(scene.planet,previous.planet);previous=scene;}
-});
-
-test('stop lists leave one to two quiet cards between small planets for every session seed',()=>{
- const {cosmicListScene}=load('lib/cosmic-scene.ts');
- for(let seed=0;seed<40;seed++){
-  let previous,gap=2,last=-1,count=0;
-  for(let i=0;i<60;i++){
-   const scene=cosmicListScene(seed*941+i*127,previous,gap);
-   if(scene.showPlanet){
-    if(last>=0){assert.ok(i-last>=2&&i-last<=3);assert.ok(Math.abs(scene.x-previous.x)>=22);assert.notEqual(scene.planet,previous.planet);}
-    previous=scene;gap=0;last=i;count++;
-   }else gap++;
-  }
-  assert.ok(count>=20&&count<=30);
+test('reference compositions reserve the right side and keep each object in its authored slot',()=>{
+ const {cosmicScene}=load('lib/cosmic-scene.ts');
+ const scenes=[0,1,2,3].map(slot=>cosmicScene(123,undefined,slot));
+ assert.deepEqual(scenes.map(s=>[s.planet,s.x,s.y,s.showPlanet]),[[3,74,5,true],[5,71,56,true],[0,73,95,true],[2,76,68,false]]);
+ for(let seed=0;seed<100;seed++){
+  const scene=cosmicScene(seed);assert.ok(scene.x>=71&&scene.x<=76);assert.ok(scene.size>=64&&scene.size<=90);
+  assert.deepEqual(scene,cosmicScene(seed));
  }
+});
+
+test('loading, recreated nodes and discovery order cannot reroll identity-based scenes',()=>{
+ const {cosmicScene,cosmicVisitSession}=load('lib/cosmic-scene.ts');
+ const session=cosmicVisitSession(731);session.bind('root:tab');
+ const first=session.scene('panel:stops-header',cosmicScene),epoch=session.epoch;
+ session.bind('stops:tab');assert.equal(session.epoch,epoch);
+ assert.strictEqual(session.scene('panel:stops-header',cosmicScene),first);
+ const keys=['stop:a','stop:b','stop:c'];
+ const original=keys.map(key=>session.scene(key,cosmicScene));
+ for(let i=0;i<100;i++)for(const key of [...keys].reverse())assert.strictEqual(session.scene(key,cosmicScene),original[keys.indexOf(key)]);
+ assert.equal(session.epoch,epoch);
+ session.enter('map:tab');session.enter('stops:tab');
+ assert.notDeepEqual(session.scene('stop:a',cosmicScene),original[0]);
 });
 
 test('all eight planet photographs are packaged locally for offline Android use',()=>{
@@ -91,7 +89,7 @@ test('cosmic nebulae contain fine stars without oversized cross shapes, and depa
   assert.doesNotMatch(svg,/<filter|<animate|href="https?:/);
  }
 
- for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.ok([...COSMIC_PLANETS,COSMIC_SUN].includes(style['--cosmos-planet']));assert.equal(style['--cosmos-planet-size'],'48px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
+ for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.match(style['--cosmos-planet'],/reference-(mars|saturn|mercury)\.svg/);assert.equal(style['--cosmos-planet-size'],'48px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
  const {COSMIC_STAR_POSITIONS,COSMIC_TWINKLE_INTERVAL}=load('lib/cosmic-effects.ts');assert.ok(COSMIC_STAR_POSITIONS.length<=4);assert.ok(COSMIC_TWINKLE_INTERVAL>=9000);
 });
 

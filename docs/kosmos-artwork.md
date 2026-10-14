@@ -31,3 +31,16 @@ Local Hubble photographs replace the drawn galaxy spirals and nebula stripes:
 `scripts/build-cosmic-deep-space.mjs` embeds the original downloaded PNGs into
 four SVG compositions with soft masks and low opacity. No filters, network
 requests, animation loops or image blending are needed at runtime.
+
+
+## Reference compositions and navigation algorithm
+
+The theme uses four authored slots matching the supplied screenshot: a small
+upper-right crescent, a ringed planet with a lower-right galaxy, a low crescent,
+and a quiet nebula. Stops use their initial slot modulo four and stable stop ID;
+filtering or asynchronous insertion does not replace a cached composition.
+Vector shadows over the existing NASA planet sprites provide restrained phases.
+The theme creates no new random seed from a loading screen, DOM mutation,
+Firebase snapshot, modal mount or layout animation. Only actual tab clicks start
+a new visit. Startup binds the navigation name without clearing existing scenes.
+The map retains its fixed seed across navigation and app restarts.

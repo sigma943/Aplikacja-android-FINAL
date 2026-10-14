@@ -176,9 +176,9 @@ const server=http.createServer((req,res)=>{
 
         const scenes=await page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>({planet:el.dataset.cosmicPlanet==='on',size:parseFloat(el.style.getPropertyValue('--cosmos-planet-size'))})));
         assert.ok(scenes.length>3);
-        assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length/2),'planets occupy up to half of stop cards');
-        assert.ok(scenes.every(scene=>scene.size>=36&&scene.size<=84),'small planets fit mobile cards');
-        for(let i=0;i<scenes.length;i++)if(scenes[i].planet)assert.ok(!scenes[i+1]?.planet,'one quiet card follows each planet');
+        assert.ok(scenes.filter(scene=>scene.planet).length<=Math.ceil(scenes.length*.75),'one quiet composition in each four reference cards');
+        assert.ok(scenes.every(scene=>scene.size>=64&&scene.size<=90),'small planets fit mobile cards');
+        for(let i=3;i<scenes.length;i+=4)assert.equal(scenes[i].planet,false,'every fourth reference card remains quiet');
         const saved=await page.evaluate(()=>{
           const appearance=localStorage.getItem('mks_interface_appearance_v1'),glass=localStorage.getItem('mks_transparent'),glow=localStorage.getItem('mks_panel_glow');
           localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({...JSON.parse(appearance||'{}'),density:'spacious',textScale:120,glassOpacity:35,glassBlur:28}));
@@ -198,7 +198,7 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.documentElement.dataset.personalDensity==='comfortable');
         const captureCosmic=()=>page.$$eval('.transit-stop-card[data-cosmic-scene]',els=>els.map(el=>{
           let hash=2166136261;const dust=el.style.getPropertyValue('--cosmos-dust');for(let i=0;i<dust.length;i++)hash=Math.imul(hash^dust.charCodeAt(i),16777619)>>>0;
-          return {id:el.dataset.stopCardId,visit:el.dataset.cosmicVisit,art:[el.dataset.cosmicPlanet,el.dataset.cosmicPlanetName,el.style.getPropertyValue('--cosmos-planet-position'),el.style.getPropertyValue('--cosmos-planet-size'),el.style.getPropertyValue('--cosmos-dust-position'),hash].join('|')};
+          return {id:el.dataset.stopCardId,visit:el.dataset.cosmicVisit,art:[el.dataset.cosmicPlanet,el.dataset.cosmicPlanetName,el.style.getPropertyValue('--cosmos-planet-position'),el.style.getPropertyValue('--cosmos-planet-size'),el.style.getPropertyValue('--cosmos-dust-position'),el.style.getPropertyValue('--cosmos-star-position'),hash].join('|')};
         }));
         assert.ok(await page.$$eval('.transit-stop-card',nodes=>nodes.every(node=>{
           const style=getComputedStyle(node),rect=node.getBoundingClientRect();

@@ -27,30 +27,25 @@ export const COSMIC_SUN=url('<svg xmlns="http://www.w3.org/2000/svg" width="96" 
 export const COSMIC_PLANET_NAMES = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'] as const;
 export const COSMIC_PLANETS = COSMIC_PLANET_NAMES.map(name => `url("/themes/kosmos/${name}.svg")`);
 
-export function cosmicScene(seed: number, previous?: {x: number; planet: number}) {
-  const r = cosmicRandom(seed);
-  const scene = {
-    planet: Math.floor(r() * COSMIC_PLANETS.length), showPlanet: r() > .35,
-    x: (r() < .5 ? 48 : 80) + r() * 10, y: 64 + r() * 24, size: 36 + r() * 48,
-    dust: Math.floor(r() * COSMIC_DUST.length), dustX: 50, dustY: 65, sun:false, starX:Math.floor(r()*480), starY:Math.floor(r()*480),
+/** Four authored compositions matching the reference; randomness chooses a
+ * composition and planet family, never arbitrary coordinates or DOM order. */
+export function cosmicScene(seed: number, _previous?: {x: number; planet: number}, slot?:number) {
+  const r = cosmicRandom(seed), layout = slot===undefined?Math.floor(r()*4):Math.abs(slot)%4;
+  const positions = [{x:74,y:5,size:66},{x:71,y:56,size:90},{x:73,y:95,size:70},{x:76,y:68,size:64}];
+  return {
+    ...positions[layout], planet: [3,5,0,2][layout], showPlanet: layout !== 3,
+    dust: layout, dustX:50, dustY:50, sun:false,
+    starX:Math.floor(r()*480), starY:Math.floor(r()*480),
   };
-  if (previous) {
-    // Alternate the lower middle and outer edge, away from titles and favourite icons.
-    if (Math.abs(scene.x - previous.x) < 22) scene.x = previous.x > 69 ? 48 + r() * 10 : 80 + r() * 10;
-    if (scene.planet === previous.planet) scene.planet = (scene.planet + 1 + Math.floor(r() * (COSMIC_PLANETS.length - 1))) % COSMIC_PLANETS.length;
-  }
-  return scene;
 }
 
-/** Small planets on alternating cards, with at most two quiet cards in a row. */
-export function cosmicListScene(seed: number, previous?: ReturnType<typeof cosmicScene>, gap = 2) {
-  const scene = cosmicScene(seed, previous);
-  scene.showPlanet = gap >= 1 && (scene.showPlanet || gap >= 2);
-  return scene;
+/** Identity-based scenes are unaffected by filtering or asynchronous row order. */
+export function cosmicListScene(seed: number, _previous?: ReturnType<typeof cosmicScene>, _gap = 2) {
+  return cosmicScene(seed);
 }
 
 export const COSMIC_PANEL_SELECTOR = '.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-panel,.pks-personal-card,.pks-option-card,.widget-generator';
-export function cosmicOrb(scene:ReturnType<typeof cosmicScene>){return scene.sun?COSMIC_SUN:COSMIC_PLANETS[scene.planet];}
+export function cosmicOrb(scene:ReturnType<typeof cosmicScene>){return `url("/themes/kosmos/reference-${scene.planet===5?'saturn':scene.planet===3?'mars':'mercury'}.svg")`;}
 
 /** React-owned panels keep these exact styles throughout one mounted visit. */
 export function cosmicPanelStyle(seed:number,departures=false){
@@ -62,7 +57,7 @@ export function cosmicPanelStyle(seed:number,departures=false){
     '--cosmos-dust':COSMIC_DUST[scene.dust],
     '--cosmos-dust-position':`${scene.dustX}% ${scene.dustY}%`,
     '--cosmos-star-position':`${scene.starX}px ${scene.starY}px`,
-    '--cosmos-secondary-orb':seed%7===0?COSMIC_SUN:COSMIC_PLANETS[(scene.planet+3)%COSMIC_PLANETS.length],
+    '--cosmos-secondary-orb':cosmicOrb(cosmicScene(seed+701)),
   };
 }
 
@@ -74,10 +69,11 @@ export function cosmicKeySeed(seed:number,key:string){
 
 /** A visit belongs to an actual navigation tab, never to a DOM node or refresh. */
 export function cosmicVisitSession(seed:number){
-  let tab:string|null=null,epoch=0;
+  let tab:string|null=null,epoch=1;
   const scenes=new Map<string,ReturnType<typeof cosmicScene>>();
   return {
     get tab(){return tab;},get epoch(){return epoch;},
+    bind(next:string){if(tab===null||tab==='root:tab')tab=next;},
     enter(next:string,overlay=false){if(overlay||next===tab)return false;tab=next;epoch++;scenes.clear();return true;},
     scene(key:string,create:(seed:number)=>ReturnType<typeof cosmicScene>){
       let scene=scenes.get(key);
