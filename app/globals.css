@@ -798,7 +798,7 @@ html[data-cosmic-theme='on'] :is(.pks-map-search-panel,.map-detail-shell,.pks-na
   background-size:100% 100%,auto,100% 100%,var(--cosmos-scene-size,cover);
   background-position:center,center,center,var(--cosmos-scene-position,center);
   background-repeat:no-repeat; background-attachment:fixed;
-  filter:blur(var(--cosmos-glass-blur)); clip-path:inset(0 round 16px);
+  filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)); clip-path:inset(0 round 16px);
 }
 html[data-cosmic-theme='on'] [data-cosmic-panel='stop-departures'] { min-height:160px; }
 html[data-cosmic-theme='on'] .transit-stop-card > div:first-child { background-color:var(--ui-surface); border-color:var(--ui-edge); }
