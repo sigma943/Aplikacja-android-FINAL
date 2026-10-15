@@ -961,3 +961,24 @@ html[data-cosmic-theme='on'] .pks-options-sheet::before {
 html[data-cosmic-glass='off'] .pks-options-sheet::before { content:none; }
 /* A map can never acquire animated stars through any open overlay. */
 .pks-theme-root[data-cosmic-tab='map'] [data-cosmic-effects] { display:none !important; }
+
+/* Explicit paint clipping prevents moving frosted cards from leaving rectangular
+   GPU tiles behind in Android WebView. Keep the position/favourite animation. */
+.transit-stop-card {
+  position:relative; isolation:isolate; overflow:hidden;
+  clip-path:inset(0 round 20px);
+}
+html[data-personal-card-radius='true'] .transit-stop-card { clip-path:inset(0 round var(--personal-card-radius)); }
+.transit-stop-card:focus-visible { outline-offset:-3px; }
+/* A single bounded sky belongs to the neutral detail surface only. Carrier
+   headers and semantic line badges keep their own untextured colour fills. */
+html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(.map-detail-shell[data-map-detail-kind='stop'],.map-detail-shell[data-map-detail-kind='bus'] .map-detail-body) {
+  background-color:#080d1d !important;
+  background-image:linear-gradient(110deg,rgba(4,8,22,.84),rgba(4,8,22,.67)),url('/themes/kosmos/nebula.jpg') !important;
+  background-size:100% 100%,cover !important;
+  background-position:center,var(--map-cosmos-crop,50% 50%) !important;
+  background-repeat:no-repeat !important; background-attachment:scroll !important;
+}
+html[data-cosmic-theme='on'] .map-detail-shell .map-detail-row {
+  background-color:rgba(7,12,29,.83) !important; background-image:none !important;
+}

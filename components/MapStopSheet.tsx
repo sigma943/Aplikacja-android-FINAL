@@ -2,7 +2,8 @@
 
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import { Clock, ChevronUp } from 'lucide-react';
-import { motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion, type MotionStyle } from 'motion/react';
+import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {useEffect,useState} from 'react';
 import {useSheetGesture,SHEET_SPRING} from '@/lib/use-sheet-gesture';
 
@@ -40,6 +41,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
     <motion.section
       aria-label="Przystanek na mapie"
       data-map-stop-sheet={preview?undefined:true}
+      data-map-detail-kind="stop"
       data-cosmic-view={preview?undefined:`map-stop:${name}:${code||''}`}
       data-expanded={expanded}
       data-glass={transparent ? 'on' : 'off'}
@@ -49,7 +51,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
       exit={{ y: '100%', opacity: 0 }}
       transition={reduceMotion ? {duration: 0} : SHEET_SPRING}
       className="map-stop-sheet map-detail-shell absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-2 right-2 z-40 flex min-h-0 flex-col overflow-hidden rounded-[24px] border md:bottom-4 md:left-4 md:right-auto md:w-[380px]"
-      style={{height:drag.height}}
+      style={{height:drag.height,'--map-cosmos-crop':mapCosmicCrop(`stop:${name}:${code||''}`)} as MotionStyle}
     >
       <motion.button
         type="button"

@@ -162,3 +162,10 @@ export function cosmicScreenSession(seed:number){
     },
   };
 }
+
+/** Stable crop for a map sheet; live data updates never change its decoration. */
+export function mapCosmicCrop(identity:string){
+  let hash=2166136261;
+  for(const letter of identity)hash=Math.imul(hash^letter.charCodeAt(0),16777619);
+  return `${20+(hash>>>0)%61}% ${15+((hash>>>8)%71)}%`;
+}

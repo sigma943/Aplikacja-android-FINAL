@@ -28,7 +28,7 @@ const server=http.createServer((req,res)=>{
       window.Date=class extends Original {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
     });
     await page.setRequestInterception(true);
-    let showFixtureBus=false, showMarcel=false;
+    let showFixtureBus=false, showMarcel=false, previewTiles=false;
     const marcelRoad=require('./fixtures/marcel-jaslo-rzeszow-1181798.json');
     const {decodePolyline}=require('./load-ts.cjs')('lib/bus-road-geometry.ts');
     let marcelSecondary=0;
@@ -40,6 +40,7 @@ const server=http.createServer((req,res)=>{
     page.on('request',async request=>{
       const url=request.url();
       const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
+      if(previewTiles&&url.startsWith('https://mt1.google.com/vt/'))return request.respond({status:200,contentType:'image/svg+xml',headers:{'cache-control':'no-store'},body:fs.readFileSync(path.join(root,'preview-map-test.svg'))});
       if(url.includes('stop-point-timetable'))return json({success:true,items:[{line_name:'108',description:'Rzeszów',journeys:[{journey_id:1,time:'14:21',stop_point_code:'69',legends:['D']}]}]});
       if(url.includes('/pks/get_vehicles.php'))return json(showFixtureBus?[fixtureBus]:[]);
       if(url.endsWith('/api/pks/vehicles'))return json({items:[]});
@@ -172,7 +173,9 @@ const server=http.createServer((req,res)=>{
         for(const [tab,name] of [['Przystanek','stop'],['Autobus','bus']]){
           await page.$eval(`[aria-label="Podgląd: ${tab}"]`,el=>el.click());
           await page.waitForSelector('[data-interface-preview] .map-detail-shell');
-          assert.ok(await page.$eval('[data-interface-preview] .map-detail-shell',el=>!getComputedStyle(el).backgroundImage.includes('nebula.jpg')),'map detail glass never paints the photographic sky');
+          const artSelector=tab==='Przystanek'?'[data-map-detail-kind="stop"]':'[data-map-detail-kind="bus"] .map-detail-body';
+          assert.ok(await page.$eval('[data-interface-preview] '+artSelector,el=>getComputedStyle(el).backgroundImage.includes('nebula.jpg')),'one bounded nebula decorates the neutral map sheet surface');
+          assert.ok(await page.$$eval('[data-interface-preview] [data-vehicle-header], [data-interface-preview] [data-departure-row] span[style]',els=>els.every(el=>!getComputedStyle(el).backgroundImage.includes('nebula.jpg'))),'carrier headers and line badges keep their semantic colours without cosmic textures');
           assert.equal(await page.$eval('[data-interface-preview] .map-detail-shell',el=>getComputedStyle(el,'::before').content),'none','map details have no duplicated sky layer');
           assert.equal(await page.evaluate(()=>document.documentElement.dataset.cosmicMotion),'off','detail sheets on the map cannot enable star animations');
           await page.$eval('[data-interface-preview]',el=>el.scrollIntoView({block:'center'}));
@@ -465,6 +468,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[data-stop-list-mode="preview"]',el=>el.closest('[aria-hidden]').getAttribute('aria-hidden')),'false','second Back closes only the full list');
     await new Promise(resolve=>setTimeout(resolve,650));
     await page.$eval('[data-stop-list-scroll]',el=>{el.scrollTop=0;});
+    assert.ok(await page.$$eval('.transit-stop-card',cards=>cards.every(card=>{const style=getComputedStyle(card);return style.isolation==='isolate'&&style.overflow==='hidden'&&style.clipPath.startsWith('inset(');})), 'moving glass cards have their own rounded paint boundary');
     const favorite=await page.evaluate(()=>{const card=document.querySelectorAll('[data-stop-card-id]')[2];return {id:card.dataset.stopCardId,top:card.getBoundingClientRect().top};});
     await page.evaluate(id=>document.querySelector(`[data-stop-card-id="${id}"] [aria-label="Dodaj do ulubionych"]`).click(),favorite.id);
     await page.waitForFunction(id=>{const card=document.querySelector(`[data-stop-card-id="${id}"]`);return card.style.transform&&card.style.transform!=='none';},{},favorite.id);
@@ -605,23 +609,23 @@ const server=http.createServer((req,res)=>{
     };
     await sameChrome();
     await page.waitForSelector('[data-interface-preview] [data-preview-map]');
-    await page.evaluate(()=>{
-      const canvas=document.querySelector('[data-map-canvas]'),host=canvas.querySelector('.leaflet-tile-pane')||canvas,pane=document.createElement('div');if(host===canvas)pane.className='leaflet-tile-pane';pane.dataset.previewTest='true';pane.style.filter='brightness(0.8)';
-      const a=canvas.getBoundingClientRect(),b=host.getBoundingClientRect();Object.assign(pane.style,{position:'absolute',left:`${a.left-b.left}px`,top:`${a.top-b.top}px`,width:'512px',height:'900px'});
-      const image=new Image();image.className='leaflet-tile-loaded';image.src='/preview-map-test.svg';Object.assign(image.style,{width:'512px',height:'900px',position:'absolute',left:'0',top:'0'});pane.append(image);host.append(pane);
-    });
-    await page.waitForFunction(()=>document.querySelector('[data-preview-test] img')?.naturalWidth>0);
+    previewTiles=true;
+    await page.setCacheEnabled(false);
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pokaż podgląd').click());
     await page.waitForSelector('[data-preview-map="tiles"] img');
-    assert.ok(await page.$eval('[data-preview-map] img',img=>{const a=img.getBoundingClientRect(),b=img.closest('[data-preview-map]').getBoundingClientRect();return a.width>0&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;}),'copied map tiles actually intersect the miniature viewport');
-    assert.ok(await page.$eval('[data-preview-map] img',img=>getComputedStyle(img).filter.includes('brightness(0.8)')),'copied tiles retain colour filters from their map layers');
+    await page.waitForFunction(()=>[...document.querySelectorAll('[data-preview-tile]')].every(img=>img.complete&&img.naturalWidth>0));
+    const previewTilesLayout=await page.$$eval('[data-preview-tile]',images=>images.map(img=>({x:parseFloat(img.style.left),y:parseFloat(img.style.top),size:parseFloat(img.style.width),url:img.src})));
+    assert.ok(previewTilesLayout.length>=4&&previewTilesLayout.length<=9,'preview loads only its small street fragment');
+    for(const tile of previewTilesLayout){assert.equal(tile.size,256);assert.equal(new URL(tile.url).searchParams.get('z'),'15');}
+    assert.ok(await page.$eval('[data-preview-tile]',img=>getComputedStyle(img.parentElement).filter.includes('invert(1)')),'map preview uses the same dark filter as the map');
     assert.equal(await page.$eval('[data-preview-vehicle-number]',el=>el.textContent),'87');
     assert.equal(await page.$eval('[data-preview-delay]',el=>el.textContent),'+2');
+    assert.equal(await page.$$eval('[data-interface-preview] svg[data-bus-glyph] text',els=>els.map(el=>el.textContent).join('')),'108','preview has only the sample line, never a live 228');
     assert.equal(await page.$$eval('[data-interface-preview] .leaflet-control-attribution',els=>els.length),0,'provider credit stays outside the miniature');
     await page.waitForSelector('[data-preview-map-sources]');
     await page.screenshot({path:'test/ui-previews/preview-map-tiles-visible.png'});
-    await page.evaluate(()=>document.querySelector('[data-preview-test]').remove());
+    previewTiles=false;
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pokaż podgląd').click());
     await page.waitForSelector('[data-preview-map="sample"]');

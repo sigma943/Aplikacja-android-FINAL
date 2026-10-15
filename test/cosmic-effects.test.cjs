@@ -191,3 +191,11 @@ test('planet scenes cover the screen, offer 2/3/4 bodies and a strong near-to-fa
  }
  assert.deepEqual([...counts].sort(),[2,3,4]);assert.ok(cells.size>=20,'dominant planets are not locked to two bands');
 });
+
+test('map-sheet sky crops stay stable for data refreshes and vary between selected objects',()=>{
+ const {mapCosmicCrop}=load('lib/cosmic-scene.ts');
+ assert.equal(mapCosmicCrop('bus:87'),mapCosmicCrop('bus:87'));
+ const crops=Array.from({length:100},(_,i)=>mapCosmicCrop('stop:'+i));
+ assert.ok(new Set(crops).size>80);
+ for(const crop of crops){const [x,y]=crop.split(' ').map(parseFloat);assert.ok(x>=20&&x<=80&&y>=15&&y<=85);}
+});
