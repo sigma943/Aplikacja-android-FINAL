@@ -65,8 +65,8 @@ export default function CosmicEffects(){
         point.style.left=positions[i][0]+'%';point.style.top=positions[i][1]+'%';
         const duration=COSMIC_TWINKLE_INTERVAL+Math.random()*13000;
         stars.push(point.animate([
-          {opacity:.035},{opacity:.34,offset:.12},{opacity:.08,offset:.21},
-          {opacity:.52,offset:.29},{opacity:.06,offset:.43},{opacity:.13,offset:.7},{opacity:.035},
+          {opacity:0,transform:'scale(.6)'},{opacity:.8,transform:'scale(1.3)',offset:.12},{opacity:.12,offset:.21},
+          {opacity:.95,transform:'scale(1)',offset:.29},{opacity:0,offset:.43},{opacity:0,offset:.7},{opacity:0,transform:'scale(.6)'},
         ],{duration,delay:-Math.random()*duration,iterations:Infinity,easing:'ease-in-out'}));
       });
     };
@@ -106,8 +106,8 @@ export default function CosmicEffects(){
       animation?.cancel();
       animation=streak.current.animate([
         {opacity:0,transform:'translate3d(0,0,0) rotate(-35deg)'},
-        {opacity:.65,transform:'translate3d(-18px,13px,0) rotate(-35deg)',offset:.16},
-        {opacity:.45,transform:'translate3d(-105px,74px,0) rotate(-35deg)',offset:.72},
+        {opacity:.95,transform:'translate3d(-18px,13px,0) rotate(-35deg)',offset:.16},
+        {opacity:.8,transform:'translate3d(-105px,74px,0) rotate(-35deg)',offset:.72},
         {opacity:0,transform:'translate3d(-150px,105px,0) rotate(-35deg)'},
       ],{duration:COSMIC_METEOR_DURATION*(.75+Math.random()*.5),easing:'linear'});
     },{set:(fn,ms)=>setTimeout(fn,ms),clear:id=>clearTimeout(id)});
@@ -126,6 +126,7 @@ export default function CosmicEffects(){
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
       try{root.dataset.cosmicGlass=localStorage.getItem('mks_transparent')==='false'?'off':'on';}catch{root.dataset.cosmicGlass='on';}
       let parallaxPreference=false;try{parallaxPreference=localStorage.getItem(COSMIC_PARALLAX_KEY)==='true';}catch{}
+      root.style.setProperty('--cosmos-clear-veil',!appearance.glassBlurEnabled||appearance.glassBlur===0?'rgba(4,8,22,.56)':'transparent');
       root.style.setProperty('--cosmos-veil-alpha',String(appearance.glassOpacity/100*.42));
       root.style.setProperty('--cosmos-sheen-alpha',String(appearance.borderStrength/100*.35));
       root.style.setProperty('--cosmos-glint-alpha',root.dataset.cosmicGlass==='off'||appearance.cardStyle==='flat'?'0':String(appearance.borderStrength/300));
@@ -160,7 +161,7 @@ export default function CosmicEffects(){
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);
       native?.then(handle=>handle.remove()).catch(()=>{});
-      for(const key of [...Object.keys(cosmicBackdropStyle(session.scene)),'--cosmos-glint-alpha','--cosmos-veil-alpha','--cosmos-sheen-alpha'])root.style.removeProperty(key);
+      for(const key of [...Object.keys(cosmicBackdropStyle(session.scene)),'--cosmos-glint-alpha','--cosmos-clear-veil','--cosmos-veil-alpha','--cosmos-sheen-alpha'])root.style.removeProperty(key);
       delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;delete root.dataset.cosmicGlass;root.style.removeProperty('--theme-decoration');for(const key of ['--cosmos-scene-image','--cosmos-scene-size','--cosmos-scene-position','--cosmos-viewport-width','--cosmos-viewport-height'])root.style.removeProperty(key);
     };
   },[host]);

@@ -38,3 +38,13 @@ test('appearance attributes and variables are removed when the application unmou
  assert.equal(attrs.get('data-personal-layout'),'inline');assert.equal(attrs.get('data-personal-pattern'),'dots');assert.equal(attrs.get('data-personal-nav'),'halo');assert.equal(attrs.get('data-personal-contrast'),'strong');
  cleanup();assert.equal(attrs.size,0);assert.equal(styles.size,0);
 });
+
+
+test('blur switch survives serialization, keeps its radius, and defaults on for older backups',()=>{
+ assert.equal(normalizeInterfaceAppearance({glassBlur:12}).glassBlurEnabled,true);
+ assert.equal(normalizeInterfaceAppearance({glassBlurEnabled:'false'}).glassBlurEnabled,true);
+ const disabled=normalizeInterfaceAppearance(JSON.parse(JSON.stringify({...DEFAULT_INTERFACE_APPEARANCE,glassBlur:24,glassBlurEnabled:false})));
+ assert.equal(disabled.glassBlur,24);assert.equal(disabled.glassBlurEnabled,false);
+ assert.equal(interfaceAppearanceVariables(disabled,true,'#00a3a2',false)['--personal-blur'],'0px');
+ assert.equal(interfaceAppearanceVariables({...disabled,glassBlurEnabled:true},true,'#00a3a2',false)['--personal-blur'],'24px');
+});

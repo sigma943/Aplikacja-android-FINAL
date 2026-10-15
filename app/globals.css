@@ -882,7 +882,7 @@ html[data-personal-card-style='flat'] .pks-theme-root[data-ui-theme='dark-cosmos
 /* Kosmos has its own layered optical material. Its density, frost and rim still
    follow the saved appearance controls; no celestial images are painted on cards. */
 html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
-  --cosmos-material:linear-gradient(155deg,rgba(var(--cosmos-light-rgb,111,162,255),var(--cosmos-sheen-alpha,.05)),transparent 35%),linear-gradient(115deg,rgba(4,8,22,var(--cosmos-veil-alpha,.19)),rgba(4,8,22,0) 65%,rgba(4,8,22,var(--cosmos-veil-alpha,.19)));
+  --cosmos-material:linear-gradient(var(--cosmos-clear-veil,transparent),var(--cosmos-clear-veil,transparent)),linear-gradient(155deg,rgba(var(--cosmos-light-rgb,111,162,255),var(--cosmos-sheen-alpha,.05)),transparent 35%),linear-gradient(115deg,rgba(4,8,22,var(--cosmos-veil-alpha,.19)),rgba(4,8,22,0) 65%,rgba(4,8,22,var(--cosmos-veil-alpha,.19)));
 }
 html[data-cosmic-theme='on'] .pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-card,.transit-surface,.pks-options-sheet,.pks-option-card,.pks-personal-card,.admin-topbar,[data-cosmic-panel]) {
   border-color:var(--ui-edge);
@@ -907,3 +907,31 @@ html[data-cosmic-theme='on'] [data-cosmic-pending] {
 .cosmic-loading-cards i { display:block; width:78%; height:12px; border-radius:8px; background:#293047; }
 .cosmic-loading-cards i+i { width:50%; height:8px; margin-top:14px; background:#202639; }
 html[data-personal-card-style='flat'] .pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-card,.pks-personal-card,.pks-option-card,[data-interface-card]) { box-shadow:none !important; }
+
+/* Clear chrome: a quiet optical tint instead of a second, blurred photograph. */
+html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(.pks-map-search-panel,.pks-navigation) {
+  background-color:color-mix(in srgb,var(--ui-surface) 35%,#080d1d 65%) !important;
+  background-image:linear-gradient(120deg,rgba(var(--cosmos-light-rgb,111,162,255),.08),transparent 58%),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
+  background-size:100% 100%,auto !important; background-position:center !important; background-attachment:scroll !important;
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+  box-shadow:var(--personal-shadow,0 8px 28px #0002),inset 0 1px 0 var(--ui-edge) !important;
+}
+html[data-cosmic-theme='on'] :is(.pks-map-search-panel,.pks-navigation)::before { content:none !important; }
+html[data-cosmic-theme='on'] .pks-map-search-panel input {
+  background:rgb(3 7 18 / 55%) !important; border:1px solid var(--ui-edge); color:#f3f1ff !important;
+}
+html[data-cosmic-theme='on'] .pks-map-search-panel input::placeholder { color:#bec6da !important; opacity:1; }
+/* Optical accents sit above the frost, below dialogs, and never intercept input.
+   Screen blending keeps white text intact while making short glints visible. */
+html[data-cosmic-theme='on'] [data-cosmic-effects] { z-index:30; mix-blend-mode:screen; }
+[data-cosmic-star] { width:9px; height:9px; background:radial-gradient(circle,#fff 0 8%,#cfddffb3 12%,#a4bfff55 28%,transparent 68%); }
+[data-cosmic-star]:nth-child(3n) { width:7px; height:7px; }
+[data-cosmic-star]::after { content:''; position:absolute; inset:4px 0; background:linear-gradient(90deg,transparent,#dde9ffbb,transparent); }
+[data-cosmic-meteor] { width:116px; height:2px; background:linear-gradient(90deg,#fff,#c2d4ffbb 25%,#a597ff55 58%,transparent); box-shadow:0 0 5px #b3cbff33; }
+[data-cosmic-meteor]::before { top:-1.5px; width:4px; height:4px; box-shadow:0 0 7px #dce8ff; }
+/* The global switch retains the blur radius. With sharp backgrounds, preserve
+   contrast by mixing a protective fill into translucent surfaces. */
+html[data-personal-frost='off']:not([data-cosmic-theme='on']) :is(.pks-glass,.pks-glass-frame,.pks-map-search-panel,.pks-navigation,.pks-options-sheet,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on'],.pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-option-card)) {
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+  background-color:color-mix(in srgb,var(--personal-glass) 45%,var(--personal-surface) 55%) !important;
+}

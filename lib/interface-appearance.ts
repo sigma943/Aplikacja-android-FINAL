@@ -17,7 +17,7 @@ export interface InterfaceAppearance {
   markerSize:number;markerLabel:'line'|'carrier'|'icon';
   panelRadius:number; cardRadius:number; controlRadius:number;
   borderStrength:number; shadowStrength:number;
-  glassOpacity:number; glassBlur:number; glassSaturation:number;
+  glassOpacity:number; glassBlur:number; glassBlurEnabled:boolean; glassSaturation:number;
   surfaceTint:'original'|'accent'|'warm'|'custom';
   panelColor:string; panelTintStrength:number; cardStyle:'original'|'soft'|'outlined'|'flat'; buttonStyle:'original'|'solid'|'outline';
   textScale:number; fontFamily:'system'|'sans'|'mono'; titleWeight:number;
@@ -34,7 +34,7 @@ export interface InterfaceAppearance {
 export const DEFAULT_INTERFACE_APPEARANCE:InterfaceAppearance={
   startScreen:'map',navOrder:[...NAV_ITEMS],departureView:'detailed',markerSize:100,markerLabel:'line',
   panelRadius:24,cardRadius:20,controlRadius:12,borderStrength:12,shadowStrength:30,
-  glassOpacity:64,glassBlur:18,glassSaturation:135,surfaceTint:'original',panelColor:'#64748b',panelTintStrength:35,cardStyle:'original',buttonStyle:'original',
+  glassOpacity:64,glassBlur:18,glassBlurEnabled:true,glassSaturation:135,surfaceTint:'original',panelColor:'#64748b',panelTintStrength:35,cardStyle:'original',buttonStyle:'original',
   textScale:100,fontFamily:'system',titleWeight:700,letterSpacing:0,tabularNumbers:true,
   density:'comfortable',iconSize:24,iconStroke:2,navLabels:true,navIndicator:'line',inactiveOpacity:100,
   reducedMotion:false,hoverHighlight:true,navLayout:'stacked',panelPattern:'none',patternStrength:12,textContrast:'standard',
@@ -53,7 +53,7 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
     departureView:choice('departureView',['simple','detailed']),markerSize:n('markerSize',80,140),markerLabel:choice('markerLabel',['line','carrier','icon']),
     panelRadius:n('panelRadius',0,36),cardRadius:n('cardRadius',0,30),controlRadius:n('controlRadius',0,24),
     borderStrength:n('borderStrength',0,40),shadowStrength:n('shadowStrength',0,100),
-    glassOpacity:n('glassOpacity',20,100),glassBlur:n('glassBlur',0,28),glassSaturation:135,
+    glassOpacity:n('glassOpacity',20,100),glassBlur:n('glassBlur',0,28),glassBlurEnabled:flag('glassBlurEnabled'),glassSaturation:135,
     surfaceTint:choice('surfaceTint',['original','accent','warm','custom']),panelColor:normalizeUiAccent(typeof v.panelColor==='string'?v.panelColor:d.panelColor),panelTintStrength:n('panelTintStrength',5,55),cardStyle:choice('cardStyle',['original','soft','outlined','flat']),buttonStyle:choice('buttonStyle',['original','solid','outline']),textScale:n('textScale',90,120),
     fontFamily:choice('fontFamily',['system','sans','mono']),titleWeight:n('titleWeight',500,800),letterSpacing:0,tabularNumbers:true,
     density:choice('density',['comfortable','compact','spacious']),iconSize:n('iconSize',18,30),iconStroke:n('iconStroke',1,3),
@@ -85,7 +85,7 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
     '--personal-shadow':`0 8px ${12+v.shadowStrength*.3}px rgba(0,0,0,${Math.min(v.shadowStrength,lightEffects?15:100)/400})`,
     '--personal-glass':`rgba(${bg.join(',')},${v.glassOpacity/100})`,
     '--personal-surface':`rgb(${bg.join(',')})`,
-    '--personal-blur':`${Math.min(v.glassBlur,lightEffects?6:28)}px`,'--personal-saturation':`${v.glassSaturation}%`,
+    '--personal-blur':`${v.glassBlurEnabled?Math.min(v.glassBlur,lightEffects?6:28):0}px`,'--personal-saturation':`${v.glassSaturation}%`,
     '--personal-title-weight':`${v.titleWeight}`,'--personal-letter-spacing':`${v.letterSpacing}px`,
     '--personal-font':v.fontFamily==='mono'?'ui-monospace, SFMono-Regular, Consolas, monospace':v.fontFamily==='sans'?'Arial, Helvetica, sans-serif':'system-ui, sans-serif',
     '--personal-icon-size':`${v.iconSize}px`,'--personal-icon-stroke':`${v.iconStroke}`,'--personal-inactive-opacity':`${v.inactiveOpacity/100}`,
@@ -105,7 +105,7 @@ export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,
   const attrs:Record<string,string>={
     radius:String(v.panelRadius!==defaults.panelRadius),cardRadius:String(v.cardRadius!==defaults.cardRadius),controlRadius:String(v.controlRadius!==defaults.controlRadius),
     border:String(v.borderStrength!==defaults.borderStrength),shadow:String(v.shadowStrength!==defaults.shadowStrength),
-    glass:String(v.glassOpacity!==defaults.glassOpacity||v.surfaceTint!=='original'),blur:String(v.glassBlur!==defaults.glassBlur||v.glassSaturation!==defaults.glassSaturation),
+    glass:String(v.glassOpacity!==defaults.glassOpacity||v.surfaceTint!=='original'),blur:String(!v.glassBlurEnabled||v.glassBlur!==defaults.glassBlur||v.glassSaturation!==defaults.glassSaturation),frost:v.glassBlurEnabled&&v.glassBlur>0?'on':'off',
     cardStyle:v.cardStyle,buttonStyle:v.buttonStyle,surface:v.surfaceTint,text:String(v.textScale!==100),font:v.fontFamily,title:String(v.titleWeight!==700),spacing:String(v.letterSpacing!==0),
     numbers:v.tabularNumbers?'tabular':'proportional',density:v.density,icons:String(v.iconSize!==24||v.iconStroke!==2),
     departures:v.departureView,marker:v.markerLabel,layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),motion:v.reducedMotion?'reduced':'normal',hover:String(v.hoverHighlight),
