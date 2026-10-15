@@ -910,7 +910,7 @@ html[data-personal-card-style='flat'] .pks-theme-root[data-ui-theme='dark-cosmos
 
 /* Clear chrome: a quiet optical tint instead of a second, blurred photograph. */
 html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(.pks-map-search-panel,.pks-navigation) {
-  background-color:color-mix(in srgb,var(--ui-surface) 35%,#080d1d 65%) !important;
+  background-color:color-mix(in srgb,var(--ui-surface) 10%,#080d1d 90%) !important;
   background-image:linear-gradient(120deg,rgba(var(--cosmos-light-rgb,111,162,255),.08),transparent 58%),var(--personal-pattern-image,linear-gradient(transparent,transparent)) !important;
   background-size:100% 100%,auto !important; background-position:center !important; background-attachment:scroll !important;
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
@@ -935,3 +935,6 @@ html[data-personal-frost='off']:not([data-cosmic-theme='on']) :is(.pks-glass,.pk
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
   background-color:color-mix(in srgb,var(--personal-glass) 45%,var(--personal-surface) 55%) !important;
 }
+
+/* Navigation must also mask scrolling labels beneath its icons. */
+html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) .pks-navigation { background-color:#080d1d !important; }

@@ -264,6 +264,7 @@ const server=http.createServer((req,res)=>{
           pseudo:getComputedStyle(el,'::before').content,
         }));
         assert.equal(mapSky.localPlanet,'','map search does not generate its own planet');
+        assert.equal(await page.$eval('.pks-navigation',el=>getComputedStyle(el).backgroundColor),'rgb(8, 13, 29)','navigation masks all scrolling text behind the icons');
         assert.ok(mapSky.scene.includes('nebula.jpg')&&!mapSky.image.includes('nebula.jpg'),'map chrome keeps the scene available without painting a photograph');
         assert.equal(mapSky.pseudo,'none','map chrome never blurs a nebula in a second layer');
 
