@@ -6,6 +6,7 @@ import {INTERFACE_PRESETS,matchesInterfacePreset,type InterfacePreset} from '@/l
 import {SCHEDULE_KEY,readSchedule} from '@/lib/personalization-profiles';
 import PersonalizationTools from './PersonalizationTools';
 import InterfacePreview from './InterfacePreview';
+import CosmicThemeOptions from './CosmicThemeOptions';
 import type {PreviewChrome} from './OptionsContent';
 
 type Props={canOpenAdminEmbed?:boolean;chrome:PreviewChrome;value:InterfaceAppearance;onChange:(value:InterfaceAppearance)=>void;dark:boolean;theme:string;accent:string;setTheme:(theme:string)=>void;setAccent:(color:string)=>void;glass:boolean;setGlass:(on:boolean)=>void;glow:boolean;setGlow:(on:boolean)=>void;glowStrength:number;setGlowStrength:(n:number)=>void;lightEffects:boolean};
@@ -55,6 +56,7 @@ export default function InterfacePersonalization(p:Props){
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
     </>,'akcent własny kolor jasny ciemny amoled aurora',true)}
+    {p.theme==='dark-cosmos'&&<CosmicThemeOptions disabled={p.lightEffects||v.reducedMotion}/>}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}
     {group('shapes' ,'Kształty i głębia','Rogi, obramowania i cienie',<Shapes size={19}/>,<>{slider('panelRadius','Zaokrąglenie paneli',0,36,2,' px')}{slider('cardRadius','Zaokrąglenie kart',0,30,2,' px')}{slider('controlRadius','Zaokrąglenie przycisków',0,24,2,' px')}{slider('borderStrength','Widoczność obramowań',0,40,2,'%')}{slider('shadowStrength','Siła cieni',0,100,5,'%')}</>,'zaokrąglenie paneli kart przycisków widoczność obramowań siła cieni')}
     {group('glass','Szkło i przezroczystość','Przezroczyste lub pełne panele',<Layers size={19}/>,<>{toggle('Efekt szkła',p.glass,p.setGlass,'Przezroczyste panele z rozmytym tłem')}{p.glass&&<>{slider('glassOpacity','Krycie tła paneli',20,100,5,'%')}{slider('glassBlur','Rozmycie szkła',0,p.lightEffects?6:28,2,' px')}</>}{p.lightEffects&&<p className="personal-note">Lżejsze efekty: rozmycie do 6 px.</p>}</>,'efekt szkła krycie tła rozmycie przezroczystość')}

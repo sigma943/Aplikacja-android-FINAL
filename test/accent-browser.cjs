@@ -198,6 +198,19 @@ const server=http.createServer((req,res)=>{
         assert.equal(await captureSky(),stable,'opening Options preserves the main-tab sky');
         await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
         assert.equal(await captureSky(),stable,'closing Options preserves the main-tab sky');
+        assert.equal(await page.$eval('[data-cosmic-stage]',el=>getComputedStyle(el).display),'block','cinematic depth is visible behind the stop list');
+        assert.ok(await page.$$eval('[data-cosmic-orb]',els=>els.length>=1&&els.every(el=>el.querySelector('[data-cosmic-terminator]'))),'planets have a shaded light-facing surface');
+        const savedParallax=await page.evaluate(()=>localStorage.getItem('mks_cosmic_parallax'));
+        await page.evaluate(()=>{localStorage.setItem('mks_cosmic_parallax','true');window.dispatchEvent(new Event('pks-interface-appearance'));window.dispatchEvent(new PointerEvent('pointermove',{pointerType:'mouse',clientX:innerWidth,clientY:innerHeight}));});
+        assert.notEqual(await page.$eval('[data-cosmic-stage]',el=>el.style.getPropertyValue('--cosmos-parallax-x')),'0.00px','optional parallax shifts scenery, not controls');
+        assert.equal(await captureSky(),stable,'parallax does not create another composition');
+        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-stage]',el=>el.style.getPropertyValue('--cosmos-parallax-x')),'0.00px','reduced motion resets the parallax offset');
+        assert.equal(await page.$eval('[data-cosmic-nebula]',el=>getComputedStyle(el,'::before').animationName),'none','reduced motion stops nebula movement');
+        await page.evaluate(saved=>{if(saved===null)localStorage.removeItem('mks_cosmic_parallax');else localStorage.setItem('mks_cosmic_parallax',saved);window.dispatchEvent(new Event('pks-interface-appearance'));},savedParallax);
+        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+
         await page.click('.transit-stop-card');
         await page.waitForSelector('[data-cosmic-panel="stop-header"]');
         await page.waitForFunction(()=>!document.querySelector('[data-cosmic-panel="stop-departures"] .animate-pulse'));

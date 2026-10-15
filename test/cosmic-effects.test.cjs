@@ -136,3 +136,23 @@ test('each meteor schedules a fresh random pause without resetting on UI refresh
  for(let i=0;i<2;i++){const [id,fn]=timers.entries().next().value;timers.delete(id);fn();}
  assert.deepEqual(delays,[3000,11500,20000]);scheduler.stop();assert.equal(timers.size,0);
 });
+
+
+test('parallax is bounded for extreme sensor readings and rejects invalid numbers',()=>{
+ const {cosmicParallaxOffset}=load('lib/cosmic-effects.ts');
+ assert.deepEqual(cosmicParallaxOffset(100,-100),{x:7,y:-5});
+ assert.deepEqual(cosmicParallaxOffset(NaN,Infinity),{x:0,y:0});
+ assert.deepEqual(cosmicParallaxOffset(0,0),{x:0,y:0});
+});
+test('rare celestial accents stay sparse and use the existing meteor clock',()=>{
+ const {cosmicAccentEvent}=load('lib/cosmic-effects.ts');
+ const events=Array.from({length:1000},(_,i)=>cosmicAccentEvent(()=>i/1000));
+ assert.equal(events.filter(e=>e==='nova').length,80);
+ assert.equal(events.filter(e=>e==='fragment').length,140);
+ assert.equal(events.filter(e=>e==='meteor').length,780);
+});
+test('cinematic layers derive their light and nebula from the unchanged screen scene',()=>{
+ const {cosmicScreenSession,cosmicBackdropStyle}=load('lib/cosmic-scene.ts');const session=cosmicScreenSession(42);
+ const style=cosmicBackdropStyle(session.scene);assert.match(style['--cosmos-nebula-image'],/nebula.jpg/);assert.match(style['--cosmos-light-rgb'],/^\d+,\d+,\d+$/);
+ session.enterTab('stops');session.enterTab('options');assert.deepEqual(cosmicBackdropStyle(session.scene),style);
+});

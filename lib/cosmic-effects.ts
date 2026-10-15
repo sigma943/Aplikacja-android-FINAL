@@ -18,3 +18,14 @@ export function cosmicMeteorScheduler(allowed:()=>boolean,run:()=>void,clock:{se
   const tick=()=>{timer=null;if(stopped||!allowed())return;run();if(!stopped&&allowed())schedule();};
   return {refresh(){if(stopped||!allowed()){cancel();return;}if(timer===null)schedule();},stop(){stopped=true;cancel();}};
 }
+
+
+export const COSMIC_PARALLAX_KEY='mks_cosmic_parallax';
+export function cosmicParallaxOffset(x:number,y:number){
+  const clamp=(n:number)=>Number.isFinite(n)?Math.max(-1,Math.min(1,n)):0;
+  return {x:clamp(x)*7,y:clamp(y)*5};
+}
+/** Rare accents share the existing meteor clock, without extra wakeups. */
+export function cosmicAccentEvent(random:()=>number=Math.random){
+  const value=random();return value<.08?'nova':value<.22?'fragment':'meteor';
+}

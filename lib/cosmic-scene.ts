@@ -123,6 +123,10 @@ export function cosmicBackdrop(seed:number){
 export function cosmicBackdropStyle(scene:ReturnType<typeof cosmicBackdrop>){
   const tones=['rgba(18,28,64,.24)','rgba(42,20,62,.24)','rgba(10,38,50,.24)'];
   return {
+    '--cosmos-light-rgb':['111,162,255','191,128,232','97,191,207'][scene.tint],
+    '--cosmos-nebula-image':`linear-gradient(180deg,rgba(3,6,17,.54),rgba(3,6,17,.34) 45%,rgba(3,6,17,.66)),linear-gradient(${tones[scene.tint]},${tones[scene.tint]}),url("/themes/kosmos/nebula.jpg")`,
+    '--cosmos-nebula-size':`100% 100%,100% 100%,${scene.zoom.toFixed(1)}% auto`,
+    '--cosmos-nebula-position':`center,center,${scene.focusX.toFixed(1)}% ${scene.focusY.toFixed(1)}%`,
     '--cosmos-scene-image':[
       'linear-gradient(180deg,rgba(3,6,17,.54),rgba(3,6,17,.34) 45%,rgba(3,6,17,.66))',
       ...scene.planets.map(p=>COSMIC_PLANETS[p.planet]),
