@@ -14,7 +14,14 @@ export default function PreviewMap({dark}:{dark:boolean}){
       const rect=canvas.getBoundingClientRect(),pane=document.createElement('div');
       Object.assign(pane.style,{position:'absolute',left:`${(393-rect.width)/2}px`,top:`${(480-rect.height)/2}px`,width:`${rect.width}px`,height:`${rect.height}px`});
       const origin=document.createElement('div');origin.className='leaflet-map-pane';origin.style.transform=source.parentElement?.style.transform||'';
-      origin.append(source.cloneNode(true));pane.append(origin);target.current.replaceChildren(pane);setLive(true);
+      origin.append(source.cloneNode(true));pane.append(origin);target.current.replaceChildren(pane);
+      const attribution=canvas.querySelector<HTMLElement>('.leaflet-control-attribution');
+      if(attribution){
+        const credits=attribution.cloneNode(true) as HTMLElement;
+        Object.assign(credits.style,{position:'absolute',right:'0',bottom:'65px',margin:'0',fontSize:'8px',padding:'1px 3px',background:'rgba(255,255,255,.85)',color:'#334155',zIndex:'2'});
+        target.current.append(credits);
+      }
+      setLive(true);
     };
     const schedule=()=>{if(timer!==null)clearTimeout(timer);timer=setTimeout(copy,120);};
     const observer=new MutationObserver(schedule);observer.observe(source,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class','src']});

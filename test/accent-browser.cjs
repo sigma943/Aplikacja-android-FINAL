@@ -261,11 +261,11 @@ const server=http.createServer((req,res)=>{
           localPlanet:el.style.getPropertyValue('--cosmos-planet'),
           scene:getComputedStyle(el).getPropertyValue('--cosmos-scene-image'),
           image:getComputedStyle(el).backgroundImage,
-          blur:getComputedStyle(el,'::before').filter,
+          pseudo:getComputedStyle(el,'::before').content,
         }));
         assert.equal(mapSky.localPlanet,'','map search does not generate its own planet');
-        assert.ok(mapSky.scene.includes('nebula.jpg')&&mapSky.image.includes('nebula.jpg'),'map glass uses the common screen panorama');
-        assert.ok(mapSky.blur.includes('blur('),'map glass softens the panorama behind its controls');
+        assert.ok(mapSky.scene.includes('nebula.jpg')&&!mapSky.image.includes('nebula.jpg'),'map chrome keeps the scene available without painting a photograph');
+        assert.equal(mapSky.pseudo,'none','map chrome never blurs a nebula in a second layer');
 
       }
       const screens=await browser.newPage();screens.on('pageerror',e=>errors.push(e.message));
