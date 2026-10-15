@@ -602,7 +602,7 @@ const server=http.createServer((req,res)=>{
     await sameChrome();
     await page.waitForSelector('[data-interface-preview] [data-preview-map]');
     await page.evaluate(()=>{
-      const canvas=document.querySelector('[data-map-canvas]'),host=canvas.querySelector('.leaflet-tile-pane')||canvas,pane=document.createElement('div');if(host===canvas)pane.className='leaflet-tile-pane';pane.dataset.previewTest='true';
+      const canvas=document.querySelector('[data-map-canvas]'),host=canvas.querySelector('.leaflet-tile-pane')||canvas,pane=document.createElement('div');if(host===canvas)pane.className='leaflet-tile-pane';pane.dataset.previewTest='true';pane.style.filter='brightness(0.8)';
       const a=canvas.getBoundingClientRect(),b=host.getBoundingClientRect();Object.assign(pane.style,{position:'absolute',left:`${a.left-b.left}px`,top:`${a.top-b.top}px`,width:'512px',height:'900px'});
       const image=new Image();image.className='leaflet-tile-loaded';image.src='/preview-map-test.svg';Object.assign(image.style,{width:'512px',height:'900px',position:'absolute',left:'0',top:'0'});pane.append(image);host.append(pane);
     });
@@ -611,6 +611,7 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pokaż podgląd').click());
     await page.waitForSelector('[data-preview-map="tiles"] img');
     assert.ok(await page.$eval('[data-preview-map] img',img=>{const a=img.getBoundingClientRect(),b=img.closest('[data-preview-map]').getBoundingClientRect();return a.width>0&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;}),'copied map tiles actually intersect the miniature viewport');
+    assert.ok(await page.$eval('[data-preview-map] img',img=>getComputedStyle(img).filter.includes('brightness(0.8)')),'copied tiles retain colour filters from their map layers');
     await page.screenshot({path:'test/ui-previews/preview-map-tiles-visible.png'});
     await page.evaluate(()=>document.querySelector('[data-preview-test]').remove());
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());

@@ -21,8 +21,12 @@ export default function PreviewMap({dark}:{dark:boolean}){
         if(bounds.width<1||bounds.height<1||left>=393||top>=480||left+bounds.width<=0||top+bounds.height<=0)continue;
         // Flatten the real screen coordinates instead of copying Leaflet's nested
         // transforms, which can put every tile outside the miniature viewport.
+        const filters:string[]=[];
+        for(let ancestor:HTMLElement|null=image;ancestor&&ancestor!==canvas;ancestor=ancestor.parentElement){
+          const filter=getComputedStyle(ancestor).filter;if(filter!=='none')filters.push(filter);
+        }
         const tile=new Image();tile.src=image.currentSrc||image.src;tile.alt='';
-        Object.assign(tile.style,{position:'absolute',left:`${left}px`,top:`${top}px`,width:`${bounds.width}px`,height:`${bounds.height}px`,maxWidth:'none',transform:'none',filter:getComputedStyle(image).filter});
+        Object.assign(tile.style,{position:'absolute',left:`${left}px`,top:`${top}px`,width:`${bounds.width}px`,height:`${bounds.height}px`,maxWidth:'none',transform:'none',filter:filters.join(' ')||'none'});
         tiles.push(tile);
       }
       target.current.replaceChildren(...tiles);setLive(tiles.length>0);
