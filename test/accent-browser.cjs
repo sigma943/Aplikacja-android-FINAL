@@ -602,9 +602,9 @@ const server=http.createServer((req,res)=>{
     await sameChrome();
     await page.waitForSelector('[data-interface-preview] [data-preview-map]');
     await page.evaluate(()=>{
-      const canvas=document.querySelector('[data-map-canvas]'),pane=document.createElement('div');pane.className='leaflet-tile-pane';pane.dataset.previewTest='true';
-      Object.assign(pane.style,{position:'absolute',inset:'0'});
-      const image=new Image();image.className='leaflet-tile-loaded';image.src='/preview-map-test.svg';Object.assign(image.style,{width:'512px',height:'900px',position:'absolute',left:'0',top:'0'});pane.append(image);canvas.append(pane);
+      const canvas=document.querySelector('[data-map-canvas]'),host=canvas.querySelector('.leaflet-tile-pane')||canvas,pane=document.createElement('div');if(host===canvas)pane.className='leaflet-tile-pane';pane.dataset.previewTest='true';
+      const a=canvas.getBoundingClientRect(),b=host.getBoundingClientRect();Object.assign(pane.style,{position:'absolute',left:`${a.left-b.left}px`,top:`${a.top-b.top}px`,width:'512px',height:'900px'});
+      const image=new Image();image.className='leaflet-tile-loaded';image.src='/preview-map-test.svg';Object.assign(image.style,{width:'512px',height:'900px',position:'absolute',left:'0',top:'0'});pane.append(image);host.append(pane);
     });
     await page.waitForFunction(()=>document.querySelector('[data-preview-test] img')?.naturalWidth>0);
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
