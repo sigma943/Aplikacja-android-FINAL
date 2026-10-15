@@ -25,7 +25,7 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   },
   {
     name:'Kosmos',description:'Losowe panoramy mgławic i planet za przyciemnionym szkłem',theme:'dark-cosmos',accent:'#b6a3ff',glass:true,glow:false,glowStrength:25,
-    appearance:appearance({glassOpacity:52,glassBlur:10,borderStrength:16,shadowStrength:0,navIndicator:'line',glowStyle:'accent',glowColor:'#b6a3ff'}),
+    appearance:appearance({glassOpacity:46,glassBlur:12,borderStrength:16,shadowStrength:0,navIndicator:'line',glowStyle:'accent',glowColor:'#b6a3ff'}),
     preview:{background:'#000000',surface:'#080a12',text:'#f3f1ff'},
   },
   {

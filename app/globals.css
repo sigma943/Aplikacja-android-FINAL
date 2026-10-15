@@ -740,10 +740,10 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 
 /* Kosmos: one viewport scene. Panels only supply glass, never celestial art. */
 html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
-  --ui-canvas:#000000; --ui-surface:rgb(8 12 26 / 52%); --ui-raised:#101522;
-  --ui-glass:rgb(8 12 26 / 52%); --ui-glass-row:rgb(12 17 32 / 32%);
-  --ui-text:#f3f1ff; --ui-muted:#c0c5d8; --ui-edge:rgb(187 202 255 / 20%);
-  --cosmos-glass-blur:10px;
+  --ui-canvas:#000000; --ui-surface:rgb(10 15 30 / 46%); --ui-raised:#101522;
+  --ui-glass:rgb(10 15 30 / 46%); --ui-glass-row:rgb(12 17 32 / 32%);
+  --ui-text:#f3f1ff; --ui-muted:#c0c5d8; --ui-edge:rgb(187 202 255 / 14%);
+  --cosmos-glass-blur:12px;
 }
 .pks-theme-root[data-ui-theme='dark-cosmos'] {
   isolation:isolate;
@@ -770,12 +770,12 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
   .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation,[data-cosmic-panel]
 ) {
-  background-image:linear-gradient(135deg,rgba(181,202,255,.055),rgba(8,12,26,.08)) !important;
+  background-image:linear-gradient(135deg,rgba(181,202,255,.035),rgba(8,12,26,.08)) !important;
   background-color:var(--ui-surface) !important;
-  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(125%) !important;
-  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(125%) !important;
+  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(112%) !important;
+  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(112%) !important;
   border-color:var(--ui-edge) !important;
-  box-shadow:inset 0 1px 0 rgb(224 232 255 / 8%),0 8px 28px rgb(0 0 0 / 12%);
+  box-shadow:inset 0 1px 0 rgb(224 232 255 / 5%),0 8px 28px rgb(0 0 0 / 12%);
 }
 /* Avoid accumulating opaque fills and multiple blurs inside an outer glass sheet. */
 html[data-cosmic-theme='on'] :is(.pks-options-sheet,.map-detail-shell,[data-carrier-sheet],.transit-surface) :is(.transit-card,.pks-personal-card,.pks-option-card,[data-cosmic-panel]) {
@@ -835,7 +835,7 @@ html[data-cosmic-theme='on'] .pks-theme-root[data-ui-theme='dark-cosmos'] [data-
 /* Override the statistics view's intentionally opaque default only in Kosmos. */
 .pks-theme-root[data-ui-theme='dark-cosmos'] .pks-panel-scope[data-panel-theme][data-glass] [data-statistics-view] .pks-personal-card {
   background-color:var(--ui-surface) !important;
-  background-image:linear-gradient(135deg,rgba(181,202,255,.055),rgba(8,12,26,.08)) !important;
-  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(125%) !important;
-  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(125%) !important;
+  background-image:linear-gradient(135deg,rgba(181,202,255,.035),rgba(8,12,26,.08)) !important;
+  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(112%) !important;
+  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(112%) !important;
 }

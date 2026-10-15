@@ -109,27 +109,44 @@ export function cosmicBackdrop(seed:number){
   const random=cosmicRandom(seed);
   const layouts=[[[78,22],[22,60],[73,87]],[[24,26],[79,58],[28,88]],[[75,38],[20,76],[80,91]],[[22,18],[77,49],[24,83]]];
   const anchors=layouts[Math.floor(random()*layouts.length)];
-  const count=random()<.65?2:3;
+  const count=random()<.75?1:2;
   const family=Math.floor(random()*COSMIC_PLANETS.length);
   const planets=anchors.slice(0,count).map(([x,y],i)=>({
     planet:(family+i*3)%COSMIC_PLANETS.length,
     x:x+(random()-.5)*8,y:y+(random()-.5)*6,
-    size:i===0?72+random()*30:34+random()*24,
+    size:i===0?88+random()*32:32+random()*14,
   }));
-  return {planets,focusX:15+random()*70,focusY:random()*100,zoom:115+random()*55,
+  return {planets,focusX:15+random()*70,focusY:random()*100,zoom:145+random()*35,
     tint:Math.floor(random()*3)};
 }
 
 export function cosmicBackdropStyle(scene:ReturnType<typeof cosmicBackdrop>){
-  const tones=['rgba(28,42,96,.16)','rgba(84,25,90,.16)','rgba(12,70,86,.16)'];
+  const tones=['rgba(18,28,64,.24)','rgba(42,20,62,.24)','rgba(10,38,50,.24)'];
   return {
     '--cosmos-scene-image':[
-      'linear-gradient(180deg,rgba(2,4,12,.32),rgba(2,4,12,.12) 45%,rgba(2,4,12,.48))',
+      'linear-gradient(180deg,rgba(3,6,17,.54),rgba(3,6,17,.34) 45%,rgba(3,6,17,.66))',
       ...scene.planets.map(p=>COSMIC_PLANETS[p.planet]),
       `linear-gradient(${tones[scene.tint]},${tones[scene.tint]})`,
       'url("/themes/kosmos/nebula.jpg")',
     ].join(','),
     '--cosmos-scene-size':['100% 100%',...scene.planets.map(p=>`${p.size.toFixed(1)}px auto`),'100% 100%',`${scene.zoom.toFixed(1)}% auto`].join(','),
     '--cosmos-scene-position':['center',...scene.planets.map(p=>`${p.x.toFixed(1)}% ${p.y.toFixed(1)}%`),'center',`${scene.focusX.toFixed(1)}% ${scene.focusY.toFixed(1)}%`].join(','),
+  };
+}
+
+
+/** One immutable sky per main-menu visit. Options and detail panes are not tabs. */
+export function cosmicScreenSession(seed:number){
+  let tab:string|undefined,epoch=0;
+  let scene=cosmicBackdrop(cosmicKeySeed(seed,'screen:0'));
+  return {
+    get tab(){return tab;},get epoch(){return epoch;},get scene(){return scene;},
+    enterTab(next:string|undefined){
+      if(!next||!['map','stops','admin'].includes(next)||next===tab)return false;
+      if(tab===undefined){tab=next;return false;}
+      tab=next;epoch++;
+      scene=cosmicBackdrop(cosmicKeySeed(seed,`screen:${epoch}`));
+      return true;
+    },
   };
 }

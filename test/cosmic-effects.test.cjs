@@ -20,7 +20,7 @@ test('visibility loss just before a timer fires cannot start a meteor',()=>{
 test('Kosmos replaces Aurora, stays black at first paint, survives backups and uses a small static vector atlas',()=>{
  const {THEME_MODES,normalizeAppTheme,THEME_SCREEN_COLORS,themeDecoration}=load('lib/app-theme.ts');
  assert.ok(THEME_MODES.includes('dark-cosmos'));assert.equal(THEME_MODES.includes('dark-aurora'),false);assert.equal(normalizeAppTheme('dark-aurora'),'dark-cosmos');assert.equal(THEME_SCREEN_COLORS['dark-cosmos'].background,'#000000');
- const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),preset=INTERFACE_PRESETS.find(p=>p.name==='Kosmos');assert.equal(preset.glass,true);assert.equal(preset.glow,false);assert.equal(preset.appearance.glassBlur,10);
+ const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),preset=INTERFACE_PRESETS.find(p=>p.name==='Kosmos');assert.equal(preset.glass,true);assert.equal(preset.glow,false);assert.equal(preset.appearance.glassBlur,12);
  const {exportAppearanceBackup,parseAppearanceBackup}=load('lib/appearance-backup.ts');const profile={...preset,id:'current',updatedAt:1};assert.equal(parseAppearanceBackup(exportAppearanceBackup(profile,[],{},false)).current.theme,'dark-cosmos');
  const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<44000);assert.match(atlas,/id="sky-cloud"/);assert.ok((atlas.match(/<circle /g)||[]).length>=180);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
 });
@@ -102,11 +102,27 @@ test('screen compositions stay stable on refresh and change on tab re-entry and 
 test('compositions separate distinct planet families and keep them within the viewport',()=>{
  const {cosmicBackdrop}=load('lib/cosmic-scene.ts');
  for(let seed=0;seed<1000;seed++){
-  const scene=cosmicBackdrop(seed);assert.ok(scene.planets.length>=2&&scene.planets.length<=3);
+  const scene=cosmicBackdrop(seed);assert.ok(scene.planets.length>=1&&scene.planets.length<=2);
   assert.equal(new Set(scene.planets.map(p=>p.planet)).size,scene.planets.length);
   for(const [i,p] of scene.planets.entries()){
    assert.ok(p.x>=10&&p.x<=90&&p.y>=10&&p.y<=95);
    for(const q of scene.planets.slice(i+1))assert.ok(Math.hypot(p.x-q.x,p.y-q.y)>30);
   }
  }
+});
+
+
+test('screen sky is created once and only main menu changes may replace it',()=>{
+ const {cosmicScreenSession}=load('lib/cosmic-scene.ts');
+ const session=cosmicScreenSession(943),first=session.scene;
+ assert.equal(session.enterTab(undefined),false);
+ assert.equal(session.enterTab('stops'),false,'initial navigation adopts the startup sky');
+ for(const next of ['stops','options',undefined,'stop:123','admin:devices','carriers','stops']){
+  assert.equal(session.enterTab(next),false);assert.strictEqual(session.scene,first);
+ }
+ assert.equal(session.epoch,0);
+ assert.equal(session.enterTab('map'),true);assert.notDeepEqual(session.scene,first);
+ const map=session.scene;session.enterTab('options');session.enterTab('map');assert.strictEqual(session.scene,map);
+ session.enterTab('stops');assert.notDeepEqual(session.scene,first);
+ const restart=cosmicScreenSession(944);restart.enterTab('stops');assert.notDeepEqual(restart.scene,first);
 });

@@ -7,9 +7,9 @@ import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {COSMIC_METEOR_DURATION,COSMIC_TWINKLE_INTERVAL,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
 
-import {cosmicBackdrop,cosmicBackdropStyle,cosmicVisitSession} from '@/lib/cosmic-scene';
+import {cosmicBackdropStyle,cosmicScreenSession} from '@/lib/cosmic-scene';
 
-let visitSession:ReturnType<typeof cosmicVisitSession>|null=null;
+let visitSession:ReturnType<typeof cosmicScreenSession>|null=null;
 
 /** One visit-scoped sky, with all motion behind the glass and its text. */
 export default function CosmicEffects(){
@@ -22,7 +22,7 @@ export default function CosmicEffects(){
     let nativeActive=true,allowed=false,animation:Animation|null=null,disposed=false;
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
     const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
-    const session=visitSession??=cosmicVisitSession(crypto.getRandomValues(new Uint32Array(1))[0]);
+    const session=visitSession??=cosmicScreenSession(crypto.getRandomValues(new Uint32Array(1))[0]);
     const measure=()=>{
       root.style.setProperty('--cosmos-viewport-width',`${innerWidth}px`);
       root.style.setProperty('--cosmos-viewport-height',`${innerHeight}px`);
@@ -42,7 +42,7 @@ export default function CosmicEffects(){
       let regionsChanged=false;
       for(const record of records){
         if(record.type==='attributes'){
-          if(record.attributeName==='aria-hidden'||record.attributeName==='data-cosmic-view'||record.attributeName==='data-cosmic-seed'||(record.attributeName==='aria-current'&&record.target instanceof Element&&record.target.hasAttribute('data-nav-item')))regionsChanged=true;
+          if(record.attributeName==='aria-hidden'||record.attributeName==='data-cosmic-tab')regionsChanged=true;
         }
         for(const node of [...record.addedNodes,...record.removedNodes])if(node instanceof Element){
           if(node.matches(regionSelector)||node.querySelector(regionSelector))regionsChanged=true;
@@ -52,7 +52,7 @@ export default function CosmicEffects(){
       // A loading render and its completed render must share the same visit.
       if(regionsChanged)update();
     });
-    observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-hidden','aria-current','data-cosmic-view','data-cosmic-seed']});
+    observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-hidden','data-cosmic-tab']});
     const stopStars=()=>{for(const star of stars)star.cancel();stars.length=0;};
     const startStars=()=>{
       if(stars.length||!field.current)return;
@@ -81,20 +81,17 @@ export default function CosmicEffects(){
       setHost(document.querySelector<HTMLElement>('.pks-theme-root'));
       let reduced=media.matches,light=false;
       try{light=localStorage.getItem('mks_light_effects')==='true';reduced ||= normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;}catch{}
-      const active=[...document.querySelectorAll<HTMLElement>('.pks-navigation [data-nav-item][aria-current="page"]')].find(node=>!node.closest('.personal-preview-scene'));
-      const tab=active?.dataset.navItem||session.tab?.split(':',1)[0]||'root';
+      // The Home root owns this key. Overlays, admin subviews, loading and data
+      // mutations cannot impersonate a navigation change (Options is an overlay).
+      const tab=document.querySelector<HTMLElement>('.pks-theme-root[data-cosmic-tab]')?.dataset.cosmicTab;
+      session.enterTab(tab);
       const nextRegion=findRegion();
-      const logical=[...document.querySelectorAll<HTMLElement>('[data-cosmic-view]')].find(node=>!node.closest('[aria-hidden="true"],[inert],.personal-preview-scene'));
-      // Loading, entrance animations and panel dimensions cannot start a visit.
-      const overlay=[['.pks-options-sheet','options'],['[data-carrier-sheet]','carriers']].find(([selector])=>nextRegion?.matches(selector))?.[1];
-      const view=overlay||logical?.dataset.cosmicView||(nextRegion?.matches('.map-detail-shell')?'map-detail':'tab');
-      session.enter(`${tab}:${view}`);
       const theme=resolveAppTheme(readAppTheme());
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
       if(theme==='dark-cosmos'){
         root.style.setProperty('--theme-decoration',themeDecoration(theme));
         if(backdropEpoch!==session.epoch){
-          const scene=cosmicBackdrop(session.seedFor('screen-sky'));
+          const scene=session.scene;
           for(const [key,value] of Object.entries(cosmicBackdropStyle(scene)))root.style.setProperty(key,value);
           backdropEpoch=session.epoch;
         }
