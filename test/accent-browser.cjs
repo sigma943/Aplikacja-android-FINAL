@@ -138,6 +138,8 @@ const server=http.createServer((req,res)=>{
         assert.equal(await page.$eval(localField,el=>getComputedStyle(el).contain),'paint');
         assert.ok(await page.$eval(localField,el=>getComputedStyle(el).backgroundImage.includes('nebula.jpg')));
         assert.ok(await page.$$eval('.pks-navigation [data-cosmic-nav-stars] [fill]',els=>new Set(els.map(el=>el.getAttribute('fill'))).size)>=4,'navigation has multiple star colours');
+        assert.ok(await page.$$eval('.pks-navigation [data-cosmic-nav-stars]',skies=>skies.every(sky=>{const labels=[...sky.parentElement.querySelectorAll('[data-nav-label]')].map(el=>el.getBoundingClientRect());return [...sky.querySelectorAll('path,circle')].every(star=>{const a=star.getBoundingClientRect();return labels.every(b=>a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom);});})), 'decorative stars stay clear of navigation labels');
+
         await page.waitForFunction(css=>document.querySelector(css)?.querySelector('[data-filter-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:15000,polling:20},localField);
         await page.screenshot({path:'test/ui-previews/cosmos-filter-local-meteor.png'});
         await page.waitForFunction(css=>document.querySelector(css)?.querySelector('[data-filter-comet]')?.getAnimations().some(a=>a.playState==='running'),{timeout:24000,polling:20},localField);
