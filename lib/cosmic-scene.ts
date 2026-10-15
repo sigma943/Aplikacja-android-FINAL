@@ -93,11 +93,43 @@ export function cosmicVisitSession(seed:number){
   const scenes=new Map<string,ReturnType<typeof cosmicScene>>();
   return {
     get tab(){return tab;},get epoch(){return epoch;},
+    seedFor(key:string){return cosmicKeySeed(seed,`${epoch}:${tab}:${key}`);},
     enter(next:string){if(next===tab)return false;tab=next;epoch++;scenes.clear();return true;},
     scene(key:string,create:(seed:number)=>ReturnType<typeof cosmicScene>){
       let scene=scenes.get(key);
       if(!scene){scene=create(cosmicKeySeed(seed,`${epoch}:${tab}:${key}`));scenes.set(key,scene);}
       return scene;
     },
+  };
+}
+
+
+/** Art-directed screen composition: one focal region, separated orbits, quiet text lanes. */
+export function cosmicBackdrop(seed:number){
+  const random=cosmicRandom(seed);
+  const layouts=[[[78,22],[22,60],[73,87]],[[24,26],[79,58],[28,88]],[[75,38],[20,76],[80,91]],[[22,18],[77,49],[24,83]]];
+  const anchors=layouts[Math.floor(random()*layouts.length)];
+  const count=random()<.65?2:3;
+  const family=Math.floor(random()*COSMIC_PLANETS.length);
+  const planets=anchors.slice(0,count).map(([x,y],i)=>({
+    planet:(family+i*3)%COSMIC_PLANETS.length,
+    x:x+(random()-.5)*8,y:y+(random()-.5)*6,
+    size:i===0?72+random()*30:34+random()*24,
+  }));
+  return {planets,focusX:15+random()*70,focusY:random()*100,zoom:115+random()*55,
+    tint:Math.floor(random()*3)};
+}
+
+export function cosmicBackdropStyle(scene:ReturnType<typeof cosmicBackdrop>){
+  const tones=['rgba(28,42,96,.16)','rgba(84,25,90,.16)','rgba(12,70,86,.16)'];
+  return {
+    '--cosmos-scene-image':[
+      'linear-gradient(180deg,rgba(2,4,12,.32),rgba(2,4,12,.12) 45%,rgba(2,4,12,.48))',
+      ...scene.planets.map(p=>COSMIC_PLANETS[p.planet]),
+      `linear-gradient(${tones[scene.tint]},${tones[scene.tint]})`,
+      'url("/themes/kosmos/nebula.jpg")',
+    ].join(','),
+    '--cosmos-scene-size':['100% 100%',...scene.planets.map(p=>`${p.size.toFixed(1)}px auto`),'100% 100%',`${scene.zoom.toFixed(1)}% auto`].join(','),
+    '--cosmos-scene-position':['center',...scene.planets.map(p=>`${p.x.toFixed(1)}% ${p.y.toFixed(1)}%`),'center',`${scene.focusX.toFixed(1)}% ${scene.focusY.toFixed(1)}%`].join(','),
   };
 }

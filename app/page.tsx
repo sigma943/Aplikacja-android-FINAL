@@ -1389,6 +1389,7 @@ export default function Home() {
                  : ''
             }`}
             data-panel-theme={isDark ? 'dark' : 'light'}
+            data-cosmic-canvas
             aria-hidden={activeTab !== 'stops'}
          >
             {hasOpenedStops && <StopsPanel
