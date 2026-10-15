@@ -808,7 +808,15 @@ html[data-cosmic-theme='on'] :is(.pks-panel-scope,.pks-options-sheet,[data-carri
 html[data-cosmic-theme='on'] :is(.transit-view,.map-detail-shell,.pks-panel-scope,[data-carrier-sheet]) :is(.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-muted) { color:var(--ui-muted); }
 html[data-cosmic-theme='on'] [data-departure-row] { animation:none !important; transition:none !important; }
 html[data-cosmic-theme='on'][data-light-effects='true'],.pks-theme-root[data-ui-theme='dark-cosmos'].pks-light-effects { --cosmos-glass-blur:4px; }
-[data-startup-theme='dark-cosmos'] { background:#000 url('/themes/kosmos/nebula.jpg') center/cover no-repeat; }
+/* Startup components also set inline backgrounds; keep the same scene there. */
+[data-startup-theme='dark-cosmos'] {
+  background-color:#000 !important;
+  background-image:var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg')) !important;
+  background-size:var(--cosmos-scene-size,cover) !important;
+  background-position:var(--cosmos-scene-position,center) !important;
+  background-repeat:no-repeat !important;
+  background-attachment:fixed !important;
+}
 /* Portalled into the isolated root: above its background, behind every control. */
 [data-cosmic-effects] { display:none; position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; contain:strict; }
 html[data-cosmic-theme='on'][data-cosmic-motion='on']:not(:has(.pks-loading-screen)) [data-cosmic-effects] { display:block; }
