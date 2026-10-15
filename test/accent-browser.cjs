@@ -40,7 +40,7 @@ const server=http.createServer((req,res)=>{
     page.on('request',async request=>{
       const url=request.url();
       const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-      if(previewTiles&&url.startsWith('https://mt1.google.com/vt/'))return request.respond({status:200,contentType:'image/svg+xml',headers:{'cache-control':'no-store'},body:fs.readFileSync(path.join(root,'preview-map-test.svg'))});
+      if(previewTiles&&url.startsWith('https://mt1.google.com/vt?'))return request.respond({status:200,contentType:'image/svg+xml',headers:{'cache-control':'no-store'},body:fs.readFileSync(path.join(root,'preview-map-test.svg'))});
       if(url.includes('stop-point-timetable'))return json({success:true,items:[{line_name:'108',description:'Rzeszów',journeys:[{journey_id:1,time:'14:21',stop_point_code:'69',legends:['D']}]}]});
       if(url.includes('/pks/get_vehicles.php'))return json(showFixtureBus?[fixtureBus]:[]);
       if(url.endsWith('/api/pks/vehicles'))return json({items:[]});

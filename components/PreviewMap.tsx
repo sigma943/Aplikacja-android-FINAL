@@ -5,7 +5,7 @@ import {useEffect,useState} from 'react';
 export default function PreviewMap({dark,onTilesChange}:{dark:boolean;onTilesChange?:(shown:boolean)=>void}){
   const [loaded,setLoaded]=useState<Set<string>>(()=>new Set());
   // Fixed Rzeszów street fragment: independent of the hidden main map, its zoom,
-  // transforms and current vehicles. Browser HTTP cache is shared with the map.
+  // transforms and current vehicles. Browser HTTP cache reuses this fragment between preview openings.
   const zoom=15,size=256,world=size*2**zoom,latitude=50.0234,longitude=21.994;
   const centerX=(longitude+180)/360*world;
   const sine=Math.sin(latitude*Math.PI/180);
@@ -14,7 +14,7 @@ export default function PreviewMap({dark,onTilesChange}:{dark:boolean;onTilesCha
   const tiles=[];
   for(let y=Math.floor(top/size);y<=Math.floor((top+479)/size);y++){
     for(let x=Math.floor(left/size);x<=Math.floor((left+392)/size);x++){
-      tiles.push({id:`${x}:${y}`,left:x*size-left,top:y*size-top,src:`https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x=${x}&y=${y}&z=${zoom}`});
+      tiles.push({id:`${x}:${y}`,left:x*size-left,top:y*size-top,src:`https://mt1.google.com/vt?lyrs=m&hl=pl&gl=PL&x=${x}&y=${y}&z=${zoom}`});
     }
   }
   useEffect(()=>{onTilesChange?.(loaded.size>0);},[loaded,onTilesChange]);
