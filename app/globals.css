@@ -780,26 +780,14 @@ html[data-cosmic-theme='on'] :is(.pks-options-sheet,.map-detail-shell,[data-carr
   background-color:var(--ui-surface) !important;
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
 }
-/* Map sheets sample the same viewport scene, aligned rather than restarted per card.
-   Their own foreground is clear, and street labels cannot leak into the timetable. */
-html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(.pks-map-search-panel,.map-detail-shell,.pks-navigation) {
-  background-color:#030610 !important;
-  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),var(--cosmos-material),linear-gradient(var(--ui-surface),var(--ui-surface)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg')) !important;
-  background-size:100% 100%,auto,100% 100%,100% 100%,var(--cosmos-scene-size,cover) !important;
-  background-position:center,center,center,center,var(--cosmos-scene-position,center) !important;
-  background-repeat:no-repeat !important;
-  background-attachment:fixed !important;
-  isolation:isolate;
+/* Map sheets use the same quiet cosmic glass as the map chrome. */
+html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) .map-detail-shell {
+  background-color:#080d1d !important;
+  background-image:radial-gradient(circle at 84% 16%,#c7daff88 0 .8px,transparent 1.6px),radial-gradient(circle at 28% 78%,#c4b5fd88 0 .6px,transparent 1.4px),var(--cosmos-material) !important;
+  background-size:100% 100% !important; background-position:center !important;
+  background-attachment:scroll !important; isolation:isolate;
 }
-html[data-cosmic-theme='on'] :is(.pks-map-search-panel,.map-detail-shell,.pks-navigation)::before {
-  content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; border-radius:inherit;
-  background-color:#030610;
-  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),var(--cosmos-material),linear-gradient(var(--ui-surface),var(--ui-surface)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg'));
-  background-size:100% 100%,auto,100% 100%,100% 100%,var(--cosmos-scene-size,cover);
-  background-position:center,center,center,center,var(--cosmos-scene-position,center);
-  background-repeat:no-repeat; background-attachment:fixed;
-  filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)); clip-path:inset(0 round 16px);
-}
+html[data-cosmic-theme='on'] .map-detail-shell::before { content:none !important; }
 html[data-cosmic-theme='on'] [data-cosmic-panel='stop-departures'] { min-height:160px; }
 html[data-cosmic-theme='on'] .transit-stop-card > div:first-child { background-color:var(--ui-surface); border-color:var(--ui-edge); }
 html[data-cosmic-theme='on'] :is(.pks-panel-scope,.pks-options-sheet,[data-carrier-sheet]) :is(input,textarea)::placeholder { color:var(--ui-muted); }
@@ -950,3 +938,15 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
 [data-cosmic-comet] { position:absolute; width:132px; height:3px; opacity:0; transform-origin:left center; border-radius:50%; background:linear-gradient(90deg,#f5fcff,#c0ddffb3 18%,#a5a6f044 65%,transparent); }
 [data-cosmic-comet]::before { content:''; position:absolute; width:6px; height:6px; left:-1px; top:-1.5px; border-radius:50%; background:#f5fcff; box-shadow:0 0 8px #c3deff; }
 [data-cosmic-comet] i { position:absolute; inset:-6px 0; background:linear-gradient(90deg,#c3dcff66,transparent 70%); border-radius:50%; filter:blur(3px); }
+
+/* The sky belongs inside Options, including when opened from the street map. */
+html[data-cosmic-theme='on'] .pks-options-sheet { position:relative; isolation:isolate; }
+html[data-cosmic-theme='on'] .pks-options-sheet::before {
+  content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; border-radius:inherit;
+  background-color:#030611; background-image:linear-gradient(rgb(3 6 17 / 48%),rgb(3 6 17 / 65%)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg'));
+  background-size:100% 100%,var(--cosmos-scene-size,cover); background-position:center,var(--cosmos-scene-position,center);
+  background-repeat:no-repeat; filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation));
+}
+html[data-cosmic-glass='off'] .pks-options-sheet::before { content:none; }
+/* A map can never acquire animated stars through any open overlay. */
+.pks-theme-root[data-cosmic-tab='map'] [data-cosmic-effects] { display:none !important; }

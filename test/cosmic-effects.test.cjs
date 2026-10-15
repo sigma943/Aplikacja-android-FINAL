@@ -3,7 +3,7 @@ const {COSMIC_METEOR_INTERVAL,COSMIC_METEOR_DURATION,COSMIC_METEOR_MIN_INTERVAL,
 const normal={theme:'dark-cosmos',hidden:false,nativeActive:true,reducedMotion:false,lightEffects:false};
 test('cosmic motion stops for hidden/native background apps, both reduced motion preferences, light effects and other themes',()=>{
  assert.equal(cosmicMotionAllowed(normal),true);
- for(const change of [{hidden:true},{nativeActive:false},{reducedMotion:true},{lightEffects:true},{theme:'dark-oled'},{hasRegion:false}])assert.equal(cosmicMotionAllowed({...normal,...change}),false);
+ for(const change of [{hidden:true},{nativeActive:false},{reducedMotion:true},{lightEffects:true},{theme:'dark-oled'},{hasRegion:false},{tab:'map'}])assert.equal(cosmicMotionAllowed({...normal,...change}),false);
  assert.ok(COSMIC_METEOR_DURATION<=800);assert.ok(COSMIC_METEOR_INTERVAL>=8000);
 });
 test('meteor scheduler is idle between short effects and has zero wakeups when disabled; resume creates only one timer',()=>{

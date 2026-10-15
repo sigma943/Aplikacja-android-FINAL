@@ -8,13 +8,13 @@ test('first-paint script uses selected palettes and safely recovers when storage
  for(const mode of ['dark-cosmos','dark-aurora','dark-forest','light-sky','light-pink','bad-theme','system','','constructor','__proto__','toString'])for(const dark of [true,false])for(const brokenStorage of [true,false]){
   const style={values:{},setProperty(k,v){this.values[k]=v}},root={style,dataset:{}};
   vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{localStorage:{getItem(){if(brokenStorage)throw Error('Denied');return mode;}},matchMedia:()=>({matches:dark}),document:{documentElement:root}});
-  const expected=theme.resolveAppTheme(brokenStorage?'system':mode,dark);assert.equal(root.dataset.pksTheme,expected);assert.equal(style.backgroundColor,theme.THEME_SCREEN_COLORS[expected].background);assert.equal(style.color,theme.THEME_SCREEN_COLORS[expected].text);
+  const expected=theme.resolveAppTheme(brokenStorage?'dark-oled':mode,dark);assert.equal(root.dataset.pksTheme,expected);assert.equal(style.backgroundColor,theme.THEME_SCREEN_COLORS[expected].background);assert.equal(style.color,theme.THEME_SCREEN_COLORS[expected].text);
  }
- const root={style:{setProperty(){}},dataset:{}};vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{localStorage:{getItem(){throw Error();}},matchMedia(){throw Error();},document:{documentElement:root}});assert.equal(root.dataset.pksTheme,'light');
+ const root={style:{setProperty(){}},dataset:{}};vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{localStorage:{getItem(){throw Error();}},matchMedia(){throw Error();},document:{documentElement:root}});assert.equal(root.dataset.pksTheme,'dark-oled');
 });
-test('blocked storage uses system, and selected forest/sky profiles survive backup and preserve effects',()=>{
+test('blocked storage uses AMOLED, and selected forest/sky profiles survive backup and preserve effects',()=>{
  const old=global.window;global.window={localStorage:{getItem(){throw Error('Denied');}},matchMedia:()=>({matches:true})};
- try{assert.equal(theme.readAppTheme(),'system');assert.equal(theme.resolveAppTheme(theme.readAppTheme()),'dark');}finally{global.window=old;}
+ try{assert.equal(theme.readAppTheme(),'dark-oled');assert.equal(theme.resolveAppTheme(theme.readAppTheme()),'dark-oled');}finally{global.window=old;}
  const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),{exportAppearanceBackup,parseAppearanceBackup}=load('lib/appearance-backup.ts');
  for(const mode of ['dark-forest','light-sky']){
   const preset=INTERFACE_PRESETS.find(p=>p.theme===mode);assert.equal(preset.glass,true);assert.equal(preset.glow,true);assert.ok(preset.glowStrength>0);assert.equal(preset.appearance.glowColor,preset.accent);
@@ -29,4 +29,13 @@ test('forest and sky accents remain readable on their raised panels',()=>{
  for(const [mode,bg] of [['dark-forest','#194333'],['light-sky','#aedbfa']]){
   const accent=INTERFACE_PRESETS.find(p=>p.theme===mode).accent,a=lum(accent),b=lum(bg);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5);
  }
+});
+
+test('a clean first launch is AMOLED regardless of system palette, while an explicit theme stays selected',()=>{
+ for(const dark of [true,false])for(const selected of [null,'dark-cosmos']){
+  const root={style:{setProperty(){}},dataset:{}};
+  vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{localStorage:{getItem(){return selected;}},matchMedia:()=>({matches:dark}),document:{documentElement:root}});
+  assert.equal(root.dataset.pksTheme,selected||'dark-oled');
+ }
+ assert.equal(theme.DEFAULT_APP_THEME,'dark-oled');
 });

@@ -3,6 +3,7 @@ const backgroundSvgs=require('./helpers/css-background-svg.cjs');
 const http=require('node:http');const fs=require('node:fs');const path=require('node:path');
 const puppeteer=require('puppeteer');
 const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root;const productionRoot=path.resolve('out');
+fs.writeFileSync(path.join(root,'preview-map-test.svg'),'<svg xmlns="http://www.w3.org/2000/svg" width="512" height="900"><rect width="512" height="900" fill="#17312b"/><path d="M0 200L512 480M250 0L110 900" stroke="#a9b9bd" stroke-width="14"/></svg>');
 const server=http.createServer((req,res)=>{
   const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
   let file=path.resolve(root,'.'+(pathname.endsWith('/')?`${pathname}index.html`:pathname));
@@ -130,14 +131,7 @@ const server=http.createServer((req,res)=>{
           return {name,width:image.naturalWidth,centerAlpha:context.getImageData(Math.floor(canvas.width/2),Math.floor(canvas.height/2),1,1).data[3],cornerAlpha:context.getImageData(0,0,1,1).data[3]};
         })));
         assert.ok(planetImages.every(image=>image.width===512&&image.centerAlpha>0&&image.cornerAlpha<85),'each planet image decodes with visible artwork and a transparent background: '+JSON.stringify(planetImages));
-        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
-        await page.waitForFunction(()=>document.querySelector('[data-cosmic-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:23000,polling:25});
-        assert.equal(await page.$$eval('[data-cosmic-meteor]',els=>els.length),1);
-
-        assert.ok(await page.$$eval('[data-cosmic-star]',els=>els.some(el=>el.getAnimations().some(a=>a.playState==='running'))),'small stars twinkle');
-        const twinkles=await page.$$eval('[data-cosmic-star]',els=>els.flatMap(el=>el.getAnimations().map(animation=>{const timing=animation.effect.getTiming();return {duration:timing.duration,infinite:timing.iterations===Infinity};})));
-        assert.ok(twinkles.length>0&&twinkles.every(timing=>timing.duration>=6400&&timing.infinite),'individual stars twinkle slowly and continuously');
-        assert.ok(new Set(twinkles.map(timing=>timing.duration)).size>1,'stars have independent rhythms');
+        assert.equal(await page.evaluate(()=>document.documentElement.dataset.cosmicMotion),'off','Options on the map never enable animated stars over streets');
         assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map remains visible when Options opens on the map');
         assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage),'none','map tab never receives a full-screen cosmic photograph');
         const savedEffects=await page.evaluate(()=>Object.fromEntries(['mks_interface_appearance_v1','mks_transparent','mks_panel_glow'].map(key=>[key,localStorage.getItem(key)])));
@@ -174,27 +168,23 @@ const server=http.createServer((req,res)=>{
         await page.screenshot({path:'test/ui-previews/cosmos-clear-glass-options.png'});
         await page.$eval('[aria-label="Rozmycie tła paneli"]',el=>el.click());
         await page.waitForFunction(()=>document.documentElement.dataset.personalFrost==='on');
+        assert.ok(await page.$eval('[data-options-sheet]',el=>getComputedStyle(el,'::before').backgroundImage.includes('nebula.jpg')),'Options has its own bounded sky layer');
+        for(const [tab,name] of [['Przystanek','stop'],['Autobus','bus']]){
+          await page.$eval(`[aria-label="Podgląd: ${tab}"]`,el=>el.click());
+          await page.waitForSelector('[data-interface-preview] .map-detail-shell');
+          assert.ok(await page.$eval('[data-interface-preview] .map-detail-shell',el=>!getComputedStyle(el).backgroundImage.includes('nebula.jpg')),'map detail glass never paints the photographic sky');
+          assert.equal(await page.$eval('[data-interface-preview] .map-detail-shell',el=>getComputedStyle(el,'::before').content),'none','map details have no duplicated sky layer');
+          assert.equal(await page.evaluate(()=>document.documentElement.dataset.cosmicMotion),'off','detail sheets on the map cannot enable star animations');
+          await page.$eval('[data-interface-preview]',el=>el.scrollIntoView({block:'center'}));
+          await page.screenshot({path:`test/ui-previews/cosmos-map-${name}-glass.png`});
+        }
+        await page.$eval('[aria-label="Podgląd: Mapa"]',el=>el.click());
         const cosmicPaint=await page.$eval('[data-options-sheet]',el=>({image:getComputedStyle(el).backgroundImage,blur:getComputedStyle(el).backdropFilter}));
         assert.ok(cosmicPaint.blur.includes('blur('),'outer panels blur the common sky');
         assert.ok(!cosmicPaint.image.includes('/themes/kosmos/'),'panels have no independent celestial artwork');
         assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).zIndex),'30','optical accents remain visible above the frost');
         assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).pointerEvents),'none','accents never intercept controls');
-        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
-        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
-        assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
-        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0);
-        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
-        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
-        await page.evaluate(()=>{localStorage.setItem('mks_light_effects','true');window.dispatchEvent(new Event('pks-interface-appearance'));});
-        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
-        await page.evaluate(()=>{localStorage.setItem('mks_light_effects','false');window.dispatchEvent(new Event('pks-interface-appearance'));});
-        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
-        const idleTab=await browser.newPage();await idleTab.bringToFront();
-        await page.waitForFunction(()=>document.hidden&&document.documentElement.dataset.cosmicMotion==='off');
-        assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
-        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0);
-        await idleTab.close();await page.bringToFront();
-        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+
       }
       await screenshot('personalization-'+mode);
       await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
@@ -215,6 +205,30 @@ const server=http.createServer((req,res)=>{
         await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
         assert.equal(await captureSky(),stable,'closing Options preserves the main-tab sky');
         assert.equal(await page.$eval('[data-cosmic-stage]',el=>getComputedStyle(el).display),'block','cinematic depth is visible behind the stop list');
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        await page.waitForFunction(()=>document.querySelector('[data-cosmic-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:23000,polling:25});
+        assert.equal(await page.$$eval('[data-cosmic-meteor]',els=>els.length),1);
+
+        assert.ok(await page.$$eval('[data-cosmic-star]',els=>els.some(el=>el.getAnimations().some(a=>a.playState==='running'))),'small stars twinkle');
+        const twinkles=await page.$$eval('[data-cosmic-star]',els=>els.flatMap(el=>el.getAnimations().map(animation=>{const timing=animation.effect.getTiming();return {duration:timing.duration,infinite:timing.iterations===Infinity};})));
+        assert.ok(twinkles.length>0&&twinkles.every(timing=>timing.duration>=6400&&timing.infinite),'individual stars twinkle slowly and continuously');
+        assert.ok(new Set(twinkles.map(timing=>timing.duration)).size>1,'stars have independent rhythms');
+        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
+        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0);
+        await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        await page.evaluate(()=>{localStorage.setItem('mks_light_effects','true');window.dispatchEvent(new Event('pks-interface-appearance'));});
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
+        await page.evaluate(()=>{localStorage.setItem('mks_light_effects','false');window.dispatchEvent(new Event('pks-interface-appearance'));});
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
+        const idleTab=await browser.newPage();await idleTab.bringToFront();
+        await page.waitForFunction(()=>document.hidden&&document.documentElement.dataset.cosmicMotion==='off');
+        assert.equal(await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations().length),0);
+        assert.equal(await page.$$eval('[data-cosmic-star]',els=>els.reduce((sum,el)=>sum+el.getAnimations().length,0)),0);
+        await idleTab.close();await page.bringToFront();
+        await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='on');
         await page.waitForFunction(()=>document.querySelector('[data-cosmic-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:23000,polling:25});
         await page.$eval('[data-cosmic-meteor]',el=>{const a=el.getAnimations()[0];a.pause();a.currentTime=Number(a.effect.getTiming().duration)*.3;});
         await page.screenshot({path:'test/ui-previews/cosmos-visible-meteor.png'});
@@ -590,8 +604,9 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>{
       const canvas=document.querySelector('[data-map-canvas]'),pane=document.createElement('div');pane.className='leaflet-tile-pane';pane.dataset.previewTest='true';
       Object.assign(pane.style,{position:'absolute',inset:'0'});
-      const image=new Image();image.className='leaflet-tile-loaded';image.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="900"><rect width="512" height="900" fill="#17312b"/><path d="M0 200L512 480M250 0L110 900" stroke="#a9b9bd" stroke-width="14"/></svg>');Object.assign(image.style,{width:'512px',height:'900px',position:'absolute',left:'0',top:'0'});pane.append(image);canvas.append(pane);
+      const image=new Image();image.className='leaflet-tile-loaded';image.src='/preview-map-test.svg';Object.assign(image.style,{width:'512px',height:'900px',position:'absolute',left:'0',top:'0'});pane.append(image);canvas.append(pane);
     });
+    await page.waitForFunction(()=>document.querySelector('[data-preview-test] img')?.naturalWidth>0);
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pokaż podgląd').click());
     await page.waitForSelector('[data-preview-map="tiles"] img');

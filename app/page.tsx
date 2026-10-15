@@ -1,5 +1,5 @@
 'use client';
-import {normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
+import {DEFAULT_APP_THEME,normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
 import BusDetailsPanel from '@/components/BusDetailsPanel';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
@@ -150,7 +150,7 @@ export default function Home() {
   const [showMapStops,setShowMapStops]=useState(false);
   // Match the exported HTML first; restore preferences after hydration so React
   // updates theme classes rather than retaining mismatched server attributes.
-  const [appTheme, setAppTheme] = useState<AppTheme>('dark-oled');
+  const [appTheme, setAppTheme] = useState<AppTheme>(DEFAULT_APP_THEME);
   const [systemIsDark, setSystemIsDark] = useState(false);
   const [transparentUI, setTransparentUI] = useState(true);
   const [lightEffects,setLightEffects]=useState(false);
@@ -328,7 +328,7 @@ export default function Home() {
     setShowMapStops(localStorage.getItem('mks_show_map_stops')==='true');
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
-    const storedAppTheme = (localStorage.getItem('mks_app_theme') ?? 'dark-oled').trim().toLowerCase();
+    const storedAppTheme = (localStorage.getItem('mks_app_theme') ?? DEFAULT_APP_THEME).trim().toLowerCase();
     const sAppTheme = storedAppTheme === 'dark-pink' ? 'light-pink' : storedAppTheme;
     if(storedAppTheme==='dark-pink'){
       localStorage.setItem('mks_app_theme','light-pink');

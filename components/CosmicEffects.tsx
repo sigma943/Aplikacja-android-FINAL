@@ -152,7 +152,7 @@ export default function CosmicEffects(){
         }
       }else root.style.removeProperty('--theme-decoration');
       const changed=nextRegion!==region;region=nextRegion;measure();
-      const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region)});
+      const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region),tab});
       if(nextAllowed!==allowed||changed){
         allowed=nextAllowed;animation?.cancel();animation=null;cometAnimation?.cancel();cometAnimation=null;stopStars();scheduler.refresh();cometScheduler.refresh();
       }
