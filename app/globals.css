@@ -831,3 +831,11 @@ html[data-cosmic-theme='on'] .pks-theme-root[data-ui-theme='dark-cosmos'] [data-
   background:transparent !important;
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
 }
+
+/* Override the statistics view's intentionally opaque default only in Kosmos. */
+.pks-theme-root[data-ui-theme='dark-cosmos'] .pks-panel-scope[data-panel-theme][data-glass] [data-statistics-view] .pks-personal-card {
+  background-color:var(--ui-surface) !important;
+  background-image:linear-gradient(135deg,rgba(181,202,255,.055),rgba(8,12,26,.08)) !important;
+  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(125%) !important;
+  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(125%) !important;
+}
