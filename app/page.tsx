@@ -2,6 +2,7 @@
 import {normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
 import BusDetailsPanel from '@/components/BusDetailsPanel';
+import CosmicTabLoading from '@/components/CosmicTabLoading';
 
 import {toggleStopFavoriteIds} from '@/lib/stop-identity';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
@@ -58,7 +59,7 @@ const MARCEL_COLOR = '#68c44a';
 
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 
-const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false });
+const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false, loading: () => <CosmicTabLoading/> });
 
 const BusMap = dynamic(loadMapCode, {
   ssr: false,
@@ -75,9 +76,10 @@ const BusMap = dynamic(loadMapCode, {
 const AdminDashboard = dynamic(() => import('@/app/admin/AdminDashboard'), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full bg-[#040609] flex items-center justify-center text-slate-400 text-sm font-medium">
-      Ładowanie panelu administratora…
-    </div>
+    <>
+      <CosmicTabLoading label="Otwieranie panelu administratora…"/>
+      <div data-cosmic-legacy-loader className="h-full w-full bg-[#040609] flex items-center justify-center text-slate-400 text-sm font-medium">Ładowanie panelu administratora…</div>
+    </>
   ),
 });
 
@@ -1187,7 +1189,7 @@ export default function Home() {
             {activeTab === 'admin' && canOpenAdminEmbed && (
                <motion.div
                   key="admin-embed"
-                  initial={{ opacity: 0 }}
+                  initial={actualTheme === 'dark-cosmos' ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
@@ -1382,7 +1384,7 @@ export default function Home() {
             key="new-stops-panel"
             initial={false}
             animate={activeTab === 'stops' ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 14, scale: 0.985 }}
-            transition={{duration: 0.5, ease: [0.25, 0.1, 0.25, 1]}}
+            transition={{duration: actualTheme === 'dark-cosmos' ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}}
             className={`absolute inset-0 z-10 overflow-hidden ${activeTab === 'stops' ? 'pointer-events-auto' : 'pointer-events-none'} ${
                transparentUI
                  ? 'pks-glass-frame'
@@ -1392,7 +1394,7 @@ export default function Home() {
             data-cosmic-canvas
             aria-hidden={activeTab !== 'stops'}
          >
-            {hasOpenedStops && <StopsPanel
+            {(hasOpenedStops || (actualTheme === 'dark-cosmos' && activeTab === 'stops')) && <StopsPanel
                initialStop={widgetStop}
                active={activeTab === 'stops'}
                stops={stopsList}

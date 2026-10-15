@@ -104,18 +104,23 @@ export function cosmicVisitSession(seed:number){
 }
 
 
-/** Art-directed screen composition: one focal region, separated orbits, quiet text lanes. */
+/** Two clear focal planets, independently jittered within separated composition bands. */
 export function cosmicBackdrop(seed:number){
   const random=cosmicRandom(seed);
-  const layouts=[[[78,22],[22,60],[73,87]],[[24,26],[79,58],[28,88]],[[75,38],[20,76],[80,91]],[[22,18],[77,49],[24,83]]];
-  const anchors=layouts[Math.floor(random()*layouts.length)];
-  const count=random()<.75?1:2;
-  const family=Math.floor(random()*COSMIC_PLANETS.length);
-  const planets=anchors.slice(0,count).map(([x,y],i)=>({
-    planet:(family+i*3)%COSMIC_PLANETS.length,
-    x:x+(random()-.5)*8,y:y+(random()-.5)*6,
-    size:i===0?88+random()*32:32+random()*14,
+  const mirror=random()<.5;
+  const anchors=[
+    [18+random()*18,23+random()*16],
+    [65+random()*17,66+random()*18],
+  ];
+  // Shuffle the photo families without replacement; every visit has two distinct bodies.
+  const families=Array.from({length:COSMIC_PLANETS.length},(_,i)=>i);
+  for(let i=families.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[families[i],families[j]]=[families[j],families[i]];}
+  const planets=anchors.map(([x,y],i)=>({
+    planet:families[i],x:mirror?100-x:x,y,
+    // Source photos include transparent margins: size is the whole image frame.
+    size:i===0?164+random()*42:96+random()*24,
   }));
+  if(random()<.3)planets.push({planet:families[2],x:mirror?18+random()*8:74+random()*8,y:14+random()*9,size:58+random()*14});
   return {planets,focusX:15+random()*70,focusY:random()*100,zoom:145+random()*35,
     tint:Math.floor(random()*3)};
 }
@@ -149,7 +154,15 @@ export function cosmicScreenSession(seed:number){
       if(!next||!['map','stops','admin'].includes(next)||next===tab)return false;
       if(tab===undefined){tab=next;return false;}
       tab=next;epoch++;
-      scene=cosmicBackdrop(cosmicKeySeed(seed,`screen:${epoch}`));
+      const previous=scene.planets[0];
+      let nextScene=cosmicBackdrop(cosmicKeySeed(seed,`screen:${epoch}`));
+      for(let attempt=1;attempt<=8&&Math.hypot(nextScene.planets[0].x-previous.x,nextScene.planets[0].y-previous.y)<24;attempt++){
+        nextScene=cosmicBackdrop(cosmicKeySeed(seed,`screen:${epoch}:${attempt}`));
+      }
+      if(Math.hypot(nextScene.planets[0].x-previous.x,nextScene.planets[0].y-previous.y)<24){
+        nextScene={...nextScene,planets:nextScene.planets.map(p=>({...p,x:100-p.x}))};
+      }
+      scene=nextScene;
       return true;
     },
   };

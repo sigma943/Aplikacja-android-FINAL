@@ -768,7 +768,7 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
   .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation,[data-cosmic-panel]
 ) {
-  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),linear-gradient(135deg,rgba(181,202,255,.035),rgba(8,12,26,.08)) !important;
+  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),var(--cosmos-material) !important;
   background-color:var(--ui-surface) !important;
   -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)) !important;
   backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)) !important;
@@ -784,9 +784,9 @@ html[data-cosmic-theme='on'] :is(.pks-options-sheet,.map-detail-shell,[data-carr
    Their own foreground is clear, and street labels cannot leak into the timetable. */
 html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(.pks-map-search-panel,.map-detail-shell,.pks-navigation) {
   background-color:#030610 !important;
-  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),linear-gradient(var(--ui-surface),var(--ui-surface)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg')) !important;
-  background-size:100% 100%,auto,100% 100%,var(--cosmos-scene-size,cover) !important;
-  background-position:center,center,center,var(--cosmos-scene-position,center) !important;
+  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),var(--cosmos-material),linear-gradient(var(--ui-surface),var(--ui-surface)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg')) !important;
+  background-size:100% 100%,auto,100% 100%,100% 100%,var(--cosmos-scene-size,cover) !important;
+  background-position:center,center,center,center,var(--cosmos-scene-position,center) !important;
   background-repeat:no-repeat !important;
   background-attachment:fixed !important;
   isolation:isolate;
@@ -794,9 +794,9 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
 html[data-cosmic-theme='on'] :is(.pks-map-search-panel,.map-detail-shell,.pks-navigation)::before {
   content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; border-radius:inherit;
   background-color:#030610;
-  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),linear-gradient(var(--ui-surface),var(--ui-surface)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg'));
-  background-size:100% 100%,auto,100% 100%,var(--cosmos-scene-size,cover);
-  background-position:center,center,center,var(--cosmos-scene-position,center);
+  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),var(--cosmos-material),linear-gradient(var(--ui-surface),var(--ui-surface)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg'));
+  background-size:100% 100%,auto,100% 100%,100% 100%,var(--cosmos-scene-size,cover);
+  background-position:center,center,center,center,var(--cosmos-scene-position,center);
   background-repeat:no-repeat; background-attachment:fixed;
   filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)); clip-path:inset(0 round 16px);
 }
@@ -832,7 +832,7 @@ html[data-cosmic-theme='on'] .pks-theme-root[data-ui-theme='dark-cosmos'] [data-
 /* Override the statistics view's intentionally opaque default only in Kosmos. */
 .pks-theme-root[data-ui-theme='dark-cosmos'] .pks-panel-scope[data-panel-theme][data-glass] [data-statistics-view] .pks-personal-card {
   background-color:var(--ui-surface) !important;
-  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),linear-gradient(135deg,rgba(181,202,255,.035),rgba(8,12,26,.08)) !important;
+  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),var(--cosmos-material) !important;
   -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)) !important;
   backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)) !important;
 }
@@ -877,4 +877,33 @@ html[data-cosmic-theme='on'] .pks-theme-root[data-ui-theme='dark-cosmos'] :is(.t
 html[data-cosmic-motion='off'] [data-cosmic-orb] img { filter:none; }
 @media (prefers-reduced-motion:reduce) { [data-cosmic-nebula]::before { animation:none !important; } [data-cosmic-stage] * { transition:none !important; } }
 
+html[data-personal-card-style='flat'] .pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-card,.pks-personal-card,.pks-option-card,[data-interface-card]) { box-shadow:none !important; }
+
+/* Kosmos has its own layered optical material. Its density, frost and rim still
+   follow the saved appearance controls; no celestial images are painted on cards. */
+html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
+  --cosmos-material:linear-gradient(155deg,rgba(var(--cosmos-light-rgb,111,162,255),var(--cosmos-sheen-alpha,.05)),transparent 35%),linear-gradient(115deg,rgba(4,8,22,var(--cosmos-veil-alpha,.19)),rgba(4,8,22,0) 65%,rgba(4,8,22,var(--cosmos-veil-alpha,.19)));
+}
+html[data-cosmic-theme='on'] .pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-card,.transit-surface,.pks-options-sheet,.pks-option-card,.pks-personal-card,.admin-topbar,[data-cosmic-panel]) {
+  border-color:var(--ui-edge);
+  box-shadow:var(--personal-shadow,0 8px 28px #0002),inset 0 1px 0 rgba(var(--cosmos-light-rgb,111,162,255),var(--cosmos-glint-alpha,.05)),inset 0 -1px 0 rgba(0,0,0,var(--cosmos-glint-alpha,.05)) !important;
+}
+/* Display controls and skeletons in the first painted frame instead of fading
+   the entire view in over an otherwise empty photograph. Other themes animate normally. */
+html[data-cosmic-theme='on'] [data-cosmic-content],
+.pks-theme-root[data-ui-theme='dark-cosmos'][data-cosmic-tab='stops'] [data-cosmic-canvas][aria-hidden='false'] { opacity:1 !important; transform:none !important; }
+[data-cosmic-pending] { display:none; }
+html[data-cosmic-theme='on'] [data-cosmic-legacy-loader] { display:none; }
+html[data-cosmic-theme='on'] [data-cosmic-pending] {
+  display:flex; flex-direction:column; gap:24px; width:100%; height:100%; overflow:hidden;
+  padding:24px 12px; background:#080a12; color:#e7e8f4;
+}
+.cosmic-loading-heading { display:flex; align-items:center; gap:14px; padding:20px; min-height:112px; border:1px solid #bccfff26; border-radius:24px; background:linear-gradient(145deg,#171c30,#101421); font-weight:600; }
+.cosmic-loading-orbit { width:32px; height:32px; flex-shrink:0; border:2px solid #baa6ff33; border-top-color:#baa6ff; border-radius:50%; }
+.cosmic-loading-cards { display:flex; flex-direction:column; gap:14px; }
+.cosmic-loading-cards>div { display:flex; align-items:center; gap:18px; height:104px; padding:18px; border:1px solid #bccfff1c; border-radius:24px; background:#111522; }
+.cosmic-loading-cards span { width:44px; height:44px; border-radius:16px; background:#252b40; }
+.cosmic-loading-cards section { flex:1; }
+.cosmic-loading-cards i { display:block; width:78%; height:12px; border-radius:8px; background:#293047; }
+.cosmic-loading-cards i+i { width:50%; height:8px; margin-top:14px; background:#202639; }
 html[data-personal-card-style='flat'] .pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-card,.pks-personal-card,.pks-option-card,[data-interface-card]) { box-shadow:none !important; }

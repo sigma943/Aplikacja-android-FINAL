@@ -126,6 +126,8 @@ export default function CosmicEffects(){
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
       try{root.dataset.cosmicGlass=localStorage.getItem('mks_transparent')==='false'?'off':'on';}catch{root.dataset.cosmicGlass='on';}
       let parallaxPreference=false;try{parallaxPreference=localStorage.getItem(COSMIC_PARALLAX_KEY)==='true';}catch{}
+      root.style.setProperty('--cosmos-veil-alpha',String(appearance.glassOpacity/100*.42));
+      root.style.setProperty('--cosmos-sheen-alpha',String(appearance.borderStrength/100*.35));
       root.style.setProperty('--cosmos-glint-alpha',root.dataset.cosmicGlass==='off'||appearance.cardStyle==='flat'?'0':String(appearance.borderStrength/300));
       if(theme==='dark-cosmos'){
         root.style.setProperty('--theme-decoration',themeDecoration(theme));
@@ -158,7 +160,7 @@ export default function CosmicEffects(){
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);
       native?.then(handle=>handle.remove()).catch(()=>{});
-      for(const key of [...Object.keys(cosmicBackdropStyle(session.scene)),'--cosmos-glint-alpha'])root.style.removeProperty(key);
+      for(const key of [...Object.keys(cosmicBackdropStyle(session.scene)),'--cosmos-glint-alpha','--cosmos-veil-alpha','--cosmos-sheen-alpha'])root.style.removeProperty(key);
       delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;delete root.dataset.cosmicGlass;root.style.removeProperty('--theme-decoration');for(const key of ['--cosmos-scene-image','--cosmos-scene-size','--cosmos-scene-position','--cosmos-viewport-width','--cosmos-viewport-height'])root.style.removeProperty(key);
     };
   },[host]);

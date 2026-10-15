@@ -199,7 +199,13 @@ const server=http.createServer((req,res)=>{
         await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
         assert.equal(await captureSky(),stable,'closing Options preserves the main-tab sky');
         assert.equal(await page.$eval('[data-cosmic-stage]',el=>getComputedStyle(el).display),'block','cinematic depth is visible behind the stop list');
-        assert.ok(await page.$$eval('[data-cosmic-orb]',els=>els.length>=1&&els.every(el=>el.querySelector('[data-cosmic-terminator]'))),'planets have a shaded light-facing surface');
+        assert.ok(await page.$$eval('[data-cosmic-orb]',els=>els.length>=2&&els.every(el=>el.querySelector('[data-cosmic-terminator]'))),'planets have a shaded light-facing surface');
+        const orbits=await page.$$eval('[data-cosmic-orb]',els=>els.map(el=>({width:el.getBoundingClientRect().width,x:el.style.left,y:el.style.top})));
+        assert.ok(orbits[0].width>orbits[1].width*1.35,'two prominent planets have different sizes');
+        assert.notEqual(orbits[0].y,orbits[1].y,'planets occupy separate vertical bands');
+        assert.equal(await page.$eval('[data-cosmic-content]',el=>getComputedStyle(el).opacity),'1','stop controls appear without a full-view fade');
+        assert.ok(await page.$eval('.transit-card',el=>getComputedStyle(el).backgroundImage.includes('155deg')),'Kosmos gets the dedicated rim and depth material');
+
         const savedParallax=await page.evaluate(()=>localStorage.getItem('mks_cosmic_parallax'));
         await page.evaluate(()=>{localStorage.setItem('mks_cosmic_parallax','true');window.dispatchEvent(new Event('pks-interface-appearance'));window.dispatchEvent(new PointerEvent('pointermove',{pointerType:'mouse',clientX:innerWidth,clientY:innerHeight}));});
         assert.notEqual(await page.$eval('[data-cosmic-stage]',el=>el.style.getPropertyValue('--cosmos-parallax-x')),'0.00px','optional parallax shifts scenery, not controls');

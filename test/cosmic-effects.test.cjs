@@ -102,8 +102,10 @@ test('screen compositions stay stable on refresh and change on tab re-entry and 
 test('compositions separate distinct planet families and keep them within the viewport',()=>{
  const {cosmicBackdrop}=load('lib/cosmic-scene.ts');
  for(let seed=0;seed<1000;seed++){
-  const scene=cosmicBackdrop(seed);assert.ok(scene.planets.length>=1&&scene.planets.length<=2);
+  const scene=cosmicBackdrop(seed);assert.ok(scene.planets.length>=2&&scene.planets.length<=3);
   assert.equal(new Set(scene.planets.map(p=>p.planet)).size,scene.planets.length);
+  assert.ok(scene.planets[0].size>=164&&scene.planets[1].size>=96);
+  assert.ok(scene.planets[0].size>scene.planets[1].size*1.35);
   for(const [i,p] of scene.planets.entries()){
    assert.ok(p.x>=10&&p.x<=90&&p.y>=10&&p.y<=95);
    for(const q of scene.planets.slice(i+1))assert.ok(Math.hypot(p.x-q.x,p.y-q.y)>30);
@@ -155,4 +157,17 @@ test('cinematic layers derive their light and nebula from the unchanged screen s
  const {cosmicScreenSession,cosmicBackdropStyle}=load('lib/cosmic-scene.ts');const session=cosmicScreenSession(42);
  const style=cosmicBackdropStyle(session.scene);assert.match(style['--cosmos-nebula-image'],/nebula.jpg/);assert.match(style['--cosmos-light-rgb'],/^\d+,\d+,\d+$/);
  session.enterTab('stops');session.enterTab('options');assert.deepEqual(cosmicBackdropStyle(session.scene),style);
+});
+
+
+test('main-tab visits visibly relocate the dominant planet without refreshing on data or Options',()=>{
+ const {cosmicScreenSession}=load('lib/cosmic-scene.ts');
+ for(let seed=0;seed<100;seed++){
+  const session=cosmicScreenSession(seed);session.enterTab('map');
+  for(const tab of ['stops','admin','stops','map','stops']){
+   const previous=session.scene.planets[0];session.enterTab(tab);
+   const next=session.scene.planets[0];assert.ok(Math.hypot(next.x-previous.x,next.y-previous.y)>=24);
+   const stable=session.scene;session.enterTab(tab);session.enterTab('options');assert.equal(session.scene,stable);
+  }
+ }
 });

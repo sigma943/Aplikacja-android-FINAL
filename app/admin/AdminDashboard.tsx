@@ -1,4 +1,5 @@
 'use client';
+import CosmicTabLoading from '@/components/CosmicTabLoading';
 import {isNewLoginBlocked,newLoginsEnabled} from '@/lib/login-policy';
 import {motion, useReducedMotion} from 'motion/react';
 import {readStatisticsAccess, statisticsPermission, statisticsAccessChange, type StatisticsAccess} from '@/lib/admin/statistics-access';
@@ -268,7 +269,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
   if (loading) {
     return (
-      <div data-cosmic-view={`admin:${activeView}`} data-cosmic-seed={cosmicScope?.seed} data-panel-theme={isDarkTheme?'dark':'light'} className="pks-panel-scope min-h-screen bg-[#040609] flex items-center justify-center text-white">Ładowanie...</div>
+      <div data-cosmic-view={`admin:${activeView}`} data-cosmic-seed={cosmicScope?.seed} data-panel-theme={isDarkTheme?'dark':'light'} className="pks-panel-scope min-h-screen bg-[#040609] flex items-center justify-center text-white"><CosmicTabLoading label="Otwieranie panelu administratora…"/><span data-cosmic-legacy-loader>Ładowanie...</span></div>
     );
   }
 
@@ -1231,7 +1232,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           </div>
         )}
 
-        <motion.div className="flex min-h-0 flex-1 flex-col" key={activeView} initial={reduceMotion ? false : {opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}}>
+        <motion.div data-cosmic-content className="flex min-h-0 flex-1 flex-col" key={activeView} initial={reduceMotion ? false : {opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}}>
         {activeView === 'devices' && (
           <DeviceTable
             devices={devices}
