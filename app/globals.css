@@ -938,3 +938,15 @@ html[data-personal-frost='off']:not([data-cosmic-theme='on']) :is(.pks-glass,.pk
 
 /* Navigation must also mask scrolling labels beneath its icons. */
 html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) .pks-navigation { background-color:#080d1d !important; }
+
+/* Deliberate constellations keep the chrome cosmic without photographic blur. */
+html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(.pks-map-search-panel,.pks-navigation) {
+  background-image:radial-gradient(circle at 12% 20%,#e3ebff99 0 .7px,transparent 1.4px),radial-gradient(circle at 83% 18%,#b7ceff99 0 1px,transparent 2px),radial-gradient(circle at 66% 78%,#c4b5fd88 0 .7px,transparent 1.5px),radial-gradient(circle at 37% 66%,#dbeafe88 0 .5px,transparent 1.2px),radial-gradient(ellipse at 83% 18%,#a8c7ff22,transparent 12%),linear-gradient(120deg,rgba(var(--cosmos-light-rgb,111,162,255),.09),transparent 58%) !important;
+  background-size:100% 100% !important;
+}
+/* Meteors are short, warm dashes; comets have a broad, slower blue-white tail. */
+[data-cosmic-meteor] { width:48px; height:1.5px; background:linear-gradient(90deg,#fff5dd,#ffd49d99 22%,transparent); box-shadow:0 0 3px #ffdeaa33; }
+[data-cosmic-meteor]::before { width:2.5px; height:2.5px; top:-.5px; box-shadow:0 0 4px #ffe4bb; }
+[data-cosmic-comet] { position:absolute; width:132px; height:3px; opacity:0; transform-origin:left center; border-radius:50%; background:linear-gradient(90deg,#f5fcff,#c0ddffb3 18%,#a5a6f044 65%,transparent); }
+[data-cosmic-comet]::before { content:''; position:absolute; width:6px; height:6px; left:-1px; top:-1.5px; border-radius:50%; background:#f5fcff; box-shadow:0 0 8px #c3deff; }
+[data-cosmic-comet] i { position:absolute; inset:-6px 0; background:linear-gradient(90deg,#c3dcff66,transparent 70%); border-radius:50%; filter:blur(3px); }

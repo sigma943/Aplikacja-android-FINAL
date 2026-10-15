@@ -220,9 +220,15 @@ const server=http.createServer((req,res)=>{
         await page.screenshot({path:'test/ui-previews/cosmos-visible-meteor.png'});
         assert.ok(await page.$eval('[data-cosmic-meteor]',el=>Number(getComputedStyle(el).opacity)>.8),'a visible meteor crosses above the glass');
         await page.$eval('[data-cosmic-meteor]',el=>el.getAnimations()[0]?.play());
+        await page.waitForFunction(()=>document.querySelector('[data-cosmic-comet]')?.getAnimations().some(a=>a.playState==='running'),{timeout:26000,polling:25});
+        await page.$eval('[data-cosmic-comet]',el=>{const a=el.getAnimations()[0];a.pause();a.currentTime=Number(a.effect.getTiming().duration)*.35;});
+        await page.screenshot({path:'test/ui-previews/cosmos-distinct-comet.png'});
+        assert.ok(await page.$eval('[data-cosmic-comet]',el=>el.getBoundingClientRect().width>100),'comet has a long, separate luminous tail');
+        await page.$eval('[data-cosmic-comet]',el=>el.getAnimations()[0]?.play());
 
-        assert.ok(await page.$$eval('[data-cosmic-orb]',els=>els.length>=2&&els.every(el=>el.querySelector('[data-cosmic-terminator]'))),'planets have a shaded light-facing surface');
-        const orbits=await page.$$eval('[data-cosmic-orb]',els=>els.map(el=>({width:el.getBoundingClientRect().width,x:el.style.left,y:el.style.top})));
+
+        assert.ok(await page.$$eval('[data-cosmic-orb]',els=>els.length>=2&&els.length<=4&&els.every(el=>el.querySelector('[data-cosmic-terminator]'))),'planets have a shaded light-facing surface');
+        const orbits=await page.$$eval('[data-cosmic-orb]',els=>els.map(el=>({width:Number(el.dataset.cosmicDiameter),x:el.style.left,y:el.style.top})));
         assert.ok(orbits[0].width>orbits[1].width*1.35,'two prominent planets have different sizes');
         assert.notEqual(orbits[0].y,orbits[1].y,'planets occupy separate vertical bands');
         assert.equal(await page.$eval('[data-cosmic-content]',el=>getComputedStyle(el).opacity),'1','stop controls appear without a full-view fade');
@@ -256,7 +262,7 @@ const server=http.createServer((req,res)=>{
       if(mode==='dark-cosmos'){
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
         assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','cosmic effects never overlay the bare map');assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map is visible again after closing the cosmic panels');
-        assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
+        assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor],[data-cosmic-comet]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
         const mapSky=await page.$eval('.pks-map-search-panel',el=>({
           localPlanet:el.style.getPropertyValue('--cosmos-planet'),
           scene:getComputedStyle(el).getPropertyValue('--cosmos-scene-image'),
@@ -581,6 +587,21 @@ const server=http.createServer((req,res)=>{
     };
     await sameChrome();
     await page.waitForSelector('[data-interface-preview] [data-preview-map]');
+    await page.evaluate(()=>{
+      const canvas=document.querySelector('[data-map-canvas]'),pane=document.createElement('div');pane.className='leaflet-tile-pane';pane.dataset.previewTest='true';
+      Object.assign(pane.style,{position:'absolute',inset:'0'});
+      const image=new Image();image.className='leaflet-tile-loaded';image.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="900"><rect width="512" height="900" fill="#17312b"/><path d="M0 200L512 480M250 0L110 900" stroke="#a9b9bd" stroke-width="14"/></svg>');Object.assign(image.style,{width:'512px',height:'900px',position:'absolute',left:'0',top:'0'});pane.append(image);canvas.append(pane);
+    });
+    await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
+    await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pokaż podgląd').click());
+    await page.waitForSelector('[data-preview-map="tiles"] img');
+    assert.ok(await page.$eval('[data-preview-map] img',img=>{const a=img.getBoundingClientRect(),b=img.closest('[data-preview-map]').getBoundingClientRect();return a.width>0&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;}),'copied map tiles actually intersect the miniature viewport');
+    await page.screenshot({path:'test/ui-previews/preview-map-tiles-visible.png'});
+    await page.evaluate(()=>document.querySelector('[data-preview-test]').remove());
+    await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
+    await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pokaż podgląd').click());
+    await page.waitForSelector('[data-preview-map="sample"]');
+
     assert.ok(await page.$$eval('[data-preview-map] svg path',els=>els.length)>10,'offline preview has a street layout, not two diagonal stripes');
     await openGroup('Miękka poświata');
     assert.equal(await page.$eval('[aria-label="Miękka poświata paneli"]',el=>el.checked),false);

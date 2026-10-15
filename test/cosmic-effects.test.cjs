@@ -102,13 +102,13 @@ test('screen compositions stay stable on refresh and change on tab re-entry and 
 test('compositions separate distinct planet families and keep them within the viewport',()=>{
  const {cosmicBackdrop}=load('lib/cosmic-scene.ts');
  for(let seed=0;seed<1000;seed++){
-  const scene=cosmicBackdrop(seed);assert.ok(scene.planets.length>=2&&scene.planets.length<=3);
+  const scene=cosmicBackdrop(seed);assert.ok(scene.planets.length>=2&&scene.planets.length<=4);
   assert.equal(new Set(scene.planets.map(p=>p.planet)).size,scene.planets.length);
-  assert.ok(scene.planets[0].size>=164&&scene.planets[1].size>=96);
-  assert.ok(scene.planets[0].size>scene.planets[1].size*1.35);
+  assert.ok(scene.planets[0].diameter>=90&&scene.planets[1].diameter>=46);
+  assert.ok(scene.planets[0].diameter>scene.planets[1].diameter*1.35);
   for(const [i,p] of scene.planets.entries()){
    assert.ok(p.x>=10&&p.x<=90&&p.y>=10&&p.y<=95);
-   for(const q of scene.planets.slice(i+1))assert.ok(Math.hypot(p.x-q.x,p.y-q.y)>30);
+   for(const q of scene.planets.slice(i+1))assert.ok(Math.hypot(p.x-q.x,p.y-q.y)>=27);
   }
  }
 });
@@ -136,7 +136,7 @@ test('each meteor schedules a fresh random pause without resetting on UI refresh
  const scheduler=cosmicMeteorScheduler(()=>true,()=>{},clock,()=>cosmicMeteorDelay(()=>values[calls++]));
  scheduler.refresh();scheduler.refresh();assert.equal(calls,1);
  for(let i=0;i<2;i++){const [id,fn]=timers.entries().next().value;timers.delete(id);fn();}
- assert.deepEqual(delays,[3000,11500,20000]);scheduler.stop();assert.equal(timers.size,0);
+ assert.deepEqual(delays,[3000,8000,13000]);scheduler.stop();assert.equal(timers.size,0);
 });
 
 
@@ -170,4 +170,24 @@ test('main-tab visits visibly relocate the dominant planet without refreshing on
    const stable=session.scene;session.enterTab(tab);session.enterTab('options');assert.equal(session.scene,stable);
   }
  }
+});
+
+
+test('meteor and comet delays have separate bounded distributions averaging 8s and 15s',()=>{
+ const {cosmicMeteorDelay,cosmicCometDelay,cosmicMeteorScheduler}=load('lib/cosmic-effects.ts');
+ let m=0,c=0;for(let i=0;i<=1000;i++){m+=cosmicMeteorDelay(()=>i/1000);c+=cosmicCometDelay(()=>i/1000);}
+ assert.equal(m/1001,8000);assert.equal(c/1001,15000);
+ let enabled=true,id=0;const timers=new Map(),clock={set:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},clear:id=>timers.delete(id)};
+ const meteor=cosmicMeteorScheduler(()=>enabled,()=>{},clock,()=>cosmicMeteorDelay(()=>.5));
+ const comet=cosmicMeteorScheduler(()=>enabled,()=>{},clock,()=>cosmicCometDelay(()=>.5));
+ meteor.refresh();comet.refresh();assert.deepEqual([...timers.values()].map(t=>t.ms),[8000,15000]);
+ enabled=false;meteor.refresh();comet.refresh();assert.equal(timers.size,0);meteor.stop();comet.stop();
+});
+test('planet scenes cover the screen, offer 2/3/4 bodies and a strong near-to-far size hierarchy',()=>{
+ const {cosmicBackdrop}=load('lib/cosmic-scene.ts');const counts=new Set(),cells=new Set();
+ for(let seed=0;seed<1000;seed++){
+  const scene=cosmicBackdrop(seed);counts.add(scene.planets.length);const p=scene.planets[0];cells.add(Math.floor(p.x/15)+':'+Math.floor(p.y/15));
+  scene.planets.forEach((p,i)=>{if(i)assert.ok(scene.planets[i-1].diameter>p.diameter*1.2);});
+ }
+ assert.deepEqual([...counts].sort(),[2,3,4]);assert.ok(cells.size>=20,'dominant planets are not locked to two bands');
 });

@@ -1,9 +1,16 @@
 export const COSMIC_METEOR_INTERVAL=8000;
 export const COSMIC_METEOR_DURATION=780;
 export const COSMIC_METEOR_MIN_INTERVAL=3000;
-export const COSMIC_METEOR_MAX_INTERVAL=20000;
+export const COSMIC_METEOR_MAX_INTERVAL=13000;
 export function cosmicMeteorDelay(random:()=>number=Math.random){
   return Math.round(COSMIC_METEOR_MIN_INTERVAL+Math.max(0,Math.min(1,random()))*(COSMIC_METEOR_MAX_INTERVAL-COSMIC_METEOR_MIN_INTERVAL));
+}
+export const COSMIC_COMET_INTERVAL=15000;
+export const COSMIC_COMET_MIN_INTERVAL=7000;
+export const COSMIC_COMET_MAX_INTERVAL=23000;
+export const COSMIC_COMET_DURATION=2100;
+export function cosmicCometDelay(random:()=>number=Math.random){
+  return Math.round(COSMIC_COMET_MIN_INTERVAL+Math.max(0,Math.min(1,random()))*(COSMIC_COMET_MAX_INTERVAL-COSMIC_COMET_MIN_INTERVAL));
 }
 export const COSMIC_TWINKLE_INTERVAL=9000;
 export const COSMIC_STAR_POSITIONS=[[16,18],[77,31],[39,54],[87,76],[23,86],[61,12],[55,70],[8,43],[91,48],[45,24],[69,88],[30,65],[82,9],[12,72],[57,39],[40,92]] as const;

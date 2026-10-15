@@ -104,25 +104,28 @@ export function cosmicVisitSession(seed:number){
 }
 
 
-/** Two clear focal planets, independently jittered within separated composition bands. */
-export function cosmicBackdrop(seed:number){
+/** Poisson-style composition in screen coordinates, with visible diameter as depth. */
+export function cosmicBackdrop(seed:number,previous?:{x:number;y:number;count?:number}){
   const random=cosmicRandom(seed);
-  const mirror=random()<.5;
-  const anchors=[
-    [18+random()*18,23+random()*16],
-    [65+random()*17,66+random()*18],
-  ];
-  // Shuffle the photo families without replacement; every visit has two distinct bodies.
+  const counts=[2,3,4].filter(n=>n!==previous?.count),count=counts[Math.floor(random()*counts.length)];
   const families=Array.from({length:COSMIC_PLANETS.length},(_,i)=>i);
   for(let i=families.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[families[i],families[j]]=[families[j],families[i]];}
-  const planets=anchors.map(([x,y],i)=>({
-    planet:families[i],x:mirror?100-x:x,y,
-    // Source photos include transparent margins: size is the whole image frame.
-    size:i===0?164+random()*42:96+random()*24,
-  }));
-  if(random()<.3)planets.push({planet:families[2],x:mirror?18+random()*8:74+random()*8,y:14+random()*9,size:58+random()*14});
-  return {planets,focusX:15+random()*70,focusY:random()*100,zoom:145+random()*35,
-    tint:Math.floor(random()*3)};
+  // Approximate visible widths of the transparent NASA photo frames.
+  const frameRatios=[.418,.443,.438,.506,.529,.59,.521,.504];
+  const diameters=[90+random()*50,46+random()*18,24+random()*10,14+random()*6];
+  const planets:{planet:number;x:number;y:number;size:number;diameter:number}[]=[];
+  for(let i=0;i<count;i++){
+    let chosen={x:50,y:50},best=-Infinity;
+    for(let attempt=0;attempt<200;attempt++){
+      const x=(i===0?20:10)+random()*(i===0?60:80),y=14+random()*70;
+      const clearance=Math.min(...planets.map(p=>Math.min(Math.hypot(x-p.x,y-p.y)/27,Math.hypot((x-p.x)*3.93,(y-p.y)*8.51)/((diameters[i]+p.diameter)/2+24))),i===0&&previous?Math.hypot(x-previous.x,y-previous.y)/24:Infinity);
+      if(clearance>best){best=clearance;chosen={x,y};}
+      if(clearance>=1)break;
+    }
+    if(i===0&&previous&&best<1)chosen={x:previous.x<50?80:20,y:previous.y<50?84:14};
+    planets.push({planet:families[i],...chosen,size:diameters[i]/frameRatios[families[i]],diameter:diameters[i]});
+  }
+  return {planets,focusX:15+random()*70,focusY:random()*100,zoom:145+random()*35,tint:Math.floor(random()*3)};
 }
 
 export function cosmicBackdropStyle(scene:ReturnType<typeof cosmicBackdrop>){
@@ -139,7 +142,7 @@ export function cosmicBackdropStyle(scene:ReturnType<typeof cosmicBackdrop>){
       'url("/themes/kosmos/nebula.jpg")',
     ].join(','),
     '--cosmos-scene-size':['100% 100%',...scene.planets.map(p=>`${p.size.toFixed(1)}px auto`),'100% 100%',`${scene.zoom.toFixed(1)}% auto`].join(','),
-    '--cosmos-scene-position':['center',...scene.planets.map(p=>`${p.x.toFixed(1)}% ${p.y.toFixed(1)}%`),'center',`${scene.focusX.toFixed(1)}% ${scene.focusY.toFixed(1)}%`].join(','),
+    '--cosmos-scene-position':['center',...scene.planets.map(p=>`calc(${p.x.toFixed(1)}% + ${(p.size*(p.x/100-.5)).toFixed(1)}px) calc(${p.y.toFixed(1)}% + ${(p.size*(p.planet===5?170:288)/512*(p.y/100-.5)).toFixed(1)}px)`),'center',`${scene.focusX.toFixed(1)}% ${scene.focusY.toFixed(1)}%`].join(','),
   };
 }
 
@@ -154,15 +157,7 @@ export function cosmicScreenSession(seed:number){
       if(!next||!['map','stops','admin'].includes(next)||next===tab)return false;
       if(tab===undefined){tab=next;return false;}
       tab=next;epoch++;
-      const previous=scene.planets[0];
-      let nextScene=cosmicBackdrop(cosmicKeySeed(seed,`screen:${epoch}`));
-      for(let attempt=1;attempt<=8&&Math.hypot(nextScene.planets[0].x-previous.x,nextScene.planets[0].y-previous.y)<24;attempt++){
-        nextScene=cosmicBackdrop(cosmicKeySeed(seed,`screen:${epoch}:${attempt}`));
-      }
-      if(Math.hypot(nextScene.planets[0].x-previous.x,nextScene.planets[0].y-previous.y)<24){
-        nextScene={...nextScene,planets:nextScene.planets.map(p=>({...p,x:100-p.x}))};
-      }
-      scene=nextScene;
+      scene=cosmicBackdrop(cosmicKeySeed(seed,`screen:${epoch}`),{...scene.planets[0],count:scene.planets.length});
       return true;
     },
   };

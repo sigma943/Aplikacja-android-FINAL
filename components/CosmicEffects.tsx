@@ -5,7 +5,7 @@ import {Capacitor} from '@capacitor/core';
 import {App} from '@capacitor/app';
 import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
-import {COSMIC_METEOR_DURATION,COSMIC_TWINKLE_INTERVAL,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed,COSMIC_PARALLAX_KEY,cosmicParallaxOffset,cosmicAccentEvent} from '@/lib/cosmic-effects';
+import {COSMIC_METEOR_DURATION,COSMIC_COMET_DURATION,cosmicCometDelay,COSMIC_TWINKLE_INTERVAL,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed,COSMIC_PARALLAX_KEY,cosmicParallaxOffset,cosmicAccentEvent} from '@/lib/cosmic-effects';
 
 import {cosmicBackdropStyle,cosmicScreenSession,COSMIC_PLANET_NAMES,cosmicBackdrop} from '@/lib/cosmic-scene';
 
@@ -16,13 +16,13 @@ export default function CosmicEffects(){
   const [host,setHost]=useState<HTMLElement|null>(null);
   const [scene,setScene]=useState<ReturnType<typeof cosmicBackdrop>|null>(null);
   const stage=useRef<HTMLDivElement>(null),transition=useRef<HTMLDivElement>(null),nova=useRef<HTMLSpanElement>(null);
-  const streak=useRef<HTMLSpanElement>(null),field=useRef<HTMLDivElement>(null);
+  const streak=useRef<HTMLSpanElement>(null),field=useRef<HTMLDivElement>(null),comet=useRef<HTMLSpanElement>(null);
   useEffect(()=>{
     const root=document.documentElement,media=matchMedia('(prefers-reduced-motion: reduce)');
     let backdropEpoch=-1;
     const stars:Animation[]=[],accents:Animation[]=[];
     let fading:Animation|null=null,parallax=false,lastTilt=0,origin:{beta:number;gamma:number}|null=null;
-    let nativeActive=true,allowed=false,animation:Animation|null=null,disposed=false;
+    let nativeActive=true,allowed=false,animation:Animation|null=null,cometAnimation:Animation|null=null,disposed=false;
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
     const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
     const session=visitSession??=cosmicScreenSession(crypto.getRandomValues(new Uint32Array(1))[0]);
@@ -111,6 +111,17 @@ export default function CosmicEffects(){
         {opacity:0,transform:'translate3d(-150px,105px,0) rotate(-35deg)'},
       ],{duration:COSMIC_METEOR_DURATION*(.75+Math.random()*.5),easing:'linear'});
     },{set:(fn,ms)=>setTimeout(fn,ms),clear:id=>clearTimeout(id)});
+    const cometScheduler=cosmicMeteorScheduler(()=>allowed,()=>{
+      const point=comet.current;if(document.querySelector('.pks-loading-screen')||!point?.animate)return;
+      point.style.left=(55+Math.random()*38)+'%';point.style.top=(10+Math.random()*42)+'%';
+      cometAnimation?.cancel();
+      cometAnimation=point.animate([
+        {opacity:0,transform:'translate3d(0,0,0) rotate(-25deg)'},
+        {opacity:.85,transform:'translate3d(-25px,12px,0) rotate(-25deg)',offset:.18},
+        {opacity:.65,transform:'translate3d(-150px,70px,0) rotate(-25deg)',offset:.75},
+        {opacity:0,transform:'translate3d(-210px,98px,0) rotate(-25deg)'},
+      ],{duration:COSMIC_COMET_DURATION*(.85+Math.random()*.3),easing:'linear'});
+    },{set:(fn,ms)=>setTimeout(fn,ms),clear:id=>clearTimeout(id)},()=>cosmicCometDelay());
     const update=()=>{
       if(disposed)return;
       setHost(document.querySelector<HTMLElement>('.pks-theme-root'));
@@ -143,7 +154,7 @@ export default function CosmicEffects(){
       const changed=nextRegion!==region;region=nextRegion;measure();
       const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region)});
       if(nextAllowed!==allowed||changed){
-        allowed=nextAllowed;animation?.cancel();animation=null;stopStars();scheduler.refresh();
+        allowed=nextAllowed;animation?.cancel();animation=null;cometAnimation?.cancel();cometAnimation=null;stopStars();scheduler.refresh();cometScheduler.refresh();
       }
       if(allowed)startStars();else{stopAccents();fading?.cancel();if(transition.current)transition.current.style.display='none';}
       setParallax(allowed&&parallaxPreference&&tab!=='map');
@@ -156,7 +167,7 @@ export default function CosmicEffects(){
     const native=Capacitor.isNativePlatform()?App.addListener('appStateChange',state=>{nativeActive=state.isActive;update();}):null;
     native?.catch(()=>{});
     return ()=>{
-      disposed=true;if(settle!==null)clearTimeout(settle);scheduler.stop();animation?.cancel();stopStars();stopAccents();fading?.cancel();setParallax(false);observer.disconnect();
+      disposed=true;if(settle!==null)clearTimeout(settle);scheduler.stop();cometScheduler.stop();animation?.cancel();cometAnimation?.cancel();stopStars();stopAccents();fading?.cancel();setParallax(false);observer.disconnect();
       for(const event of ['storage','focus','pks-interface-appearance','pks-profile-applied'])window.removeEventListener(event,update);
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);
@@ -168,9 +179,9 @@ export default function CosmicEffects(){
   return host?createPortal(<>
     <div ref={stage} data-cosmic-stage aria-hidden="true"><div data-cosmic-nebula/><div data-cosmic-distance/><div data-cosmic-planets>{scene?.planets.map((planet,i)=>{
       const name=COSMIC_PLANET_NAMES[planet.planet],url=`/themes/kosmos/${name}.svg`;
-      return <span data-cosmic-orb key={`${name}:${i}`} style={{width:planet.size,left:`${planet.x}%`,top:`${planet.y}%`,transform:`translate(-${planet.x}%,-${planet.y}%)`,aspectRatio:`512 / ${name==='saturn'?170:288}`,'--orb-image':`url("${url}")`} as CSSProperties}><img src={url} alt="" width="512" height={name==='saturn'?170:288}/><i data-cosmic-terminator/></span>;
+      return <span data-cosmic-orb data-cosmic-diameter={planet.diameter.toFixed(1)} key={`${name}:${i}`} style={{width:planet.size,left:`${planet.x}%`,top:`${planet.y}%`,transform:'translate(-50%,-50%)',aspectRatio:`512 / ${name==='saturn'?170:288}`,'--orb-image':`url("${url}")`} as CSSProperties}><img src={url} alt="" width="512" height={name==='saturn'?170:288}/><i data-cosmic-terminator/></span>;
     })}</div></div>
-    <div ref={field} data-cosmic-effects aria-hidden="true">{COSMIC_STAR_POSITIONS.map((_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor>{[0,1,2].map(i=><i key={i} data-cosmic-fragment/>)}</span><span ref={nova} data-cosmic-nova/></div>
+    <div ref={field} data-cosmic-effects aria-hidden="true">{COSMIC_STAR_POSITIONS.map((_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor>{[0,1,2].map(i=><i key={i} data-cosmic-fragment/>)}</span><span ref={comet} data-cosmic-comet><i/></span><span ref={nova} data-cosmic-nova/></div>
     <div ref={transition} data-cosmic-transition aria-hidden="true"/>
   </>,host):null;
 }
