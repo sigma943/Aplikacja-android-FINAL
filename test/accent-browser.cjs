@@ -186,6 +186,10 @@ const server=http.createServer((req,res)=>{
         assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).pointerEvents),'none','accents never intercept controls');
 
       }
+      if(mode==='dark-cosmos'){
+        const night=await page.$eval('[aria-label="Zestaw: Nocny"]',el=>({background:getComputedStyle(el).backgroundColor,appearance:getComputedStyle(el).appearance}));
+        assert.equal(night.background,'rgb(16, 21, 34)');assert.equal(night.appearance,'none');
+      }
       await screenshot('personalization-'+mode);
       await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
       await button('Przystanki');await page.waitForSelector('.transit-surface');
@@ -612,6 +616,10 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[data-preview-map="tiles"] img');
     assert.ok(await page.$eval('[data-preview-map] img',img=>{const a=img.getBoundingClientRect(),b=img.closest('[data-preview-map]').getBoundingClientRect();return a.width>0&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;}),'copied map tiles actually intersect the miniature viewport');
     assert.ok(await page.$eval('[data-preview-map] img',img=>getComputedStyle(img).filter.includes('brightness(0.8)')),'copied tiles retain colour filters from their map layers');
+    assert.equal(await page.$eval('[data-preview-vehicle-number]',el=>el.textContent),'87');
+    assert.equal(await page.$eval('[data-preview-delay]',el=>el.textContent),'+2');
+    assert.equal(await page.$$eval('[data-interface-preview] .leaflet-control-attribution',els=>els.length),0,'provider credit stays outside the miniature');
+    await page.waitForSelector('[data-preview-map-sources]');
     await page.screenshot({path:'test/ui-previews/preview-map-tiles-visible.png'});
     await page.evaluate(()=>document.querySelector('[data-preview-test]').remove());
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
@@ -1112,6 +1120,10 @@ const server=http.createServer((req,res)=>{
     await cosmosPage.$eval('.transit-view',node=>node.scrollTop=650);await new Promise(resolve=>setTimeout(resolve,150));
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-expanded-departures.png'});
     const effects=await cosmosPage.$eval('[data-cosmic-effects]',node=>node.getBoundingClientRect().toJSON());assert.ok(effects.height>=850,'twinkles cover gaps between panels, not just one card');
+    await cosmosPage.goto(origin+'/cosmos-empty-fixture/',{waitUntil:'domcontentloaded'});
+    await cosmosPage.waitForSelector('[data-departure-empty]');
+    assert.ok(await cosmosPage.$eval('[data-cosmic-panel="stop-departures"]',el=>el.getBoundingClientRect().height<120),'empty timetable fits its message without a large blank area');
+    await cosmosPage.screenshot({path:'test/ui-previews/cosmos-empty-departures.png'});
     await cosmosPage.goto(origin+'/cosmos-admin-fixture/',{waitUntil:'domcontentloaded'});
     await cosmosPage.waitForSelector('[data-cosmic-view="admin:devices"][data-cosmic-seed]');
     const adminSeed=await cosmosPage.$eval('[data-cosmic-view="admin:devices"]',node=>node.dataset.cosmicSeed);

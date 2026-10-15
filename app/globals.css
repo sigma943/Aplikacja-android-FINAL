@@ -549,7 +549,7 @@ html[data-personal-nav='block'] .pks-navigation button[aria-current='page'] { co
 
 /* Preset thumbnails keep their own palette so every choice remains recognisable. */
 .personal-presets-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }
-.personal-preset { min-width:0; padding:10px; text-align:left; border:1px solid var(--ui-edge); border-radius:16px; background:var(--ui-raised); color:var(--ui-text); }
+.personal-preset { -webkit-appearance:none; appearance:none; -webkit-tap-highlight-color:transparent; isolation:isolate; contain:paint; background-image:none; min-width:0; padding:10px; text-align:left; border:1px solid var(--ui-edge); border-radius:16px; background:var(--ui-raised); color:var(--ui-text); }
 .personal-preset:hover { border-color:var(--pks-accent-border); }
 .personal-preset[aria-pressed='true'] { border-color:var(--pks-accent-text); box-shadow:0 0 0 1px var(--pks-accent-border); }
 .personal-preset-preview { display:grid; gap:6px; padding:9px; overflow:hidden; border-radius:10px; background:var(--preset-bg); color:var(--preset-text); }
@@ -788,7 +788,7 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
   background-attachment:scroll !important; isolation:isolate;
 }
 html[data-cosmic-theme='on'] .map-detail-shell::before { content:none !important; }
-html[data-cosmic-theme='on'] [data-cosmic-panel='stop-departures'] { min-height:160px; }
+
 html[data-cosmic-theme='on'] .transit-stop-card > div:first-child { background-color:var(--ui-surface); border-color:var(--ui-edge); }
 html[data-cosmic-theme='on'] :is(.pks-panel-scope,.pks-options-sheet,[data-carrier-sheet]) :is(input,textarea)::placeholder { color:var(--ui-muted); }
 html[data-cosmic-theme='on'] :is(.transit-view,.map-detail-shell,.pks-panel-scope,[data-carrier-sheet]) :is(.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-muted) { color:var(--ui-muted); }
@@ -929,7 +929,18 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
 
 /* Deliberate constellations keep the chrome cosmic without photographic blur. */
 html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(.pks-map-search-panel,.pks-navigation) {
-  background-image:radial-gradient(circle at 12% 20%,#e3ebff99 0 .7px,transparent 1.4px),radial-gradient(circle at 83% 18%,#b7ceff99 0 1px,transparent 2px),radial-gradient(circle at 66% 78%,#c4b5fd88 0 .7px,transparent 1.5px),radial-gradient(circle at 37% 66%,#dbeafe88 0 .5px,transparent 1.2px),radial-gradient(ellipse at 83% 18%,#a8c7ff22,transparent 12%),linear-gradient(120deg,rgba(var(--cosmos-light-rgb,111,162,255),.09),transparent 58%) !important;
+  background-image:
+    radial-gradient(ellipse 1px 5px at 83% 19%,#d5e5ff88,transparent 80%),
+    radial-gradient(ellipse 5px 1px at 83% 19%,#d5e5ff88,transparent 80%),
+    radial-gradient(circle at 83% 19%,#f1f6ffd9 0 .7px,#b7ceff44 1.2px,transparent 3px),
+    radial-gradient(circle at 13% 72%,#ffdfb5aa 0 .8px,transparent 1.8px),
+    radial-gradient(circle at 65% 77%,#d0beff88 0 .65px,transparent 1.5px),
+    radial-gradient(circle at 36% 16%,#c9e2ffaa 0 .45px,transparent 1.2px),
+    radial-gradient(circle at 47% 64%,#c5d8ff77 0 .45px,transparent 1.1px),
+    radial-gradient(circle at 94% 68%,#edebff99 0 .55px,transparent 1.3px),
+    radial-gradient(ellipse 68% 160% at 105% 120%,rgba(126,94,193,.16),transparent 72%),
+    radial-gradient(ellipse 74% 180% at -10% -70%,rgba(53,128,172,.15),transparent 72%),
+    linear-gradient(118deg,transparent 30%,rgba(122,102,174,.035) 53%,transparent 76%) !important;
   background-size:100% 100% !important;
 }
 /* Meteors are short, warm dashes; comets have a broad, slower blue-white tail. */

@@ -11,6 +11,7 @@ import type {PreviewChrome} from './OptionsContent';
 
 type Props={canOpenAdminEmbed?:boolean;chrome:PreviewChrome;value:InterfaceAppearance;onChange:(value:InterfaceAppearance)=>void;dark:boolean;theme:string;accent:string;setTheme:(theme:string)=>void;setAccent:(color:string)=>void;glass:boolean;setGlass:(on:boolean)=>void;glow:boolean;setGlow:(on:boolean)=>void;glowStrength:number;setGlowStrength:(n:number)=>void;lightEffects:boolean};
 type NumericKey={ [K in keyof InterfaceAppearance]:InterfaceAppearance[K] extends number?K:never }[keyof InterfaceAppearance];
+const presetSurfaces:Record<string,string>={'dark-cosmos':'#101522','dark-oled':'#1c2833','dark-forest':'#194333','dark':'#263747','light-warm':'#fffaf0','light-pink':'#ffb8db','light-sky':'#aedbfa','light':'#ffffff'};
 const accents=[['Turkus','#00a3a2'],['Niebieski','#3b82f6'],['Fiolet','#8b5cf6'],['Róż','#f43f5e'],['Bursztyn','#f59e0b'],['Zieleń','#22c55e'],['Grafit','#64748b'],['Błękit','#06b6d4']];
 
 export default function InterfacePersonalization(p:Props){
@@ -36,7 +37,7 @@ export default function InterfacePersonalization(p:Props){
     <InterfacePreview canOpenAdminEmbed={p.canOpenAdminEmbed} navOrder={v.navOrder} chrome={p.chrome} accent={p.accent} glass={p.glass} dark={dark}/>
     <div className="personal-presets"><span className="text-xs font-semibold">Gotowe zestawy</span><div className="personal-presets-grid">{INTERFACE_PRESETS.map(next=>{
       const active=matchesInterfacePreset(next,{appearance:v,theme:p.theme,accent:p.accent,glass:p.glass,glow:p.glow,glowStrength:p.glowStrength});
-      return <button type="button" key={next.name} aria-label={`Zestaw: ${next.name}`} aria-pressed={active} onClick={()=>preset(next)} className="personal-preset ui-accent-focus" style={{'--preset-bg':next.preview.background,'--preset-surface':next.preview.surface,'--preset-text':next.preview.text,'--preset-accent':next.accent} as CSSProperties}>
+      return <button type="button" key={next.name} aria-label={`Zestaw: ${next.name}`} aria-pressed={active} onClick={()=>preset(next)} className="personal-preset ui-accent-focus" style={{backgroundColor:presetSurfaces[p.theme]||(dark?'#1c2833':'#ffffff'),color:dark?'#f3f1ff':'#172536',colorScheme:dark?'dark':'light','--preset-bg':next.preview.background,'--preset-surface':next.preview.surface,'--preset-text':next.preview.text,'--preset-accent':next.accent} as CSSProperties}>
         <span aria-hidden="true" className="personal-preset-preview" data-preset-glow={next.glow}>
           <span className="personal-preset-top"><span/><span/><span/></span>
           <span className="personal-preset-row"><i/><span/><b/></span><span className="personal-preset-row"><i/><span/><b/></span>

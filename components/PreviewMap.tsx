@@ -2,9 +2,10 @@
 import {useEffect,useRef,useState} from 'react';
 
 /** Reuse already loaded map tiles: no second map, location request or new feed. */
-export default function PreviewMap({dark}:{dark:boolean}){
+export default function PreviewMap({dark,onTilesChange}:{dark:boolean;onTilesChange?:(shown:boolean)=>void}){
   const target=useRef<HTMLDivElement>(null),[live,setLive]=useState(false);
   useEffect(()=>{
+    onTilesChange?.(false);
     const source=document.querySelector<HTMLElement>('[data-map-canvas] .leaflet-tile-pane');
     const canvas=source?.closest<HTMLElement>('[data-map-canvas]');
     if(!source||!canvas||!target.current)return;
@@ -29,20 +30,15 @@ export default function PreviewMap({dark}:{dark:boolean}){
         Object.assign(tile.style,{position:'absolute',left:`${left}px`,top:`${top}px`,width:`${bounds.width}px`,height:`${bounds.height}px`,maxWidth:'none',transform:'none',filter:filters.join(' ')||'none'});
         tiles.push(tile);
       }
-      target.current.replaceChildren(...tiles);setLive(tiles.length>0);
+      target.current.replaceChildren(...tiles);setLive(tiles.length>0);onTilesChange?.(tiles.length>0);
       if(!tiles.length)return;
-      const attribution=canvas.querySelector<HTMLElement>('.leaflet-control-attribution');
-      if(attribution){
-        const credits=attribution.cloneNode(true) as HTMLElement;
-        Object.assign(credits.style,{position:'absolute',right:'0',bottom:'65px',margin:'0',fontSize:'8px',padding:'1px 3px',background:'rgba(255,255,255,.85)',color:'#334155',zIndex:'2'});
-        target.current.append(credits);
-      }
+
     };
     const schedule=()=>{if(timer!==null)clearTimeout(timer);timer=setTimeout(copy,120);};
     const observer=new MutationObserver(schedule);observer.observe(source,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class','src']});
     const resize=new ResizeObserver(schedule);resize.observe(canvas);source.addEventListener('load',schedule,true);copy();
     return()=>{observer.disconnect();resize.disconnect();source.removeEventListener('load',schedule,true);if(timer!==null)clearTimeout(timer);};
-  },[dark]);
+  },[dark,onTilesChange]);
   const road=dark?'#394552':'#fff',edge=dark?'#18212b':'#cbd5d7',text=dark?'#aab7c7':'#566475';
   const streets=['M-30 160L420 365','M70 -20L290 500','M-20 310L420 125','M-20 400L420 235','M-10 55L420 245','M160 -20L420 410'];
   return <div data-preview-map={live?'tiles':'sample'} className="absolute inset-0 overflow-hidden" aria-hidden="true">

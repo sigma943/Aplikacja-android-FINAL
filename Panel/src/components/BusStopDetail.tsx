@@ -391,7 +391,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                 </AnimatePresence>
 
                 {activeDepartures.length === 0 && (
-                  <div className={`p-8 text-center text-sm leading-relaxed ${subtleTextClass}`}>
+                  <div data-departure-empty className={`px-5 py-5 sm:px-6 sm:py-6 text-center text-sm leading-relaxed ${subtleTextClass}`}>
                     {warnings.length ? 'Nie można potwierdzić pełnej listy odjazdów.' : filteredDeparturesByLine.length ? 'Wszystkie kursy na dziś już odjechały.' : selectedLine === 'all' ? 'Brak zaplanowanych odjazdów w wybranym dniu.' : 'Brak odjazdów wybranej linii w tym dniu.'}
                   </div>
                 )}
