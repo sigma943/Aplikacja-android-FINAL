@@ -965,7 +965,7 @@ html[data-cosmic-glass='off'] .pks-options-sheet::before { content:none; }
 /* Explicit paint clipping prevents moving frosted cards from leaving rectangular
    GPU tiles behind in Android WebView. Keep the position/favourite animation. */
 .transit-stop-card {
-  position:relative; isolation:isolate; overflow:hidden;
+  position:relative; isolation:isolate; overflow:clip;
   clip-path:inset(0 round 20px);
 }
 html[data-personal-card-radius='true'] .transit-stop-card { clip-path:inset(0 round var(--personal-card-radius)); }
@@ -982,3 +982,21 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
 html[data-cosmic-theme='on'] .map-detail-shell .map-detail-row {
   background-color:rgba(7,12,29,.83) !important; background-image:none !important;
 }
+
+/* Content-sized rows must never shrink when their glass gets a paint clip. */
+[data-stop-list-scroll] { grid-auto-rows:max-content; }
+.transit-stop-card { min-height:min-content; }
+
+[data-cosmic-nav-stars] { display:none; position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:-1; opacity:.72; }
+html[data-cosmic-theme='on'] [data-cosmic-nav-stars] { display:block; }
+[data-filter-cosmos] { display:none; position:absolute; inset:0; border-radius:inherit; overflow:hidden; overflow:clip; pointer-events:none; z-index:0; contain:paint; }
+html[data-cosmic-theme='on'] .pks-map-search-panel { position:relative; isolation:isolate; }
+html[data-cosmic-theme='on'] [data-filter-cosmos] {
+ display:block; background-image:linear-gradient(110deg,rgba(4,8,24,.9),rgba(7,11,29,.68)),url('/themes/kosmos/nebula.jpg');
+ background-size:100% 100%,cover; background-position:center,65% 29%; background-repeat:no-repeat;
+}
+[data-filter-meteor],[data-filter-comet] { position:absolute; opacity:0; transform-origin:left center; border-radius:50%; }
+[data-filter-meteor] { width:35px; height:1.5px; background:linear-gradient(90deg,#fff1da,#ffd4a580 30%,transparent); }
+[data-filter-comet] { width:82px; height:2px; background:linear-gradient(90deg,#fff,#bbe3ff99 25%,#bdaaff33 65%,transparent); }
+[data-filter-comet]::before { content:''; position:absolute; width:4px; height:4px; border-radius:50%; background:#e5f5ff; box-shadow:0 0 5px #b4dcff; left:0; top:-1px; }
+@media(prefers-reduced-motion:reduce){[data-filter-meteor],[data-filter-comet]{display:none;}}

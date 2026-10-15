@@ -133,6 +133,16 @@ const server=http.createServer((req,res)=>{
         })));
         assert.ok(planetImages.every(image=>image.width===512&&image.centerAlpha>0&&image.cornerAlpha<85),'each planet image decodes with visible artwork and a transparent background: '+JSON.stringify(planetImages));
         assert.equal(await page.evaluate(()=>document.documentElement.dataset.cosmicMotion),'off','Options on the map never enable animated stars over streets');
+        const localField='.pks-theme-root [data-map-search-panel] [data-filter-cosmos]';
+        assert.equal(await page.$eval(localField,el=>getComputedStyle(el).overflow),'clip','filter effects have a strict local clip');
+        assert.equal(await page.$eval(localField,el=>getComputedStyle(el).contain),'paint');
+        assert.ok(await page.$eval(localField,el=>getComputedStyle(el).backgroundImage.includes('nebula.jpg')));
+        assert.ok(await page.$$eval('.pks-navigation [data-cosmic-nav-stars] [fill]',els=>new Set(els.map(el=>el.getAttribute('fill'))).size)>=4,'navigation has multiple star colours');
+        await page.waitForFunction(css=>document.querySelector(css)?.querySelector('[data-filter-meteor]')?.getAnimations().some(a=>a.playState==='running'),{timeout:15000,polling:20},localField);
+        await page.screenshot({path:'test/ui-previews/cosmos-filter-local-meteor.png'});
+        await page.waitForFunction(css=>document.querySelector(css)?.querySelector('[data-filter-comet]')?.getAnimations().some(a=>a.playState==='running'),{timeout:24000,polling:20},localField);
+        await page.screenshot({path:'test/ui-previews/cosmos-filter-local-comet.png'});
+
         assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map remains visible when Options opens on the map');
         assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage),'none','map tab never receives a full-screen cosmic photograph');
         const savedEffects=await page.evaluate(()=>Object.fromEntries(['mks_interface_appearance_v1','mks_transparent','mks_panel_glow'].map(key=>[key,localStorage.getItem(key)])));
@@ -195,7 +205,12 @@ const server=http.createServer((req,res)=>{
       }
       await screenshot('personalization-'+mode);
       await page.mouse.click(4,4);await page.waitForSelector('[data-options-sheet]',{hidden:true});
+      if(mode==='dark-cosmos')await screenshot('cosmos-map-filter-chrome');
       await button('Przystanki');await page.waitForSelector('.transit-surface');
+      await page.waitForSelector('.transit-stop-card h3');
+      assert.ok(await page.$$eval('.transit-stop-card',cards=>cards.every(card=>{const a=card.getBoundingClientRect(),title=card.querySelector('h3').getBoundingClientRect();return a.height>=80&&title.height>0&&title.top>=a.top-1&&title.bottom<=a.bottom+1;})), 'all stop names fit inside content-sized cards after theme selection');
+      await screenshot('stop-cards-natural-height-'+mode);
+
       if(mode==='dark-cosmos'){
         await page.waitForSelector('.transit-stop-card');
         const captureSky=()=>page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundImage+'|'+getComputedStyle(el).backgroundPosition);
@@ -468,7 +483,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('[data-stop-list-mode="preview"]',el=>el.closest('[aria-hidden]').getAttribute('aria-hidden')),'false','second Back closes only the full list');
     await new Promise(resolve=>setTimeout(resolve,650));
     await page.$eval('[data-stop-list-scroll]',el=>{el.scrollTop=0;});
-    assert.ok(await page.$$eval('.transit-stop-card',cards=>cards.every(card=>{const style=getComputedStyle(card);return style.isolation==='isolate'&&style.overflow==='hidden'&&style.clipPath.startsWith('inset(');})), 'moving glass cards have their own rounded paint boundary');
+    assert.ok(await page.$$eval('.transit-stop-card',cards=>cards.every(card=>{const style=getComputedStyle(card);return style.isolation==='isolate'&&style.overflow==='clip'&&style.clipPath.startsWith('inset(');})), 'moving glass cards have their own rounded paint boundary');
     const favorite=await page.evaluate(()=>{const card=document.querySelectorAll('[data-stop-card-id]')[2];return {id:card.dataset.stopCardId,top:card.getBoundingClientRect().top};});
     await page.evaluate(id=>document.querySelector(`[data-stop-card-id="${id}"] [aria-label="Dodaj do ulubionych"]`).click(),favorite.id);
     await page.waitForFunction(id=>{const card=document.querySelector(`[data-stop-card-id="${id}"]`);return card.style.transform&&card.style.transform!=='none';},{},favorite.id);
@@ -617,7 +632,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>[...document.querySelectorAll('[data-preview-tile]')].every(img=>img.complete&&img.naturalWidth>0));
     const previewTilesLayout=await page.$$eval('[data-preview-tile]',images=>images.map(img=>({x:parseFloat(img.style.left),y:parseFloat(img.style.top),size:parseFloat(img.style.width),url:img.src})));
     assert.ok(previewTilesLayout.length>=4&&previewTilesLayout.length<=9,'preview loads only its small street fragment');
-    for(const tile of previewTilesLayout){assert.equal(tile.size,256);assert.equal(new URL(tile.url).searchParams.get('z'),'15');}
+    for(const tile of previewTilesLayout){assert.equal(tile.size,256);assert.equal(new URL(tile.url).searchParams.get('z'),'18');}
     assert.ok(await page.$eval('[data-preview-tile]',img=>getComputedStyle(img.parentElement).filter.includes('invert(1)')),'map preview uses the same dark filter as the map');
     assert.equal(await page.$eval('[data-preview-vehicle-number]',el=>el.textContent),'87');
     assert.equal(await page.$eval('[data-preview-delay]',el=>el.textContent),'+2');
@@ -1118,6 +1133,21 @@ const server=http.createServer((req,res)=>{
     await cosmosPage.goto(origin+'/cosmos-fixture/',{waitUntil:'domcontentloaded'});
     await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===5);
     await cosmosPage.evaluate(()=>[...document.querySelectorAll('button')].find(node=>node.textContent.includes('Pokaż wszystkie odjazdy')).click());
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===20);
+    await cosmosPage.click('[data-line-filter="108"]');
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===7);
+    assert.ok(await cosmosPage.$$eval('[data-departure-row]',rows=>rows.every(row=>row.dataset.departureLine==='108')));
+    await cosmosPage.click('[data-line-filter="43"]');
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===13);
+    assert.equal(await cosmosPage.$$eval('[data-line-filter][aria-pressed="true"]',buttons=>buttons.length),2);
+    await cosmosPage.screenshot({path:'test/ui-previews/stop-multiple-lines.png'});
+    await cosmosPage.click('[data-line-filter="108"]');
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===6);
+    await cosmosPage.click('[data-line-filter="43"]');
+    await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===20);
+    assert.equal(await cosmosPage.$eval('[data-line-filter="all"]',button=>button.getAttribute('aria-pressed')),'true','removing the last filter restores all lines');
+    await cosmosPage.click('[data-line-filter="288"]');
+    await cosmosPage.click('[data-line-filter="all"]');
     await cosmosPage.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===20);
     const expandedPaint=await cosmosPage.$eval('[data-cosmic-expanded="true"]',node=>{const style=getComputedStyle(node.closest('.pks-theme-root'));return {image:style.backgroundImage,repeat:style.backgroundRepeat,size:style.backgroundSize};});
     assert.ok(expandedPaint.image.includes('nebula.jpg'),'expanded timetable keeps the common photographic sky');assert.ok(expandedPaint.repeat.split(',').every(value=>value.trim()==='no-repeat'));

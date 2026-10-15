@@ -79,8 +79,8 @@ export default function Page(){
   fs.mkdirSync(path.join(fixture,'app/cosmos-fixture'));
   fs.writeFileSync(path.join(fixture,'app/cosmos-fixture/page.tsx'),`'use client';
 import BusStopDetail from '@/Panel/src/components/BusStopDetail';
-const stop:any={id:'cosmos-qa-stop',name:'Rzeszów — kontrola Kosmosu',code:'01',type:'bus',lines:['288'],carriers:[{id:'pks',name:'PKS Rzeszów',colorClass:'text-teal-400',bgClass:'bg-teal-500/10',borderClass:'border-teal-500/20'}],isFavorite:false};
-const load=async()=>{await new Promise(resolve=>setTimeout(resolve,300));return Array.from({length:20},(_,index)=>({id:'cosmos-qa-'+index,line:'288',direction:index%2?'Pstrągowa':'Rzeszów D.A.',plannedAtMs:Date.now()+3600000+index*600000,time:new Date(Date.now()+3600000+index*600000).toLocaleTimeString('pl-PL',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'}),carrier:stop.carriers[0]}));};
+const stop:any={id:'cosmos-qa-stop',name:'Rzeszów — kontrola Kosmosu',code:'01',type:'bus',lines:['288','108','43'],carriers:[{id:'pks',name:'PKS Rzeszów',colorClass:'text-teal-400',bgClass:'bg-teal-500/10',borderClass:'border-teal-500/20'}],isFavorite:false};
+const load=async()=>{await new Promise(resolve=>setTimeout(resolve,300));return Array.from({length:20},(_,index)=>({id:'cosmos-qa-'+index,line:['288','108','43'][index%3],direction:index%2?'Pstrągowa':'Rzeszów D.A.',plannedAtMs:Date.now()+3600000+index*600000,time:new Date(Date.now()+3600000+index*600000).toLocaleTimeString('pl-PL',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'}),carrier:stop.carriers[0]}));};
 export default function Page(){return <div className="pks-theme-root" data-ui-theme="dark-cosmos" style={{height:'100vh'}}><BusStopDetail stop={stop} onBack={()=>{}} toggleFavorite={()=>{}} loadDepartures={load} isDarkTheme/></div>;}`);
   fs.mkdirSync(path.join(fixture,'app/cosmos-empty-fixture'));
   fs.writeFileSync(path.join(fixture,'app/cosmos-empty-fixture/page.tsx'),fs.readFileSync(path.join(fixture,'app/cosmos-fixture/page.tsx'),'utf8').replace('cosmos-qa-stop','cosmos-empty-stop').replace(/const load=async[^\n]+/, 'const load=async()=>[];'));
