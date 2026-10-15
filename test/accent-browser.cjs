@@ -189,8 +189,16 @@ const server=http.createServer((req,res)=>{
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicMotion==='off');
         assert.equal(await page.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none','cosmic effects never overlay the bare map');assert.equal(await page.$eval('[data-map-canvas]',el=>getComputedStyle(el).visibility),'visible','map is visible again after closing the cosmic panels');
         assert.equal(await page.$$eval('[data-cosmic-star],[data-cosmic-meteor]',els=>els.reduce((n,el)=>n+el.getAnimations().length,0)),0,'map cancels star and meteor animations');
-        assert.equal(await page.$eval('.pks-map-search-panel',el=>el.style.getPropertyValue('--cosmos-planet')),'none','map search panel never receives planet artwork');
-        assert.ok(!await page.$eval('.pks-map-search-panel',el=>getComputedStyle(el).backgroundImage.includes('/themes/kosmos/')),'no planet is painted underneath map search controls');
+        const mapSky=await page.$eval('.pks-map-search-panel',el=>({
+          localPlanet:el.style.getPropertyValue('--cosmos-planet'),
+          scene:getComputedStyle(el).getPropertyValue('--cosmos-scene-image'),
+          image:getComputedStyle(el).backgroundImage,
+          blur:getComputedStyle(el,'::before').filter,
+        }));
+        assert.equal(mapSky.localPlanet,'','map search does not generate its own planet');
+        assert.ok(mapSky.scene.includes('nebula.jpg')&&mapSky.image.includes('nebula.jpg'),'map glass uses the common screen panorama');
+        assert.ok(mapSky.blur.includes('blur('),'map glass softens the panorama behind its controls');
+
       }
       const screens=await browser.newPage();screens.on('pageerror',e=>errors.push(e.message));
       await screens.setViewport({width:393,height:851,deviceScaleFactor:1});
@@ -200,7 +208,10 @@ const server=http.createServer((req,res)=>{
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
         assert.equal(background,mode==='dark-cosmos'?'rgb(0, 0, 0)':mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
         const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
-        if(kind==='loading'){if(mode==='dark-cosmos'){assert.ok(decoration.includes('sky-cloud')&&decoration.includes('radial-gradient'),'Kosmos retains the same sky during loading');assert.equal(await screens.$eval('[data-cosmic-effects]',el=>getComputedStyle(el).display),'none');}else assert.equal(decoration,'none','other loading themes keep a uniform background');}
+        if(mode==='dark-cosmos'){
+          assert.ok(decoration.includes('nebula.jpg'),'Kosmos startup screens use the photographic panorama');
+          if(kind==='loading')assert.equal(await screens.$$eval('[data-cosmic-effects]',els=>els.some(el=>getComputedStyle(el).display!=='none')),false,'loading has no animated effects');
+        }else if(kind==='loading')assert.equal(decoration,'none','other loading themes keep a uniform background');
         else assert.ok(decoration.includes('svg'));
         if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
         if(kind==='ban'||kind==='loading')await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
