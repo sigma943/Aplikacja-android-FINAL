@@ -232,6 +232,8 @@ const server=http.createServer((req,res)=>{
     await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforeNewThemes);
     await page.goto('about:blank');await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-ui-theme="dark-oled"]');
+    // The server renders navigation before React installs its click handlers.
+    await page.waitForFunction(()=>document.documentElement.dataset.panelGlow!==undefined&&document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
     const beforePink=await page.evaluate(()=>({...localStorage}));
     await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
     await page.$eval('[aria-label="Zestaw: Różowy"]',el=>el.click());
