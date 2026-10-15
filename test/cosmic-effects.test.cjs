@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),load=require('./load-ts.cjs');
-const {COSMIC_METEOR_INTERVAL,COSMIC_METEOR_DURATION,cosmicMotionAllowed,cosmicMeteorScheduler}=load('lib/cosmic-effects.ts');
+const {COSMIC_METEOR_INTERVAL,COSMIC_METEOR_DURATION,COSMIC_METEOR_MIN_INTERVAL,COSMIC_METEOR_MAX_INTERVAL,cosmicMeteorDelay,cosmicMotionAllowed,cosmicMeteorScheduler}=load('lib/cosmic-effects.ts');
 const normal={theme:'dark-cosmos',hidden:false,nativeActive:true,reducedMotion:false,lightEffects:false};
 test('cosmic motion stops for hidden/native background apps, both reduced motion preferences, light effects and other themes',()=>{
  assert.equal(cosmicMotionAllowed(normal),true);
@@ -7,7 +7,7 @@ test('cosmic motion stops for hidden/native background apps, both reduced motion
  assert.ok(COSMIC_METEOR_DURATION<=800);assert.ok(COSMIC_METEOR_INTERVAL>=8000);
 });
 test('meteor scheduler is idle between short effects and has zero wakeups when disabled; resume creates only one timer',()=>{
- let enabled=true,next=1,runs=0;const timers=new Map();const clock={set:(fn,ms)=>{assert.equal(ms,COSMIC_METEOR_INTERVAL);const id=next++;timers.set(id,fn);return id;},clear:id=>timers.delete(id)};
+ let enabled=true,next=1,runs=0;const timers=new Map();const clock={set:(fn,ms)=>{assert.ok(ms>=COSMIC_METEOR_MIN_INTERVAL&&ms<=COSMIC_METEOR_MAX_INTERVAL);const id=next++;timers.set(id,fn);return id;},clear:id=>timers.delete(id)};
  const scheduler=cosmicMeteorScheduler(()=>enabled,()=>runs++,clock);scheduler.refresh();scheduler.refresh();assert.equal(timers.size,1);
  const fire=()=>{const [id,fn]=timers.entries().next().value;timers.delete(id);fn();};fire();assert.equal(runs,1);assert.equal(timers.size,1);
  enabled=false;scheduler.refresh();assert.equal(timers.size,0);
@@ -125,4 +125,14 @@ test('screen sky is created once and only main menu changes may replace it',()=>
  const map=session.scene;session.enterTab('options');session.enterTab('map');assert.strictEqual(session.scene,map);
  session.enterTab('stops');assert.notDeepEqual(session.scene,first);
  const restart=cosmicScreenSession(944);restart.enterTab('stops');assert.notDeepEqual(restart.scene,first);
+});
+
+
+test('each meteor schedules a fresh random pause without resetting on UI refresh',()=>{
+ const delays=[],timers=new Map();let next=0,calls=0;
+ const values=[0,.5,1],clock={set:(fn,ms)=>{delays.push(ms);timers.set(++next,fn);return next;},clear:id=>timers.delete(id)};
+ const scheduler=cosmicMeteorScheduler(()=>true,()=>{},clock,()=>cosmicMeteorDelay(()=>values[calls++]));
+ scheduler.refresh();scheduler.refresh();assert.equal(calls,1);
+ for(let i=0;i<2;i++){const [id,fn]=timers.entries().next().value;timers.delete(id);fn();}
+ assert.deepEqual(delays,[3000,11500,20000]);scheduler.stop();assert.equal(timers.size,0);
 });

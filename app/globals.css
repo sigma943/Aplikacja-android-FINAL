@@ -740,10 +740,10 @@ html:is([data-personal-marker='carrier'],[data-personal-marker='icon']) .mks-bus
 
 /* Kosmos: one viewport scene. Panels only supply glass, never celestial art. */
 html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
-  --ui-canvas:#000000; --ui-surface:rgb(10 15 30 / 46%); --ui-raised:#101522;
-  --ui-glass:rgb(10 15 30 / 46%); --ui-glass-row:rgb(12 17 32 / 32%);
-  --ui-text:#f3f1ff; --ui-muted:#c0c5d8; --ui-edge:rgb(187 202 255 / 14%);
-  --cosmos-glass-blur:12px;
+  --ui-canvas:#000000; --ui-surface:var(--personal-glass,rgb(10 15 30 / 46%)); --ui-raised:#101522;
+  --ui-glass:var(--ui-surface); --ui-glass-row:rgb(12 17 32 / 32%);
+  --ui-text:#f3f1ff; --ui-muted:#c0c5d8; --ui-edge:var(--personal-edge,rgb(187 202 255 / 14%));
+  --cosmos-glass-blur:var(--personal-blur,12px); --cosmos-saturation:var(--personal-saturation,112%); --cosmos-glow:linear-gradient(transparent,transparent);
 }
 .pks-theme-root[data-ui-theme='dark-cosmos'] {
   isolation:isolate;
@@ -763,32 +763,30 @@ html[data-cosmic-theme='on'],.pks-theme-root[data-ui-theme='dark-cosmos'] {
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
 }
 /* Inactive maps must not cover the root sky while another view is open. */
-.pks-theme-root[data-ui-theme='dark-cosmos'] [data-map-canvas][inert],
-.pks-theme-root[data-ui-theme='dark-cosmos']:has([data-options-sheet]) [data-map-canvas],
-html[data-cosmic-theme='on']:has([data-carrier-sheet]) [data-map-canvas] { visibility:hidden; }
+.pks-theme-root[data-ui-theme='dark-cosmos'] [data-map-canvas][inert] { visibility:hidden; }
 html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(
   .pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,
   .admin-topbar,.pks-personal-card,.pks-option-card,.widget-generator,.pks-navigation,[data-cosmic-panel]
 ) {
-  background-image:linear-gradient(135deg,rgba(181,202,255,.035),rgba(8,12,26,.08)) !important;
+  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),linear-gradient(135deg,rgba(181,202,255,.035),rgba(8,12,26,.08)) !important;
   background-color:var(--ui-surface) !important;
-  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(112%) !important;
-  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(112%) !important;
-  border-color:var(--ui-edge) !important;
-  box-shadow:inset 0 1px 0 rgb(224 232 255 / 5%),0 8px 28px rgb(0 0 0 / 12%);
+  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)) !important;
+  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)) !important;
+  border-color:var(--ui-edge);
+  box-shadow:var(--personal-shadow,0 8px 28px rgb(0 0 0 / 12%));
 }
 /* Avoid accumulating opaque fills and multiple blurs inside an outer glass sheet. */
 html[data-cosmic-theme='on'] :is(.pks-options-sheet,.map-detail-shell,[data-carrier-sheet],.transit-surface) :is(.transit-card,.pks-personal-card,.pks-option-card,[data-cosmic-panel]) {
-  background-color:rgb(8 12 26 / 24%) !important;
+  background-color:var(--ui-surface) !important;
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
 }
 /* Map sheets sample the same viewport scene, aligned rather than restarted per card.
    Their own foreground is clear, and street labels cannot leak into the timetable. */
 html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) :is(.pks-map-search-panel,.map-detail-shell,.pks-navigation) {
   background-color:#030610 !important;
-  background-image:linear-gradient(rgb(8 12 26 / 60%),rgb(8 12 26 / 60%)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg')) !important;
-  background-size:100% 100%,var(--cosmos-scene-size,cover) !important;
-  background-position:center,var(--cosmos-scene-position,center) !important;
+  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),linear-gradient(var(--ui-surface),var(--ui-surface)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg')) !important;
+  background-size:100% 100%,auto,100% 100%,var(--cosmos-scene-size,cover) !important;
+  background-position:center,center,center,var(--cosmos-scene-position,center) !important;
   background-repeat:no-repeat !important;
   background-attachment:fixed !important;
   isolation:isolate;
@@ -796,18 +794,17 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
 html[data-cosmic-theme='on'] :is(.pks-map-search-panel,.map-detail-shell,.pks-navigation)::before {
   content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; border-radius:inherit;
   background-color:#030610;
-  background-image:linear-gradient(rgb(8 12 26 / 55%),rgb(8 12 26 / 55%)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg'));
-  background-size:100% 100%,var(--cosmos-scene-size,cover);
-  background-position:center,var(--cosmos-scene-position,center);
+  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),linear-gradient(var(--ui-surface),var(--ui-surface)),var(--cosmos-scene-image,url('/themes/kosmos/nebula.jpg'));
+  background-size:100% 100%,auto,100% 100%,var(--cosmos-scene-size,cover);
+  background-position:center,center,center,var(--cosmos-scene-position,center);
   background-repeat:no-repeat; background-attachment:fixed;
   filter:blur(var(--cosmos-glass-blur)); clip-path:inset(0 round 16px);
 }
 html[data-cosmic-theme='on'] [data-cosmic-panel='stop-departures'] { min-height:160px; }
-html[data-cosmic-theme='on'] .transit-stop-card > div:first-child { background-color:rgb(10 15 30 / 45%); border-color:var(--ui-edge) !important; }
+html[data-cosmic-theme='on'] .transit-stop-card > div:first-child { background-color:var(--ui-surface); border-color:var(--ui-edge); }
 html[data-cosmic-theme='on'] :is(.pks-panel-scope,.pks-options-sheet,[data-carrier-sheet]) :is(input,textarea)::placeholder { color:var(--ui-muted); }
 html[data-cosmic-theme='on'] :is(.transit-view,.map-detail-shell,.pks-panel-scope,[data-carrier-sheet]) :is(.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-muted) { color:var(--ui-muted); }
 html[data-cosmic-theme='on'] [data-departure-row] { animation:none !important; transition:none !important; }
-html[data-cosmic-theme='on'][data-light-effects='true'],.pks-theme-root[data-ui-theme='dark-cosmos'].pks-light-effects { --cosmos-glass-blur:4px; }
 /* Startup components also set inline backgrounds; keep the same scene there. */
 [data-startup-theme='dark-cosmos'] {
   background-color:#000 !important;
@@ -835,7 +832,23 @@ html[data-cosmic-theme='on'] .pks-theme-root[data-ui-theme='dark-cosmos'] [data-
 /* Override the statistics view's intentionally opaque default only in Kosmos. */
 .pks-theme-root[data-ui-theme='dark-cosmos'] .pks-panel-scope[data-panel-theme][data-glass] [data-statistics-view] .pks-personal-card {
   background-color:var(--ui-surface) !important;
-  background-image:linear-gradient(135deg,rgba(181,202,255,.035),rgba(8,12,26,.08)) !important;
-  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(112%) !important;
-  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(112%) !important;
+  background-image:var(--cosmos-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent)),linear-gradient(135deg,rgba(181,202,255,.035),rgba(8,12,26,.08)) !important;
+  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)) !important;
+  backdrop-filter:blur(var(--cosmos-glass-blur)) saturate(var(--cosmos-saturation)) !important;
+}
+
+
+/* Main-map content is never replaced by the decorative sky or hidden by overlays. */
+.pks-theme-root[data-ui-theme='dark-cosmos'][data-cosmic-tab='map'] { background-image:none !important; }
+.pks-theme-root[data-ui-theme='dark-cosmos'][data-cosmic-tab='map'] [data-map-canvas] { visibility:visible !important; }
+/* Every loading theme uses its existing uniform theme colour. */
+.pks-loading-screen[data-startup-theme] { background-image:none !important; }
+/* Honour the actual glass toggle, including its saved value on cold start. */
+html[data-cosmic-glass='off'] .pks-theme-root[data-ui-theme='dark-cosmos'] {
+  --ui-surface:var(--personal-surface,#080a12); --ui-glass:var(--ui-surface);
+  --cosmos-glass-blur:0px; --cosmos-saturation:100%;
+}
+html[data-panel-glow='on'] .pks-theme-root[data-ui-theme='dark-cosmos'] { --cosmos-glow:var(--personal-glow-image,linear-gradient(transparent,transparent)); }
+html[data-personal-card-style='soft'] .pks-theme-root[data-ui-theme='dark-cosmos'] :is(.transit-card,.pks-personal-card,.pks-option-card,[data-interface-card]) {
+  background-color:color-mix(in srgb,var(--pks-accent) 15%,var(--ui-raised)) !important;
 }
