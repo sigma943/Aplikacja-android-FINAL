@@ -314,7 +314,7 @@ const server=http.createServer((req,res)=>{
       await fallbackScreens.evaluate(()=>{localStorage.setItem('mks_app_theme','damaged-theme');window.dispatchEvent(new Event('pks-interface-appearance'));});
       await fallbackScreens.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
       await fallbackScreens.evaluate(()=>{window.__themeGetItem=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key==='mks_app_theme')throw new Error('Blocked theme storage');return window.__themeGetItem.call(this,key);};window.dispatchEvent(new Event('pks-profile-applied'));});
-      await fallbackScreens.waitForSelector(`[data-startup-theme="${dark?'dark':'light'}"]`);
+      await fallbackScreens.waitForSelector('[data-startup-theme="dark-oled"]');
       await fallbackScreens.evaluate(()=>{Storage.prototype.getItem=window.__themeGetItem;});
     }
     await fallbackScreens.close();await page.bringToFront();
