@@ -30,9 +30,19 @@ async function cpuAudit() {
   const post=(method,params={})=>new Promise((resolve,reject)=>session.post(method,params,(e,r)=>e?reject(e):resolve(r)));
   await post('Profiler.enable');await post('Profiler.start');
   try {
+    const platformPoints=require('../public/data/stop-platforms.json').points;
+    const prepared=positions.createPlatformIndex?.(platformPoints);
+    benchmark('platform index prepare',()=>positions.createPlatformResolver(platformPoints,false,prepared),30);
     benchmark('catalog first build',()=>catalog.buildStopsCatalog(pks,mpk,[],'audit-first'),1);
     benchmark('catalog cold: PKS + MPK',i=>catalog.buildStopsCatalog(pks,mpk,[],'audit-cold-'+i),8);
     const stops=catalog.buildStopsCatalog(pks,mpk,[],'audit-warm');
+    const asyncCatalog=load('lib/stops-catalog-async.ts',{'@/lib/pks-client':{},'./stops-catalog-worker-factory':{}},'',modules);
+    benchmark('catalog reopen from persistent snapshot',i=>{
+      const key='audit-reopen-'+i;
+      const snapshot={version:4,rulesVersion:1,catalogKey:key,baseStops:stops,pks,mpk,marcel:[],lines:{},stops};
+      if(!asyncCatalog.restoreStopsCatalog?.(snapshot,key))catalog.buildStopsCatalog(pks,mpk,[],key);
+    },8);
+    catalog.buildStopsCatalog(pks,mpk,[],'audit-warm');
     benchmark('catalog cache hit: PKS + MPK',()=>catalog.buildStopsCatalog(pks,mpk,[],'audit-warm'));
     benchmark('physical map catalog cold',i=>catalog.buildStopsCatalog(pks,mpk,[],'audit-physical-'+i,true),8);
     catalog.buildStopsCatalog(pks,mpk,[],'audit-physical-warm',true);
@@ -131,6 +141,7 @@ async function browserAudit(fixture, runIndex) {
     await measure('bus-panel',async()=>{await page.click('.mks-bus-marker');await page.waitForSelector('[data-map-bus-sheet]');await page.click('[aria-label="Rozwiń panel autobusu"]');await pause(1500);});
     const button=async label=>page.evaluate(text=>{const b=[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text);if(!b)throw new Error('Missing button '+text);b.click();},label);
     await measure('stop-list-open',async()=>{await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');await page.waitForSelector('[data-stop-card-id]');await pause(700);});
+    await measure('hidden-map-idle',()=>pause(4000));
     await measure('stop-list-search',async()=>{await page.type('input[placeholder*="Babica"]','Rzeszów',{delay:100});await page.waitForSelector('[data-stop-card-id]');await pause(1000);});
     await measure('stop-panel',async()=>{await page.evaluate(()=>document.querySelector('[data-stop-card-id]').click());await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');await pause(1500);});
     const workerJobs=await page.evaluate(()=>window.auditCatalogJobs);

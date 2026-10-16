@@ -1,7 +1,8 @@
 'use client';
 import {DEFAULT_APP_THEME,normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
+import {reconcileVehicles} from '@/lib/vehicle-reconcile';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
-import BusDetailsPanel from '@/components/BusDetailsPanel';
+import {loadOptionsCode,loadTransportSelectorCode,loadBusDetailsCode,loadTrainDetailsCode,loadMapStopSheetCode,warmPanelCode} from '@/lib/home/panel-code';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
 
 import {toggleStopFavoriteIds} from '@/lib/stop-identity';
@@ -36,12 +37,9 @@ import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOf
 import {motion, AnimatePresence} from 'motion/react';
 import type {Vehicle} from '@/components/BusMap';
 import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
-import MapStopSheet from '@/components/MapStopSheet';
 import OptionsSheet from '@/components/OptionsSheet';
-import OptionsContent from '@/components/OptionsContent';
 import {loadMapCode} from '@/lib/map-startup-code';
-import TransportSelectorPanel, {type TransportOption} from '@/components/TransportSelectorPanel';
-import TrainDetailsPanel from '@/components/TrainDetailsPanel';
+import type {TransportOption} from '@/components/TransportSelectorPanel';
 import {warsawDateIso} from '@/lib/transit-time';
 import type {Stop as StopsPanelStop} from '@/Panel/src/types';
 import {fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type PkpQueryViewport, type TransportProviderId} from '@/lib/pks-client';
@@ -58,6 +56,12 @@ const MPK_RZESZOW_COLOR = '#ff7a00';
 const MARCEL_COLOR = '#68c44a';
 
 const PKP_INTERCITY_COLOR = '#1d4ed8';
+
+const OptionsContent=dynamic(loadOptionsCode,{ssr:false});
+const TransportSelectorPanel=dynamic(loadTransportSelectorCode,{ssr:false});
+const BusDetailsPanel=dynamic(loadBusDetailsCode,{ssr:false});
+const TrainDetailsPanel=dynamic(loadTrainDetailsCode,{ssr:false});
+const MapStopSheet=dynamic(loadMapStopSheetCode,{ssr:false});
 
 const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false, loading: () => <CosmicTabLoading/> });
 
@@ -96,7 +100,6 @@ export default function Home() {
     [hiddenProviderIds, isOwnerDevice],
   );
 
-  const lastVehiclesRef = useRef<string>('');
   const lastVehiclesEtagRef = useRef<string>('');
   const activeProvidersRef = useRef<TransportProviderId[]>([]);
   const vehiclesFetchAbortRef = useRef<AbortController | null>(null);
@@ -112,6 +115,17 @@ export default function Home() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  useEffect(()=>{
+    if(isLoading)return;
+    let cancelled=false;
+    const warm=()=>{if(!cancelled)void warmPanelCode();};
+    if('requestIdleCallback' in window){
+      const id=window.requestIdleCallback(warm,{timeout:2000});
+      return()=>{cancelled=true;window.cancelIdleCallback(id);};
+    }
+    const id=setTimeout(warm,200);
+    return()=>{cancelled=true;clearTimeout(id);};
+  },[isLoading]);
   const [appLoadTimedOut, setAppLoadTimedOut] = useState(false);
   const [filterRoute, setFilterRoute] = useState('');
   const [activeProviders, setActiveProviders] = useState<TransportProviderId[]>([]);
@@ -300,8 +314,10 @@ export default function Home() {
     });
   }, []);
 
-  const [now, setNow] = useState(0);
-  useForegroundRefresh('home-clock',async()=>{setNow(Date.now());},1000);
+  const clockKey=activeTab==='map'?(selectedBus?`vehicle:${selectedBus.provider}:${selectedBus.id}`:selectedStopId?`stop:${selectedStopId}`:null):null;
+  const [clock,setClock]=useState<{key:string|null;now:number}>({key:null,now:0});
+  const now=clockKey&&clock.key===clockKey?clock.now:Date.now();
+  useForegroundRefresh('home-clock',async()=>{setClock({key:clockKey,now:Date.now()});},1000,Boolean(clockKey));
 
   const mapStopSource = useMemo<StopsPanelStop>(() => {
     const known=stopsList.find(stop=>stop.id===selectedStopId);
@@ -606,7 +622,7 @@ export default function Home() {
           if (controller.signal.aborted || vehiclesFetchAbortRef.current !== controller) return;
           if (!activeProvidersRef.current.includes(provider) || loaded.length === 0) return;
           lastProviderNonEmptyAtRef.current.set(provider, Date.now());
-          const next = [...vehiclesRef.current.filter((vehicle) => (vehicle.provider || 'pks') !== provider), ...loaded];
+          const next = reconcileVehicles(vehiclesRef.current,[...vehiclesRef.current.filter((vehicle) => (vehicle.provider || 'pks') !== provider), ...loaded]);
           vehiclesRef.current = next;
           startTransition(() => setVehicles(next));
           setIsLoading(false);
@@ -646,11 +662,9 @@ export default function Home() {
         return requestProviderSet.has(providerId) && !requestedProviderSet.has(providerId);
       });
       const visibleVehicles = [...carriedVehicles, ...stableFreshVehicles];
-      const newDataStr = JSON.stringify(visibleVehicles);
-      if (newDataStr !== lastVehiclesRef.current) {
-        setVehicles(visibleVehicles);
-        lastVehiclesRef.current = newDataStr;
-      }
+      const reconciled=reconcileVehicles(vehiclesRef.current,visibleVehicles);
+      vehiclesRef.current=reconciled;
+      setVehicles(reconciled);
       if (providersToRequest.includes('pkp_intercity')) {
         lastPkpIntercityFetchAtRef.current = Date.now();
       }
@@ -1017,6 +1031,8 @@ export default function Home() {
     setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);
   },[selectedBus,stopsList]);
   const selectMapCatalogStop=useCallback((stop:StopsPanelStop)=>{mapStopReturnTab.current=null;setSelectedBus(null);setSelectedExternalStop(stop);setSelectedStopId(stop.id);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);},[]);
+  const onMapCenterComplete=useCallback(()=>setMapCenter(null),[]);
+  const onMapClick=useCallback(()=>{setSelectedBus(null);setSelectedBusDetailsLoading(false);setSelectedStopId(null);setSelectedExternalStop(null);setIsTransportPanelOpen(false);},[]);
   const selectedBusHeaderStyle=vehicleHeaderStyle(selectedVehicleColor,transparentUI,isDark);
   const showAlertDot = Boolean(error || isOffline);
 
@@ -1074,7 +1090,6 @@ export default function Home() {
       const remainingVehicles = currentVehicles.filter((vehicle) =>
         nextProviderSet.has((vehicle.provider || 'pks') as TransportProviderId),
       );
-      lastVehiclesRef.current = JSON.stringify(remainingVehicles);
       return remainingVehicles;
     });
     localStorage.setItem('mks_transport_providers', JSON.stringify(nextProviders));
@@ -1205,7 +1220,9 @@ export default function Home() {
 
          {/* ============== MAP VIEW ============== */}
          <div data-map-canvas className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
-            <BusMap 
+            <BusMap
+               active={activeTab==='map'||actualTheme!=='dark-cosmos'}
+               clockMs={selectedBus?now:0}
                vehicles={filteredVehicles} 
                onVehicleClick={handleVehicleClick}
                selectedVehicleId={selectedBus?.id}
@@ -1216,16 +1233,10 @@ export default function Home() {
                themeColor={themeColor}
                refreshInterval={refreshInterval}
                forcedCenter={mapCenter}
-               onCenterComplete={() => setMapCenter(null)}
+               onCenterComplete={onMapCenterComplete}
                highlightedStopId={selectedStopId}
                onStopClick={openVehicleRouteStop}
-               onMapClick={() => {
-                   setSelectedBus(null);
-                   setSelectedBusDetailsLoading(false);
-                   setSelectedStopId(null);
-                   setSelectedExternalStop(null);
-                   setIsTransportPanelOpen(false);
-                }}
+               onMapClick={onMapClick}
                 onViewportChange={handleMapViewportChange}
              />
 

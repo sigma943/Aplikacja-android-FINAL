@@ -16,14 +16,19 @@ export default function UIMotionProvider({children}: {children: ReactNode}) {
     const root=document.documentElement,media=window.matchMedia('(prefers-color-scheme: dark)');
     let cleanupAppearance:undefined|(()=>void);
     let glowKeys:string[]=[];
+    let appliedKey='';
     const update=()=>{
       const switched=applyScheduledProfile();
       let value=normalizeInterfaceAppearance(null);
       try{value=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));}catch{/* Use defaults for damaged saved settings. */}
       const theme=resolveAppTheme(readAppTheme(),media.matches);
       const dark=theme.startsWith('dark'),lightEffects=localStorage.getItem('mks_light_effects')==='true';
+      const accent=localStorage.getItem('mks_theme')||'#00a3a2';
+      const key=JSON.stringify([value,dark,accent,lightEffects,theme,localStorage.getItem('mks_panel_glow'),localStorage.getItem('mks_panel_glow_strength')]);
+      if(key===appliedKey){if(switched)window.dispatchEvent(new Event('pks-profile-applied'));return;}
+      appliedKey=key;
       cleanupAppearance?.();
-      cleanupAppearance=applyInterfaceAppearance(root,value,dark,localStorage.getItem('mks_theme')||'#00a3a2',lightEffects,theme);
+      cleanupAppearance=applyInterfaceAppearance(root,value,dark,accent,lightEffects,theme);
       const strength=panelGlowStrength(localStorage.getItem('mks_panel_glow_strength'));
       root.dataset.panelGlow=localStorage.getItem('mks_panel_glow')==='true'&&strength>0?'on':'off';
       const variables=panelGlowVariables(value.glowColor,strength,dark,lightEffects,{style:value.glowStyle,spread:value.glowSpread,placement:value.glowPlacement});

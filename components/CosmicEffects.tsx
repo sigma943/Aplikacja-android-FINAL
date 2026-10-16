@@ -26,12 +26,13 @@ export default function CosmicEffects(){
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
     const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
     const session=visitSession??=cosmicScreenSession(crypto.getRandomValues(new Uint32Array(1))[0]);
+    const write=(key:string,value:string)=>{if(root.style.getPropertyValue(key)!==value)root.style.setProperty(key,value);};
     const measure=()=>{
-      root.style.setProperty('--cosmos-viewport-width',`${innerWidth}px`);
-      root.style.setProperty('--cosmos-viewport-height',`${innerHeight}px`);
+      write('--cosmos-viewport-width',`${innerWidth}px`);
+      write('--cosmos-viewport-height',`${innerHeight}px`);
       if(!field.current)return;
       // The sky belongs to the whole screen, including gaps between cards.
-      Object.assign(field.current.style,{inset:'0',width:'100%',height:'100%',borderRadius:'0'});
+      if(field.current.style.inset!=='0px')Object.assign(field.current.style,{inset:'0',width:'100%',height:'100%',borderRadius:'0'});
     };
     const findRegion=()=>{
       for(const selector of regionSelector.split(','))for(const node of document.querySelectorAll<HTMLElement>(selector)){
@@ -42,6 +43,7 @@ export default function CosmicEffects(){
       return null;
     };
     const observer=new MutationObserver(records=>{
+      if(resolveAppTheme(readAppTheme())!=='dark-cosmos'&&root.dataset.cosmicTheme!=='on')return;
       let regionsChanged=false;
       for(const record of records){
         if(record.type==='attributes'){
@@ -132,21 +134,21 @@ export default function CosmicEffects(){
       const tab=document.querySelector<HTMLElement>('.pks-theme-root[data-cosmic-tab]')?.dataset.cosmicTab;
       const previousTab=session.tab;
       const entered=session.enterTab(tab);
-      const nextRegion=findRegion();
       const theme=resolveAppTheme(readAppTheme());
+      const nextRegion=theme==='dark-cosmos'?findRegion():null;
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
       try{root.dataset.cosmicGlass=localStorage.getItem('mks_transparent')==='false'?'off':'on';}catch{root.dataset.cosmicGlass='on';}
       let parallaxPreference=false;try{parallaxPreference=localStorage.getItem(COSMIC_PARALLAX_KEY)==='true';}catch{}
-      root.style.setProperty('--cosmos-clear-veil',!appearance.glassBlurEnabled||appearance.glassBlur===0?'rgba(4,8,22,.56)':'transparent');
-      root.style.setProperty('--cosmos-veil-alpha',String(appearance.glassOpacity/100*.42));
-      root.style.setProperty('--cosmos-sheen-alpha',String(appearance.borderStrength/100*.35));
-      root.style.setProperty('--cosmos-glint-alpha',root.dataset.cosmicGlass==='off'||appearance.cardStyle==='flat'?'0':String(appearance.borderStrength/300));
+      write('--cosmos-clear-veil',!appearance.glassBlurEnabled||appearance.glassBlur===0?'rgba(4,8,22,.56)':'transparent');
+      write('--cosmos-veil-alpha',String(appearance.glassOpacity/100*.42));
+      write('--cosmos-sheen-alpha',String(appearance.borderStrength/100*.35));
+      write('--cosmos-glint-alpha',root.dataset.cosmicGlass==='off'||appearance.cardStyle==='flat'?'0':String(appearance.borderStrength/300));
       if(theme==='dark-cosmos'){
-        root.style.setProperty('--theme-decoration',themeDecoration(theme));
+        write('--theme-decoration',themeDecoration(theme));
         if(backdropEpoch!==session.epoch){
           const previous=backdropEpoch>=0&&previousTab!=='map'?{image:root.style.getPropertyValue('--cosmos-scene-image'),size:root.style.getPropertyValue('--cosmos-scene-size'),position:root.style.getPropertyValue('--cosmos-scene-position')}:null;
           const scene=session.scene;setScene(scene);
-          for(const [key,value] of Object.entries(cosmicBackdropStyle(scene)))root.style.setProperty(key,value);
+          for(const [key,value] of Object.entries(cosmicBackdropStyle(scene)))write(key,value);
           backdropEpoch=session.epoch;
           if((entered||previous===null)&&tab!=='map'&&!reduced&&!light)blend(previous);
         }

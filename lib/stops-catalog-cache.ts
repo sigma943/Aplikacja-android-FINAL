@@ -6,6 +6,9 @@ import type { RawStop, MarcelIndexedStop } from '@/components/stops-panel/stop-d
 export type MpkCatalogStop = { id: string; name: string; lat?: number; lon?: number; lines: string[] };
 export type CatalogSnapshot = {
   version: 4;
+  catalogKey?:string;
+  rulesVersion?:number;
+  baseStops?:Stop[];
   pks: RawStop[];
   mpk: MpkCatalogStop[];
   marcel: MarcelIndexedStop[];
@@ -38,7 +41,7 @@ export function peekStopsCatalogCache() { return memory; }
 
 // Structured cloning in IndexedDB avoids parsing a large JSON catalog on the UI thread.
 // Cache failure must never stop the network-backed list from loading.
-function catalogStorage<T>(action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T | null> {
+function catalogStorage<T>(action: (store: IDBObjectStore) => IDBRequest<T>,write=false): Promise<T | null> {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null);
   return new Promise(resolve => {
     let db: IDBDatabase | undefined;
@@ -60,7 +63,7 @@ function catalogStorage<T>(action: (store: IDBObjectStore) => IDBRequest<T>): Pr
         if (finished) { db.close(); return; }
         db.onversionchange = () => db?.close();
         try {
-          const transaction = db.transaction('catalog', 'readwrite');
+          const transaction = db.transaction('catalog', write ? 'readwrite' : 'readonly');
           const request = action(transaction.objectStore('catalog'));
           let result: T | null = null;
           request.onsuccess = () => { result = request.result; };
@@ -85,5 +88,5 @@ export async function writeStopsCatalogCache(snapshot: CatalogSnapshot) {
   if (!validCatalogSnapshot(snapshot)) return;
   memory = sanitizeSnapshot(snapshot);
   if(typeof window!=='undefined')window.dispatchEvent(new Event('pks-live:catalog-updated'));
-  await catalogStorage(store => store.put(memory!, 'latest'));
+  await catalogStorage(store => store.put(memory!, 'latest'),true);
 }

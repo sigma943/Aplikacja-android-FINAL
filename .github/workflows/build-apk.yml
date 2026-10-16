@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, perf/android-startup-and-rendering]
   pull_request:
     branches: [main, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242, fix/mpk-diagnostics-242, fix/mpk-mybus-fallback-242, fix/mpk-mybus-timetable-242]
   workflow_dispatch:

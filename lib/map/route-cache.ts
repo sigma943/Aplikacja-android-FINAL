@@ -7,6 +7,9 @@ const ROUTE_GEOMETRY_DB_VERSION = 1;
 
 const ROUTE_GEOMETRY_DB_STORE = 'routes';
 
+type GeometryEntry={version:string;points:[number,number][];expiresAt:number};
+const memory=new Map<string,GeometryEntry>();
+
 let routeGeometryDbPromise: Promise<IDBDatabase | null> | null = null;
 
 function readLocalRouteGeometry(cacheKey: string, version: string) {
@@ -33,6 +36,7 @@ function openRouteGeometryDb() {
   if (typeof window === 'undefined' || !('indexedDB' in window)) return Promise.resolve(null);
   if (!routeGeometryDbPromise) {
     routeGeometryDbPromise = new Promise((resolve) => {
+      const timeout=setTimeout(()=>resolve(null),1000);
       const request = window.indexedDB.open(ROUTE_GEOMETRY_DB_NAME, ROUTE_GEOMETRY_DB_VERSION);
       request.onupgradeneeded = () => {
         const db = request.result;
@@ -40,9 +44,9 @@ function openRouteGeometryDb() {
           db.createObjectStore(ROUTE_GEOMETRY_DB_STORE, { keyPath: 'key' });
         }
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-      request.onblocked = () => resolve(null);
+      request.onsuccess = () => {clearTimeout(timeout);request.result.onversionchange=()=>{request.result.close();routeGeometryDbPromise=null;};resolve(request.result);};
+      request.onerror = () => {clearTimeout(timeout);resolve(null);};
+      request.onblocked = () => {clearTimeout(timeout);resolve(null);};
     });
   }
   return routeGeometryDbPromise;
@@ -74,9 +78,12 @@ async function readIndexedRouteGeometry(cacheKey: string, version: string) {
 }
 
 async function readPersistentRouteGeometry(cacheKey: string, version: string) {
-  const local = readLocalRouteGeometry(cacheKey, version);
-  if (local.length > 1) return local;
-  return readIndexedRouteGeometry(cacheKey, version).catch(() => []);
+  const cached=memory.get(cacheKey);
+  if(cached?.version===version&&cached.expiresAt>Date.now())return cached.points;
+  const indexed=await readIndexedRouteGeometry(cacheKey,version).catch(()=>[]);
+  if(indexed.length>1)return indexed;
+  // Old installations and browsers with disabled IndexedDB retain their fallback.
+  return readLocalRouteGeometry(cacheKey, version);
 }
 
 function writeLocalRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
@@ -97,10 +104,10 @@ function writeLocalRouteGeometry(cacheKey: string, points: [number, number][], v
 }
 
 async function writeIndexedRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
-  if (points.length <= 1) return;
+  if (points.length <= 1) return false;
   const db = await openRouteGeometryDb();
-  if (!db) return;
-  await new Promise<void>((resolve) => {
+  if (!db) return false;
+  return new Promise<boolean>((resolve) => {
     const transaction = db.transaction(ROUTE_GEOMETRY_DB_STORE, 'readwrite');
     const store = transaction.objectStore(ROUTE_GEOMETRY_DB_STORE);
     store.put({
@@ -110,15 +117,19 @@ async function writeIndexedRouteGeometry(cacheKey: string, points: [number, numb
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
       points,
     });
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => resolve();
-    transaction.onabort = () => resolve();
+    transaction.oncomplete = () => resolve(true);
+    transaction.onerror = () => resolve(false);
+    transaction.onabort = () => resolve(false);
   });
 }
 
-function writePersistentRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
-  writeLocalRouteGeometry(cacheKey, points, version);
-  void writeIndexedRouteGeometry(cacheKey, points, version).catch(() => {});
+async function writePersistentRouteGeometry(cacheKey: string, points: [number, number][], version: string) {
+  if(points.length<=1)return;
+  memory.set(cacheKey,{version,points,expiresAt:Date.now()+30*24*60*60*1000});
+  if(memory.size>200)memory.delete(memory.keys().next().value!);
+  const saved=await writeIndexedRouteGeometry(cacheKey,points,version).catch(()=>false);
+  if(!saved)writeLocalRouteGeometry(cacheKey,points,version);
+  else try {window.localStorage.removeItem(`${ROUTE_GEOMETRY_LOCAL_PREFIX}${cacheKey}`);} catch {/* Storage may be disabled. */}
 }
 
 export {ROUTE_GEOMETRY_LOCAL_PREFIX};

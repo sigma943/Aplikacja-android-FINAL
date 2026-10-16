@@ -19,3 +19,18 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Capacitor discovers plugins and their annotated callbacks through reflection.
+-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations,AnnotationDefault,Signature,InnerClasses,EnclosingMethod
+-keep public class * extends com.getcapacitor.Plugin { *; }
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+# The background widget runner exposes Java methods directly to its WebView.
+-keep class pl.pkslive.app.StopWidgetRefreshService$* { *; }
+-keep class pl.pkslive.app.StopWidgetPlugin { *; }
+-keep class pl.pkslive.app.AppearanceBackupPlugin { *; }
+-keep class pl.pkslive.app.AdminStatisticsExportPlugin { *; }
+-keep class pl.pkslive.app.StableDeviceIdPlugin { *; }
+# Keep the small app-specific bridge/widget layer stable; optimize library code.
+-keep class pl.pkslive.app.** { *; }

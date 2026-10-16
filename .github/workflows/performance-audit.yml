@@ -2,7 +2,7 @@ name: Performance audit
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, perf/android-startup-and-rendering]
     paths:
       - '.github/workflows/performance-audit.yml'
       - 'test/performance-audit.cjs'
@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: read
     env:
-      PERF_BASELINE_SHA: 5ae88fbdf3a869637c0c793645d190cc8ea47efe
+      PERF_BASELINE_SHA: cb6b94d9d1a0b60b836eb333a749f5e03c7b3778
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,6 +57,8 @@ jobs:
           npm run build:android:web
           node test/performance-audit.cjs
       - run: npm run build:android:web
+      - name: Compare startup bundle and verify provider pixels
+        run: node test/performance-assets.cjs "$PERF_BASELINE_ROOT"
       - name: Measure CPU, map, refresh and panels
         run: node test/performance-audit.cjs
       - name: Compare versions on the same runner

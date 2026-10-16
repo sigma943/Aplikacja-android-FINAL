@@ -130,12 +130,14 @@ const VehicleClusterMarker = memo(function VehicleClusterMarker({ groupKey, lat,
 });
 
 const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
+  active=true,
   vehicles,
   selectedVehicleId,
   themeColor,
   refreshInterval,
   onVehicleClick,
 }: {
+  active?:boolean;
   vehicles: Vehicle[];
   selectedVehicleId?: string | null;
   themeColor: string;
@@ -197,7 +199,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
   useEffect(() => {
     latestVehiclesRef.current = vehicles;
     latestVehicleByKeyRef.current = new Map(vehicles.map((vehicle) => [getVehicleMarkerKey(vehicle), vehicle]));
-    if (mapMovingRef.current) return;
+    if (!active || mapMovingRef.current) return;
 
     if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
     rafRef.current = window.requestAnimationFrame(() => {
@@ -211,7 +213,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
         rafRef.current = null;
       }
     };
-  }, [getVehicleMarkerKey, vehicles]);
+  }, [active, getVehicleMarkerKey, vehicles]);
 
   const zoom = map.getZoom();
   const isHighVolumeLayer = renderVehicles.length > 35;
@@ -221,6 +223,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
     return renderVehicles.filter((vehicle) => paddedBounds.contains([vehicle.lat, vehicle.lon]));
   }, [map, renderVehicles, viewTick, zoom]);
   useEffect(() => {
+    if(!active)return;
     const courseIds = new Set(visibleVehicles.filter(v => v.provider === 'marcel')
       .map(v => String(v.tripId || v.journeyId || '')));
     const unsubscribe = subscribeMarcelCourseDelays(courseId => {
@@ -229,7 +232,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
     const bounds = map.getBounds().pad(0.2);
     warmMarcelBadgeCourses(visibleVehicles, [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
     return unsubscribe;
-  }, [map, visibleVehicles, viewTick]);
+  }, [active, map, visibleVehicles, viewTick]);
 
   const viewportVehicles = useMemo(() => visibleVehicles.map(vehicle => withCachedMarcelDelay(vehicle)),
     [visibleVehicles, badgeRevision]);
@@ -291,6 +294,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
   }, [map]);
 
   useEffect(() => {
+    if(!active)return;
     const updates: { marker: L.Marker; lat: number; lon: number }[] = [];
     for (const vehicle of viewportVehicles) {
       const marker = markerRefs.current.get(getVehicleMarkerKey(vehicle));
@@ -305,7 +309,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
       now: () => performance.now(),
       paused: () => mapMovingRef.current,
     });
-  }, [getVehicleMarkerKey, viewportVehicles]);
+  }, [active, getVehicleMarkerKey, viewportVehicles]);
 
   return (
     <>
