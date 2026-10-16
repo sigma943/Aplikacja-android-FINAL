@@ -56,11 +56,11 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
-      - name: Verify shared accent and stop views
-        run: node test/accent-browser.cjs
-
       - name: Verify map stop interactions
         run: node test/map-stops-browser.cjs
+
+      - name: Verify shared accent and stop views
+        run: node test/accent-browser.cjs
 
       - name: Verify MPK backup route and stop pins
         run: node test/mpk-route-browser.cjs

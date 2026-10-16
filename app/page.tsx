@@ -117,14 +117,15 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   useEffect(()=>{
     if(isLoading)return;
-    let cancelled=false;
+    let cancelled=false,idle:number|undefined;
     const warm=()=>{if(!cancelled)void warmPanelCode();};
-    if('requestIdleCallback' in window){
-      const id=window.requestIdleCallback(warm,{timeout:2000});
-      return()=>{cancelled=true;window.cancelIdleCallback(id);};
-    }
-    const id=setTimeout(warm,200);
-    return()=>{cancelled=true;clearTimeout(id);};
+    // An idle slot can occur while the first map/catalog is still loading.
+    // Keep optional panel parsing out of that critical startup window.
+    const timer=setTimeout(()=>{
+      if('requestIdleCallback' in window)idle=window.requestIdleCallback(warm,{timeout:2000});
+      else warm();
+    },2000);
+    return()=>{cancelled=true;clearTimeout(timer);if(idle!==undefined)window.cancelIdleCallback(idle);};
   },[isLoading]);
   const [appLoadTimedOut, setAppLoadTimedOut] = useState(false);
   const [filterRoute, setFilterRoute] = useState('');
