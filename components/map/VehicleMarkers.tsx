@@ -222,17 +222,23 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
     const paddedBounds = map.getBounds().pad(0.2);
     return renderVehicles.filter((vehicle) => paddedBounds.contains([vehicle.lat, vehicle.lon]));
   }, [map, renderVehicles, viewTick, zoom]);
+  // Keep timetable/cache warming independent of whether the map can be seen.
+  const badgeVehicles=useMemo(()=>{
+    if(active)return visibleVehicles;
+    if(vehicles.length<=35)return vehicles;
+    const bounds=map.getBounds().pad(0.2);
+    return vehicles.filter(vehicle=>bounds.contains([vehicle.lat,vehicle.lon]));
+  },[active,map,vehicles,visibleVehicles,viewTick]);
   useEffect(() => {
-    if(!active)return;
-    const courseIds = new Set(visibleVehicles.filter(v => v.provider === 'marcel')
+    const courseIds = new Set(badgeVehicles.filter(v => v.provider === 'marcel')
       .map(v => String(v.tripId || v.journeyId || '')));
     const unsubscribe = subscribeMarcelCourseDelays(courseId => {
-      if (courseIds.has(courseId)) setBadgeRevision(value => value + 1);
+      if (active&&courseIds.has(courseId)) setBadgeRevision(value => value + 1);
     });
     const bounds = map.getBounds().pad(0.2);
-    warmMarcelBadgeCourses(visibleVehicles, [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
+    warmMarcelBadgeCourses(badgeVehicles, [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
     return unsubscribe;
-  }, [active, map, visibleVehicles, viewTick]);
+  }, [active, map, badgeVehicles, viewTick]);
 
   const viewportVehicles = useMemo(() => visibleVehicles.map(vehicle => withCachedMarcelDelay(vehicle)),
     [visibleVehicles, badgeRevision]);
