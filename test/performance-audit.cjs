@@ -146,7 +146,7 @@ async function browserAudit(fixture, runIndex) {
     await measure('stop-panel',async()=>{await page.evaluate(()=>document.querySelector('[data-stop-card-id]').click());await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');await pause(1500);});
     await measure('background-35s',async()=>{
       // Allow any foreground request already in flight to settle, then count only hidden work.
-      await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));});
+      await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
       await pause(1000);
       const probes=reachabilityRequests, feeds=feedRequests;
       const heartbeats=await page.evaluate(()=>window.__startupHeartbeatWrites||0);
@@ -158,7 +158,7 @@ async function browserAudit(fixture, runIndex) {
         assert.equal(result.vehicleRequests,0,'No vehicle polling while hidden');
         assert.equal(result.heartbeatWrites,0,'No presence writes while hidden');
       }
-      await page.evaluate(()=>{delete document.visibilityState;document.dispatchEvent(new Event('visibilitychange'));});
+      await page.evaluate(()=>{delete document.visibilityState;delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});
       await page.waitForFunction(count=>(window.__startupHeartbeatWrites||0)>count,{},heartbeats);
       return result;
     });
