@@ -7,9 +7,12 @@ export function useTabTransition(tab:string,enabled:boolean) {
   useEffect(()=>{
     const changed=previous.current!==tab;
     previous.current=tab;
-    if(!changed||!enabled||document.hidden||!root.current?.animate)return;
+    const media=window.matchMedia('(prefers-reduced-motion: reduce)');
+    if(!changed||!enabled||media.matches||document.hidden||!root.current?.animate)return;
     const animation=root.current.animate([{opacity:.45},{opacity:1}],{duration:180,easing:'cubic-bezier(.22,1,.36,1)'});
-    return()=>animation.cancel();
+    const stopOnReduce=()=>{if(media.matches)animation.cancel();};
+    media.addEventListener('change',stopOnReduce);
+    return()=>{media.removeEventListener('change',stopOnReduce);animation.cancel();};
   },[tab,enabled]);
   return root;
 }

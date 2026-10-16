@@ -35,7 +35,7 @@ import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallba
 import dynamic from 'next/dynamic';
 import {Capacitor} from '@capacitor/core';
 import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOff, Shield, Check} from 'lucide-react';
-import {motion, AnimatePresence, useReducedMotion} from 'motion/react';
+import {motion, AnimatePresence} from 'motion/react';
 import type {Vehicle} from '@/components/BusMap';
 import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
 import OptionsSheet from '@/components/OptionsSheet';
@@ -1094,8 +1094,7 @@ export default function Home() {
     loadVehicleDetails(v);
   }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
   
-  const systemReducedMotion=useReducedMotion();
-  const tabTransitionRef=useTabTransition(activeTab,!systemReducedMotion&&!interfaceAppearance.reducedMotion&&!lightEffects);
+  const tabTransitionRef=useTabTransition(activeTab,!interfaceAppearance.reducedMotion&&!lightEffects);
 
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
