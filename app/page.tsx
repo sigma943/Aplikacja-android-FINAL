@@ -30,7 +30,7 @@ import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
 
-import {startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
+import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
 import dynamic from 'next/dynamic';
 import {Capacitor} from '@capacitor/core';
 import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOff, Shield, Check} from 'lucide-react';
@@ -57,7 +57,7 @@ const MARCEL_COLOR = '#68c44a';
 
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 
-const OptionsContent=dynamic(loadOptionsCode,{ssr:false});
+const OptionsContent=lazy(loadOptionsCode);
 const TransportSelectorPanel=dynamic(loadTransportSelectorCode,{ssr:false});
 const BusDetailsPanel=dynamic(loadBusDetailsCode,{ssr:false});
 const TrainDetailsPanel=dynamic(loadTrainDetailsCode,{ssr:false});
@@ -1455,6 +1455,7 @@ export default function Home() {
       {/* Settings Modal (Overlay) */}
       <AnimatePresence>
         {isSettingsOpen && (
+          <Suspense fallback={null}>
           <OptionsSheet
             expanded={isOptionsExpanded}
             onExpandedChange={setIsOptionsExpanded}
@@ -1464,6 +1465,7 @@ export default function Home() {
           >
             <OptionsContent canOpenAdminEmbed={canOpenAdminEmbed} chrome={{mapGlassPanel,mapGlassInput,textSub,bottomGlassShell}} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={()=>setIsOptionsExpanded(true)} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
+          </Suspense>
         )}
       </AnimatePresence>
 
