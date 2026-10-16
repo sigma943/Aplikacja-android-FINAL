@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict');const http=require('node:http');const fs=require('node:fs');const path=require('node:path');const puppeteer=require('puppeteer');
+fs.mkdirSync(path.resolve('test/ui-previews'),{recursive:true});
 const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root,production=path.resolve('out');
 const server=http.createServer((req,res)=>{const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);let file=path.resolve(root,'.'+(pathname.endsWith('/')?pathname+'index.html':pathname));if(!file.startsWith(root+path.sep)){res.writeHead(404);res.end();return;}if(!fs.existsSync(file))file=path.resolve(production,'.'+pathname);if((!file.startsWith(root+path.sep)&&!file.startsWith(production+path.sep))||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');fs.createReadStream(file).pipe(res);});
 (async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
@@ -268,5 +269,5 @@ try{
  assert.equal(await page.evaluate(()=>{window.idleMarkerObserver.disconnect();return window.idleMarkerMutations;}),0,'unchanged markers do not repeat DOM position writes on clock ticks');
  await page.screenshot({path:path.resolve('test/ui-previews/marcel-selected-catalog-stop.png')});
  assert.deepEqual(errors,[]);console.log('Map stops: enable, city/rural colours, click/highlight/sheet, persistence, zoom threshold and disable passed.');
-}catch(error){console.error('Map regression context:',await page.evaluate(()=>({text:document.body.innerText,sheet:document.querySelector('[data-map-stop-sheet]')?.outerHTML})),{errors,marcelCatalogRequests});await page.screenshot({path:path.resolve('test/ui-previews/map-failure.png')});throw error;}finally{await browser.close();server.close();fixture.cleanup();}
+}catch(error){console.error('Map regression context:',await page.evaluate(()=>({text:document.body.innerText,sheet:document.querySelector('[data-map-stop-sheet]')?.outerHTML})),{errors,marcelCatalogRequests});await page.screenshot({path:path.resolve('test/ui-previews/map-failure.png')}).catch(()=>{});throw error;}finally{await browser.close();server.close();fixture.cleanup();}
 })().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});
