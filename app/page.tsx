@@ -2,7 +2,7 @@
 import {DEFAULT_APP_THEME,normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
 import {reconcileVehicles} from '@/lib/vehicle-reconcile';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
-import {loadOptionsCode,loadTransportSelectorCode,loadBusDetailsCode,loadTrainDetailsCode,loadMapStopSheetCode,warmPanelCode} from '@/lib/home/panel-code';
+import {loadOptionsCode,loadTransportSelectorCode,loadBusDetailsCode,loadTrainDetailsCode,warmPanelCode} from '@/lib/home/panel-code';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
 
 import {toggleStopFavoriteIds} from '@/lib/stop-identity';
@@ -38,6 +38,8 @@ import {motion, AnimatePresence} from 'motion/react';
 import type {Vehicle} from '@/components/BusMap';
 import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
 import OptionsSheet from '@/components/OptionsSheet';
+// Keep selection and its core stop sheet in the same render, including cold starts.
+import MapStopSheet from '@/components/MapStopSheet';
 import {loadMapCode} from '@/lib/map-startup-code';
 import type {TransportOption} from '@/components/TransportSelectorPanel';
 import {warsawDateIso} from '@/lib/transit-time';
@@ -61,7 +63,6 @@ const OptionsContent=lazy(loadOptionsCode);
 const TransportSelectorPanel=dynamic(loadTransportSelectorCode,{ssr:false});
 const BusDetailsPanel=dynamic(loadBusDetailsCode,{ssr:false});
 const TrainDetailsPanel=dynamic(loadTrainDetailsCode,{ssr:false});
-const MapStopSheet=dynamic(loadMapStopSheetCode,{ssr:false});
 
 const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false, loading: () => <CosmicTabLoading/> });
 
