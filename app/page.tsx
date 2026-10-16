@@ -266,7 +266,10 @@ export default function Home() {
 
     const updateForeground = () => {
       const visible = typeof document === 'undefined' ? true : document.visibilityState === 'visible';
-      if (!cancelled) setIsAppForeground(visible && nativeActive);
+      if (!cancelled) {
+        isAppForegroundRef.current = visible && nativeActive;
+        setIsAppForeground(visible && nativeActive);
+      }
     };
 
     updateForeground();
@@ -719,42 +722,16 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProviders, hasLoadedTransportProviders]);
 
-  useEffect(() => {
-    if (!hasLoadedTransportProviders) return;
+  const vehiclePollingInterval = activeTab === 'map' ? refreshInterval : 20_000;
+  useForegroundRefresh(`home-vehicles:${activeProviders.join(',')}:${showInactive}`, async () => {
+    if (isAppForegroundRef.current) await fetchVehicles();
+  }, vehiclePollingInterval, hasLoadedTransportProviders && activeProviders.length > 0 &&
+    (activeTab === 'map' || activeTab === 'stops') && !isOffline, vehiclePollingInterval);
 
-    let timer: NodeJS.Timeout;
-    const shouldPollVehicles = activeTab === 'map' || activeTab === 'stops';
-    let disposed = false;
-    const pollingInterval = activeTab === 'map' ? refreshInterval : 20_000;
-    
-    const tick = async () => {
-      if (shouldPollVehicles && isAppForegroundRef.current && !isOffline) {
-        await fetchVehicles();
-      }
-      if (!disposed) timer = setTimeout(tick, pollingInterval);
-    };
-
-    if (!disposed) timer = setTimeout(tick, pollingInterval);
-
-    const handleVisibility = () => {
-      if (shouldPollVehicles && isAppForegroundRef.current && !isOffline) {
-        fetchVehicles(showInactive, true);
-      }
-    };
-    
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibility);
-    }
-
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVisibility);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshInterval, showInactive, isOffline, activeProviders, hasLoadedTransportProviders, activeTab]);
+  const networkProbeRef = useRef<(() => Promise<void>) | null>(null);
+  useForegroundRefresh('home-connectivity', async () => {
+    await networkProbeRef.current?.();
+  }, 2500, hasLoadedTransportProviders, 2500);
 
   useEffect(() => {
     if (!hasLoadedTransportProviders) return;
@@ -779,8 +756,9 @@ export default function Home() {
     };
 
     const applyOnlineState = async () => {
+      if (cancelled || !isAppForegroundRef.current) return true;
       const offline = await readOfflineState();
-      if (!cancelled) setIsOffline(offline);
+      if (!cancelled && isAppForegroundRef.current) setIsOffline(offline);
       return offline;
     };
 
@@ -805,8 +783,9 @@ export default function Home() {
       });
     };
     const syncOnlineState = async () => {
+      if (cancelled || !isAppForegroundRef.current) return;
       const offline = await readOfflineState();
-      if (cancelled) return;
+      if (cancelled || !isAppForegroundRef.current) return;
       setIsOffline((wasOffline) => {
         if (wasOffline && !offline && isAppForegroundRef.current) {
           fetchVehicles(showInactive, true);
@@ -817,16 +796,14 @@ export default function Home() {
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
     window.addEventListener('focus', syncOnlineState);
-    document.addEventListener('visibilitychange', syncOnlineState);
-    const onlineStateTimer = window.setInterval(syncOnlineState, 2500);
+    networkProbeRef.current = syncOnlineState;
     return () => {
       cancelled = true;
       nativeListenerPromise?.then((listener) => listener.remove()).catch(() => {});
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('focus', syncOnlineState);
-      document.removeEventListener('visibilitychange', syncOnlineState);
-      window.clearInterval(onlineStateTimer);
+      if (networkProbeRef.current === syncOnlineState) networkProbeRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive, activeProviders, hasLoadedTransportProviders]);

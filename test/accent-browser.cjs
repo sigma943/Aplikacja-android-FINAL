@@ -138,6 +138,30 @@ const server=http.createServer((req,res)=>{
     assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
     const beforeNewThemes=await page.evaluate(()=>({...localStorage}));
+    // Exercise every preset under every active palette, including scroll invalidation.
+    await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+    for(const name of ['Różowy','Leśny','Niebo','Kosmos','Spokojny','Nocny','Czytelny','Minimalny']) {
+      await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());
+      await new Promise(resolve=>setTimeout(resolve,650));
+      assert.equal(await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.getAttribute('aria-pressed')),'true','selection and saved appearance still match '+name);
+      for(const tile of await page.$$('.personal-preset')) {
+        await tile.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+        await new Promise(resolve=>setTimeout(resolve,80));
+        const style=await tile.evaluate(el=>{const s=getComputedStyle(el),preview=getComputedStyle(el.querySelector('.personal-preset-preview'));return {background:s.backgroundColor,clip:s.clipPath,radius:s.borderTopLeftRadius,contain:s.contain,image:s.backgroundImage,previewClip:preview.clipPath};});
+        assert.equal(style.contain,'none');assert.equal(style.image,'none');
+        assert.ok(style.clip.includes('round '+style.radius),'tile clip follows the visible corner radius');
+        assert.ok(style.previewClip.includes('10px'),'thumbnail has its own rounded clip');
+        const {data,info}=await sharp(await tile.screenshot()).removeAlpha().raw().toBuffer({resolveWithObject:true});
+        const rgb=style.background.match(/[\d.]+/g).slice(0,3).map(Number);
+        for(const y of [5,info.height-5])for(const x of [20,Math.floor(info.width/2),info.width-20]) {
+          const pixel=[...data.subarray((y*info.width+x)*info.channels,(y*info.width+x)*info.channels+3)];
+          assert.ok(pixel.every((v,i)=>Math.abs(v-rgb[i])<=3),'preset padding keeps a single background after scrolling: '+name+' '+JSON.stringify({pixel,rgb,x,y}));
+        }
+      }
+      await screenshot('preset-grid-'+name);
+    }
+    await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforeNewThemes);
+    await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('[data-ui-theme="dark-oled"]');
     for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff'],['Kosmos','dark-cosmos','#000000']]){
       await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
       assert.equal(await page.$('[data-interface-preview]'),null,'preview starts hidden on opening Personalization');

@@ -98,11 +98,11 @@ async function browserAudit(fixture, runIndex) {
       window.auditLongTasks=[];new PerformanceObserver(list=>window.auditLongTasks.push(...list.getEntries().map(e=>({start:e.startTime,duration:e.duration})))).observe({type:'longtask',buffered:true});
       window.auditFrames=[];let last;function frame(now){if(last!==undefined)window.auditFrames.push({start:last,duration:now-last});last=now;requestAnimationFrame(frame);}requestAnimationFrame(frame);
     });
-    let fleetSize=100, feedRequests=0;
+    let fleetSize=100, feedRequests=0, reachabilityRequests=0;
     await page.setRequestInterception(true);
     page.on('request',request=>{
       const url=request.url();const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-      if(url.startsWith('https://www.gstatic.com/generate_204'))return request.respond({status:204,body:''});
+      if(url.startsWith('https://www.gstatic.com/generate_204')){reachabilityRequests++;return request.respond({status:204,body:''});}
       if(url.includes('/pks/get_vehicles.php')) {
         feedRequests++;
         const date=new Date().toLocaleString('sv-SE',{timeZone:'Europe/Warsaw'});
@@ -144,6 +144,24 @@ async function browserAudit(fixture, runIndex) {
     await measure('hidden-map-idle',()=>pause(4000));
     await measure('stop-list-search',async()=>{await page.type('input[placeholder*="Babica"]','Rzeszów',{delay:100});await page.waitForSelector('[data-stop-card-id]');await pause(1000);});
     await measure('stop-panel',async()=>{await page.evaluate(()=>document.querySelector('[data-stop-card-id]').click());await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');await pause(1500);});
+    await measure('background-35s',async()=>{
+      // Allow any foreground request already in flight to settle, then count only hidden work.
+      await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'));});
+      await pause(1000);
+      const probes=reachabilityRequests, feeds=feedRequests;
+      const heartbeats=await page.evaluate(()=>window.__startupHeartbeatWrites||0);
+      await pause(35000);
+      const result={reachabilityRequests:reachabilityRequests-probes,vehicleRequests:feedRequests-feeds,heartbeatWrites:(await page.evaluate(()=>window.__startupHeartbeatWrites||0))-heartbeats};
+      if(fs.existsSync('lib/home/panel-code.ts')) {
+        const assert=require('node:assert/strict');
+        assert.equal(result.reachabilityRequests,0,'No connectivity radio probes while hidden');
+        assert.equal(result.vehicleRequests,0,'No vehicle polling while hidden');
+        assert.equal(result.heartbeatWrites,0,'No presence writes while hidden');
+      }
+      await page.evaluate(()=>{delete document.visibilityState;document.dispatchEvent(new Event('visibilitychange'));});
+      await page.waitForFunction(count=>(window.__startupHeartbeatWrites||0)>count,{},heartbeats);
+      return result;
+    });
     const workerJobs=await page.evaluate(()=>window.auditCatalogJobs);
     report.catalogWorker={jobs:workerJobs.length,errors:await page.evaluate(()=>window.auditCatalogWorkerErrors)};
     if(fs.existsSync('lib/stops-catalog.worker.ts')) {

@@ -2,6 +2,7 @@
 
 import {createContext, useContext, useEffect, useState} from 'react';
 import {isNewLoginBlocked,loginExempt,newLoginsEnabled} from '@/lib/login-policy';
+import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {preloadMapCode} from '@/lib/map-startup-code';
 import {Capacitor, registerPlugin} from '@capacitor/core';
 import {auth, db, functions} from '@/lib/firebase';
@@ -377,12 +378,18 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     };
     let registered = false;
     let running = false;
+    let retryTimer: number | undefined;
+    const startRetry = () => {
+      if (retryTimer === undefined) retryTimer = window.setInterval(attempt, 10_000);
+    };
     const attempt = async () => {
       if (cancelled || registered || running) return;
       running = true;
       try {
         await registerDeviceOnce(user.uid, register);
         registered = true;
+        window.clearInterval(retryTimer);
+        retryTimer = undefined;
         if(!cancelled)setStartupError(null);
       } catch(error) {
         if(!cancelled)setStartupError(startupFailureMessage(error));
@@ -392,7 +399,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       }
     };
     void attempt();
-    const retryTimer = window.setInterval(attempt, 10_000);
+    startRetry();
     window.addEventListener('online', attempt);
 
     const unsub = onSnapshot(deviceRef, async (snapshot) => {
@@ -442,6 +449,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         if(registered && snapshot.metadata?.fromCache!==true) {
           registered=false;
           mirroredAccess='';
+          startRetry();
           void attempt();
         }
       }
@@ -471,28 +479,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user]);
 
-  // Heartbeat â€žostatnio onlineâ€ť â€” wymaga prawdziwego konta Firebase (nie trybu guest_*).
-  useEffect(() => {
-    if (!user?.uid || user.uid.startsWith('guest_')) return;
-
-    const deviceRef = doc(db, 'devices', user.uid);
-    const ping = () => {
-      setLocalLastSeenMs(Date.now());
-      updateDoc(deviceRef, { lastSeenAt: serverTimestamp() }).catch(() => {});
-    };
-
-    ping();
-    const interval = window.setInterval(ping, 30_000);
-    const onVis = () => {
-      if (document.visibilityState === 'visible') ping();
-    };
-    document.addEventListener('visibilitychange', onVis);
-
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [user]);
+  // Presence writes are useful while the application is in use; resume immediately.
+  // Access, ban and runtime listeners remain subscribed in the background.
+  useForegroundRefresh(`device-presence:${user?.uid || ''}`, async () => {
+    if (!user?.uid) return;
+    setLocalLastSeenMs(Date.now());
+    await updateDoc(doc(db, 'devices', user.uid), { lastSeenAt: serverTimestamp() }).catch(() => {});
+  }, 30_000, Boolean(user?.uid && !user.uid.startsWith('guest_')), 0);
 
   useEffect(() => {
     if (!user) return;

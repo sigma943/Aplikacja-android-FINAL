@@ -1,9 +1,11 @@
 "use client";
+import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
+import {usePathname} from 'next/navigation';
 import AppBackBridge from './AppBackBridge';
 import CosmicEffects from './CosmicEffects';
 import {readAppTheme,resolveAppTheme} from '@/lib/app-theme';
 import { MotionConfig } from 'motion/react';
-import {useEffect,useState,type ReactNode} from 'react';
+import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppearance} from '@/lib/interface-appearance';
 
 import {panelGlowStrength,panelGlowVariables} from '@/lib/panel-glow';
@@ -11,7 +13,14 @@ import {panelGlowStrength,panelGlowVariables} from '@/lib/panel-glow';
 import {applyScheduledProfile} from '@/lib/personalization-profiles';
 
 export default function UIMotionProvider({children}: {children: ReactNode}) {
+  const pathname=usePathname();
+  return pathname?.startsWith('/widget-data') ? <>{children}</> : <InteractiveMotionProvider>{children}</InteractiveMotionProvider>;
+}
+
+function InteractiveMotionProvider({children}: {children: ReactNode}) {
   const [reduced,setReduced]=useState(false);
+  const updateRef=useRef<(()=>void)|null>(null);
+  useForegroundRefresh('scheduled-appearance',async()=>{updateRef.current?.();},30000,true,30000,false);
   useEffect(()=>{
     const root=document.documentElement,media=window.matchMedia('(prefers-color-scheme: dark)');
     let cleanupAppearance:undefined|(()=>void);
@@ -41,12 +50,11 @@ export default function UIMotionProvider({children}: {children: ReactNode}) {
     window.addEventListener('pks-interface-appearance',update);
     window.addEventListener('storage',update);
     window.addEventListener('focus',update);
-    document.addEventListener('visibilitychange',update);
-    const timer=window.setInterval(update,30000);
+    updateRef.current=update;
     media.addEventListener('change',update);
     return ()=>{
       window.removeEventListener('pks-interface-appearance',update);window.removeEventListener('storage',update);media.removeEventListener('change',update);
-      window.clearInterval(timer);window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);
+      updateRef.current=null;window.removeEventListener('focus',update);
       cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
     };
   },[]);
