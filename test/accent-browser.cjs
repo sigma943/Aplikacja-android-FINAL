@@ -86,6 +86,25 @@ const server=http.createServer((req,res)=>{
       await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
     };
     const overflow=async()=>assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.transit-view')].some(el=>el.scrollWidth>el.clientWidth+1)),false);
+    const assertPreviewNavigation=async()=>{
+      const nav=await page.$('[data-preview-navigation]');
+      await nav.evaluate(el=>el.scrollIntoView({block:'center'}));
+      await page.waitForFunction(()=>{const nav=document.querySelector('[data-preview-navigation]'),b=nav.getBoundingClientRect();return b.height>30&&b.bottom<=innerHeight;});
+      const bounds=await nav.evaluate(nav=>{
+        const footer=nav.getBoundingClientRect();
+        return [...nav.querySelectorAll('[data-nav-item]')].map(button=>({name:button.getAttribute('aria-label'),visible:[button.querySelector('svg'),button.querySelector('[data-nav-label]')].every(el=>{const b=el.getBoundingClientRect(),s=getComputedStyle(el);return b.width>5&&b.height>5&&b.top>=footer.top-1&&b.bottom<=footer.bottom+1&&s.visibility==='visible'&&s.display!=='none';})}));
+      });
+      assert.ok(bounds.length>=3&&bounds.every(button=>button.visible),'all preview icons and labels fit inside the footer: '+JSON.stringify(bounds));
+      // Verify painted foreground, not just a dark background or nonempty DOM.
+      for(const button of await nav.$$('[data-nav-item]')){
+        const painted=await sharp(await button.screenshot()).removeAlpha().raw().toBuffer();
+        await button.evaluate(el=>[...el.children].forEach(child=>child.style.visibility='hidden'));
+        const empty=await sharp(await button.screenshot()).removeAlpha().raw().toBuffer();
+        await button.evaluate(el=>[...el.children].forEach(child=>child.style.removeProperty('visibility')));
+        let changed=0;for(let i=0;i<painted.length;i+=3)if(Math.abs(painted[i]-empty[i])+Math.abs(painted[i+1]-empty[i+1])+Math.abs(painted[i+2]-empty[i+2])>100)changed++;
+        assert.ok(changed>35,'each preview tab paints a visible icon and label, changed pixels: '+changed);
+      }
+    };
     const screenshot=async name=>{await new Promise(resolve=>setTimeout(resolve,650));return page.screenshot({path:`test/ui-previews/${name}.png`});};
     await page.goto(origin+'/ban-fixture/',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-ban-image]');
@@ -133,7 +152,9 @@ const server=http.createServer((req,res)=>{
       const pattern=mode==='dark-cosmos'?await page.evaluate(()=>document.documentElement.style.getPropertyValue('--cosmos-scene-image')):await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage);
       assert.ok(pattern.includes('svg'),'selected theme has static decorations');if(mode!=='dark-cosmos')assert.ok(pattern.includes('radial-gradient'),'decoration and glow are both present');
       await openPreview();
+      await assertPreviewNavigation();
       if(mode==='dark-cosmos'){
+        assert.ok(await page.$$eval('.pks-navigation',navs=>navs.every(nav=>getComputedStyle(nav).borderTopWidth==='0px'&&!getComputedStyle(nav).boxShadow.includes('inset'))),'cosmic navigation has no straight top border or inset highlight');
         assert.ok(await page.$eval('[data-cosmic-settings] summary .personal-group-icon',el=>Boolean(el.querySelector('svg'))),'cosmic depth has a matching group icon');
         assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Aurora')),false);
         const planetImages=await page.evaluate(async()=>Promise.all(['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune'].map(async name=>{
@@ -658,6 +679,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$$eval('[data-interface-preview] .leaflet-control-attribution',els=>els.length),0,'provider credit stays outside the miniature');
     await page.waitForSelector('[data-preview-map-sources]');
     assert.ok(await page.$eval('[data-interface-preview]',scene=>{const map=scene.querySelector('[data-preview-map]').getBoundingClientRect(),nav=scene.querySelector('[data-preview-navigation]').getBoundingClientRect();return map.bottom<=nav.top+1&&getComputedStyle(scene.querySelector('[data-preview-map]')).contain==='paint';}),'filtered tiles are clipped above navigation instead of being blurred into its surface');
+    await assertPreviewNavigation();
     await page.screenshot({path:'test/ui-previews/preview-map-tiles-visible.png'});
     previewTiles=false;
     await page.$eval('[data-preview-toggle]',button=>button.click());

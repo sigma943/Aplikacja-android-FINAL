@@ -429,7 +429,6 @@ html[data-panel-glow='on'] { --personal-glow-image:var(--panel-glow-image); }
  .personal-preview { position:relative; overflow:hidden; border-radius:16px; isolation:isolate; background:var(--ui-canvas); }
 .personal-preview-scene { position:absolute; left:0; top:0; transform-origin:top left; pointer-events:none; }
 .personal-preview-roads { position:absolute; inset:0; background:linear-gradient(118deg,transparent 42%,#9aa9b330 42%,#9aa9b330 45%,transparent 45%),linear-gradient(26deg,transparent 48%,#9aa9b338 48%,#9aa9b338 50%,transparent 50%),radial-gradient(ellipse at 10% 85%,#00a3a212,transparent 60%); }
-.personal-preview-scene .pks-navigation { height:64px; padding-bottom:0; }
 .personal-preview-scene .map-detail-shell { bottom:0; left:8px; right:8px; width:auto; max-height:320px; margin:0; }
 .personal-preview-scene .pks-map-surface { width:100%; }
 .personal-preview-scene * { animation:none !important; transition:none !important; }
@@ -1017,13 +1016,19 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
  background-color:#080d1d !important; background-image:var(--cosmos-chrome-image) !important;
  background-size:100% 100%,cover !important; background-position:center,65% 29% !important;
  background-repeat:no-repeat !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+ border-top:0 !important; box-shadow:none !important;
  isolation:isolate;
 }
 
 /* Raster street viewport and navigation are separate flow siblings. Neither
    navigation nor its ancestors contain a CSS-filtered tile layer. */
 .personal-preview-map-frame { position:relative; overflow:clip; contain:paint; isolation:isolate; }
-.personal-preview-navigation { position:relative; overflow:clip; contain:paint; isolation:isolate; background:var(--ui-surface,#080d1d); }
-.personal-preview-nav-scene { position:absolute; top:0; left:0; transform-origin:top left; pointer-events:none; }
-.personal-preview-nav-scene .pks-navigation { height:64px; padding-bottom:0; }
-.personal-preview-nav-scene * { animation:none !important; transition:none !important; }
+/* Keep the footer in normal flow. A transformed, paint-contained footer can
+   lose its foreground on Android WebView when the Options sheet is scrolled. */
+.personal-preview-navigation { position:relative; background:var(--ui-surface,#080d1d); pointer-events:none; }
+.personal-preview-navigation .pks-navigation { height:calc(64px * var(--preview-scale)); padding-bottom:0; }
+.personal-preview-navigation [data-nav-item] { height:calc(64px * var(--preview-scale)); gap:calc(6px * var(--preview-scale)); }
+.personal-preview-navigation [data-nav-item] > svg { width:calc(var(--personal-icon-size,24px) * var(--preview-scale)) !important; height:calc(var(--personal-icon-size,24px) * var(--preview-scale)) !important; flex-shrink:0; }
+.personal-preview-navigation [data-nav-label] { font-size:calc(11px * var(--preview-scale)); }
+.personal-preview-navigation [data-nav-indicator] { width:calc(40px * var(--preview-scale)); }
+.personal-preview-navigation * { animation:none !important; transition:none !important; }
