@@ -427,6 +427,26 @@ const server=http.createServer((req,res)=>{
       await fallbackScreens.waitForSelector('[data-startup-theme="dark-oled"]');
       await fallbackScreens.evaluate(()=>{Storage.prototype.getItem=window.__themeGetItem;});
     }
+    // Both SVG circles must follow the saved accent, including imported profiles
+    // and an accent change while the startup gate is still visible.
+    await fallbackScreens.click('[data-screen-kind="loading"]');
+    for(const theme of ['system','light','light-warm','light-pink','light-sky','dark','dark-oled','dark-forest','dark-cosmos']) {
+      for(const accent of ['#00a3a2','#8b5cf6','#125abf']) {
+        await fallbackScreens.evaluate(({theme,accent})=>{
+          localStorage.setItem('mks_app_theme',theme);localStorage.setItem('mks_theme',accent);
+          window.dispatchEvent(new Event('pks-profile-applied'));
+        },{theme,accent});
+        const expected='rgb('+[1,3,5].map(i=>parseInt(accent.slice(i,i+2),16)).join(', ')+')';
+        await fallbackScreens.waitForFunction(expected=>Array.from(document.querySelectorAll('.pks-loading-screen circle')).length===2&&Array.from(document.querySelectorAll('.pks-loading-screen circle')).every(el=>getComputedStyle(el).stroke===expected),{},expected);
+      }
+    }
+    await fallbackScreens.reload({waitUntil:'domcontentloaded'});
+    await fallbackScreens.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-loading-screen circle')).stroke==='rgb(18, 90, 191)');
+    await fallbackScreens.evaluate(()=>{
+      localStorage.setItem('mks_theme','invalid');window.dispatchEvent(new Event('pks-interface-appearance'));
+    });
+    await fallbackScreens.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-loading-screen circle')).stroke==='rgb(0, 163, 162)');
+    console.log('Browser: loading ring follows saved, custom and changed accents across every theme; reload and invalid-colour fallback pass.');
     await fallbackScreens.close();await page.bringToFront();
     await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
     await page.evaluate(saved=>{localStorage.clear();for(const [key,value] of Object.entries(saved))localStorage.setItem(key,value);},beforeNewThemes);

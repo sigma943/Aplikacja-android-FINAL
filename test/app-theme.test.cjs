@@ -39,3 +39,14 @@ test('a clean first launch is AMOLED regardless of system palette, while an expl
  }
  assert.equal(theme.DEFAULT_APP_THEME,'dark-oled');
 });
+
+test('first-paint loading accent follows the saved colour independently of every theme',()=>{
+ for(const mode of theme.THEME_MODES)for(const accent of ['#00A3A2','#8b5cf6','#125ABF',null,'red','#123','bad; color:red']){
+  const values={},root={style:{setProperty(k,v){values[k]=v;}},dataset:{}};
+  vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{localStorage:{getItem:key=>key==='mks_theme'?accent:mode},matchMedia:()=>({matches:true}),document:{documentElement:root}});
+  assert.equal(values['--pks-accent'],/^#[0-9a-f]{6}$/i.test(accent||'')?accent.toLowerCase():'#00a3a2');
+ }
+ const values={},root={style:{setProperty(k,v){values[k]=v;}},dataset:{}};
+ vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{localStorage:{getItem(){throw Error('Denied');}},matchMedia(){throw Error('Denied');},document:{documentElement:root}});
+ assert.equal(values['--pks-accent'],'#00a3a2');
+});

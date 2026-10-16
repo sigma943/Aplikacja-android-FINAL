@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect, useState} from 'react';
+import {normalizeUiAccent} from '@/lib/ui-accent';
 import {readAppTheme,resolveAppTheme,THEME_SCREEN_COLORS,themeDecoration} from '@/lib/app-theme';
 
 import {type DeviceRole} from '@/lib/admin/rbac';
@@ -16,7 +17,12 @@ function themeTextColor(mode:string){return THEME_SCREEN_COLORS[resolveAppTheme(
 function useStartupThemeMode(){
   const [mode,setMode]=useState('dark-oled');
   useEffect(()=>{
-    const update=()=>setMode(getStoredThemeMode());update();
+    const update=()=>{
+      setMode(getStoredThemeMode());
+      let accent='#00a3a2';
+      try{accent=normalizeUiAccent(window.localStorage.getItem('mks_theme')||'');}catch{}
+      document.documentElement.style.setProperty('--pks-accent',accent);
+    };update();
     window.addEventListener('storage',update);window.addEventListener('pks-profile-applied',update);window.addEventListener('pks-interface-appearance',update);
     let media:MediaQueryList|undefined;
     try{media=window.matchMedia('(prefers-color-scheme: dark)');media.addEventListener('change',update);}catch{}
@@ -41,7 +47,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
 
   if(themeMode==='dark-cosmos'){
     Object.assign(pageStyle,{backgroundImage:themeDecoration(themeMode),'--theme-decoration':themeDecoration(themeMode)});
-    return {page:'bg-black text-[#f3f1ff]',pageStyle,glow:'',grid:'',mainStyle,card:'border-violet-300/20 bg-[#080a12] shadow-none',main:'text-[#f3f1ff]',sub:'text-[#b9bdcf]',spinner:'#b6a3ff'};
+    return {page:'bg-black text-[#f3f1ff]',pageStyle,glow:'',grid:'',mainStyle,card:'border-violet-300/20 bg-[#080a12] shadow-none',main:'text-[#f3f1ff]',sub:'text-[#b9bdcf]'};
   }
   if(themeMode==='dark-forest'||themeMode==='light-sky'){
     const forest=themeMode==='dark-forest';
@@ -49,11 +55,11 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
     Object.assign(pageStyle,{backgroundImage:decoration,'--startup-decoration':decoration});
     return {page:'pks-themed-screen',pageStyle,glow:'',grid:'',mainStyle,
       card:forest?'border-emerald-200/20 bg-[#102f23]/90 shadow-black/30':'border-[#527fa3]/25 bg-[#d5efff]/90 shadow-sky-900/15',
-      main:forest?'text-[#edf9f0]':'text-[#103750]',sub:forest?'text-[#b7d8c3]':'text-[#315f7d]',spinner:forest?'#67dca0':'#075985'};
+      main:forest?'text-[#edf9f0]':'text-[#103750]',sub:forest?'text-[#b7d8c3]':'text-[#315f7d]'};
   }
   if (themeMode === 'light-pink') {
     Object.assign(pageStyle,{backgroundImage:themeDecoration(themeMode)});
-    return {page:'bg-[#ffd1e8] text-[#57153c]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',main:'text-[#57153c]',mainStyle,sub:'text-[#832557]',spinner:'#c02674'};
+    return {page:'bg-[#ffd1e8] text-[#57153c]',pageStyle,glow:'',grid:'',card:'border-pink-200 bg-[#ffd1e8]/90 shadow-pink-900/10',main:'text-[#57153c]',mainStyle,sub:'text-[#832557]'};
   }
   if (isWarm) {
     return {
@@ -65,7 +71,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
       main: 'text-[#272116]',
       mainStyle,
       sub: 'text-[#746a58]',
-      spinner: '#00A3A2',
+
     };
   }
 
@@ -79,7 +85,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
       main: 'text-slate-950',
       mainStyle,
       sub: 'text-slate-500',
-      spinner: '#00A3A2',
+
     };
   }
 
@@ -93,7 +99,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
       main: 'text-white',
       mainStyle,
       sub: 'text-slate-400',
-      spinner: '#22d3ee',
+
     };
   }
 
@@ -102,7 +108,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
       page: 'bg-[#21121b] text-[#fff2f8]', pageStyle,
       glow: '', grid: '',
       card: 'border-pink-300/18 bg-[#35202d]/86 shadow-black/30',
-      main: 'text-[#fff2f8]', mainStyle, sub: 'text-[#dfbccf]', spinner: '#f9a8d4',
+      main: 'text-[#fff2f8]', mainStyle, sub: 'text-[#dfbccf]',
     };
   }
 
@@ -116,7 +122,7 @@ function themeShell(themeMode:string = getStoredThemeMode()) {
     main: 'text-white',
     mainStyle,
     sub: 'text-slate-400',
-    spinner: '#22d3ee',
+
   };
 }
 
@@ -147,7 +153,8 @@ function LoadingScreen() {
             cy="32"
             r="26"
             fill="none"
-            stroke={`${theme.spinner}35`}
+            stroke="var(--pks-accent, #00a3a2)"
+            strokeOpacity="0.21"
             strokeWidth="5"
           />
           <circle
@@ -155,7 +162,7 @@ function LoadingScreen() {
             cy="32"
             r="26"
             fill="none"
-            stroke={theme.spinner}
+            stroke="var(--pks-accent, #00a3a2)"
             strokeWidth="5"
             strokeLinecap="round"
             strokeDasharray="72 164"
