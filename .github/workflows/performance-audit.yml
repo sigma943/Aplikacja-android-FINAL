@@ -4,6 +4,9 @@ on:
   push:
     branches: [main, perf/android-startup-and-rendering]
     paths:
+      - 'components/**'
+      - 'lib/**'
+      - 'scripts/**'
       - '.github/workflows/performance-audit.yml'
       - 'test/performance-audit.cjs'
       - 'app/page.tsx'
