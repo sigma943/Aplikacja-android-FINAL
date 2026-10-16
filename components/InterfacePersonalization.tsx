@@ -35,7 +35,7 @@ export default function InterfacePersonalization(p:Props){
   </>;
   return <div data-personalization-panel className="personal-editor">
     <InterfacePreview canOpenAdminEmbed={p.canOpenAdminEmbed} navOrder={v.navOrder} chrome={p.chrome} accent={p.accent} glass={p.glass} dark={dark}/>
-    <details data-theme-presets className="personal-group group"><summary><span className="personal-group-icon"><Palette size={19}/></span><span className="min-w-0 flex-1"><span className="block font-semibold">Motywy</span><span className="mt-1 block text-[11px] opacity-60">Gotowe zestawy wyglądu</span></span><ChevronDown size={17} className="shrink-0 transition-transform group-open:rotate-180"/></summary><div className="personal-group-body personal-presets"><div className="personal-presets-grid">{INTERFACE_PRESETS.map(next=>{
+    <div data-theme-presets className="personal-presets"><span className="text-xs font-semibold">Gotowe zestawy</span><div className="personal-presets-grid">{INTERFACE_PRESETS.map(next=>{
       const active=matchesInterfacePreset(next,{appearance:v,theme:p.theme,accent:p.accent,glass:p.glass,glow:p.glow,glowStrength:p.glowStrength});
       return <button type="button" key={next.name} aria-label={`Zestaw: ${next.name}`} aria-pressed={active} onClick={()=>preset(next)} className="personal-preset ui-accent-focus" style={{backgroundColor:presetSurfaces[p.theme]||(dark?'#1c2833':'#ffffff'),color:dark?'#f3f1ff':'#172536',colorScheme:dark?'dark':'light','--preset-bg':next.preview.background,'--preset-surface':next.preview.surface,'--preset-text':next.preview.text,'--preset-accent':next.accent} as CSSProperties}>
         <span aria-hidden="true" className="personal-preset-preview" data-preset-glow={next.glow}>
@@ -46,7 +46,7 @@ export default function InterfacePersonalization(p:Props){
         <span className="personal-preset-name"><span>{next.name}</span>{active&&<Check size={14} aria-hidden="true"/>}</span>
         <span className="personal-preset-description">{next.description}</span>
       </button>;
-    })}</div></div></details>
+    })}</div></div>
     <label className="personal-search"><SlidersHorizontal size={16}/><input aria-label="Szukaj ustawień personalizacji" placeholder="Znajdź ustawienie…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button type="button" onClick={()=>setQuery('')} aria-label="Wyczyść wyszukiwanie personalizacji">×</button>}</label>
     {group('colors','Motyw i kolory','Motywy, paleta i własny akcent',<Palette size={19}/>,<>
       <div className="grid grid-cols-3 gap-2">{[['system','Systemowy'],['light','Jasny'],['light-warm','Piaskowy'],['dark','Ciemny'],['dark-oled','AMOLED'],['dark-cosmos','Kosmos'],['light-pink','Różowy'],['dark-forest','Leśny'],['light-sky','Niebo']].map(([key,name])=><button type="button" key={key} aria-pressed={p.theme===key} className={selected(p.theme===key)} onClick={()=>{if(key==='dark-forest'||key==='light-sky'||key==='dark-cosmos'){preset(INTERFACE_PRESETS.find(next=>next.theme===key)!);return;}p.setTheme(key);if(key==='light-pink')p.setAccent('#c02674');}}>{name}</button>)}</div>

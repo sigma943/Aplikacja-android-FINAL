@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 const backgroundSvgs=require('./helpers/css-background-svg.cjs');
 const http=require('node:http');const fs=require('node:fs');const path=require('node:path');
-const puppeteer=require('puppeteer');
+const puppeteer=require('puppeteer');const sharp=require('sharp');
 const fixture=require('./build-accent-fixture.cjs')();const root=fixture.root;const productionRoot=path.resolve('out');
 fs.writeFileSync(path.join(root,'preview-map-test.svg'),'<svg xmlns="http://www.w3.org/2000/svg" width="512" height="900"><rect width="512" height="900" fill="#17312b"/><path d="M0 200L512 480M250 0L110 900" stroke="#a9b9bd" stroke-width="14"/></svg>');
 const server=http.createServer((req,res)=>{
@@ -28,7 +28,7 @@ const server=http.createServer((req,res)=>{
       window.Date=class extends Original {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
     });
     await page.setRequestInterception(true);
-    let showFixtureBus=false, showMarcel=false, previewTiles=false;
+    let showFixtureBus=false, showMarcel=false, previewTiles=false;const previewTileUrls=[];
     const marcelRoad=require('./fixtures/marcel-jaslo-rzeszow-1181798.json');
     const {decodePolyline}=require('./load-ts.cjs')('lib/bus-road-geometry.ts');
     let marcelSecondary=0;
@@ -40,7 +40,7 @@ const server=http.createServer((req,res)=>{
     page.on('request',async request=>{
       const url=request.url();
       const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-      if(previewTiles&&url.startsWith('https://mt1.google.com/vt?'))return request.respond({status:200,contentType:'image/svg+xml',headers:{'cache-control':'no-store'},body:fs.readFileSync(path.join(root,'preview-map-test.svg'))});
+      if(previewTiles&&url.startsWith('https://mt1.google.com/vt?')){previewTileUrls.push(url);return request.respond({status:200,contentType:'image/svg+xml',headers:{'cache-control':'no-store'},body:fs.readFileSync(path.join(root,'preview-map-test.svg'))});}
       if(url.includes('stop-point-timetable'))return json({success:true,items:[{line_name:'108',description:'Rzeszów',journeys:[{journey_id:1,time:'14:21',stop_point_code:'69',legends:['D']}]}]});
       if(url.includes('/pks/get_vehicles.php'))return json(showFixtureBus?[fixtureBus]:[]);
       if(url.endsWith('/api/pks/vehicles'))return json({items:[]});
@@ -122,10 +122,10 @@ const server=http.createServer((req,res)=>{
     for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff'],['Kosmos','dark-cosmos','#000000']]){
       await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
       assert.equal(await page.$('[data-interface-preview]'),null,'preview starts hidden on opening Personalization');
-      assert.equal(await page.$eval('[data-theme-presets]',el=>el.open),false,'themes are collapsed by default');
+      assert.equal(await page.$eval('[data-theme-presets]',el=>el.tagName),'DIV','ready-made presets remain a plain grid');
+      assert.ok(await page.$eval('[data-theme-presets]',el=>!el.closest('details')&&el.querySelector('button').getBoundingClientRect().height>0),'presets are visible without opening a section');
       assert.equal(await page.$eval('[data-personal-group="colors"]',el=>el.open),false,'theme and colour controls are collapsed by default');
       await screenshot('personalization-collapsed-'+mode);
-      await page.$eval('[data-theme-presets]',el=>el.open=true);
       await page.waitForSelector(`[aria-label="Zestaw: ${name}"]`);
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
       assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundColor),`rgb(${[1,3,5].map(index=>parseInt(canvas.slice(index,index+2),16)).join(', ')})`);
@@ -359,7 +359,6 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow!==undefined&&document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
     const beforePink=await page.evaluate(()=>({...localStorage}));
     await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
-    await page.$eval('[data-theme-presets]',el=>el.open=true);
     await page.$eval('[aria-label="Zestaw: Różowy"]',el=>el.click());
     await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()==='#c02674');
@@ -639,16 +638,20 @@ const server=http.createServer((req,res)=>{
     await openGroup('Motyw i kolory');
     await sameChrome();
     await page.waitForSelector('[data-interface-preview] [data-preview-map]');
-    previewTiles=true;
+    previewTiles=true;previewTileUrls.length=0;
     await page.setCacheEnabled(false);
     await page.$eval('[data-preview-toggle]',button=>button.click());
     await page.$eval('[data-preview-toggle]',button=>button.click());
-    await page.waitForSelector('[data-preview-map="tiles"] img');
-    await page.waitForFunction(()=>[...document.querySelectorAll('[data-preview-tile]')].every(img=>img.complete&&img.naturalWidth>0));
-    const previewTilesLayout=await page.$$eval('[data-preview-tile]',images=>images.map(img=>({x:parseFloat(img.style.left),y:parseFloat(img.style.top),size:parseFloat(img.style.width),url:img.src})));
-    assert.ok(previewTilesLayout.length>=4&&previewTilesLayout.length<=9,'preview loads only its small street fragment');
-    for(const tile of previewTilesLayout){assert.equal(tile.size,256);assert.equal(new URL(tile.url).searchParams.get('z'),'18');}
-    assert.ok(await page.$eval('[data-preview-tile]',img=>getComputedStyle(img.parentElement).filter.includes('invert(1)')),'map preview uses the same dark filter as the map');
+    await page.waitForSelector('[data-preview-map="tiles"] canvas');
+    await page.waitForFunction(()=>{const canvas=document.querySelector('[data-preview-raster]');return Number(canvas?.dataset.paintedTiles)>=4&&canvas.dataset.paintedTiles===canvas.dataset.totalTiles;});
+    assert.ok(previewTileUrls.length>=4&&previewTileUrls.length<=9,'preview loads only its street fragment');
+    for(const url of previewTileUrls)assert.equal(new URL(url).searchParams.get('z'),'18');
+    assert.deepEqual(await page.$eval('[data-preview-raster]',canvas=>[canvas.width,canvas.height,canvas.dataset.palette]),[393,416,'dark']);
+    assert.ok(await page.$$eval('[data-interface-preview] *',nodes=>nodes.every(node=>!getComputedStyle(node).filter.includes('invert'))),'preview has no CSS invert surface that can repaint navigation');
+    assert.ok(await page.$eval('[data-preview-navigation]',nav=>!nav.closest('.personal-preview-scene')&&nav.previousElementSibling.classList.contains('personal-preview-map-frame')),'navigation is a separate sibling outside the map scene');
+    const navImage=await (await page.$('[data-preview-navigation]')).screenshot();
+    const stats=await sharp(navImage).stats();
+    assert.ok(stats.channels.slice(0,3).reduce((sum,channel)=>sum+channel.mean,0)/3<120,'dark navigation pixels stay dark with bright raster map tiles loaded');
     assert.equal(await page.$eval('[data-preview-vehicle-number]',el=>el.textContent),'87');
     assert.equal(await page.$eval('[data-preview-delay]',el=>el.textContent),'+2');
     assert.equal(await page.$$eval('[data-interface-preview] svg[data-bus-glyph] text',els=>els.map(el=>el.textContent).join('')),'108','preview has only the sample line, never a live 228');

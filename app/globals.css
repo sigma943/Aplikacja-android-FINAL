@@ -430,7 +430,7 @@ html[data-panel-glow='on'] { --personal-glow-image:var(--panel-glow-image); }
 .personal-preview-scene { position:absolute; left:0; top:0; transform-origin:top left; pointer-events:none; }
 .personal-preview-roads { position:absolute; inset:0; background:linear-gradient(118deg,transparent 42%,#9aa9b330 42%,#9aa9b330 45%,transparent 45%),linear-gradient(26deg,transparent 48%,#9aa9b338 48%,#9aa9b338 50%,transparent 50%),radial-gradient(ellipse at 10% 85%,#00a3a212,transparent 60%); }
 .personal-preview-scene .pks-navigation { height:64px; padding-bottom:0; }
-.personal-preview-scene .map-detail-shell { bottom:64px; left:8px; right:8px; width:auto; max-height:320px; margin:0; }
+.personal-preview-scene .map-detail-shell { bottom:0; left:8px; right:8px; width:auto; max-height:320px; margin:0; }
 .personal-preview-scene .pks-map-surface { width:100%; }
 .personal-preview-scene * { animation:none !important; transition:none !important; }
 .personal-presets { padding:0 2px; }
@@ -1004,7 +1004,6 @@ html[data-cosmic-theme='on'] [data-filter-cosmos] {
 /* The miniature's filtered tiles never extend below its street viewport. Keep
    a separate paint boundary above navigation to avoid Android filter leakage. */
 .personal-preview-map { isolation:isolate; contain:paint; overflow:clip; clip-path:inset(0); }
-.personal-preview-scene [data-preview-navigation] { z-index:10; isolation:isolate; background:var(--ui-surface,#080d1d); }
 .personal-preview-wrap { padding:0; overflow:hidden; background:var(--ui-surface); border-color:var(--ui-edge); }
 .personal-preview-launch { display:flex; align-items:center; gap:12px; width:100%; padding:16px; text-align:left; color:var(--ui-text); background:linear-gradient(120deg,var(--pks-accent-soft),transparent 85%); }
 .personal-preview-launch-icon { display:grid; place-items:center; width:42px; height:42px; flex-shrink:0; border-radius:14px; background:var(--pks-accent-soft); color:var(--pks-accent-text); border:1px solid var(--pks-accent-border); }
@@ -1020,3 +1019,11 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
  background-repeat:no-repeat !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
  isolation:isolate;
 }
+
+/* Raster street viewport and navigation are separate flow siblings. Neither
+   navigation nor its ancestors contain a CSS-filtered tile layer. */
+.personal-preview-map-frame { position:relative; overflow:clip; contain:paint; isolation:isolate; }
+.personal-preview-navigation { position:relative; overflow:clip; contain:paint; isolation:isolate; background:var(--ui-surface,#080d1d); }
+.personal-preview-nav-scene { position:absolute; top:0; left:0; transform-origin:top left; pointer-events:none; }
+.personal-preview-nav-scene .pks-navigation { height:64px; padding-bottom:0; }
+.personal-preview-nav-scene * { animation:none !important; transition:none !important; }
