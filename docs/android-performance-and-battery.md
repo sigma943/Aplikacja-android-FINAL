@@ -33,9 +33,16 @@ Baseline: latest successful original APK build #359, commit
 - Pause scheduled appearance checks while hidden; apply on return, also offline.
   The headless widget data route skips visual providers. Widget data sources,
   refresh settings and native scheduling are unchanged.
-- Give preset cards and thumbnails explicit rounded clips rather than paint
-  containment, preventing rectangular compositor overdraw in frosted scrolling
-  sheets. Custom control radii remain respected; preset palettes stay unchanged.
+- The initial rounded-clip mitigation did not resolve the artefact on the user's
+  Android device. Preset thumbnails now use individual self-contained SVG images
+  with literal palettes and the original geometry, replacing independently painted
+  CSS row backgrounds and gradients. Custom card/control radii remain respected.
+  Browser tests check actual icon pixels, palette independence and card padding.
+- Menu tab changes use a 180 ms fade on a separate, pointer-transparent colour
+  veil, keeping the existing map/list mounted and glass backdrop roots unchanged.
+  Rapid navigation cancels the previous fade. App reduced-motion/light-effects
+  settings and the current system reduced-motion preference disable transitions;
+  enabling the system preference also cancels an in-progress fade.
 
 ## Verification
 

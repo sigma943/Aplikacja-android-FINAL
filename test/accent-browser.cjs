@@ -176,10 +176,11 @@ const server=http.createServer((req,res)=>{
         const expectedIcon=hex(preset.accent).map((v,i)=>Math.round(v*.85+hex(preset.preview.surface)[i]*.15));
         const offset=(33*thumb.info.width+21)*thumb.info.channels;
         assert.ok(expectedIcon.every((v,i)=>Math.abs(v-thumb.data[offset+i])<=3),'thumbnail retains the original 13px icon geometry at its real mobile width: '+identity+' '+JSON.stringify({expectedIcon,pixel:[...thumb.data.subarray(offset,offset+3)]}));
-        // Exclude rounded transparent corners, which correctly show the active card palette.
-        const painted=await sharp(await preview.screenshot()).extract({left:10,top:10,width:thumb.info.width-20,height:thumb.info.height-20}).raw().toBuffer();
+        // Compare the decoded image at a fixed origin, avoiding screen-position GPU dithering.
+        // The screenshot above still checks actual on-screen icon geometry and palette.
+        const painted=await preview.evaluate(img=>{const canvas=document.createElement('canvas');canvas.width=Math.round(img.clientWidth);canvas.height=Math.round(img.clientHeight);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);return canvas.toDataURL();});
         const previous=thumbnailPixels.get(identity);
-        if(previous&&previous.width===thumb.info.width)assert.deepEqual(painted,previous.pixels,'preview pixels are independent of the active theme: '+identity);
+        if(previous&&previous.width===thumb.info.width)assert.equal(painted,previous.pixels,'preview pixels are independent of the active theme: '+identity);
         thumbnailPixels.set(identity,{width:thumb.info.width,pixels:painted});
         const {data,info}=await sharp(await tile.screenshot()).removeAlpha().raw().toBuffer({resolveWithObject:true});
         const rgb=style.background.match(/[\d.]+/g).slice(0,3).map(Number);

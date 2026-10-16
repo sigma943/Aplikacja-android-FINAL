@@ -1179,7 +1179,8 @@ export default function Home() {
         )}
       </AnimatePresence>
       {/* Main Content Area */}
-      <div ref={tabTransitionRef} data-tab-transition className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
+      <div className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
+         <div ref={tabTransitionRef} data-tab-transition aria-hidden="true" className="pointer-events-none absolute inset-0 z-[90] opacity-0" style={{backgroundColor:'var(--ui-canvas,#040609)'}}/>
          
          <BackScope enabled={activeTab === 'admin'}>
          <AnimatePresence mode="wait">
