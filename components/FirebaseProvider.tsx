@@ -10,8 +10,11 @@ import {ensureFirebaseUser, registerDeviceOnce} from '@/lib/firebase-session';
 import {setTransportRuntime} from '@/lib/transport-runtime';
 import {onAuthStateChanged, User} from 'firebase/auth';
 import {httpsCallable} from 'firebase/functions';
-import {doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc, deleteField} from 'firebase/firestore';
+import {doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc, deleteField, disableNetwork, enableNetwork} from 'firebase/firestore';
 import {buildDevicePermissions, type DeviceRole} from '@/lib/admin/rbac';
+import {foregroundRefresh} from '@/lib/foreground-refresh';
+import {isAppVisible, observeAppActivity} from '@/lib/app-activity';
+import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {agentLog} from '@/lib/debug-agent-log';
 
 export type { DeviceRole };
@@ -185,6 +188,19 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Keep cached snapshots and the mounted UI, but close every Firestore stream
+  // (including listeners owned by admin panels) while the main app is hidden.
+  useEffect(() => {
+    const sync = (active: boolean) => {
+      void (active ? enableNetwork(db) : disableNetwork(db)).catch(error => {
+        console.warn('Firestore activity transition failed', error);
+      });
+    };
+    const stop = observeAppActivity(sync);
+    sync(isAppVisible());
+    return stop;
+  }, []);
+
   const buildAutoBanDetails = () => ({
     reason: 'Urządzenie niezweryfikowane',
     expiresAt: '',
@@ -197,26 +213,28 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    const login = () => {
-      if (cancelled) return;
-      ensureFirebaseUser(auth).catch((error) => {
-        if (cancelled) return;
-        console.error('Anonymous sign-in failed', error);
-        setStartupError(startupFailureMessage(error));
-        // A made-up guest UID has no Firebase credentials and cannot write.
-        // Retry with real credentials after temporary network failures.
-        retryTimer = setTimeout(login, 10_000);
-      });
+    let active = isAppVisible();
+    const login = async () => {
+      if (cancelled || !active || auth.currentUser) return;
+      try { await ensureFirebaseUser(auth); }
+      catch (error) {
+        if (!cancelled) {
+          console.error('Anonymous sign-in failed', error);
+          setStartupError(startupFailureMessage(error));
+        }
+      }
     };
+    const retry = foregroundRefresh(login, () => active && !auth.currentUser, 10_000);
+    const stopActivity = observeAppActivity(next => { active = next; retry.visibilityChanged(); });
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (cancelled) return;
       setUser(currentUser);
-      if (!currentUser) login();
+      if (!currentUser) retry.refresh();
     });
     return () => {
       cancelled = true;
-      clearTimeout(retryTimer);
+      retry.dispose();
+      stopActivity();
       unsubscribe();
     };
   }, []);
@@ -378,11 +396,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     let registered = false;
     let running = false;
     let retryTimer: number | undefined;
+    let active = isAppVisible();
     const startRetry = () => {
-      if (retryTimer === undefined) retryTimer = window.setInterval(attempt, 10_000);
+      if (active && !registered && retryTimer === undefined) retryTimer = window.setInterval(attempt, 10_000);
     };
     const attempt = async () => {
-      if (cancelled || registered || running) return;
+      if (cancelled || !active || registered || running) return;
       running = true;
       try {
         await registerDeviceOnce(user.uid, register);
@@ -400,6 +419,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     void attempt();
     startRetry();
     window.addEventListener('online', attempt);
+    const stopActivity = observeAppActivity(next => {
+      active = next;
+      window.clearInterval(retryTimer);
+      retryTimer = undefined;
+      if (active) { void attempt(); startRetry(); }
+    });
 
     const unsub = onSnapshot(deviceRef, async (snapshot) => {
       if (cancelled) return;
@@ -473,33 +498,18 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       window.clearInterval(retryTimer);
+      stopActivity();
       window.removeEventListener('online', attempt);
       unsub();
     };
   }, [user]);
 
-  // Heartbeat â€žostatnio onlineâ€ť â€” wymaga prawdziwego konta Firebase (nie trybu guest_*).
-  useEffect(() => {
+  // Presence describes foreground use; hidden apps do not queue heartbeats.
+  useForegroundRefresh(`presence:${user?.uid || ''}`, async () => {
     if (!user?.uid || user.uid.startsWith('guest_')) return;
-
-    const deviceRef = doc(db, 'devices', user.uid);
-    const ping = () => {
-      setLocalLastSeenMs(Date.now());
-      updateDoc(deviceRef, { lastSeenAt: serverTimestamp() }).catch(() => {});
-    };
-
-    ping();
-    const interval = window.setInterval(ping, 30_000);
-    const onVis = () => {
-      if (document.visibilityState === 'visible') ping();
-    };
-    document.addEventListener('visibilitychange', onVis);
-
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [user]);
+    setLocalLastSeenMs(Date.now());
+    await updateDoc(doc(db, 'devices', user.uid), { lastSeenAt: serverTimestamp() }).catch(() => {});
+  }, 30_000, Boolean(user?.uid && !user.uid.startsWith('guest_')), 0);
 
   useEffect(() => {
     if (!user) return;

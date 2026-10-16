@@ -1,3 +1,4 @@
+import {foregroundRequest} from '../app-activity';
 
 import {type TransportProviderId} from '@/lib/pks-client';
 
@@ -25,12 +26,12 @@ async function checkInternetReachability(timeoutMs: number) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    await fetch(`${NETWORK_REACHABILITY_URL}?ts=${Date.now()}`, {
+    await foregroundRequest(signal => fetch(`${NETWORK_REACHABILITY_URL}?ts=${Date.now()}`, {
       method: 'GET',
       mode: 'no-cors',
       cache: 'no-store',
-      signal: controller.signal,
-    });
+      signal,
+    }), controller.signal);
     return true;
   } catch {
     return false;

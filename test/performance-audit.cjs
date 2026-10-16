@@ -156,10 +156,18 @@ async function browserAudit(fixture, runIndex) {
         const assert=require('node:assert/strict');
         assert.equal(result.reachabilityRequests,0,'No connectivity radio probes while hidden');
         assert.equal(result.vehicleRequests,0,'No vehicle polling while hidden');
-        assert.ok(result.heartbeatWrites>=1,'Keep the existing administrative presence heartbeat while hidden');
+        assert.equal(result.heartbeatWrites,0,'No administrative presence heartbeat while hidden');
+        assert.equal(await page.evaluate(()=>window.__startupNetworkDisabled),true,'Firestore network disabled while hidden');
       }
       await page.evaluate(()=>{delete document.visibilityState;delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});
       await page.waitForFunction(count=>(window.__startupHeartbeatWrites||0)>count,{},heartbeats);
+      if(fs.existsSync('lib/app-activity.ts')) {
+        const assert=require('node:assert/strict');
+        await page.evaluate(()=>{document.dispatchEvent(new Event('visibilitychange'));document.dispatchEvent(new Event('visibilitychange'));});
+        await pause(250);
+        assert.equal(await page.evaluate(()=>window.__startupNetworkDisabled),false,'Firestore reconnects on resume');
+        assert.equal(await page.evaluate(()=>window.__startupHeartbeatWrites||0),heartbeats+1,'Exactly one presence refresh on resume');
+      }
       return result;
     });
     const workerJobs=await page.evaluate(()=>window.auditCatalogJobs);

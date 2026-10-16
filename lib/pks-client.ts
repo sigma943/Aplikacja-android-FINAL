@@ -1,3 +1,4 @@
+import {foregroundRequest} from './app-activity';
 import {writePersistentRouteGeometry} from './map/route-cache';
 import {getEffectiveMpkDelay, fetchMpkTripSchedule} from './providers/mpk-vehicles';
 import {sharedInflight} from './shared-inflight';
@@ -56,7 +57,7 @@ async function fetchPksVehiclesSnapshotUnshared(signal?: AbortSignal) {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
   }
 
-  const wsItems = await fetchPksVehiclesFromPanelWebSocket(signal).catch(() => []);
+  const wsItems = await foregroundRequest(activeSignal => fetchPksVehiclesFromPanelWebSocket(activeSignal), signal).catch(() => []);
   if (wsItems.length > 0) return wsItems;
 
   return [];

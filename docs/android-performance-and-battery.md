@@ -25,9 +25,16 @@ Baseline: latest successful original APK build #359, commit
 - Replace hidden recurring connectivity probes and vehicle poll wakeups with
   foreground-aware scheduling. Keep the configured foreground poll intervals,
   refresh on returning, and share only overlapping connectivity probes.
-- Preserve 30-second presence writes in the background because the administrative
-  online indicator depends on them. Permission, ban, security and runtime
-  subscriptions stay connected; this is not a Firebase access/session bypass.
+- Following the explicit request to suspend the main app in the background,
+  pause 30-second presence writes, auth/registration retries and all Firestore
+  streams with the public disableNetwork/enableNetwork API. Resume refresh once
+  on return, retaining the same UID, permission listeners, cached data and UI.
+  Admin presence now means foreground use, rather than background process life.
+- Browser transport, probes and fallback sockets abort on hide. New requests are
+  blocked while hidden. Already-started native HTTP cannot be forcibly cancelled
+  by Capacitor's public API: it may finish within its existing 12-second timeout,
+  but its result cannot trigger hidden fallback requests. Firebase Auth's own
+  occasional token renewal remains SDK-managed; no private auth APIs are used.
 - Stop the registration retry timer after success. Restart it if the server
   deletes the device, retaining registration failure recovery and rank revocation.
 - Pause scheduled appearance checks while hidden; apply on return, also offline.
@@ -66,3 +73,14 @@ power, real server latency, device temperature or complete low-end-phone behavio
 Worker CPU is not independently throttled. Diagnostic results can vary and include
 regressions; comparison reports retain those instead of imposing timing thresholds.
 An actual Android/WebView device should confirm the reported compositor issue.
+
+## Widget lifecycle audit
+
+The main UI and headless `/widget-data` route have separate lifecycles. The widget
+route mounts no Firebase provider. Native jobs honour each widget's existing
+manual/automatic policy, serialize widgets, share duplicate stop results within a
+job, and bound work to 75 seconds per widget / 120 seconds per job. Cleanup closes
+HTTP connections, removes the JS bridge, stops and destroys the WebView on every
+success, failure, timeout, stop and service destruction path. A cached Android
+process can remain in memory after work ends; that does not mean it is polling.
+No widget refresh setting, scheduler or data source was changed in this update.

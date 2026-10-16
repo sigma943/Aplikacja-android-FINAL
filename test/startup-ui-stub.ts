@@ -44,3 +44,6 @@ export const getDocs=async()=>({docs:[]});
 export const addDoc=async()=>({id:'test'});
 export const writeBatch=()=>({set(){},update(){},delete(){},commit:async()=>{}});
 export type WriteBatch=ReturnType<typeof writeBatch>;
+
+export const disableNetwork=async(_:any)=>{(window as any).__startupNetworkDisabled=true;};
+export const enableNetwork=async(_:any)=>{(window as any).__startupNetworkDisabled=false;};
