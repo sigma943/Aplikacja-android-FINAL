@@ -1000,3 +1000,23 @@ html[data-cosmic-theme='on'] [data-filter-cosmos] {
 [data-filter-comet] { width:82px; height:2px; background:linear-gradient(90deg,#fff,#bbe3ff99 25%,#bdaaff33 65%,transparent); }
 [data-filter-comet]::before { content:''; position:absolute; width:4px; height:4px; border-radius:50%; background:#e5f5ff; box-shadow:0 0 5px #b4dcff; left:0; top:-1px; }
 @media(prefers-reduced-motion:reduce){[data-filter-meteor],[data-filter-comet]{display:none;}}
+
+/* The miniature's filtered tiles never extend below its street viewport. Keep
+   a separate paint boundary above navigation to avoid Android filter leakage. */
+.personal-preview-map { isolation:isolate; contain:paint; overflow:clip; clip-path:inset(0); }
+.personal-preview-scene [data-preview-navigation] { z-index:10; isolation:isolate; background:var(--ui-surface,#080d1d); }
+.personal-preview-wrap { padding:0; overflow:hidden; background:var(--ui-surface); border-color:var(--ui-edge); }
+.personal-preview-launch { display:flex; align-items:center; gap:12px; width:100%; padding:16px; text-align:left; color:var(--ui-text); background:linear-gradient(120deg,var(--pks-accent-soft),transparent 85%); }
+.personal-preview-launch-icon { display:grid; place-items:center; width:42px; height:42px; flex-shrink:0; border-radius:14px; background:var(--pks-accent-soft); color:var(--pks-accent-text); border:1px solid var(--pks-accent-border); }
+.personal-preview-launch > svg { color:var(--ui-muted); transition:transform 160ms ease; }
+.personal-preview-launch:hover { background-color:var(--pks-accent-soft); }
+.personal-preview-content { padding:0 14px 14px; }
+/* Same bounded photographic material as the filter, with an opaque base. */
+html[data-cosmic-theme='on'] { --cosmos-chrome-image:linear-gradient(110deg,rgba(4,8,24,.9),rgba(7,11,29,.68)),url('/themes/kosmos/nebula.jpg'); }
+html[data-cosmic-theme='on'] [data-filter-cosmos] { background-image:var(--cosmos-chrome-image); }
+html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.pks-panel-scope,.pks-glass-frame) .pks-navigation {
+ background-color:#080d1d !important; background-image:var(--cosmos-chrome-image) !important;
+ background-size:100% 100%,cover !important; background-position:center,65% 29% !important;
+ background-repeat:no-repeat !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+ isolation:isolate;
+}

@@ -9,7 +9,7 @@ export default function PreviewMap({dark,onTilesChange}:{dark:boolean;onTilesCha
   useEffect(()=>{onTilesChange?.(loaded.size>0);},[loaded,onTilesChange]);
   const road=dark?'#394552':'#fff',edge=dark?'#18212b':'#cbd5d7',text=dark?'#aab7c7':'#566475';
   const streets=['M-30 160L420 365','M70 -20L290 500','M-20 310L420 125','M-20 400L420 235','M-10 55L420 245','M160 -20L420 410'];
-  return <div data-preview-map={loaded.size?'tiles':'sample'} className="absolute inset-0 overflow-hidden" aria-hidden="true">
+  return <div data-preview-map={loaded.size?'tiles':'sample'} className="personal-preview-map absolute inset-x-0 top-0 bottom-16 overflow-hidden" aria-hidden="true">
     <svg width="393" height="480" viewBox="0 0 393 480" style={{background:dark?'#101820':'#e8ede7'}}>
       <path d="M0 345L95 390L50 480H0ZM300 0H393V96L348 113Z" fill={dark?'#12362d':'#c3ddbd'}/>
       <g fill={dark?'#1d2833':'#d6ddd8'} stroke={edge}>{[[40,175],[96,200],[146,218],[42,330],[190,325],[270,213],[295,352],[157,100],[321,135]].map(([x,y],i)=><rect key={i} x={x} y={y} width={i%2?34:43} height={i%2?25:31} rx="4" transform={`rotate(25 ${x} ${y})`}/>)}</g>

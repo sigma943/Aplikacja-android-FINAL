@@ -23,7 +23,7 @@ export default function InterfacePersonalization(p:Props){
   const choices=<K extends keyof InterfaceAppearance>(key:K,label:string,options:[InterfaceAppearance[K],string][]) => <fieldset className="personal-field"><legend>{label}</legend><div className="personal-choices">{options.map(([next,name])=><button key={String(next)} type="button" aria-pressed={v[key]===next} onClick={()=>set(key,next)} className={selected(v[key]===next)}>{name}</button>)}</div></fieldset>;
   const group=(id:string,title:string,subtitle:string,icon:ReactNode,children:ReactNode,keywords:string,open=false)=>{
     if(query&&!`${title} ${subtitle} ${keywords}`.toLocaleLowerCase('pl').includes(query.toLocaleLowerCase('pl')))return null;
-    return <details key={id} className="personal-group group" open={query?true:open||undefined}><summary><span className="personal-group-icon">{icon}</span><span className="min-w-0 flex-1"><span className="block font-semibold">{title}</span><span className="mt-1 block text-[11px] opacity-60">{subtitle}</span></span><ChevronDown size={17} className="shrink-0 transition-transform group-open:rotate-180"/></summary><div className="personal-group-body">{children}</div></details>;
+    return <details key={id} data-personal-group={id} className="personal-group group" open={query?true:open||undefined}><summary><span className="personal-group-icon">{icon}</span><span className="min-w-0 flex-1"><span className="block font-semibold">{title}</span><span className="mt-1 block text-[11px] opacity-60">{subtitle}</span></span><ChevronDown size={17} className="shrink-0 transition-transform group-open:rotate-180"/></summary><div className="personal-group-body">{children}</div></details>;
   };
   const reset=()=>{localStorage.setItem(SCHEDULE_KEY,JSON.stringify({...readSchedule(),enabled:false}));window.dispatchEvent(new Event('pks-profiles-changed'));p.onChange({...DEFAULT_INTERFACE_APPEARANCE});p.setTheme('dark-oled');p.setAccent('#00A3A2');p.setGlass(true);p.setGlow(false);p.setGlowStrength(40);};
   const preset=(next:InterfacePreset)=>{
@@ -35,7 +35,7 @@ export default function InterfacePersonalization(p:Props){
   </>;
   return <div data-personalization-panel className="personal-editor">
     <InterfacePreview canOpenAdminEmbed={p.canOpenAdminEmbed} navOrder={v.navOrder} chrome={p.chrome} accent={p.accent} glass={p.glass} dark={dark}/>
-    <div className="personal-presets"><span className="text-xs font-semibold">Gotowe zestawy</span><div className="personal-presets-grid">{INTERFACE_PRESETS.map(next=>{
+    <details data-theme-presets className="personal-group group"><summary><span className="personal-group-icon"><Palette size={19}/></span><span className="min-w-0 flex-1"><span className="block font-semibold">Motywy</span><span className="mt-1 block text-[11px] opacity-60">Gotowe zestawy wyglądu</span></span><ChevronDown size={17} className="shrink-0 transition-transform group-open:rotate-180"/></summary><div className="personal-group-body personal-presets"><div className="personal-presets-grid">{INTERFACE_PRESETS.map(next=>{
       const active=matchesInterfacePreset(next,{appearance:v,theme:p.theme,accent:p.accent,glass:p.glass,glow:p.glow,glowStrength:p.glowStrength});
       return <button type="button" key={next.name} aria-label={`Zestaw: ${next.name}`} aria-pressed={active} onClick={()=>preset(next)} className="personal-preset ui-accent-focus" style={{backgroundColor:presetSurfaces[p.theme]||(dark?'#1c2833':'#ffffff'),color:dark?'#f3f1ff':'#172536',colorScheme:dark?'dark':'light','--preset-bg':next.preview.background,'--preset-surface':next.preview.surface,'--preset-text':next.preview.text,'--preset-accent':next.accent} as CSSProperties}>
         <span aria-hidden="true" className="personal-preset-preview" data-preset-glow={next.glow}>
@@ -46,7 +46,7 @@ export default function InterfacePersonalization(p:Props){
         <span className="personal-preset-name"><span>{next.name}</span>{active&&<Check size={14} aria-hidden="true"/>}</span>
         <span className="personal-preset-description">{next.description}</span>
       </button>;
-    })}</div></div>
+    })}</div></div></details>
     <label className="personal-search"><SlidersHorizontal size={16}/><input aria-label="Szukaj ustawień personalizacji" placeholder="Znajdź ustawienie…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button type="button" onClick={()=>setQuery('')} aria-label="Wyczyść wyszukiwanie personalizacji">×</button>}</label>
     {group('colors','Motyw i kolory','Motywy, paleta i własny akcent',<Palette size={19}/>,<>
       <div className="grid grid-cols-3 gap-2">{[['system','Systemowy'],['light','Jasny'],['light-warm','Piaskowy'],['dark','Ciemny'],['dark-oled','AMOLED'],['dark-cosmos','Kosmos'],['light-pink','Różowy'],['dark-forest','Leśny'],['light-sky','Niebo']].map(([key,name])=><button type="button" key={key} aria-pressed={p.theme===key} className={selected(p.theme===key)} onClick={()=>{if(key==='dark-forest'||key==='light-sky'||key==='dark-cosmos'){preset(INTERFACE_PRESETS.find(next=>next.theme===key)!);return;}p.setTheme(key);if(key==='light-pink')p.setAccent('#c02674');}}>{name}</button>)}</div>
@@ -56,7 +56,7 @@ export default function InterfacePersonalization(p:Props){
       {v.surfaceTint!=='original'&&slider('panelTintStrength','Siła zabarwienia paneli',5,55,5,'%')}
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
-    </>,'akcent własny kolor jasny ciemny amoled aurora',true)}
+    </>,'akcent własny kolor jasny ciemny amoled aurora')}
     {p.theme==='dark-cosmos'&&<CosmicThemeOptions disabled={p.lightEffects||v.reducedMotion}/>}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}
     {group('shapes' ,'Kształty i głębia','Rogi, obramowania i cienie',<Shapes size={19}/>,<>{slider('panelRadius','Zaokrąglenie paneli',0,36,2,' px')}{slider('cardRadius','Zaokrąglenie kart',0,30,2,' px')}{slider('controlRadius','Zaokrąglenie przycisków',0,24,2,' px')}{slider('borderStrength','Widoczność obramowań',0,40,2,'%')}{slider('shadowStrength','Siła cieni',0,100,5,'%')}</>,'zaokrąglenie paneli kart przycisków widoczność obramowań siła cieni')}

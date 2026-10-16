@@ -76,10 +76,12 @@ const server=http.createServer((req,res)=>{
       await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent==='Baryczka 69'));
       await new Promise(resolve=>setTimeout(resolve,650));
     };
+    const openPreview=async()=>{if(!await page.$('[data-interface-preview]'))await page.$eval('[data-preview-toggle]',button=>button.click());await page.waitForSelector('[data-interface-preview]');};
     const accent=async name=>{
       console.log('Selecting accent:',name);
       await button('Opcje');await page.waitForSelector('[role="dialog"]');
       await page.click('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');
+      await page.$eval('[data-personal-group="colors"]',el=>el.open=true);
       await page.click(`[aria-label="Kolor akcentu: ${name}"]`);
       await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
     };
@@ -119,13 +121,20 @@ const server=http.createServer((req,res)=>{
     const beforeNewThemes=await page.evaluate(()=>({...localStorage}));
     for(const [name,mode,canvas] of [['Leśny','dark-forest','#061a13'],['Niebo','light-sky','#d5efff'],['Kosmos','dark-cosmos','#000000']]){
       await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+      assert.equal(await page.$('[data-interface-preview]'),null,'preview starts hidden on opening Personalization');
+      assert.equal(await page.$eval('[data-theme-presets]',el=>el.open),false,'themes are collapsed by default');
+      assert.equal(await page.$eval('[data-personal-group="colors"]',el=>el.open),false,'theme and colour controls are collapsed by default');
+      await screenshot('personalization-collapsed-'+mode);
+      await page.$eval('[data-theme-presets]',el=>el.open=true);
       await page.waitForSelector(`[aria-label="Zestaw: ${name}"]`);
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
       assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).backgroundColor),`rgb(${[1,3,5].map(index=>parseInt(canvas.slice(index,index+2),16)).join(', ')})`);
       assert.equal(await page.evaluate(()=>document.documentElement.dataset.panelGlow),mode==='dark-cosmos'?'off':'on');assert.equal(await page.evaluate(()=>localStorage.getItem('mks_transparent')),'true');
       const pattern=mode==='dark-cosmos'?await page.evaluate(()=>document.documentElement.style.getPropertyValue('--cosmos-scene-image')):await page.$eval('[data-options-sheet]',el=>getComputedStyle(el).backgroundImage);
       assert.ok(pattern.includes('svg'),'selected theme has static decorations');if(mode!=='dark-cosmos')assert.ok(pattern.includes('radial-gradient'),'decoration and glow are both present');
+      await openPreview();
       if(mode==='dark-cosmos'){
+        assert.ok(await page.$eval('[data-cosmic-settings] summary .personal-group-icon',el=>Boolean(el.querySelector('svg'))),'cosmic depth has a matching group icon');
         assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Aurora')),false);
         const planetImages=await page.evaluate(async()=>Promise.all(['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune'].map(async name=>{
           const image=new Image();image.src=`/themes/kosmos/${name}.svg`;await image.decode();const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d');context.drawImage(image,0,0);
@@ -168,7 +177,8 @@ const server=http.createServer((req,res)=>{
         await page.evaluate(saved=>{for(const [key,value]of Object.entries(saved)){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}window.dispatchEvent(new Event('pks-profile-applied'));window.dispatchEvent(new Event('pks-interface-appearance'));},savedEffects);
         await page.waitForFunction(()=>document.documentElement.dataset.cosmicGlass==='on');
         for(const selector of ['.pks-map-search-panel','.pks-navigation']){
-          assert.ok(!await page.$eval(selector,el=>getComputedStyle(el).backgroundImage.includes('/themes/kosmos/')),'chrome has no blurred nebula photograph');
+          if(selector==='.pks-navigation'){assert.ok(await page.$eval(selector,el=>getComputedStyle(el).backgroundImage.includes('nebula.jpg')),'navigation uses the filter material');assert.equal(await page.$eval(selector,el=>getComputedStyle(el).backdropFilter),'none');}
+          else assert.ok(!await page.$eval(selector,el=>getComputedStyle(el).backgroundImage.includes('/themes/kosmos/')),'filter keeps its art in a bounded child layer');
           assert.equal(await page.$eval(selector,el=>getComputedStyle(el,'::before').content),'none','chrome does not duplicate the sky in a pseudo layer');
         }
         await page.$eval('[data-personalization-panel] details',el=>el.open=true);
@@ -349,12 +359,14 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.documentElement.dataset.panelGlow!==undefined&&document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
     const beforePink=await page.evaluate(()=>({...localStorage}));
     await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+    await page.$eval('[data-theme-presets]',el=>el.open=true);
     await page.$eval('[aria-label="Zestaw: Różowy"]',el=>el.click());
     await page.waitForSelector('[data-ui-theme="light-pink"]');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()==='#c02674');
     assert.equal(await page.$eval('.pks-theme-root',el=>getComputedStyle(el).getPropertyValue('--ui-surface').trim()),'#ffd1e8');
     assert.equal(await page.$eval('[data-options-sheet]',el=>el.scrollWidth>el.clientWidth+1),false,'pink theme fits a phone');
     await screenshot('personalization-pink');
+    await openPreview();
     await page.click('[aria-label="Podgląd: Autobus"]');
     await page.waitForSelector('[data-vehicle-header][data-ui-mode="light"]');
     const readableHeader=await page.$eval('[data-vehicle-header]',el=>({background:getComputedStyle(el).backgroundColor,text:getComputedStyle(el.querySelector('h2')).color,gps:getComputedStyle(el.querySelector('.text-white')).color}));
@@ -614,7 +626,7 @@ const server=http.createServer((req,res)=>{
     // Exercise real preferences against the map, reload persistence and the compact editor.
     const savedAppearance=await page.evaluate(()=>Object.fromEntries(['mks_app_theme','mks_theme','mks_transparent','mks_panel_glow','mks_panel_glow_strength','mks_light_effects','mks_interface_appearance_v1'].map(k=>[k,localStorage.getItem(k)])));
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');
-    await page.click('#options-personal-tab');await page.waitForSelector('[data-interface-preview]');
+    await page.click('#options-personal-tab');await openPreview();
     assert.ok(await page.$$eval('[data-personalization-panel] details',els=>els.length)>=7);
     const openGroup=async text=>page.evaluate(label=>[...document.querySelectorAll('.personal-group summary')].find(el=>el.textContent.includes(label)).parentElement.open=true,text);
     const choose=async(legend,name)=>page.evaluate((title,label)=>[...document.querySelectorAll('.personal-field')].find(el=>el.querySelector('legend').textContent===title).querySelectorAll('button').forEach(button=>{if(button.textContent.trim()===label)button.click();}),legend,name);
@@ -624,12 +636,13 @@ const server=http.createServer((req,res)=>{
       assert.deepEqual(await page.$eval('[data-interface-preview] svg[data-bus-glyph]',el=>[...el.querySelectorAll('rect,circle')].map(node=>[node.tagName,...['x','y','width','height','rx','cx','cy','r'].map(key=>node.getAttribute(key))])),carrierGeometry,'preview renders the real front-facing bus artwork');
       assert.equal(await page.$eval('.personal-preview-wrap',el=>getComputedStyle(el).position),'relative','preview is not sticky or fixed');
     };
+    await openGroup('Motyw i kolory');
     await sameChrome();
     await page.waitForSelector('[data-interface-preview] [data-preview-map]');
     previewTiles=true;
     await page.setCacheEnabled(false);
-    await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
-    await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pokaż podgląd').click());
+    await page.$eval('[data-preview-toggle]',button=>button.click());
+    await page.$eval('[data-preview-toggle]',button=>button.click());
     await page.waitForSelector('[data-preview-map="tiles"] img');
     await page.waitForFunction(()=>[...document.querySelectorAll('[data-preview-tile]')].every(img=>img.complete&&img.naturalWidth>0));
     const previewTilesLayout=await page.$$eval('[data-preview-tile]',images=>images.map(img=>({x:parseFloat(img.style.left),y:parseFloat(img.style.top),size:parseFloat(img.style.width),url:img.src})));
@@ -641,10 +654,11 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$$eval('[data-interface-preview] svg[data-bus-glyph] text',els=>els.map(el=>el.textContent).join('')),'108','preview has only the sample line, never a live 228');
     assert.equal(await page.$$eval('[data-interface-preview] .leaflet-control-attribution',els=>els.length),0,'provider credit stays outside the miniature');
     await page.waitForSelector('[data-preview-map-sources]');
+    assert.ok(await page.$eval('[data-interface-preview]',scene=>{const map=scene.querySelector('[data-preview-map]').getBoundingClientRect(),nav=scene.querySelector('[data-preview-navigation]').getBoundingClientRect();return map.bottom<=nav.top+1&&getComputedStyle(scene.querySelector('[data-preview-map]')).contain==='paint';}),'filtered tiles are clipped above navigation instead of being blurred into its surface');
     await page.screenshot({path:'test/ui-previews/preview-map-tiles-visible.png'});
     previewTiles=false;
-    await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Ukryj podgląd').click());
-    await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pokaż podgląd').click());
+    await page.$eval('[data-preview-toggle]',button=>button.click());
+    await page.$eval('[data-preview-toggle]',button=>button.click());
     await page.waitForSelector('[data-preview-map="sample"]');
 
     assert.ok(await page.$$eval('[data-preview-map] svg path',els=>els.length)>10,'offline preview has a street layout, not two diagonal stripes');
@@ -733,12 +747,13 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.documentElement.dataset.personalRadius==='true'&&document.documentElement.dataset.personalLabels==='false'&&getComputedStyle(document.querySelector('.pks-map-surface')).borderTopLeftRadius==='36px');
     assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).borderTopLeftRadius),'36px','saved shape survives app restart');
     await page.click('.pks-navigation [aria-label="Opcje"]');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+    await openPreview();
     await screenshot('personalization-dark');
     await page.$eval('[data-options-scroll]',el=>el.scrollTo(0,el.scrollHeight));
     assert.ok(await page.$eval('.personal-preview-wrap',el=>el.getBoundingClientRect().bottom)<await page.$eval('[data-options-scroll]',el=>el.getBoundingClientRect().top),'preview scrolls away instead of covering settings');
-    await page.$eval('.personal-preview-wrap button',el=>el.click());
+    await page.$eval('[data-preview-toggle]',el=>el.click());
     assert.equal(await page.$('[data-interface-preview]'),null,'preview can be hidden');
-    await page.$eval('.personal-preview-wrap button',el=>el.click());
+    await page.$eval('[data-preview-toggle]',el=>el.click());
     await page.waitForSelector('[data-interface-preview]');
     await page.evaluate(()=>document.querySelector('.personal-presets [aria-label="Zestaw: Czytelny"]').click());
     await page.waitForFunction(()=>document.documentElement.dataset.personalText==='true');
