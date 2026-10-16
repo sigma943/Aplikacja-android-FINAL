@@ -44,3 +44,13 @@ test('route persistence keeps legacy offline fallback, isolates versions, and ex
   assert.deepEqual(await cache.readPersistentRouteGeometry('legacy','v1'),points);
  }finally{Date.now=clock;global.window=oldWindow;}
 });
+test('working IndexedDB writes routes without synchronous localStorage serialization',async()=>{
+ const oldWindow=global.window,records=new Map();let writes=0;
+ const db={close(){},transaction(){const tx={objectStore(){return {put(row){records.set(row.key,structuredClone(row));queueMicrotask(()=>tx.oncomplete?.());},get(key){const req={};queueMicrotask(()=>{req.result=records.get(key);req.onsuccess?.();});return req;}};}};return tx;}};
+ global.window={indexedDB:{open(){const req={result:db};queueMicrotask(()=>req.onsuccess());return req;}},localStorage:{setItem(){writes++;},getItem(){return null;},removeItem(){}}};
+ try{
+  const cache=load('lib/map/route-cache.ts'),points=[[50,22],[50.01,22.01]];
+  await cache.writePersistentRouteGeometry('a',points,'v1');assert.equal(writes,0);
+  const restarted=load('lib/map/route-cache.ts');assert.deepEqual(await restarted.readPersistentRouteGeometry('a','v1'),points);
+ }finally{global.window=oldWindow;}
+});
