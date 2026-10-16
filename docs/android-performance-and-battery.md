@@ -25,8 +25,8 @@ Baseline: latest successful original APK build #359, commit
 - Replace hidden recurring connectivity probes and vehicle poll wakeups with
   foreground-aware scheduling. Keep the configured foreground poll intervals,
   refresh on returning, and share only overlapping connectivity probes.
-- Pause 30-second presence writes while hidden, updating immediately on return.
-  `lastSeenAt` now describes foreground use. Permission, ban, security and runtime
+- Preserve 30-second presence writes in the background because the administrative
+  online indicator depends on them. Permission, ban, security and runtime
   subscriptions stay connected; this is not a Firebase access/session bypass.
 - Stop the registration retry timer after success. Restart it if the server
   deletes the device, retaining registration failure recovery and rank revocation.
