@@ -45,7 +45,10 @@ try{
  await page.click('.map-catalog-stop[title*="Lutoryż" i][title*="89N" i]');
  await page.waitForSelector('[data-map-stop-sheet]');
  await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]')?.textContent.includes('108'));
+ // Data can finish before the lazy panel's entrance animation. Click a settled handle.
+ await page.waitForFunction(()=>{const sheet=document.querySelector('[data-map-stop-sheet]');return sheet&&Math.abs(new DOMMatrixReadOnly(getComputedStyle(sheet).transform).m42)<.5;});
  await page.click('[aria-label="Rozwiń panel przystanku"]');
+ await page.waitForSelector('[data-map-stop-sheet][data-expanded="true"]');
  await page.waitForFunction(()=>[...document.querySelectorAll('[data-map-stop-sheet] [data-departure-row]')].some(row=>row.querySelector('span')?.textContent==='M'));
  const marcelRows=await page.$$eval('[data-map-stop-sheet] [data-departure-row]',rows=>rows.filter(row=>row.querySelector('span')?.textContent==='M').map(row=>({text:row.textContent,color:getComputedStyle(row.querySelector('span')).color})));
  assert.ok(marcelRows.every(row=>row.text.includes('Rzeszów')&&!row.text.includes('Jasło')),'89N does not borrow reverse-platform departures');
@@ -265,5 +268,5 @@ try{
  assert.equal(await page.evaluate(()=>{window.idleMarkerObserver.disconnect();return window.idleMarkerMutations;}),0,'unchanged markers do not repeat DOM position writes on clock ticks');
  await page.screenshot({path:path.resolve('test/ui-previews/marcel-selected-catalog-stop.png')});
  assert.deepEqual(errors,[]);console.log('Map stops: enable, city/rural colours, click/highlight/sheet, persistence, zoom threshold and disable passed.');
-}finally{await browser.close();server.close();fixture.cleanup();}
+}catch(error){console.error('Map regression context:',await page.evaluate(()=>({text:document.body.innerText,sheet:document.querySelector('[data-map-stop-sheet]')?.outerHTML})),{errors,marcelCatalogRequests});await page.screenshot({path:path.resolve('test/ui-previews/map-failure.png')});throw error;}finally{await browser.close();server.close();fixture.cleanup();}
 })().catch(error=>{console.error(error);server.close();fixture.cleanup();process.exitCode=1;});
