@@ -4,6 +4,7 @@ import {Palette,Shapes,Layers,Sun,Type,Navigation,SlidersHorizontal,Compass,Rota
 import {DEFAULT_INTERFACE_APPEARANCE,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {INTERFACE_PRESETS,matchesInterfacePreset,type InterfacePreset} from '@/lib/interface-presets';
 import {SCHEDULE_KEY,readSchedule} from '@/lib/personalization-profiles';
+import PresetThumbnail from './PresetThumbnail';
 import PersonalizationTools from './PersonalizationTools';
 import InterfacePreview from './InterfacePreview';
 import CosmicThemeOptions from './CosmicThemeOptions';
@@ -37,12 +38,8 @@ export default function InterfacePersonalization(p:Props){
     <InterfacePreview canOpenAdminEmbed={p.canOpenAdminEmbed} navOrder={v.navOrder} chrome={p.chrome} accent={p.accent} glass={p.glass} dark={dark}/>
     <div data-theme-presets className="personal-presets"><span className="text-xs font-semibold">Gotowe zestawy</span><div className="personal-presets-grid">{INTERFACE_PRESETS.map(next=>{
       const active=matchesInterfacePreset(next,{appearance:v,theme:p.theme,accent:p.accent,glass:p.glass,glow:p.glow,glowStrength:p.glowStrength});
-      return <button type="button" key={next.name} aria-label={`Zestaw: ${next.name}`} aria-pressed={active} onClick={()=>preset(next)} className="personal-preset ui-accent-focus" style={{backgroundColor:presetSurfaces[p.theme]||(dark?'#1c2833':'#ffffff'),color:dark?'#f3f1ff':'#172536',colorScheme:dark?'dark':'light','--preset-bg':next.preview.background,'--preset-surface':next.preview.surface,'--preset-text':next.preview.text,'--preset-accent':next.accent} as CSSProperties}>
-        <span aria-hidden="true" className="personal-preset-preview" data-preset-glow={next.glow}>
-          <span className="personal-preset-top"><span/><span/><span/></span>
-          <span className="personal-preset-row"><i/><span/><b/></span><span className="personal-preset-row"><i/><span/><b/></span>
-          <span className="personal-preset-nav"><i/><i/><i/></span>
-        </span>
+      return <button type="button" key={next.name} aria-label={`Zestaw: ${next.name}`} aria-pressed={active} onClick={()=>preset(next)} className="personal-preset ui-accent-focus" style={{backgroundColor:presetSurfaces[p.theme]||(dark?'#1c2833':'#ffffff'),color:dark?'#f3f1ff':'#172536',colorScheme:dark?'dark':'light'} as CSSProperties}>
+        <PresetThumbnail name={next.name}/>
         <span className="personal-preset-name"><span>{next.name}</span>{active&&<Check size={14} aria-hidden="true"/>}</span>
         <span className="personal-preset-description">{next.description}</span>
       </button>;

@@ -15,6 +15,7 @@ import {useStopDepartures} from '@/Panel/src/components/useStopDepartures';
 import {mapStopDepartureRows} from '@/lib/map-stop-departures';
 import {refreshMapStopSource} from '@/lib/map-stop-source';
 import {marcelCourseStopIndexKey,marcelCourseStopMatchKey} from '@/components/stops-panel/stop-domain';
+import {useTabTransition} from '@/lib/use-tab-transition';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {useSheetGesture} from '@/lib/use-sheet-gesture';
 import {BackScope, useAppBack} from '@/lib/use-app-back';
@@ -34,7 +35,7 @@ import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallba
 import dynamic from 'next/dynamic';
 import {Capacitor} from '@capacitor/core';
 import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOff, Shield, Check} from 'lucide-react';
-import {motion, AnimatePresence} from 'motion/react';
+import {motion, AnimatePresence, useReducedMotion} from 'motion/react';
 import type {Vehicle} from '@/components/BusMap';
 import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
 import OptionsSheet from '@/components/OptionsSheet';
@@ -1093,6 +1094,9 @@ export default function Home() {
     loadVehicleDetails(v);
   }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
   
+  const systemReducedMotion=useReducedMotion();
+  const tabTransitionRef=useTabTransition(activeTab,!systemReducedMotion&&!interfaceAppearance.reducedMotion&&!lightEffects);
+
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
@@ -1176,17 +1180,17 @@ export default function Home() {
         )}
       </AnimatePresence>
       {/* Main Content Area */}
-      <div className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
+      <div ref={tabTransitionRef} data-tab-transition className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
          
          <BackScope enabled={activeTab === 'admin'}>
          <AnimatePresence mode="wait">
             {activeTab === 'admin' && canOpenAdminEmbed && (
                <motion.div
                   key="admin-embed"
-                  initial={actualTheme === 'dark-cosmos' ? false : { opacity: 0 }}
+                  initial={false}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
+                  transition={{ duration: 0 }}
                   className={`absolute inset-0 z-[25] flex min-h-0 flex-col ${transparentUI ? 'pks-glass-frame' : isDark ? 'bg-[#040609]' : isWarm ? 'bg-[#f2ede1]' : 'bg-slate-50'}`}
                   data-panel-theme={isDark ? 'dark' : 'light'}
                   data-cosmic-canvas
@@ -1373,8 +1377,8 @@ export default function Home() {
          <motion.div
             key="new-stops-panel"
             initial={false}
-            animate={activeTab === 'stops' ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 14, scale: 0.985 }}
-            transition={{duration: actualTheme === 'dark-cosmos' ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}}
+            animate={{ opacity: activeTab === 'stops' ? 1 : 0 }}
+            transition={{duration:0}}
             className={`absolute inset-0 z-10 overflow-hidden ${activeTab === 'stops' ? 'pointer-events-auto' : 'pointer-events-none'} ${
                transparentUI
                  ? 'pks-glass-frame'

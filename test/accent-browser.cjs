@@ -137,9 +137,22 @@ const server=http.createServer((req,res)=>{
     await page.click('[data-carrier-grid] button[aria-label="PKS Rzeszów"]');
     assert.ok(await page.$eval('[data-carrier-grid]',el=>el.scrollWidth<=el.clientWidth+1));
     await screenshot('carriers-amoled');await page.click('[aria-label="Zamknij panel przewoźników"]');
+    await page.waitForSelector('[data-map-canvas] .leaflet-container');
+    await page.evaluate(()=>{window.__mapBeforeTabTransition=document.querySelector('.leaflet-container');window.__tabTransitions=[];const root=document.querySelector('[data-tab-transition]'),animate=root.animate.bind(root);root.animate=(frames,options)=>{window.__tabTransitions.push({frames,options});return animate(frames,options);};});
+    await button('Przystanki');await page.waitForSelector('.transit-surface');
+    await page.waitForFunction(()=>window.__tabTransitions.length===1);
+    await button('Mapa');
+    await page.waitForFunction(()=>window.__tabTransitions.length===2);
+    assert.equal(await page.evaluate(()=>window.__mapBeforeTabTransition===document.querySelector('.leaflet-container')),true,'tab animation keeps the mounted map');
+    assert.ok(await page.evaluate(()=>window.__tabTransitions.every(t=>t.options.duration===180&&t.frames.every(frame=>Object.keys(frame).every(key=>key==='opacity')))),'tab transitions use short opacity-only animations');
+    await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);await new Promise(resolve=>setTimeout(resolve,100));
+    await button('Przystanki');await button('Mapa');
+    assert.equal(await page.evaluate(()=>window.__tabTransitions.length),2,'system reduced-motion disables tab transitions');
+    await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
     const beforeNewThemes=await page.evaluate(()=>({...localStorage}));
     // Exercise every preset under every active palette, including scroll invalidation.
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
+    const thumbnailPixels=new Map();
     for(const name of ['Różowy','Leśny','Niebo','Kosmos','Spokojny','Nocny','Czytelny','Minimalny']) {
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());
       await new Promise(resolve=>setTimeout(resolve,650));
@@ -150,7 +163,24 @@ const server=http.createServer((req,res)=>{
         const style=await tile.evaluate(el=>{const s=getComputedStyle(el),preview=getComputedStyle(el.querySelector('.personal-preset-preview'));return {background:s.backgroundColor,clip:s.clipPath,radius:s.borderTopLeftRadius,contain:s.contain,image:s.backgroundImage,previewClip:preview.clipPath};});
         assert.equal(style.contain,'none');assert.equal(style.image,'none');
         assert.ok(style.clip.includes('round '+style.radius),'tile clip follows the visible corner radius');
-        assert.ok(style.previewClip.includes('10px'),'thumbnail has its own rounded clip');
+        assert.equal(style.previewClip,'none','decoded thumbnail does not create another CSS clip layer');
+        const preview=await tile.$('.personal-preset-preview img');
+        assert.ok(preview,'each thumbnail is a single immutable image');
+        await preview.evaluate(async img=>{await img.decode();});
+        assert.equal(await preview.evaluate(img=>img.currentSrc.startsWith('data:image/svg+xml,')),true);
+        assert.equal(await tile.$$eval('.personal-preset-preview span',nodes=>nodes.length),0,'no independently painted preview row backgrounds');
+        const identity=await tile.evaluate(el=>el.getAttribute('aria-label'));
+        const thumb=await sharp(await preview.screenshot()).removeAlpha().raw().toBuffer({resolveWithObject:true});
+        const preset=require('./load-ts.cjs')('lib/interface-presets.ts').INTERFACE_PRESETS.find(p=>identity==='Zestaw: '+p.name);
+        const hex=value=>[1,3,5].map(i=>parseInt(value.slice(i,i+2),16));
+        const expectedIcon=hex(preset.accent).map((v,i)=>Math.round(v*.85+hex(preset.preview.surface)[i]*.15));
+        const offset=(33*thumb.info.width+21)*thumb.info.channels;
+        assert.ok(expectedIcon.every((v,i)=>Math.abs(v-thumb.data[offset+i])<=3),'thumbnail retains the original 13px icon geometry at its real mobile width: '+identity+' '+JSON.stringify({expectedIcon,pixel:[...thumb.data.subarray(offset,offset+3)]}));
+        // Exclude rounded transparent corners, which correctly show the active card palette.
+        const painted=await sharp(await preview.screenshot()).extract({left:10,top:10,width:thumb.info.width-20,height:thumb.info.height-20}).raw().toBuffer();
+        const previous=thumbnailPixels.get(identity);
+        if(previous&&previous.width===thumb.info.width)assert.deepEqual(painted,previous.pixels,'preview pixels are independent of the active theme: '+identity);
+        thumbnailPixels.set(identity,{width:thumb.info.width,pixels:painted});
         const {data,info}=await sharp(await tile.screenshot()).removeAlpha().raw().toBuffer({resolveWithObject:true});
         const rgb=style.background.match(/[\d.]+/g).slice(0,3).map(Number);
         for(const y of [5,info.height-5])for(const x of [20,Math.floor(info.width/2),info.width-20]) {
