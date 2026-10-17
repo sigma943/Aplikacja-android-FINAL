@@ -1051,3 +1051,28 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 /* Keep the native picker and its click target at the trailing edge of range fields. */
 .admin-range-date { display:block; position:relative; min-width:0; padding-inline-end:3rem; }
 .admin-range-date::-webkit-calendar-picker-indicator { position:absolute; right:1rem; top:50%; transform:translateY(-50%); margin:0; }
+
+/* A drawer covers live content, so its glass needs a stronger base than a card.
+   Local button fills separate the targets without repeating the sky inside them. */
+html[data-cosmic-theme='on'] .pks-panel-scope .pks-admin-sidebar {
+  background-color:rgb(6 10 23 / 94%) !important;
+  background-image:none !important;
+  -webkit-backdrop-filter:blur(var(--cosmos-glass-blur,18px)) saturate(var(--cosmos-saturation,125%)) !important;
+  backdrop-filter:blur(var(--cosmos-glass-blur,18px)) saturate(var(--cosmos-saturation,125%)) !important;
+}
+html[data-cosmic-theme='on'] .pks-admin-sidebar .pks-admin-sidebar-item {
+  background-color:rgb(2 6 17 / 70%);
+  border-color:rgb(188 207 255 / 12%);
+}
+html[data-cosmic-theme='on'] .pks-admin-sidebar .pks-admin-sidebar-item:hover {
+  background-color:rgb(18 25 46 / 95%);
+}
+html[data-cosmic-theme='on'] .pks-admin-sidebar .pks-admin-sidebar-item[aria-current='page'] {
+  background-color:#080c1b;
+  background-image:linear-gradient(110deg,var(--pks-accent-soft),transparent);
+}
+html[data-cosmic-theme='on'] .pks-panel-scope[data-glass='off'] .pks-admin-sidebar {
+  background-color:#060a17 !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}

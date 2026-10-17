@@ -454,7 +454,7 @@ export function DeviceTable({
       <div className="flex flex-col gap-6 mb-8">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={onMenuClick} className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer">
+            <button aria-label="Otwórz menu administratora" onClick={onMenuClick} className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer">
               <Menu size={20} />
             </button>
             <div>
@@ -472,16 +472,17 @@ export function DeviceTable({
 
       <div ref={toolbarDropdownsRef} className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
         <div className="relative min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-slate-400" size={16} aria-hidden="true" />
           <input
             type="text"
             placeholder="Szukaj..."
+            aria-label="Szukaj urządzenia"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full bg-[#111623] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-colors"
+            className="w-full bg-[#111623] border border-white/10 rounded-xl py-2.5 pl-8 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-colors"
           />
         </div>
 

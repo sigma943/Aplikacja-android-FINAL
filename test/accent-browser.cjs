@@ -1365,6 +1365,16 @@ const server=http.createServer((req,res)=>{
     assert.equal(await cosmosPage.$eval('[data-cosmic-canvas]',node=>getComputedStyle(node).backgroundColor),'rgba(0, 0, 0, 0)','admin list canvas reveals the sky outside its cards');
     const beforeData=await adminArt();await cosmosPage.evaluate(()=>{window.dispatchEvent(new Event('focus'));window.__startupTest.heartbeat();});await new Promise(resolve=>setTimeout(resolve,600));assert.deepEqual(await adminArt(),beforeData,'admin data snapshots do not randomize the existing arrangement');
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-admin-stable.png'});
+    const searchLayout=await cosmosPage.$eval('[aria-label="Szukaj urządzenia"]',input=>{const icon=input.previousElementSibling,a=icon.getBoundingClientRect(),b=input.getBoundingClientRect();return {padding:parseFloat(getComputedStyle(input).paddingLeft),iconRight:a.right-b.left,iconZ:getComputedStyle(icon).zIndex};});
+    assert.ok(searchLayout.padding<=32&&searchLayout.padding>=searchLayout.iconRight+4,'search starts closer to the left edge without overlapping its visible icon');
+    assert.equal(searchLayout.iconZ,'10','search icon paints above the glass input');
+    await cosmosPage.click('[aria-label="Otwórz menu administratora"]');
+    await cosmosPage.waitForFunction(()=>document.querySelector('[data-admin-sidebar]').getBoundingClientRect().left>=-1);
+    assert.ok(await cosmosPage.$eval('[data-admin-sidebar]',el=>{const s=getComputedStyle(el);return s.backgroundImage==='none'&&Number(s.backgroundColor.match(/[\d.]+/g)?.[3]??1)>=.9;}),'sidebar glass masks text from the device list underneath');
+    assert.ok(await cosmosPage.$$eval('.pks-admin-sidebar-item',items=>items.every(el=>getComputedStyle(el).backgroundColor!=='rgba(0, 0, 0, 0)')),'every sidebar target has its own filled surface');
+    await cosmosPage.screenshot({path:'test/ui-previews/cosmos-admin-sidebar.png'});
+    await cosmosPage.click('[aria-label="Zamknij menu administratora"]');
+
     await cosmosPage.goto(origin+'/cosmos-route-fixture/',{waitUntil:'domcontentloaded'});await cosmosPage.waitForSelector('.leaflet-interactive');await cosmosPage.waitForFunction(()=>window.__stationRoute?.length>0);
     assert.ok(!await cosmosPage.evaluate(()=>window.__stationRoute.some(p=>p[0]===50.041991&&p[1]===22.002377)),'map paints the corrected station corridor');
     await new Promise(resolve=>setTimeout(resolve,1000));await cosmosPage.screenshot({path:'test/ui-previews/station-route-corrected.png'});await cosmosPage.click('[data-route-toggle]');await new Promise(resolve=>setTimeout(resolve,150));await cosmosPage.screenshot({path:'test/ui-previews/station-route-original.png'});
