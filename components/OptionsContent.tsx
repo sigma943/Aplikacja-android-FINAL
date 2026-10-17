@@ -1,11 +1,11 @@
 'use client';
-import {useState} from 'react';
+import {memo,useState} from 'react';
 import {Settings,Bus,MapPin,Palette,Sparkles} from 'lucide-react';
 import InterfacePersonalization from './InterfacePersonalization';
 import type {InterfaceAppearance} from '@/lib/interface-appearance';
 export type PreviewChrome={mapGlassPanel:string;mapGlassInput:string;textSub:string;bottomGlassShell:string};
 type Props={canOpenAdminEmbed?:boolean;chrome:PreviewChrome;appearance:InterfaceAppearance;saveAppearance:(value:InterfaceAppearance)=>void;onOpenPersonalization:()=>void;panelGlow:boolean;glowStrength:number;savePanelGlow:(value:boolean)=>void;saveGlowStrength:(value:number)=>void;showMapStops?:boolean;saveMapStops?:(value:boolean)=>void;themeColor:string;textSub:string;optionsCard:string;isDark:boolean;isWarm:boolean;appTheme:string;optionsButton:string;isOptionsExpanded:boolean;saveAppTheme:(value:string)=>void;saveThemeColor:(value:string)=>void;transparentUI:boolean;saveTransparentUI:(value:boolean)=>void;showInactive:boolean;saveInactive:(value:boolean)=>void;lightEffects:boolean;saveLightEffects:(value:boolean)=>void};
-export default function OptionsContent(p:Props){
+function OptionsContent(p:Props){
  const [tab,setTab]=useState<'general'|'personalization'>('general');
  const open=(next:'general'|'personalization')=>{setTab(next);if(next==='personalization')p.onOpenPersonalization();};
  return <>
@@ -27,3 +27,4 @@ export default function OptionsContent(p:Props){
   </div>}
  </>;
 }
+export default memo(OptionsContent);

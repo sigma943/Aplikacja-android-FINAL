@@ -1,7 +1,9 @@
 'use client';
-import {normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
+import {DEFAULT_APP_THEME,normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
+import {reconcileVehicles} from '@/lib/vehicle-reconcile';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
-import BusDetailsPanel from '@/components/BusDetailsPanel';
+import {loadOptionsCode,loadTransportSelectorCode,loadBusDetailsCode,loadTrainDetailsCode,warmPanelCode} from '@/lib/home/panel-code';
+import CosmicTabLoading from '@/components/CosmicTabLoading';
 
 import {toggleStopFavoriteIds} from '@/lib/stop-identity';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
@@ -13,13 +15,15 @@ import {useStopDepartures} from '@/Panel/src/components/useStopDepartures';
 import {mapStopDepartureRows} from '@/lib/map-stop-departures';
 import {refreshMapStopSource} from '@/lib/map-stop-source';
 import {marcelCourseStopIndexKey,marcelCourseStopMatchKey} from '@/components/stops-panel/stop-domain';
+import {useTabTransition} from '@/lib/use-tab-transition';
+import {useLatestCallback} from '@/lib/use-latest-callback';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {useSheetGesture} from '@/lib/use-sheet-gesture';
 import {BackScope, useAppBack} from '@/lib/use-app-back';
 import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
 import {loadStopDepartures} from '@/lib/stop-departures';
-import {uiAccentVariables} from '@/lib/ui-accent';
+import {uiAccentVariables,normalizeUiAccent} from '@/lib/ui-accent';
 import {MapHeader,BottomNavigation,StopTabIcon} from '@/components/ApplicationChrome';
 import {applyScheduledProfile} from '@/lib/personalization-profiles';
 import {panelGlowStrength} from '@/lib/panel-glow';
@@ -28,19 +32,18 @@ import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
 
-import {startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
+import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
 import dynamic from 'next/dynamic';
 import {Capacitor} from '@capacitor/core';
 import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOff, Shield, Check} from 'lucide-react';
 import {motion, AnimatePresence} from 'motion/react';
 import type {Vehicle} from '@/components/BusMap';
 import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
-import MapStopSheet from '@/components/MapStopSheet';
 import OptionsSheet from '@/components/OptionsSheet';
-import OptionsContent from '@/components/OptionsContent';
+// Keep selection and its core stop sheet in the same render, including cold starts.
+import MapStopSheet from '@/components/MapStopSheet';
 import {loadMapCode} from '@/lib/map-startup-code';
-import TransportSelectorPanel, {type TransportOption} from '@/components/TransportSelectorPanel';
-import TrainDetailsPanel from '@/components/TrainDetailsPanel';
+import type {TransportOption} from '@/components/TransportSelectorPanel';
 import {warsawDateIso} from '@/lib/transit-time';
 import type {Stop as StopsPanelStop} from '@/Panel/src/types';
 import {fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type PkpQueryViewport, type TransportProviderId} from '@/lib/pks-client';
@@ -58,7 +61,12 @@ const MARCEL_COLOR = '#68c44a';
 
 const PKP_INTERCITY_COLOR = '#1d4ed8';
 
-const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false });
+const OptionsContent=lazy(loadOptionsCode);
+const TransportSelectorPanel=dynamic(loadTransportSelectorCode,{ssr:false});
+const BusDetailsPanel=dynamic(loadBusDetailsCode,{ssr:false});
+const TrainDetailsPanel=dynamic(loadTrainDetailsCode,{ssr:false});
+
+const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false, loading: () => <CosmicTabLoading/> });
 
 const BusMap = dynamic(loadMapCode, {
   ssr: false,
@@ -75,9 +83,10 @@ const BusMap = dynamic(loadMapCode, {
 const AdminDashboard = dynamic(() => import('@/app/admin/AdminDashboard'), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full bg-[#040609] flex items-center justify-center text-slate-400 text-sm font-medium">
-      Ładowanie panelu administratora…
-    </div>
+    <>
+      <CosmicTabLoading label="Otwieranie panelu administratora…"/>
+      <div data-cosmic-legacy-loader className="h-full w-full bg-[#040609] flex items-center justify-center text-slate-400 text-sm font-medium">Ładowanie panelu administratora…</div>
+    </>
   ),
 });
 
@@ -94,7 +103,6 @@ export default function Home() {
     [hiddenProviderIds, isOwnerDevice],
   );
 
-  const lastVehiclesRef = useRef<string>('');
   const lastVehiclesEtagRef = useRef<string>('');
   const activeProvidersRef = useRef<TransportProviderId[]>([]);
   const vehiclesFetchAbortRef = useRef<AbortController | null>(null);
@@ -110,6 +118,18 @@ export default function Home() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  useEffect(()=>{
+    if(isLoading)return;
+    let cancelled=false,idle:number|undefined;
+    const warm=()=>{if(!cancelled)void warmPanelCode();};
+    // An idle slot can occur while the first map/catalog is still loading.
+    // Keep optional panel parsing out of that critical startup window.
+    const timer=setTimeout(()=>{
+      if('requestIdleCallback' in window)idle=window.requestIdleCallback(warm,{timeout:2000});
+      else warm();
+    },2000);
+    return()=>{cancelled=true;clearTimeout(timer);if(idle!==undefined)window.cancelIdleCallback(idle);};
+  },[isLoading]);
   const [appLoadTimedOut, setAppLoadTimedOut] = useState(false);
   const [filterRoute, setFilterRoute] = useState('');
   const [activeProviders, setActiveProviders] = useState<TransportProviderId[]>([]);
@@ -144,11 +164,12 @@ export default function Home() {
   
   // Customization States
   const [themeColor, setThemeColor] = useState('#00A3A2');
+  const [appearanceReady,setAppearanceReady]=useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [showMapStops,setShowMapStops]=useState(false);
   // Match the exported HTML first; restore preferences after hydration so React
   // updates theme classes rather than retaining mismatched server attributes.
-  const [appTheme, setAppTheme] = useState<AppTheme>('dark-oled');
+  const [appTheme, setAppTheme] = useState<AppTheme>(DEFAULT_APP_THEME);
   const [systemIsDark, setSystemIsDark] = useState(false);
   const [transparentUI, setTransparentUI] = useState(true);
   const [lightEffects,setLightEffects]=useState(false);
@@ -248,7 +269,10 @@ export default function Home() {
 
     const updateForeground = () => {
       const visible = typeof document === 'undefined' ? true : document.visibilityState === 'visible';
-      if (!cancelled) setIsAppForeground(visible && nativeActive);
+      if (!cancelled) {
+        isAppForegroundRef.current = visible && nativeActive;
+        setIsAppForeground(visible && nativeActive);
+      }
     };
 
     updateForeground();
@@ -298,8 +322,10 @@ export default function Home() {
     });
   }, []);
 
-  const [now, setNow] = useState(0);
-  useForegroundRefresh('home-clock',async()=>{setNow(Date.now());},1000);
+  const clockKey=activeTab==='map'?(selectedBus?`vehicle:${selectedBus.provider}:${selectedBus.id}`:selectedStopId?`stop:${selectedStopId}`:null):null;
+  const [clock,setClock]=useState<{key:string|null;now:number}>({key:null,now:0});
+  const now=clockKey&&clock.key===clockKey?clock.now:Date.now();
+  useForegroundRefresh('home-clock',async()=>{setClock({key:clockKey,now:Date.now()});},1000,Boolean(clockKey));
 
   const mapStopSource = useMemo<StopsPanelStop>(() => {
     const known=stopsList.find(stop=>stop.id===selectedStopId);
@@ -322,11 +348,11 @@ export default function Home() {
     setHasLoadedTransportProviders(true);
 
     const sTheme = localStorage.getItem('mks_theme');
-    if (sTheme && sTheme !== themeColor) setTimeout(() => setThemeColor(sTheme), 0);
+    setThemeColor(normalizeUiAccent(sTheme||''));
     setShowMapStops(localStorage.getItem('mks_show_map_stops')==='true');
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
-    const storedAppTheme = (localStorage.getItem('mks_app_theme') ?? 'dark-oled').trim().toLowerCase();
+    const storedAppTheme = (localStorage.getItem('mks_app_theme') ?? DEFAULT_APP_THEME).trim().toLowerCase();
     const sAppTheme = storedAppTheme === 'dark-pink' ? 'light-pink' : storedAppTheme;
     if(storedAppTheme==='dark-pink'){
       localStorage.setItem('mks_app_theme','light-pink');
@@ -351,6 +377,7 @@ export default function Home() {
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
     } catch {setAppTheme('system');setSystemIsDark(systemPrefersDark());setHasLoadedTransportProviders(true);}
+    finally {setAppearanceReady(true);}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -365,10 +392,10 @@ export default function Home() {
     window.addEventListener('pks-profile-applied',update);return()=>window.removeEventListener('pks-profile-applied',update);
   },[]);
 
-  const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex);window.dispatchEvent(new Event('pks-interface-appearance')); };
-  const saveMapStops=(value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));};
-  const saveInactive = (val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); };
-  const saveAppTheme = (val: any) => {
+  const saveThemeColor =useLatestCallback((hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex);window.dispatchEvent(new Event('pks-interface-appearance')); });
+  const saveMapStops=useLatestCallback((value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));});
+  const saveInactive =useLatestCallback((val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); });
+  const saveAppTheme = useLatestCallback((val: any) => {
     val=normalizeAppTheme(val);
     try{localStorage.setItem('mks_app_theme',val);}catch{val='system';}
     setAppTheme(val);window.dispatchEvent(new Event('pks-interface-appearance'));
@@ -377,12 +404,12 @@ export default function Home() {
     document.documentElement.style.setProperty('--pks-loading-text', text);
     document.documentElement.style.backgroundColor = bg;
     document.body.style.backgroundColor = bg;
-  };
-  const saveLightEffects=(value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const saveInterfaceAppearance=(value:InterfaceAppearance)=>{const normalized=normalizeInterfaceAppearance(value);setInterfaceAppearance(normalized);localStorage.setItem(INTERFACE_APPEARANCE_KEY,JSON.stringify(normalized));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const savePanelGlow=(value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const saveGlowStrength=(value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val));window.dispatchEvent(new Event('pks-interface-appearance')); };
+  });
+  const saveLightEffects=useLatestCallback((value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  const saveInterfaceAppearance=useLatestCallback((value:InterfaceAppearance)=>{const normalized=normalizeInterfaceAppearance(value);setInterfaceAppearance(normalized);localStorage.setItem(INTERFACE_APPEARANCE_KEY,JSON.stringify(normalized));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  const savePanelGlow=useLatestCallback((value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  const saveGlowStrength=useLatestCallback((value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  const saveTransparentUI =useLatestCallback((val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val));window.dispatchEvent(new Event('pks-interface-appearance')); });
 
   const deferredFilterRoute = useDeferredValue(filterRoute);
   const handleManualRefresh = async () => {
@@ -604,7 +631,7 @@ export default function Home() {
           if (controller.signal.aborted || vehiclesFetchAbortRef.current !== controller) return;
           if (!activeProvidersRef.current.includes(provider) || loaded.length === 0) return;
           lastProviderNonEmptyAtRef.current.set(provider, Date.now());
-          const next = [...vehiclesRef.current.filter((vehicle) => (vehicle.provider || 'pks') !== provider), ...loaded];
+          const next = reconcileVehicles(vehiclesRef.current,[...vehiclesRef.current.filter((vehicle) => (vehicle.provider || 'pks') !== provider), ...loaded]);
           vehiclesRef.current = next;
           startTransition(() => setVehicles(next));
           setIsLoading(false);
@@ -644,11 +671,9 @@ export default function Home() {
         return requestProviderSet.has(providerId) && !requestedProviderSet.has(providerId);
       });
       const visibleVehicles = [...carriedVehicles, ...stableFreshVehicles];
-      const newDataStr = JSON.stringify(visibleVehicles);
-      if (newDataStr !== lastVehiclesRef.current) {
-        setVehicles(visibleVehicles);
-        lastVehiclesRef.current = newDataStr;
-      }
+      const reconciled=reconcileVehicles(vehiclesRef.current,visibleVehicles);
+      vehiclesRef.current=reconciled;
+      setVehicles(reconciled);
       if (providersToRequest.includes('pkp_intercity')) {
         lastPkpIntercityFetchAtRef.current = Date.now();
       }
@@ -701,42 +726,16 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProviders, hasLoadedTransportProviders]);
 
-  useEffect(() => {
-    if (!hasLoadedTransportProviders) return;
+  const vehiclePollingInterval = activeTab === 'map' ? refreshInterval : 20_000;
+  useForegroundRefresh(`home-vehicles:${activeProviders.join(',')}:${showInactive}`, async () => {
+    if (isAppForegroundRef.current) await fetchVehicles();
+  }, vehiclePollingInterval, hasLoadedTransportProviders && activeProviders.length > 0 &&
+    (activeTab === 'map' || activeTab === 'stops') && !isOffline, vehiclePollingInterval);
 
-    let timer: NodeJS.Timeout;
-    const shouldPollVehicles = activeTab === 'map' || activeTab === 'stops';
-    let disposed = false;
-    const pollingInterval = activeTab === 'map' ? refreshInterval : 20_000;
-    
-    const tick = async () => {
-      if (shouldPollVehicles && isAppForegroundRef.current && !isOffline) {
-        await fetchVehicles();
-      }
-      if (!disposed) timer = setTimeout(tick, pollingInterval);
-    };
-
-    if (!disposed) timer = setTimeout(tick, pollingInterval);
-
-    const handleVisibility = () => {
-      if (shouldPollVehicles && isAppForegroundRef.current && !isOffline) {
-        fetchVehicles(showInactive, true);
-      }
-    };
-    
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibility);
-    }
-
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVisibility);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshInterval, showInactive, isOffline, activeProviders, hasLoadedTransportProviders, activeTab]);
+  const networkProbeRef = useRef<(() => Promise<void>) | null>(null);
+  useForegroundRefresh('home-connectivity', async () => {
+    await networkProbeRef.current?.();
+  }, 2500, hasLoadedTransportProviders, 2500);
 
   useEffect(() => {
     if (!hasLoadedTransportProviders) return;
@@ -761,8 +760,9 @@ export default function Home() {
     };
 
     const applyOnlineState = async () => {
+      if (cancelled || !isAppForegroundRef.current) return true;
       const offline = await readOfflineState();
-      if (!cancelled) setIsOffline(offline);
+      if (!cancelled && isAppForegroundRef.current) setIsOffline(offline);
       return offline;
     };
 
@@ -787,8 +787,9 @@ export default function Home() {
       });
     };
     const syncOnlineState = async () => {
+      if (cancelled || !isAppForegroundRef.current) return;
       const offline = await readOfflineState();
-      if (cancelled) return;
+      if (cancelled || !isAppForegroundRef.current) return;
       setIsOffline((wasOffline) => {
         if (wasOffline && !offline && isAppForegroundRef.current) {
           fetchVehicles(showInactive, true);
@@ -799,16 +800,14 @@ export default function Home() {
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
     window.addEventListener('focus', syncOnlineState);
-    document.addEventListener('visibilitychange', syncOnlineState);
-    const onlineStateTimer = window.setInterval(syncOnlineState, 2500);
+    networkProbeRef.current = syncOnlineState;
     return () => {
       cancelled = true;
       nativeListenerPromise?.then((listener) => listener.remove()).catch(() => {});
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('focus', syncOnlineState);
-      document.removeEventListener('visibilitychange', syncOnlineState);
-      window.clearInterval(onlineStateTimer);
+      if (networkProbeRef.current === syncOnlineState) networkProbeRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive, activeProviders, hasLoadedTransportProviders]);
@@ -946,11 +945,14 @@ export default function Home() {
   const optionsSheet = `pks-options-sheet ${transparentUI ? 'pks-glass' : ''}`;
   const optionsCard = 'pks-option-card';
   const optionsButton = 'pks-option-control';
+  const optionsChrome=useMemo(()=>({mapGlassPanel,mapGlassInput,textSub: isDark ? (isPink ? 'text-pink-100/75' : 'text-slate-400') : 'text-slate-500',bottomGlassShell}),[mapGlassPanel,mapGlassInput,isDark,isPink,bottomGlassShell]);
+  const expandOptions=useCallback(()=>setIsOptionsExpanded(true),[]);
   useEffect(() => {
+    if(!appearanceReady)return;
     for (const [key, value] of Object.entries(uiAccentVariables(themeColor, isDark))) {
       document.documentElement.style.setProperty(key, value);
     }
-  }, [themeColor, isDark]);
+  }, [themeColor, isDark,appearanceReady]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isPink ? 'text-pink-100/75' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1015,6 +1017,8 @@ export default function Home() {
     setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);
   },[selectedBus,stopsList]);
   const selectMapCatalogStop=useCallback((stop:StopsPanelStop)=>{mapStopReturnTab.current=null;setSelectedBus(null);setSelectedExternalStop(stop);setSelectedStopId(stop.id);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);},[]);
+  const onMapCenterComplete=useCallback(()=>setMapCenter(null),[]);
+  const onMapClick=useCallback(()=>{setSelectedBus(null);setSelectedBusDetailsLoading(false);setSelectedStopId(null);setSelectedExternalStop(null);setIsTransportPanelOpen(false);},[]);
   const selectedBusHeaderStyle=vehicleHeaderStyle(selectedVehicleColor,transparentUI,isDark);
   const showAlertDot = Boolean(error || isOffline);
 
@@ -1072,7 +1076,6 @@ export default function Home() {
       const remainingVehicles = currentVehicles.filter((vehicle) =>
         nextProviderSet.has((vehicle.provider || 'pks') as TransportProviderId),
       );
-      lastVehiclesRef.current = JSON.stringify(remainingVehicles);
       return remainingVehicles;
     });
     localStorage.setItem('mks_transport_providers', JSON.stringify(nextProviders));
@@ -1097,10 +1100,12 @@ export default function Home() {
     loadVehicleDetails(v);
   }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
   
+  const tabTransitionRef=useTabTransition(activeTab,!interfaceAppearance.reducedMotion&&!lightEffects);
+
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div data-ui-theme={actualTheme} style={{...uiAccentVariables(themeColor,isDark),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+    <div data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -1181,16 +1186,17 @@ export default function Home() {
       </AnimatePresence>
       {/* Main Content Area */}
       <div className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
+         <div ref={tabTransitionRef} data-tab-transition aria-hidden="true" className="pointer-events-none absolute inset-0 z-[90] opacity-0" style={{backgroundColor:'var(--ui-canvas,#040609)'}}/>
          
          <BackScope enabled={activeTab === 'admin'}>
          <AnimatePresence mode="wait">
             {activeTab === 'admin' && canOpenAdminEmbed && (
                <motion.div
                   key="admin-embed"
-                  initial={{ opacity: 0 }}
+                  initial={false}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
+                  transition={{ duration: 0 }}
                   className={`absolute inset-0 z-[25] flex min-h-0 flex-col ${transparentUI ? 'pks-glass-frame' : isDark ? 'bg-[#040609]' : isWarm ? 'bg-[#f2ede1]' : 'bg-slate-50'}`}
                   data-panel-theme={isDark ? 'dark' : 'light'}
                   data-cosmic-canvas
@@ -1203,7 +1209,9 @@ export default function Home() {
 
          {/* ============== MAP VIEW ============== */}
          <div data-map-canvas className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
-            <BusMap 
+            <BusMap
+               active={activeTab==='map'||actualTheme!=='dark-cosmos'}
+               clockMs={selectedBus?now:0}
                vehicles={filteredVehicles} 
                onVehicleClick={handleVehicleClick}
                selectedVehicleId={selectedBus?.id}
@@ -1214,16 +1222,10 @@ export default function Home() {
                themeColor={themeColor}
                refreshInterval={refreshInterval}
                forcedCenter={mapCenter}
-               onCenterComplete={() => setMapCenter(null)}
+               onCenterComplete={onMapCenterComplete}
                highlightedStopId={selectedStopId}
                onStopClick={openVehicleRouteStop}
-               onMapClick={() => {
-                   setSelectedBus(null);
-                   setSelectedBusDetailsLoading(false);
-                   setSelectedStopId(null);
-                   setSelectedExternalStop(null);
-                   setIsTransportPanelOpen(false);
-                }}
+               onMapClick={onMapClick}
                 onViewportChange={handleMapViewportChange}
              />
 
@@ -1381,17 +1383,18 @@ export default function Home() {
          <motion.div
             key="new-stops-panel"
             initial={false}
-            animate={activeTab === 'stops' ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 14, scale: 0.985 }}
-            transition={{duration: 0.5, ease: [0.25, 0.1, 0.25, 1]}}
+            animate={{ opacity: activeTab === 'stops' ? 1 : 0 }}
+            transition={{duration:0}}
             className={`absolute inset-0 z-10 overflow-hidden ${activeTab === 'stops' ? 'pointer-events-auto' : 'pointer-events-none'} ${
                transparentUI
                  ? 'pks-glass-frame'
                  : ''
             }`}
             data-panel-theme={isDark ? 'dark' : 'light'}
+            data-cosmic-canvas
             aria-hidden={activeTab !== 'stops'}
          >
-            {hasOpenedStops && <StopsPanel
+            {(hasOpenedStops || (actualTheme === 'dark-cosmos' && activeTab === 'stops')) && <StopsPanel
                initialStop={widgetStop}
                active={activeTab === 'stops'}
                stops={stopsList}
@@ -1441,6 +1444,7 @@ export default function Home() {
       {/* Settings Modal (Overlay) */}
       <AnimatePresence>
         {isSettingsOpen && (
+          <Suspense fallback={null}>
           <OptionsSheet
             expanded={isOptionsExpanded}
             onExpandedChange={setIsOptionsExpanded}
@@ -1448,8 +1452,9 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <OptionsContent canOpenAdminEmbed={canOpenAdminEmbed} chrome={{mapGlassPanel,mapGlassInput,textSub,bottomGlassShell}} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={()=>setIsOptionsExpanded(true)} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
+            <OptionsContent canOpenAdminEmbed={canOpenAdminEmbed} chrome={optionsChrome} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={expandOptions} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
+          </Suspense>
         )}
       </AnimatePresence>
 

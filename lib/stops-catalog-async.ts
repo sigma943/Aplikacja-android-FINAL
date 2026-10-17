@@ -21,6 +21,19 @@ function remember(key:string, result:CatalogWorkerResult) {
     MERGED_STOPS_RUNTIME_CACHE.delete(MERGED_STOPS_RUNTIME_CACHE.keys().next().value!);
   }
 }
+// Increment whenever catalog identity/matching rules change. Old offline inputs remain usable.
+export const CATALOG_RULES_VERSION=1;
+export function restoreStopsCatalog(snapshot:CatalogSnapshot,key:string):Stop[]|null {
+  if(snapshot.rulesVersion!==CATALOG_RULES_VERSION||snapshot.catalogKey!==key||!Array.isArray(snapshot.baseStops)||!snapshot.baseStops.length)return null;
+  if(!snapshot.baseStops.every(stop=>stop&&typeof stop.id==='string'&&typeof stop.name==='string'&&Array.isArray(stop.lines)&&Array.isArray(stop.carriers)))return null;
+  const cached=MERGED_STOPS_RUNTIME_CACHE.get('list:'+key);
+  if(cached&&MERGED_STOPS_RUNTIME_CACHE.has('physical:'+key))return cached;
+  MERGED_STOPS_RUNTIME_CACHE.set('list:'+key,snapshot.baseStops);
+  const physical=buildStopsCatalog(snapshot.pks,snapshot.mpk,snapshot.marcel,key,true);
+  remember(key,{id:0,list:snapshot.baseStops,physical});
+  return snapshot.baseStops;
+}
+
 function fallback(request:CatalogWorkerRequest):CatalogWorkerResult {
   return {id:request.id,
     list:buildStopsCatalog(request.pks,request.mpk,request.marcel,request.key),

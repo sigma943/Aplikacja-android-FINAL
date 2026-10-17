@@ -1,4 +1,5 @@
 'use client';
+import CosmicTabLoading from '@/components/CosmicTabLoading';
 import {isNewLoginBlocked,newLoginsEnabled} from '@/lib/login-policy';
 import {motion, useReducedMotion} from 'motion/react';
 import {readStatisticsAccess, statisticsPermission, statisticsAccessChange, type StatisticsAccess} from '@/lib/admin/statistics-access';
@@ -42,7 +43,7 @@ export interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
-  const { device: currentDevice, loading, user, localLastSeenMs } = useFirebase();
+  const { device: currentDevice, loading, user, localLastSeenMs,apiStatisticsEnabled } = useFirebase();
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
   const [statisticsAccess,setStatisticsAccess]=useState<StatisticsAccess>({});
   const [statisticsAccessReady,setStatisticsAccessReady]=useState(false);
@@ -181,10 +182,21 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     const caps = effectiveAdminPermissionsForDisplay(currentDevice.role, currentDevice.permissions);
     if (!canAccessAdminDashboard(currentDevice.role,currentDevice.permissions)) return;
     setStatisticsAccessReady(false);
+    // Legacy fallback lets the APK be installed before the rules/data migration.
+    let legacyAccess: StatisticsAccess = {};
+    let privateAccess: StatisticsAccess | null = null;
+    let publicReady = false;
+    let privateReady = false;
+    const publishAccess = () => {
+      setStatisticsAccess(privateAccess ?? legacyAccess);
+      setStatisticsAccessReady(publicReady && privateReady);
+    };
     const unsub = onSnapshot(doc(db, 'admin_settings', 'security'), (snap) => {
       const data = (snap.data()||{}) as Record<string, unknown>;
       setGlobalSettings(previous=>({...previous,loginEnabled:newLoginsEnabled(data.loginEnabled)}));
-      setStatisticsAccess(readStatisticsAccess(data.statisticsAccess));setStatisticsAccessReady(true);
+      legacyAccess = readStatisticsAccess(data.statisticsAccess);
+      publicReady = true;
+      publishAccess();
       if (!snap.exists() || (!caps.globalSettings && !caps.globalSettingsEdit)) return;
       setGlobalSettings({
         loginEnabled: Boolean(data.loginEnabled ?? true),
@@ -195,8 +207,13 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
               .filter((providerId) => providerId !== 'pkp_intercity')
           : [],
       });
-    },()=>{setStatisticsAccess({});setStatisticsAccessReady(false);});
-    return () => unsub();
+    },()=>{publicReady=false;publishAccess();});
+    const unsubAccess = onSnapshot(doc(db, 'admin_settings', 'statistics_access'), (snap) => {
+      privateAccess = snap.exists() ? readStatisticsAccess(snap.data().statisticsAccess) : null;
+      privateReady = true;
+      publishAccess();
+    }, () => { privateReady=false;publishAccess(); });
+    return () => { unsub(); unsubAccess(); };
   }, [loading,user?.uid,currentDevice?.role,currentDevice?.installationId,currentDevice?.permissions?.globalSettings,currentDevice?.permissions?.globalSettingsEdit]);
 
   useEffect(() => {
@@ -268,7 +285,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
   if (loading) {
     return (
-      <div data-cosmic-view={`admin:${activeView}`} data-cosmic-seed={cosmicScope?.seed} data-panel-theme={isDarkTheme?'dark':'light'} className="pks-panel-scope min-h-screen bg-[#040609] flex items-center justify-center text-white">Ładowanie...</div>
+      <div data-cosmic-view={`admin:${activeView}`} data-cosmic-seed={cosmicScope?.seed} data-panel-theme={isDarkTheme?'dark':'light'} className="pks-panel-scope min-h-screen bg-[#040609] flex items-center justify-center text-white"><CosmicTabLoading label="Otwieranie panelu administratora…"/><span data-cosmic-legacy-loader>Ładowanie...</span></div>
     );
   }
 
@@ -887,7 +904,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     const change=statisticsAccessChange(target,role,requested,statisticsAccess);
     if(!change)return;
     if(currentDevice.role!=='owner')throw new Error('Tylko właściciel może zmieniać dostęp do statystyk.');
-    batch.set(doc(db,'admin_settings','security'),{statisticsAccess:{[change.key]:change.enabled}},{merge:true});
+    batch.set(doc(db,'admin_settings','statistics_access'),{statisticsAccess:{[change.key]:change.enabled}},{merge:true});
   };
 
   const saveOperatorPatch = async (operatorId: string, role: OperatorRole, permissions: Operator['permissions']) => {
@@ -1231,7 +1248,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           </div>
         )}
 
-        <motion.div className="flex min-h-0 flex-1 flex-col" key={activeView} initial={reduceMotion ? false : {opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}}>
+        <motion.div data-cosmic-content className="flex min-h-0 flex-1 flex-col" key={activeView} initial={reduceMotion ? false : {opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}}>
         {activeView === 'devices' && (
           <DeviceTable
             devices={devices}
@@ -1327,7 +1344,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         )}
 
         {activeView === 'statistics' && statisticsAllowed && (
-          <StatisticsView devices={devicesData} devicesError={devicesError} devicesReady={statisticsDevicesReady} onMenuClick={() => setIsSidebarOpen(true)} accentColor={themeColor} isDarkTheme={isDarkTheme} />
+          <StatisticsView devices={devicesData} devicesError={devicesError} devicesReady={statisticsDevicesReady} reportsEnabled={apiStatisticsEnabled===true} onMenuClick={() => setIsSidebarOpen(true)} accentColor={themeColor} isDarkTheme={isDarkTheme} />
         )}
 
         {activeView === 'maintenance' && (

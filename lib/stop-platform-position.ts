@@ -27,7 +27,7 @@ export function hasSameRoadside(origin:{lat:number;lon:number},point:PlatformPoi
   const from=side(origin),to=side(point);
   return Math.abs(from)>1e-12&&Math.abs(to)>1e-12&&from*to>0;
 }
-export function createPlatformResolver(points:PlatformPoint[],requireRoadside=false){
+export function createPlatformIndex(points:PlatformPoint[]){
   const index=new Map<string,Array<PlatformPoint & {number:string}>>();
   for(const point of points){
     if(!point||typeof point.name!=='string'||!readBusCoordinates(point.lat,point.lon))continue;
@@ -35,6 +35,10 @@ export function createPlatformResolver(points:PlatformPoint[],requireRoadside=fa
     if(!base)continue;
     const bucket=index.get(base)||[];bucket.push({...point,number});index.set(base,bucket);
   }
+  return [...index.entries()];
+}
+export function createPlatformResolver(points:PlatformPoint[],requireRoadside=false,prepared?:ReturnType<typeof createPlatformIndex>){
+  const index=new Map(prepared||createPlatformIndex(points));
   return (stop:StopPoint):{lat:number;lon:number}|null=>{
     const origin=readBusCoordinates(stop.lat,stop.lon);if(!origin)return null;
     const {base,number}=identity(stop.name||stop.n||'',stop.code);
@@ -75,9 +79,12 @@ export function platformPosition(stop:StopPoint){
   return point;
 }
 export function loadStopPlatforms(){
-  if(!loading)loading=fetch('/data/stop-platforms.json',{cache:'force-cache'})
+  if(!loading)loading=fetch('/data/stop-platform-index.json',{cache:'force-cache'})
+    .then(async r=>{if(!r.ok)throw Error('Platform index unavailable');const data=await r.json();if(data.version!==1||!Array.isArray(data.index))throw Error('Invalid platform index');return data;})
+    .then(data=>{resolve=createPlatformResolver([],false,data.index);revision++;})
+    .catch(()=>fetch('/data/stop-platforms.json',{cache:'force-cache'})
     .then(r=>{if(!r.ok)throw Error('Platform catalog unavailable');return r.json();})
-    .then(data=>{if(!Array.isArray(data.points))throw Error('Invalid platform catalog');resolve=createPlatformResolver(data.points);revision++;})
+    .then(data=>{if(!Array.isArray(data.points))throw Error('Invalid platform catalog');resolve=createPlatformResolver(data.points);revision++;}))
     .catch(()=>{loading=null;});
   return loading;
 }

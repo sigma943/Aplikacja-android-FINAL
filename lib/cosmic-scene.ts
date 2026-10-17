@@ -93,6 +93,7 @@ export function cosmicVisitSession(seed:number){
   const scenes=new Map<string,ReturnType<typeof cosmicScene>>();
   return {
     get tab(){return tab;},get epoch(){return epoch;},
+    seedFor(key:string){return cosmicKeySeed(seed,`${epoch}:${tab}:${key}`);},
     enter(next:string){if(next===tab)return false;tab=next;epoch++;scenes.clear();return true;},
     scene(key:string,create:(seed:number)=>ReturnType<typeof cosmicScene>){
       let scene=scenes.get(key);
@@ -100,4 +101,71 @@ export function cosmicVisitSession(seed:number){
       return scene;
     },
   };
+}
+
+
+/** Poisson-style composition in screen coordinates, with visible diameter as depth. */
+export function cosmicBackdrop(seed:number,previous?:{x:number;y:number;count?:number}){
+  const random=cosmicRandom(seed);
+  const counts=[2,3,4].filter(n=>n!==previous?.count),count=counts[Math.floor(random()*counts.length)];
+  const families=Array.from({length:COSMIC_PLANETS.length},(_,i)=>i);
+  for(let i=families.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[families[i],families[j]]=[families[j],families[i]];}
+  // Approximate visible widths of the transparent NASA photo frames.
+  const frameRatios=[.418,.443,.438,.506,.529,.59,.521,.504];
+  const diameters=[90+random()*50,46+random()*18,24+random()*10,14+random()*6];
+  const planets:{planet:number;x:number;y:number;size:number;diameter:number}[]=[];
+  for(let i=0;i<count;i++){
+    let chosen={x:50,y:50},best=-Infinity;
+    for(let attempt=0;attempt<200;attempt++){
+      const x=(i===0?20:10)+random()*(i===0?60:80),y=14+random()*70;
+      const clearance=Math.min(...planets.map(p=>Math.min(Math.hypot(x-p.x,y-p.y)/27,Math.hypot((x-p.x)*3.93,(y-p.y)*8.51)/((diameters[i]+p.diameter)/2+24))),i===0&&previous?Math.hypot(x-previous.x,y-previous.y)/24:Infinity);
+      if(clearance>best){best=clearance;chosen={x,y};}
+      if(clearance>=1)break;
+    }
+    if(i===0&&previous&&best<1)chosen={x:previous.x<50?80:20,y:previous.y<50?84:14};
+    planets.push({planet:families[i],...chosen,size:diameters[i]/frameRatios[families[i]],diameter:diameters[i]});
+  }
+  return {planets,focusX:15+random()*70,focusY:random()*100,zoom:145+random()*35,tint:Math.floor(random()*3)};
+}
+
+export function cosmicBackdropStyle(scene:ReturnType<typeof cosmicBackdrop>){
+  const tones=['rgba(18,28,64,.24)','rgba(42,20,62,.24)','rgba(10,38,50,.24)'];
+  return {
+    '--cosmos-light-rgb':['111,162,255','191,128,232','97,191,207'][scene.tint],
+    '--cosmos-nebula-image':`linear-gradient(180deg,rgba(3,6,17,.54),rgba(3,6,17,.34) 45%,rgba(3,6,17,.66)),linear-gradient(${tones[scene.tint]},${tones[scene.tint]}),url("/themes/kosmos/nebula.jpg")`,
+    '--cosmos-nebula-size':`100% 100%,100% 100%,${scene.zoom.toFixed(1)}% auto`,
+    '--cosmos-nebula-position':`center,center,${scene.focusX.toFixed(1)}% ${scene.focusY.toFixed(1)}%`,
+    '--cosmos-scene-image':[
+      'linear-gradient(180deg,rgba(3,6,17,.54),rgba(3,6,17,.34) 45%,rgba(3,6,17,.66))',
+      ...scene.planets.map(p=>COSMIC_PLANETS[p.planet]),
+      `linear-gradient(${tones[scene.tint]},${tones[scene.tint]})`,
+      'url("/themes/kosmos/nebula.jpg")',
+    ].join(','),
+    '--cosmos-scene-size':['100% 100%',...scene.planets.map(p=>`${p.size.toFixed(1)}px auto`),'100% 100%',`${scene.zoom.toFixed(1)}% auto`].join(','),
+    '--cosmos-scene-position':['center',...scene.planets.map(p=>`calc(${p.x.toFixed(1)}% + ${(p.size*(p.x/100-.5)).toFixed(1)}px) calc(${p.y.toFixed(1)}% + ${(p.size*(p.planet===5?170:288)/512*(p.y/100-.5)).toFixed(1)}px)`),'center',`${scene.focusX.toFixed(1)}% ${scene.focusY.toFixed(1)}%`].join(','),
+  };
+}
+
+
+/** One immutable sky per main-menu visit. Options and detail panes are not tabs. */
+export function cosmicScreenSession(seed:number){
+  let tab:string|undefined,epoch=0;
+  let scene=cosmicBackdrop(cosmicKeySeed(seed,'screen:0'));
+  return {
+    get tab(){return tab;},get epoch(){return epoch;},get scene(){return scene;},
+    enterTab(next:string|undefined){
+      if(!next||!['map','stops','admin'].includes(next)||next===tab)return false;
+      if(tab===undefined){tab=next;return false;}
+      tab=next;epoch++;
+      scene=cosmicBackdrop(cosmicKeySeed(seed,`screen:${epoch}`),{...scene.planets[0],count:scene.planets.length});
+      return true;
+    },
+  };
+}
+
+/** Stable crop for a map sheet; live data updates never change its decoration. */
+export function mapCosmicCrop(identity:string){
+  let hash=2166136261;
+  for(const letter of identity)hash=Math.imul(hash^letter.charCodeAt(0),16777619);
+  return `${20+(hash>>>0)%61}% ${15+((hash>>>8)%71)}%`;
 }

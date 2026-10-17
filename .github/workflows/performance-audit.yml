@@ -2,8 +2,11 @@ name: Performance audit
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, perf/android-startup-and-rendering]
     paths:
+      - 'components/**'
+      - 'lib/**'
+      - 'scripts/**'
       - '.github/workflows/performance-audit.yml'
       - 'test/performance-audit.cjs'
       - 'app/page.tsx'
@@ -26,11 +29,11 @@ on:
 jobs:
   profile:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
     env:
-      PERF_BASELINE_SHA: 5ae88fbdf3a869637c0c793645d190cc8ea47efe
+      PERF_BASELINE_SHA: d552c3fd3f14ac5fc11366172c23ab89d16b24aa
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,7 +42,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - name: Prepare pre-optimization checkout and identical measurement harness
+      - name: Prepare previous build checkout and identical measurement harness
         run: |
           PERF_BASELINE_ROOT="$RUNNER_TEMP/pks-performance-before"
           echo "PERF_BASELINE_ROOT=$PERF_BASELINE_ROOT" >> "$GITHUB_ENV"
@@ -51,12 +54,14 @@ jobs:
           cp test/startup-ui-stub.ts "$PERF_BASELINE_ROOT/test/startup-ui-stub.ts"
       - name: Verify identical catalogs, names, aliases, coordinates and visible markers
         run: node test/catalog-optimization-equivalence.cjs
-      - name: Build and measure pre-optimization version
+      - name: Build and measure previous build
         run: |
           cd "$PERF_BASELINE_ROOT"
           npm run build:android:web
           node test/performance-audit.cjs
       - run: npm run build:android:web
+      - name: Compare startup bundle and verify provider pixels
+        run: node test/performance-assets.cjs "$PERF_BASELINE_ROOT"
       - name: Measure CPU, map, refresh and panels
         run: node test/performance-audit.cjs
       - name: Compare versions on the same runner

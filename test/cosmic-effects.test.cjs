@@ -1,13 +1,13 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),load=require('./load-ts.cjs');
-const {COSMIC_METEOR_INTERVAL,COSMIC_METEOR_DURATION,cosmicMotionAllowed,cosmicMeteorScheduler}=load('lib/cosmic-effects.ts');
+const {COSMIC_METEOR_INTERVAL,COSMIC_METEOR_DURATION,COSMIC_METEOR_MIN_INTERVAL,COSMIC_METEOR_MAX_INTERVAL,cosmicMeteorDelay,cosmicMotionAllowed,cosmicMeteorScheduler}=load('lib/cosmic-effects.ts');
 const normal={theme:'dark-cosmos',hidden:false,nativeActive:true,reducedMotion:false,lightEffects:false};
 test('cosmic motion stops for hidden/native background apps, both reduced motion preferences, light effects and other themes',()=>{
  assert.equal(cosmicMotionAllowed(normal),true);
- for(const change of [{hidden:true},{nativeActive:false},{reducedMotion:true},{lightEffects:true},{theme:'dark-oled'},{hasRegion:false}])assert.equal(cosmicMotionAllowed({...normal,...change}),false);
+ for(const change of [{hidden:true},{nativeActive:false},{reducedMotion:true},{lightEffects:true},{theme:'dark-oled'},{hasRegion:false},{tab:'map'}])assert.equal(cosmicMotionAllowed({...normal,...change}),false);
  assert.ok(COSMIC_METEOR_DURATION<=800);assert.ok(COSMIC_METEOR_INTERVAL>=8000);
 });
 test('meteor scheduler is idle between short effects and has zero wakeups when disabled; resume creates only one timer',()=>{
- let enabled=true,next=1,runs=0;const timers=new Map();const clock={set:(fn,ms)=>{assert.equal(ms,COSMIC_METEOR_INTERVAL);const id=next++;timers.set(id,fn);return id;},clear:id=>timers.delete(id)};
+ let enabled=true,next=1,runs=0;const timers=new Map();const clock={set:(fn,ms)=>{assert.ok(ms>=COSMIC_METEOR_MIN_INTERVAL&&ms<=COSMIC_METEOR_MAX_INTERVAL);const id=next++;timers.set(id,fn);return id;},clear:id=>timers.delete(id)};
  const scheduler=cosmicMeteorScheduler(()=>enabled,()=>runs++,clock);scheduler.refresh();scheduler.refresh();assert.equal(timers.size,1);
  const fire=()=>{const [id,fn]=timers.entries().next().value;timers.delete(id);fn();};fire();assert.equal(runs,1);assert.equal(timers.size,1);
  enabled=false;scheduler.refresh();assert.equal(timers.size,0);
@@ -20,7 +20,7 @@ test('visibility loss just before a timer fires cannot start a meteor',()=>{
 test('Kosmos replaces Aurora, stays black at first paint, survives backups and uses a small static vector atlas',()=>{
  const {THEME_MODES,normalizeAppTheme,THEME_SCREEN_COLORS,themeDecoration}=load('lib/app-theme.ts');
  assert.ok(THEME_MODES.includes('dark-cosmos'));assert.equal(THEME_MODES.includes('dark-aurora'),false);assert.equal(normalizeAppTheme('dark-aurora'),'dark-cosmos');assert.equal(THEME_SCREEN_COLORS['dark-cosmos'].background,'#000000');
- const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),preset=INTERFACE_PRESETS.find(p=>p.name==='Kosmos');assert.equal(preset.glass,false);assert.equal(preset.glow,false);assert.equal(preset.appearance.glassBlur,0);
+ const {INTERFACE_PRESETS}=load('lib/interface-presets.ts'),preset=INTERFACE_PRESETS.find(p=>p.name==='Kosmos');assert.equal(preset.glass,true);assert.equal(preset.glow,false);assert.equal(preset.appearance.glassBlur,12);
  const {exportAppearanceBackup,parseAppearanceBackup}=load('lib/appearance-backup.ts');const profile={...preset,id:'current',updatedAt:1};assert.equal(parseAppearanceBackup(exportAppearanceBackup(profile,[],{},false)).current.theme,'dark-cosmos');
  const atlas=decodeURIComponent(themeDecoration('dark-cosmos'));assert.ok(atlas.length<44000);assert.match(atlas,/id="sky-cloud"/);assert.ok((atlas.match(/<circle /g)||[]).length>=180);assert.doesNotMatch(atlas,/<animate|<filter|<image/);
 });
@@ -87,4 +87,115 @@ test('cosmic nebulae contain fine stars without oversized cross shapes, and depa
  for(const image of COSMIC_DUST){const svg=decodeURIComponent(image);assert.doesNotMatch(svg,/<path|<rect/);assert.ok((svg.match(/<circle/g)||[]).length>=350);const radii=[...svg.matchAll(/\br="([\d.]+)"/g)].map(match=>Number(match[1]));assert.ok(Math.max(...radii)<=4);}
  for(let seed=0;seed<40;seed++){const style=cosmicPanelStyle(seed,true);assert.ok([...COSMIC_PLANETS,COSMIC_SUN].includes(style['--cosmos-planet']));assert.equal(style['--cosmos-planet-size'],'56px');assert.deepEqual(style,cosmicPanelStyle(seed,true));}
  const {COSMIC_STAR_POSITIONS,COSMIC_TWINKLE_INTERVAL}=load('lib/cosmic-effects.ts');assert.ok(COSMIC_STAR_POSITIONS.length>=12&&COSMIC_STAR_POSITIONS.length<=18);assert.ok(COSMIC_TWINKLE_INTERVAL>=9000);
+});
+
+
+test('screen compositions stay stable on refresh and change on tab re-entry and restart',()=>{
+ const {cosmicBackdrop,cosmicBackdropStyle,cosmicVisitSession}=load('lib/cosmic-scene.ts');
+ const session=cosmicVisitSession(100);session.enter('stops');
+ const first=cosmicBackdrop(session.seedFor('screen-sky'));
+ session.enter('stops');assert.deepEqual(cosmicBackdrop(session.seedFor('screen-sky')),first);
+ session.enter('map');session.enter('stops');assert.notDeepEqual(cosmicBackdrop(session.seedFor('screen-sky')),first);
+ const restarted=cosmicVisitSession(101);restarted.enter('stops');assert.notDeepEqual(cosmicBackdrop(restarted.seedFor('screen-sky')),first);
+ assert.match(cosmicBackdropStyle(first)['--cosmos-scene-image'],/nebula.jpg/);
+});
+test('compositions separate distinct planet families and keep them within the viewport',()=>{
+ const {cosmicBackdrop}=load('lib/cosmic-scene.ts');
+ for(let seed=0;seed<1000;seed++){
+  const scene=cosmicBackdrop(seed);assert.ok(scene.planets.length>=2&&scene.planets.length<=4);
+  assert.equal(new Set(scene.planets.map(p=>p.planet)).size,scene.planets.length);
+  assert.ok(scene.planets[0].diameter>=90&&scene.planets[1].diameter>=46);
+  assert.ok(scene.planets[0].diameter>scene.planets[1].diameter*1.35);
+  for(const [i,p] of scene.planets.entries()){
+   assert.ok(p.x>=10&&p.x<=90&&p.y>=10&&p.y<=95);
+   for(const q of scene.planets.slice(i+1))assert.ok(Math.hypot(p.x-q.x,p.y-q.y)>=27);
+  }
+ }
+});
+
+
+test('screen sky is created once and only main menu changes may replace it',()=>{
+ const {cosmicScreenSession}=load('lib/cosmic-scene.ts');
+ const session=cosmicScreenSession(943),first=session.scene;
+ assert.equal(session.enterTab(undefined),false);
+ assert.equal(session.enterTab('stops'),false,'initial navigation adopts the startup sky');
+ for(const next of ['stops','options',undefined,'stop:123','admin:devices','carriers','stops']){
+  assert.equal(session.enterTab(next),false);assert.strictEqual(session.scene,first);
+ }
+ assert.equal(session.epoch,0);
+ assert.equal(session.enterTab('map'),true);assert.notDeepEqual(session.scene,first);
+ const map=session.scene;session.enterTab('options');session.enterTab('map');assert.strictEqual(session.scene,map);
+ session.enterTab('stops');assert.notDeepEqual(session.scene,first);
+ const restart=cosmicScreenSession(944);restart.enterTab('stops');assert.notDeepEqual(restart.scene,first);
+});
+
+
+test('each meteor schedules a fresh random pause without resetting on UI refresh',()=>{
+ const delays=[],timers=new Map();let next=0,calls=0;
+ const values=[0,.5,1],clock={set:(fn,ms)=>{delays.push(ms);timers.set(++next,fn);return next;},clear:id=>timers.delete(id)};
+ const scheduler=cosmicMeteorScheduler(()=>true,()=>{},clock,()=>cosmicMeteorDelay(()=>values[calls++]));
+ scheduler.refresh();scheduler.refresh();assert.equal(calls,1);
+ for(let i=0;i<2;i++){const [id,fn]=timers.entries().next().value;timers.delete(id);fn();}
+ assert.deepEqual(delays,[3000,8000,13000]);scheduler.stop();assert.equal(timers.size,0);
+});
+
+
+test('parallax is bounded for extreme sensor readings and rejects invalid numbers',()=>{
+ const {cosmicParallaxOffset}=load('lib/cosmic-effects.ts');
+ assert.deepEqual(cosmicParallaxOffset(100,-100),{x:7,y:-5});
+ assert.deepEqual(cosmicParallaxOffset(NaN,Infinity),{x:0,y:0});
+ assert.deepEqual(cosmicParallaxOffset(0,0),{x:0,y:0});
+});
+test('rare celestial accents stay sparse and use the existing meteor clock',()=>{
+ const {cosmicAccentEvent}=load('lib/cosmic-effects.ts');
+ const events=Array.from({length:1000},(_,i)=>cosmicAccentEvent(()=>i/1000));
+ assert.equal(events.filter(e=>e==='nova').length,80);
+ assert.equal(events.filter(e=>e==='fragment').length,140);
+ assert.equal(events.filter(e=>e==='meteor').length,780);
+});
+test('cinematic layers derive their light and nebula from the unchanged screen scene',()=>{
+ const {cosmicScreenSession,cosmicBackdropStyle}=load('lib/cosmic-scene.ts');const session=cosmicScreenSession(42);
+ const style=cosmicBackdropStyle(session.scene);assert.match(style['--cosmos-nebula-image'],/nebula.jpg/);assert.match(style['--cosmos-light-rgb'],/^\d+,\d+,\d+$/);
+ session.enterTab('stops');session.enterTab('options');assert.deepEqual(cosmicBackdropStyle(session.scene),style);
+});
+
+
+test('main-tab visits visibly relocate the dominant planet without refreshing on data or Options',()=>{
+ const {cosmicScreenSession}=load('lib/cosmic-scene.ts');
+ for(let seed=0;seed<100;seed++){
+  const session=cosmicScreenSession(seed);session.enterTab('map');
+  for(const tab of ['stops','admin','stops','map','stops']){
+   const previous=session.scene.planets[0];session.enterTab(tab);
+   const next=session.scene.planets[0];assert.ok(Math.hypot(next.x-previous.x,next.y-previous.y)>=24);
+   const stable=session.scene;session.enterTab(tab);session.enterTab('options');assert.equal(session.scene,stable);
+  }
+ }
+});
+
+
+test('meteor and comet delays have separate bounded distributions averaging 8s and 15s',()=>{
+ const {cosmicMeteorDelay,cosmicCometDelay,cosmicMeteorScheduler}=load('lib/cosmic-effects.ts');
+ let m=0,c=0;for(let i=0;i<=1000;i++){m+=cosmicMeteorDelay(()=>i/1000);c+=cosmicCometDelay(()=>i/1000);}
+ assert.equal(m/1001,8000);assert.equal(c/1001,15000);
+ let enabled=true,id=0;const timers=new Map(),clock={set:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},clear:id=>timers.delete(id)};
+ const meteor=cosmicMeteorScheduler(()=>enabled,()=>{},clock,()=>cosmicMeteorDelay(()=>.5));
+ const comet=cosmicMeteorScheduler(()=>enabled,()=>{},clock,()=>cosmicCometDelay(()=>.5));
+ meteor.refresh();comet.refresh();assert.deepEqual([...timers.values()].map(t=>t.ms),[8000,15000]);
+ enabled=false;meteor.refresh();comet.refresh();assert.equal(timers.size,0);meteor.stop();comet.stop();
+});
+test('planet scenes cover the screen, offer 2/3/4 bodies and a strong near-to-far size hierarchy',()=>{
+ const {cosmicBackdrop}=load('lib/cosmic-scene.ts');const counts=new Set(),cells=new Set();
+ for(let seed=0;seed<1000;seed++){
+  const scene=cosmicBackdrop(seed);counts.add(scene.planets.length);const p=scene.planets[0];cells.add(Math.floor(p.x/15)+':'+Math.floor(p.y/15));
+  scene.planets.forEach((p,i)=>{if(i)assert.ok(scene.planets[i-1].diameter>p.diameter*1.2);});
+ }
+ assert.deepEqual([...counts].sort(),[2,3,4]);assert.ok(cells.size>=20,'dominant planets are not locked to two bands');
+});
+
+test('map-sheet sky crops stay stable for data refreshes and vary between selected objects',()=>{
+ const {mapCosmicCrop}=load('lib/cosmic-scene.ts');
+ assert.equal(mapCosmicCrop('bus:87'),mapCosmicCrop('bus:87'));
+ const crops=Array.from({length:100},(_,i)=>mapCosmicCrop('stop:'+i));
+ assert.ok(new Set(crops).size>80);
+ for(const crop of crops){const [x,y]=crop.split(' ').map(parseFloat);assert.ok(x>=20&&x<=80&&y>=15&&y<=85);}
 });

@@ -2,14 +2,19 @@
 import {readBusCoordinates} from './bus-coordinates';
 import {useEffect,useState,useRef} from 'react';
 import type {Stop} from '@/Panel/src/types';
-import {buildStopsCatalogAsync} from './stops-catalog-async';
+import {buildStopsCatalogAsync,restoreStopsCatalog} from './stops-catalog-async';
 import {readStopsCatalogCache,peekStopsCatalogCache,type CatalogSnapshot} from './stops-catalog-cache';
 import {fetchMpkRzeszowStopsClient} from './pks-client';
 import {ensureMpkCityPrefix,stopCollectionSignature,getMarcelStopsIndex,selectedDateIso} from '@/components/stops-panel/stop-domain';
 import type {RawStop} from '@/components/stops-panel/stop-domain';
 
+const EMPTY_MAP_STOPS:Stop[]=[];
+
 function physicalCatalog(pks:RawStop[],mpk:CatalogSnapshot['mpk'],marcel:CatalogSnapshot['marcel']){
-  return buildStopsCatalogAsync(pks,mpk,marcel,[pks,mpk,marcel].map(stopCollectionSignature).join('|'),true);
+  const key=[pks,mpk,marcel].map(stopCollectionSignature).join('|');
+  const snapshot=peekStopsCatalogCache();
+  if(snapshot)restoreStopsCatalog(snapshot,key);
+  return buildStopsCatalogAsync(pks,mpk,marcel,key,true);
 }
 
 /** Load only the stop catalog when enabled; departures are fetched after selection. */
@@ -55,5 +60,5 @@ export function useMapStops(enabled:boolean,pks:RawStop[],loadMarcel=false){
     window.addEventListener('pks-live:catalog-updated',updated);
     return()=>{active=false;window.clearTimeout(scheduled);controller.abort();window.removeEventListener('pks-live:catalog-updated',updated);window.removeEventListener('pks-live:mpk-stops-updated',mpkUpdated);};
   },[enabled,pks,loadMarcel]);
-  return enabled?stops:[];
+  return enabled?stops:EMPTY_MAP_STOPS;
 }

@@ -214,12 +214,12 @@ service cloud.firestore {
     function userInstallationUpdateAllowed(data) {
       return data.get('loginApproved', true) == existing().get('loginApproved', true) && callerDeviceExists() &&
              callerDeviceData().role == 'user' &&
+             callerDeviceData().get('installationId', '') == data.installationId &&
              data.role == 'user' &&
              (!(data.verified is bool) || data.verified == false) &&
              userPermissionsAreSafe(data) &&
              (
-               !(data.status is string) ||
-               data.status == existing().status ||
+               (data.status == existing().status && data.get('banDetails', null) == existing().get('banDetails', null)) ||
                (data.status == 'banned' && autoBanUnverifiedEnabled() && hasAutoBanDetails(data))
              );
     }
@@ -258,6 +258,7 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/installations/$(instId)) &&
              data.role in ['owner', 'admin', 'user'] &&
              data.role == profile.role &&
+             (profile.get('banDetails', null) == null || data.get('banDetails', null) == profile.banDetails) &&
              data.get('loginApproved', true) == profile.get('loginApproved', true) &&
              (
                !(data.verified is bool) ||
@@ -265,7 +266,8 @@ service cloud.firestore {
                (!(profile.verified is bool) && data.verified == false) ||
                data.role in ['owner', 'admin']
              ) &&
-             (!(data.status is string) || !(profile.status is string) || data.status == profile.status) &&
+             data.status in ['active', 'banned'] &&
+             (profile.get('status', null) == null || data.status == profile.status) &&
              data.permissions is map && data.permissions == profile.permissions &&
              (
                profile.role == 'user' ||
@@ -278,7 +280,8 @@ service cloud.firestore {
     function previousInstallationDeviceReadable(deviceId) {
       let instId = existing().get('installationId', '');
       let path = /databases/$(database)/documents/installations/$(instId);
-      return isValidId(instId) && exists(path) && get(path).data.get('lastUid', '') == deviceId;
+      return isValidId(instId) && exists(path) && callerDeviceExists() &&
+             callerDeviceData().get('installationId', '') == instId;
     }
 
     function deviceReinstallationTransferAllowed(deviceId) {
@@ -287,8 +290,8 @@ service cloud.firestore {
       let newPath = /databases/$(database)/documents/devices/$(request.auth.uid);
       let profile = get(path).data;
       let restored = getAfter(newPath).data;
-      return isValidId(instId) && exists(path) && !exists(newPath) &&
-             profile.get('lastUid', '') == deviceId &&
+      return isValidId(instId) && exists(path) &&
+             profile.get('lastUid', '') in [deviceId, request.auth.uid] &&
              getAfter(path).data.lastUid == request.auth.uid &&
              restored.installationId == instId &&
              restored.role == profile.role && restored.permissions == profile.permissions &&
@@ -424,8 +427,13 @@ service cloud.firestore {
     }
 
     match /installations/{installationId} {
-      // Shared installation profile used to keep role/permissions stable across localhost ports.
-      allow read: if isSignedIn() && isValidId(installationId);
+      // A fresh Auth UID must still fetch a known profile after reinstall.
+      // Existing users can read only their own profile; enumeration is admin-only.
+      allow get: if isSignedIn() && isValidId(installationId) && (
+        !callerDeviceExists() || canListDevices() ||
+        callerDeviceData().get('installationId', '') == installationId
+      );
+      allow list: if isSignedIn() && canListDevices();
       allow create: if isSignedIn() && isValidId(installationId) &&
                     incoming().installationId == installationId &&
                     incoming().updatedBy == request.auth.uid &&
@@ -492,6 +500,52 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(logId) && isCallerOwner();
     }
 
+    function validApiBucket(bucket) {
+      return bucket is map && bucket.keys().hasOnly(['requests', 'errors', 'latencyMs']) &&
+        bucket.requests is int && bucket.requests >= 0 && bucket.requests <= 1000000000 &&
+        bucket.errors is int && bucket.errors >= 0 && bucket.errors <= bucket.requests &&
+        (bucket.latencyMs is int || bucket.latencyMs is float) &&
+        bucket.latencyMs >= 0 && bucket.latencyMs <= bucket.requests * 120000;
+    }
+    function validApiReport(data, reportId) {
+      return get(/databases/$(database)/documents/admin_settings/security).data.get('apiStatisticsVersion', 0) == 1 &&
+        callerDeviceExists() && callerDeviceData().get('status', 'active') == 'active' &&
+        callerDeviceData().get('loginApproved', true) != false &&
+        data.keys().hasOnly(['stream', 'date', 'installationId', 'uid', 'startedAt', 'providers', 'updatedAt']) &&
+        data.stream is string && data.stream.matches('^[a-f0-9]{64}$') &&
+        data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        reportId == data.stream + '_' + data.date && data.uid == request.auth.uid &&
+        data.installationId == callerDeviceData().get('installationId', '') && isValidId(data.installationId) &&
+        data.startedAt is int && data.startedAt > 0 && data.startedAt <= request.time.toMillis() + 86400000 &&
+        data.updatedAt == request.time && data.providers is map &&
+        data.providers.keys().hasOnly(['pks', 'mpk_rzeszow', 'marcel']) &&
+        validApiBucket(data.providers.pks) && validApiBucket(data.providers.mpk_rzeszow) && validApiBucket(data.providers.marcel);
+    }
+    function apiBucketDoesNotDecrease(next, previous) {
+      return next.requests >= previous.requests && next.errors >= previous.errors && next.latencyMs >= previous.latencyMs;
+    }
+    function canReadApiStatistics() {
+      let key = callerDeviceData().get('installationId', '') == '' ? request.auth.uid : callerDeviceData().installationId;
+      let settings = /databases/$(database)/documents/admin_settings/statistics_access;
+      return callerDeviceExists() && callerDeviceData().get('status', 'active') == 'active' && (
+        isCallerOwner() || (callerDeviceData().role == 'admin' &&
+          (!exists(settings) || get(settings).data.get('statisticsAccess', {}).get(key, true) != false))
+      );
+    }
+    match /api_statistics/{reportId} {
+      allow get: if isSignedIn() && (canReadApiStatistics() ||
+        (callerDeviceExists() && existing().installationId == callerDeviceData().get('installationId', '')));
+      allow list: if isSignedIn() && canReadApiStatistics();
+      allow create: if isSignedIn() && validApiReport(incoming(), reportId);
+      allow update: if isSignedIn() && validApiReport(incoming(), reportId) &&
+        incoming().installationId == existing().installationId && incoming().stream == existing().stream &&
+        incoming().date == existing().date && incoming().startedAt == existing().startedAt &&
+        apiBucketDoesNotDecrease(incoming().providers.pks, existing().providers.pks) &&
+        apiBucketDoesNotDecrease(incoming().providers.mpk_rzeszow, existing().providers.mpk_rzeszow) &&
+        apiBucketDoesNotDecrease(incoming().providers.marcel, existing().providers.marcel);
+      allow delete: if false;
+    }
+
     // Spark maintenance uses client transactions, authorized independently of UI.
     function maintenanceEditor() {
       return isSignedIn() && canWriteGlobalAdminSettings() &&
@@ -545,11 +599,15 @@ service cloud.firestore {
     }
     match /admin_settings/{settingId} {
       allow read: if isSignedIn() && isValidId(settingId) &&
-        (settingId == 'security' || settingId == 'transport_runtime' || canReadGlobalAdminSettings());
+        (settingId == 'security' || settingId == 'transport_runtime' ||
+         (settingId == 'statistics_access' ? canListDevices() : canReadGlobalAdminSettings()));
       allow create, update: if isSignedIn() && isValidId(settingId) && (
+        (settingId == 'statistics_access' && isCallerOwner() &&
+         incoming().keys().hasOnly(['statisticsAccess']) && incoming().statisticsAccess is map) ||
         (settingId == 'transport_runtime' && maintenanceEditor() && validRuntime(incoming())) ||
         (settingId == 'maintenance' && maintenanceEditor() && validMaintenanceSettings(incoming())) ||
-        (!(settingId in ['transport_runtime', 'maintenance']) && canWriteGlobalAdminSettings())
+        (!(settingId in ['transport_runtime', 'maintenance', 'statistics_access']) && canWriteGlobalAdminSettings() &&
+         (settingId != 'security' || !incoming().keys().hasAny(['statisticsAccess'])))
       );
       allow delete: if false;
     }

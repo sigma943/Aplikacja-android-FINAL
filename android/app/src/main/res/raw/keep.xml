@@ -1,0 +1,2 @@
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@id/widget_spinner_frame_*,@drawable/widget_refresh" />

@@ -30,9 +30,19 @@ async function cpuAudit() {
   const post=(method,params={})=>new Promise((resolve,reject)=>session.post(method,params,(e,r)=>e?reject(e):resolve(r)));
   await post('Profiler.enable');await post('Profiler.start');
   try {
+    const platformPoints=require('../public/data/stop-platforms.json').points;
+    const prepared=positions.createPlatformIndex?.(platformPoints);
+    benchmark('platform index prepare',()=>positions.createPlatformResolver(platformPoints,false,prepared),30);
     benchmark('catalog first build',()=>catalog.buildStopsCatalog(pks,mpk,[],'audit-first'),1);
     benchmark('catalog cold: PKS + MPK',i=>catalog.buildStopsCatalog(pks,mpk,[],'audit-cold-'+i),8);
     const stops=catalog.buildStopsCatalog(pks,mpk,[],'audit-warm');
+    const asyncCatalog=load('lib/stops-catalog-async.ts',{'@/lib/pks-client':{},'./stops-catalog-worker-factory':{}},'',modules);
+    benchmark('catalog reopen from persistent snapshot',i=>{
+      const key='audit-reopen-'+i;
+      const snapshot={version:4,rulesVersion:1,catalogKey:key,baseStops:stops,pks,mpk,marcel:[],lines:{},stops};
+      if(!asyncCatalog.restoreStopsCatalog?.(snapshot,key))catalog.buildStopsCatalog(pks,mpk,[],key);
+    },8);
+    catalog.buildStopsCatalog(pks,mpk,[],'audit-warm');
     benchmark('catalog cache hit: PKS + MPK',()=>catalog.buildStopsCatalog(pks,mpk,[],'audit-warm'));
     benchmark('physical map catalog cold',i=>catalog.buildStopsCatalog(pks,mpk,[],'audit-physical-'+i,true),8);
     catalog.buildStopsCatalog(pks,mpk,[],'audit-physical-warm',true);
@@ -88,11 +98,11 @@ async function browserAudit(fixture, runIndex) {
       window.auditLongTasks=[];new PerformanceObserver(list=>window.auditLongTasks.push(...list.getEntries().map(e=>({start:e.startTime,duration:e.duration})))).observe({type:'longtask',buffered:true});
       window.auditFrames=[];let last;function frame(now){if(last!==undefined)window.auditFrames.push({start:last,duration:now-last});last=now;requestAnimationFrame(frame);}requestAnimationFrame(frame);
     });
-    let fleetSize=100, feedRequests=0;
+    let fleetSize=100, feedRequests=0, reachabilityRequests=0;
     await page.setRequestInterception(true);
     page.on('request',request=>{
       const url=request.url();const json=data=>request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});
-      if(url.startsWith('https://www.gstatic.com/generate_204'))return request.respond({status:204,body:''});
+      if(url.startsWith('https://www.gstatic.com/generate_204')){reachabilityRequests++;return request.respond({status:204,body:''});}
       if(url.includes('/pks/get_vehicles.php')) {
         feedRequests++;
         const date=new Date().toLocaleString('sv-SE',{timeZone:'Europe/Warsaw'});
@@ -131,8 +141,45 @@ async function browserAudit(fixture, runIndex) {
     await measure('bus-panel',async()=>{await page.click('.mks-bus-marker');await page.waitForSelector('[data-map-bus-sheet]');await page.click('[aria-label="Rozwiń panel autobusu"]');await pause(1500);});
     const button=async label=>page.evaluate(text=>{const b=[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text);if(!b)throw new Error('Missing button '+text);b.click();},label);
     await measure('stop-list-open',async()=>{await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');await page.waitForSelector('[data-stop-card-id]');await pause(700);});
+    await measure('hidden-map-idle',()=>pause(4000));
     await measure('stop-list-search',async()=>{await page.type('input[placeholder*="Babica"]','Rzeszów',{delay:100});await page.waitForSelector('[data-stop-card-id]');await pause(1000);});
     await measure('stop-panel',async()=>{await page.evaluate(()=>document.querySelector('[data-stop-card-id]').click());await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');await pause(1500);});
+    await measure('options-open',async()=>{
+      await button('Opcje');await page.waitForSelector('[data-options-sheet]');await pause(1000);
+      return {nodes:await page.$$eval('[data-options-sheet] *',nodes=>nodes.length)};
+    });
+    await measure('options-personalization',async()=>{
+      await page.click('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');await pause(1000);
+      return {nodes:await page.$$eval('[data-options-sheet] *',nodes=>nodes.length),controls:await page.$$eval('[data-personalization-panel] input,[data-personalization-panel] select',nodes=>nodes.length)};
+    });
+    await page.evaluate(()=>document.querySelector('[data-options-sheet]').parentElement.click());
+    await page.waitForSelector('[data-options-sheet]',{hidden:true});
+    await measure('background-35s',async()=>{
+      // Allow any foreground request already in flight to settle, then count only hidden work.
+      await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
+      await pause(1000);
+      const probes=reachabilityRequests, feeds=feedRequests;
+      const heartbeats=await page.evaluate(()=>window.__startupHeartbeatWrites||0);
+      await pause(35000);
+      const result={reachabilityRequests:reachabilityRequests-probes,vehicleRequests:feedRequests-feeds,heartbeatWrites:(await page.evaluate(()=>window.__startupHeartbeatWrites||0))-heartbeats};
+      if(fs.existsSync('lib/home/panel-code.ts')) {
+        const assert=require('node:assert/strict');
+        assert.equal(result.reachabilityRequests,0,'No connectivity radio probes while hidden');
+        assert.equal(result.vehicleRequests,0,'No vehicle polling while hidden');
+        assert.equal(result.heartbeatWrites,0,'No administrative presence heartbeat while hidden');
+        assert.equal(await page.evaluate(()=>window.__startupNetworkDisabled),true,'Firestore network disabled while hidden');
+      }
+      await page.evaluate(()=>{delete document.visibilityState;delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});
+      await page.waitForFunction(count=>(window.__startupHeartbeatWrites||0)>count,{},heartbeats);
+      if(fs.existsSync('lib/app-activity.ts')) {
+        const assert=require('node:assert/strict');
+        await page.evaluate(()=>{document.dispatchEvent(new Event('visibilitychange'));document.dispatchEvent(new Event('visibilitychange'));});
+        await pause(250);
+        assert.equal(await page.evaluate(()=>window.__startupNetworkDisabled),false,'Firestore reconnects on resume');
+        assert.equal(await page.evaluate(()=>window.__startupHeartbeatWrites||0),heartbeats+1,'Exactly one presence refresh on resume');
+      }
+      return result;
+    });
     const workerJobs=await page.evaluate(()=>window.auditCatalogJobs);
     report.catalogWorker={jobs:workerJobs.length,errors:await page.evaluate(()=>window.auditCatalogWorkerErrors)};
     if(fs.existsSync('lib/stops-catalog.worker.ts')) {

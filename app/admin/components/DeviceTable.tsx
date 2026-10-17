@@ -576,7 +576,7 @@ export function DeviceTable({
                     <div className="font-mono text-[11px] text-slate-400 break-all leading-tight font-bold">{device.installationId || device.deviceId}</div>
                   </div>
                   <div className="flex flex-col items-end text-right border-l border-white/5">
-                    <div className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Logowanie</div>
+                    <div className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Pierwsze logowanie</div>
                     <div className="text-xs text-slate-300 font-bold">{device.firstLogin.split(',')[0]}</div>
                     <div className="text-[10px] text-slate-500 font-medium">{device.firstLogin.split(',')[1]}</div>
                   </div>
@@ -597,7 +597,7 @@ export function DeviceTable({
             );
           }) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pks-personal-card bg-[#111623] border border-white/5 rounded-3xl p-16 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
-              {devicesError ? 'Brak dostępu do listy urządzeń' : 'Nie znaleziono aktywnych urządzeń'}
+              {devicesError ? 'Brak dostępu do listy urządzeń' : 'Brak pasujących wyników wyszukiwania'}
             </motion.div>
           )}
         </AnimatePresence>
@@ -661,7 +661,7 @@ export function DeviceTable({
                 }) : (
                   <tr>
                     <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                      {devicesError ? 'Brak dostępu do listy urządzeń.' : 'Nie znaleziono urządzeń.'}
+                      {devicesError ? 'Brak dostępu do listy urządzeń.' : 'Brak pasujących wyników wyszukiwania'}
                     </td>
                   </tr>
                 )}

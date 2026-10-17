@@ -50,3 +50,18 @@ test('existing legacy installations stay admitted when new logins close',async()
  await c.registerRestoredDevice({},'legacy-device-uid',id,'Phone',false,{});
  assert.equal(c.records.get('devices/legacy-device-uid').loginApproved,true);
 });
+
+test('unmigrated metadata keeps legacy precedence; migrated profiles restore without reading another UID', async () => {
+ const id='android_7123456789abcdef';
+ const profile={installationId:id,lastUid:'previous-uid',role:'admin',permissions:{monitor:true},verified:true,status:'active',firstLogin:'2026-01-01'};
+ const previous={...profile,firstLogin:'2025-01-01',deviceName:'Original phone'};
+ const legacy=client({['installations/'+id]:profile,'devices/previous-uid':previous});
+ await legacy.registerRestoredDevice({},'next-uid',id,'Phone',false,{});
+ assert.equal(legacy.records.get('devices/next-uid').firstLogin,previous.firstLogin);
+ const migrated=client({['installations/'+id]:{...previous,restorationMetadataVersion:1},'devices/previous-uid':previous});
+ await migrated.registerRestoredDevice({},'next-uid',id,'Phone',false,{});
+ assert.equal(migrated.calls.includes('devices/previous-uid'),false);
+ assert.equal(migrated.records.has('devices/previous-uid'),false);
+ assert.equal(migrated.records.get('devices/next-uid').firstLogin,previous.firstLogin);
+ assert.equal(migrated.records.get('devices/next-uid').deviceName,previous.deviceName);
+});

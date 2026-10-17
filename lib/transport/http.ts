@@ -5,6 +5,8 @@ import {transportApiBase} from '../transport-runtime';
 
 import {Capacitor, CapacitorHttp} from '@capacitor/core';
 
+import {foregroundRequest} from '../app-activity';
+
 import {withRequestDeadline} from '../request-deadline';
 
 import {TRANSPORT_API_BASE_URL} from '../transport/endpoints';
@@ -22,11 +24,12 @@ function einfoFallbackUrl(pathAndOptionalQuery: string) {
 
 async function requestJson<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
   const diagnostic=diagnosticRequest(url);
-  const load=()=>withRequestDeadline((signal) => requestJsonImpl<T>(url, { ...init, signal }), init?.signal || undefined);
+  const load=()=>foregroundRequest(activeSignal => withRequestDeadline((signal) => requestJsonImpl<T>(url, { ...init, signal }), activeSignal), init?.signal);
   return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,value=>diagnosticCount(url,value),undefined,'request',diagnosticSource(url)):load();
 }
 
 async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
+  init?.signal?.throwIfAborted();
   if (isNative() && !isWidgetRunner()) {
     let data: unknown;
     if (typeof init?.body === 'string' && init.body) {
@@ -45,6 +48,7 @@ async function requestJsonImpl<T>(url: string, init?: RequestInit & {headers?: R
       readTimeout: 12000,
     });
 
+    init?.signal?.throwIfAborted();
     if (response.status < 200 || response.status >= 300) {
       throw transportHttpError(response.status, response.data);
     }
@@ -82,12 +86,13 @@ async function requestEinfoJson<T>(pathAndOptionalQuery: string, init?: RequestI
 }
 
 async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
-  const load=()=>withRequestDeadline((signal) => requestTextImpl(url, { ...init, signal }), init?.signal || undefined);
+  const load=()=>foregroundRequest(activeSignal => withRequestDeadline((signal) => requestTextImpl(url, { ...init, signal }), activeSignal), init?.signal);
   const diagnostic=diagnosticRequest(url);
   return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,text=>/GetVehicles|vehicles_proxy/.test(url)?(text.match(/<V\s/g)||[]).length:/GetVehicleTimeTable/.test(url)?(text.match(/<Stop\s/g)||[]).length:undefined,undefined,'request',diagnosticSource(url)):load();
 }
 
 async function requestTextImpl(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
+  init?.signal?.throwIfAborted();
   if (isNative() && !isWidgetRunner()) {
     const response = await CapacitorHttp.request({
       url,
@@ -97,6 +102,7 @@ async function requestTextImpl(url: string, init?: RequestInit & {headers?: Reco
       readTimeout: 12000,
     });
 
+    init?.signal?.throwIfAborted();
     if (response.status < 200 || response.status >= 300) {
       throw transportHttpError(response.status, response.data);
     }

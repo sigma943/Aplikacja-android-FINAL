@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {execFileSync} from 'node:child_process';
 
 const root = process.cwd();
 const outDir = path.join(root, 'out');
@@ -53,3 +54,7 @@ copyDir(publicDir, outDir);
 if (!fs.existsSync(path.join(outDir, 'index.html'))) {
   throw new Error('Failed to assemble Android web assets: out/index.html is missing.');
 }
+
+execFileSync(process.execPath, ['scripts/build-platform-index.cjs'], {stdio:'inherit'});
+
+execFileSync(process.execPath, ['scripts/optimize-provider-png.cjs'], {stdio:'inherit'});

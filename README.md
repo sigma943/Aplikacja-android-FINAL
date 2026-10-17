@@ -154,9 +154,40 @@ Dostępne ustawienia:
 - `maintenanceMode` - tryb przerwy technicznej,
 - `autoBan` - przełącznik automatycznych blokad.
 
+Mapa dostępu do statystyk znajduje się osobno w `admin_settings/statistics_access`.
+Czytają ją administratorzy i właściciel, a zmienia wyłącznie właściciel.
+Nie należy zapisywać identyfikatorów urządzeń w publicznym dokumencie `security`.
+Workflow `Deploy Firestore rules (Spark)` przenosi starszą mapę w transakcji,
+zachowując ustawienia i ograniczenia. Dodatkowo kopiuje datę pierwszego logowania
+i nazwę ze starego UID do profilu tej samej instalacji, aby rejestracja nie musiała
+udostępniać obcych dokumentów nowym kontom. Role, bany i uprawnienia pozostają
+bez zmian. Przed wdrożeniem reguł należy zaktualizować APK właściciela oraz
+administratorów korzystających z ograniczenia statystyk; starszy APK odczytuje
+i zapisuje tę mapę w poprzednim miejscu.
+
+Odczyt listy instalacji wymaga uprawnień administratora. Zarejestrowany użytkownik
+może odczytać tylko własny profil instalacji. Nowy UID po reinstalacji nadal może
+odczytać profil po znanym identyfikatorze, aby automatycznie odzyskać role i bany.
+Ta zgodność nie stanowi dowodu posiadania telefonu: ujawnienie identyfikatora
+nadal stwarza ryzyko. Reguły Firestore nie zapewniają limitowania nieudanych
+odczytów ani wiarygodnego dziennika odrzuconych prób. Wymagałoby to odrębnej
+ścieżki serwerowej; limit w kliencie nie byłby zabezpieczeniem.
+
 Tryb przerwy technicznej blokuje zwykłym użytkownikom korzystanie z aplikacji i pokazuje ekran konserwacji. Administratorzy i właściciel nadal mogą korzystać z aplikacji.
 
 ## Role i uprawnienia
+
+Panel statystyk API sumuje otrzymane raporty ze wszystkich urządzeń z aktualnym
+APK. Liczniki są przesyłane partiami podczas używania aplikacji, co minutę oraz po
+powrocie, wyłącznie gdy uległy zmianie. Nie jest dodawane odpytywanie w tle ani
+raportowanie widżetów. Ponowna wysyłka i zmiana UID nie dublują zapisanej historii;
+nowe dane po reinstalacji są doliczane bez usuwania wcześniejszych raportów.
+Dymek dnia zawiera wyłącznie podsumowanie, skuteczność, średni czas i liczbę
+raportujących urządzeń, bez listy telefonów. Dane starszych i niepołączonych
+telefonów pojawią się po aktualizacji APK i synchronizacji. Zbieranie uruchamia
+końcowy etap workflow wdrażania reguł; przed nim aplikacja zachowuje liczniki
+lokalnie. Wykres i eksport obejmują do 90 dni. Starsze dokumenty nie są usuwane
+automatycznie; ewentualne czyszczenie wymaga osobnej polityki retencji.
 
 System używa trzech ról:
 

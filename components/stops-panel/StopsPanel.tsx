@@ -4,7 +4,7 @@ import {isMpkPassengerLine} from '@/lib/mpk-passenger-lines';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {useAppBack} from '@/lib/use-app-back';
 import { motion, useReducedMotion } from 'motion/react';
-import { buildStopsCatalogAsync } from '@/lib/stops-catalog-async';
+import { buildStopsCatalogAsync, restoreStopsCatalog, CATALOG_RULES_VERSION } from '@/lib/stops-catalog-async';
 import {stopIdentityIds} from '@/lib/stop-identity';
 import { loadStopDepartures } from '@/lib/stop-departures';
 import { peekStopsCatalogCache, readStopsCatalogCache, writeStopsCatalogCache, type MpkCatalogStop } from '@/lib/stops-catalog-cache';
@@ -81,8 +81,8 @@ export default function StopsPanel({
         setPksLinesByStopId(snapshot.lines);
         // Rebuild identities from cached raw catalogs after a matching upgrade.
         // Preserve offline data instead of displaying obsolete saved groups.
-        const merged = await buildStopsCatalogAsync(snapshot.pks,snapshot.mpk,snapshot.marcel,
-          [stopCollectionSignature(snapshot.pks),stopCollectionSignature(snapshot.mpk),stopCollectionSignature(snapshot.marcel)].join('|'));
+        const key=[snapshot.pks,snapshot.mpk,snapshot.marcel].map(stopCollectionSignature).join('|');
+        const merged=restoreStopsCatalog(snapshot,key)||await buildStopsCatalogAsync(snapshot.pks,snapshot.mpk,snapshot.marcel,key);
         if (!active) return;
         setMergedStopsBase(merged);
         setRenderedCatalogKey([stopCollectionSignature(snapshot.pks), stopCollectionSignature(snapshot.mpk), stopCollectionSignature(snapshot.marcel)].join('|'));
@@ -231,10 +231,10 @@ export default function StopsPanel({
   useEffect(() => {
     if (!cacheReady || !baseUiStops.length || renderedCatalogKey !== mergedStopsCacheKey) return;
     const timer = window.setTimeout(() => {
-      void writeStopsCatalogCache({ version: 4, pks: catalogPksStops, mpk: mpkStops, marcel: marcelStops, lines: pksLinesByStopId, stops: baseUiStops });
+      void writeStopsCatalogCache({ version: 4, catalogKey:mergedStopsCacheKey,rulesVersion:CATALOG_RULES_VERSION,baseStops:mergedStopsBase, pks: catalogPksStops, mpk: mpkStops, marcel: marcelStops, lines: pksLinesByStopId, stops: baseUiStops });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [cacheReady, baseUiStops, catalogPksStops, mpkStops, marcelStops, pksLinesByStopId, renderedCatalogKey, mergedStopsCacheKey]);
+  }, [cacheReady, baseUiStops, catalogPksStops, mpkStops, marcelStops, pksLinesByStopId, renderedCatalogKey, mergedStopsCacheKey,mergedStopsBase]);
 
   const uiStops = useMemo<Stop[]>(() => {
     if (!favorites.length) {
@@ -296,7 +296,7 @@ export default function StopsPanel({
       data-cosmic-canvas
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >
-      <motion.div key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}} className="h-full w-full">
+      <motion.div data-cosmic-content key={currentSelectedStop?.id || "list"} initial={reduceMotion ? false : {opacity: 0, x: currentSelectedStop ? 16 : -12}} animate={{opacity: 1, x: 0}} transition={{duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1]}} className="h-full w-full">
         {currentSelectedStop ? (
           <BusStopDetail
             active={active}

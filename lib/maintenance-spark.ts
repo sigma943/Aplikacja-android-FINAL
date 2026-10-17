@@ -1,3 +1,4 @@
+import {foregroundRequest} from './app-activity';
 import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, writeBatch, Timestamp, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { auth, db } from './firebase';
@@ -16,7 +17,8 @@ const store: MaintenanceStore = {
     update: (ref, data) => { tx.update((ref as ClientRef).native, data); },
   })),
 };
-const httpFetch: typeof fetch = async (input, init) => {
+const httpFetch: typeof fetch = (input, init) => foregroundRequest(async signal => {
+  init = {...init, signal};
   if (!Capacitor.isNativePlatform()) {
     try { return await fetch(input, init); }
     catch (error) {
@@ -25,8 +27,9 @@ const httpFetch: typeof fetch = async (input, init) => {
     }
   }
   const response = await CapacitorHttp.request({ url: String(input), method: 'GET', headers: { Accept: 'application/json' }, connectTimeout: 9000, readTimeout: 9000 });
+  signal.throwIfAborted();
   return new Response(typeof response.data === 'string' ? response.data : JSON.stringify(response.data), { status: response.status, headers: { 'Content-Type': 'application/json' } });
-};
+}, init?.signal);
 // The built-in profile uses the existing provider adapters, not a hosted function.
 // Its health check reads the real PKS feed; an empty array is a valid idle fleet.
 const clientFetch: typeof fetch = async (input, init) => {

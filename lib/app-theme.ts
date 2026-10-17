@@ -1,8 +1,9 @@
 import {COSMIC_SKY} from './cosmic-scene';
 export const THEME_MODES=['system','light','light-warm','light-pink','light-sky','dark','dark-pink','dark-oled','dark-forest','dark-cosmos'] as const;
 export type AppTheme=typeof THEME_MODES[number];
+export const DEFAULT_APP_THEME:AppTheme='dark-oled';
 export function normalizeAppTheme(value:unknown):AppTheme{
-  if(value==null)return 'dark-oled';
+  if(value==null)return DEFAULT_APP_THEME;
   const key=typeof value==='string'?value.trim().toLowerCase():'';
   if(['amoled','oled','dark_oled','darkoled'].includes(key))return 'dark-oled';
   if(key==='dark-pink')return 'light-pink';
@@ -14,8 +15,8 @@ export function resolveAppTheme(value:unknown,dark=systemPrefersDark()){
   const mode=normalizeAppTheme(value);return mode==='system'?(dark?'dark':'light'):mode;
 }
 export function readAppTheme():AppTheme{
-  if(typeof window==='undefined')return 'dark-oled';
-  try{return normalizeAppTheme(window.localStorage.getItem('mks_app_theme'));}catch{return 'system';}
+  if(typeof window==='undefined')return DEFAULT_APP_THEME;
+  try{return normalizeAppTheme(window.localStorage.getItem('mks_app_theme'));}catch{return DEFAULT_APP_THEME;}
 }
 export const THEME_SCREEN_COLORS:Record<Exclude<AppTheme,'system'>,{background:string;text:string}>={
   light:{background:'#f8fafc',text:'#020617'},'light-warm':{background:'#f2ede1',text:'#272116'},'light-pink':{background:'#ffd1e8',text:'#57153c'},
@@ -31,4 +32,4 @@ export const THEME_DECORATIONS={
 };
 export function themeDecoration(mode:string){return THEME_DECORATIONS[mode as keyof typeof THEME_DECORATIONS]||'none';}
 // Runs before React to avoid an incorrect flash, including blocked storage.
-export const INITIAL_THEME_SCRIPT=`!function(){var t='dark-oled',d=false;try{var saved=localStorage.getItem('mks_app_theme');t=saved==null?'dark-oled':saved}catch(e){t='system'}try{d=matchMedia('(prefers-color-scheme: dark)').matches}catch(e){}t=String(t).trim().toLowerCase();if(['amoled','oled','dark_oled','darkoled'].includes(t))t='dark-oled';if(t==='dark-pink')t='light-pink';if(t==='dark-aurora')t='dark-cosmos';var colors=${JSON.stringify(THEME_SCREEN_COLORS)};if(t==='system'||!Object.prototype.hasOwnProperty.call(colors,t))t=d?'dark':'light';var c=colors[t],r=document.documentElement;r.style.setProperty('--pks-initial-bg',c.background);r.style.setProperty('--pks-loading-text',c.text);r.style.backgroundColor=c.background;r.style.color=c.text;r.dataset.pksTheme=t}();`;
+export const INITIAL_THEME_SCRIPT=`!function(){var t='dark-oled',d=false;try{var saved=localStorage.getItem('mks_app_theme');t=saved==null?'dark-oled':saved}catch(e){t='dark-oled'}try{d=matchMedia('(prefers-color-scheme: dark)').matches}catch(e){}t=String(t).trim().toLowerCase();if(['amoled','oled','dark_oled','darkoled'].includes(t))t='dark-oled';if(t==='dark-pink')t='light-pink';if(t==='dark-aurora')t='dark-cosmos';var colors=${JSON.stringify(THEME_SCREEN_COLORS)};if(t==='system'||!Object.prototype.hasOwnProperty.call(colors,t))t=d?'dark':'light';var c=colors[t],r=document.documentElement;var a='#00a3a2';try{var savedAccent=localStorage.getItem('mks_theme');if(/^#[0-9a-f]{6}$/i.test(savedAccent||''))a=savedAccent.toLowerCase()}catch(e){}r.style.setProperty('--pks-accent',a);r.style.setProperty('--pks-initial-bg',c.background);r.style.setProperty('--pks-loading-text',c.text);r.style.backgroundColor=c.background;r.style.color=c.text;r.dataset.pksTheme=t}();`;

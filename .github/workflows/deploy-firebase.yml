@@ -46,10 +46,14 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as output:
               output.write(f'GOOGLE_APPLICATION_CREDENTIALS={key_path}\n')
           PY
+      - name: Move installation identifiers out of public security settings
+        run: node scripts/migrate-statistics-access.cjs aplikacja-b20fa
       - name: Deploy Firestore access rules (Spark, no Cloud Functions)
         run: >-
           npx firebase deploy --project aplikacja-b20fa --non-interactive
           --only firestore:rules
+      - name: Verify migration after access rules deployment
+        run: node scripts/migrate-statistics-access.cjs aplikacja-b20fa --enable-api-statistics
       - name: Remove temporary credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/firebase-maintenance-key.json"

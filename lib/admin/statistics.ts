@@ -51,12 +51,13 @@ export function apiStatistics(days:ApiStatisticsDay[],range:StatisticsRange,star
   const firstDate=startedAt?warsawDateIso(0,new Date(startedAt)):null;
   const providers={pks:{requests:0,errors:0,latencyMs:0},mpk_rzeszow:{requests:0,errors:0,latencyMs:0},marcel:{requests:0,errors:0,latencyMs:0}};
   const series=selected.map(date=>{
-    const record=records.get(date);let requests=0,errors=0;
+    const record=records.get(date);let requests=0,errors=0,dailyLatency=0;
     for(const name of Object.keys(providers) as Array<keyof typeof providers>){const bucket=record?.providers[name];if(!bucket)continue;
       providers[name].requests+=bucket.requests;providers[name].errors+=bucket.errors;providers[name].latencyMs+=bucket.latencyMs;
-      requests+=bucket.requests;errors+=bucket.errors;
+      requests+=bucket.requests;errors+=bucket.errors;dailyLatency+=bucket.latencyMs;
     }
-    return {date,value:firstDate&&date>=firstDate?requests:null,errors:firstDate&&date>=firstDate?errors:null};
+    return {date,value:firstDate&&date>=firstDate?requests:null,errors:firstDate&&date>=firstDate?errors:null,
+      averageMs:requests?Math.round(dailyLatency/requests):null,successRate:requests?(requests-errors)*100/requests:null};
   });
   const requests=Object.values(providers).reduce((sum,p)=>sum+p.requests,0),errors=Object.values(providers).reduce((sum,p)=>sum+p.errors,0);
   const latency=Object.values(providers).reduce((sum,p)=>sum+p.latencyMs,0);

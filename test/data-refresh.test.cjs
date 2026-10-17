@@ -8,7 +8,7 @@ test('refresh loop never reschedules after disposal during an in-flight request'
 test('background pauses refresh and visibility resumes exactly one request',async()=>{
  let visible=false,calls=0;const timers=new Map();let id=0;
  const loop=foregroundRefresh(async()=>{calls++;},()=>visible,10,fn=>{timers.set(++id,fn);return id;},id=>timers.delete(id));
- [...timers.values()][0]();await new Promise(done=>setImmediate(done));assert.equal(calls,0);
+ assert.equal(timers.size,0);assert.equal(calls,0);
  visible=true;loop.visibilityChanged();await new Promise(done=>setImmediate(done));assert.equal(calls,1);
  visible=false;loop.visibilityChanged();assert.equal(timers.size,0);loop.dispose();
 });
@@ -57,4 +57,37 @@ test('diagnostics retain the last success when a new failure arrives and ignore 
 test('history pages merge without duplicates, preferring current records',()=>{
  const {mergeMaintenanceHistory}=load('lib/maintenance-history.ts');const first={id:'a',createdAtMs:10,summary:'fresh'},old={...first,summary:'old'};
  assert.deepEqual(mergeMaintenanceHistory([first],[old,{id:'b',createdAtMs:5}]).map(row=>row.summary),['fresh',undefined]);
+});
+test('foreground hook combines native state, DOM visibility and online state without duplicate resumes',async()=>{
+ const saved={document:global.document,window:global.window,navigator:Object.getOwnPropertyDescriptor(global,'navigator')};
+ const doc=new EventTarget(),win=new EventTarget();doc.visibilityState='visible';
+ global.document=doc;global.window=win;Object.defineProperty(global,'navigator',{value:{onLine:true},configurable:true});
+ let effect,dispose,visible,nativeChange,transitions=0,delay;
+ try{
+  const {useForegroundRefresh}=load('lib/use-foreground-refresh.ts',{
+   react:{useEffect:fn=>{effect=fn;},useRef:value=>({current:value})},
+   '@capacitor/core':{Capacitor:{isNativePlatform:()=>true}},
+   '@capacitor/app':{App:{addListener:async(_,fn)=>{nativeChange=fn;return {remove:async()=>{}};}}},
+   './foreground-refresh':{foregroundRefresh:(_,check,interval,schedule,cancel,initialDelay)=>{visible=check;delay=initialDelay;return {refresh(){},visibilityChanged(){transitions++;},dispose(){}};}}
+  });
+  useForegroundRefresh('test',async()=>{},7000,true,7000);dispose=effect();await new Promise(r=>setImmediate(r));
+  assert.equal(visible(),true);assert.equal(delay,7000);
+  nativeChange({isActive:false});assert.equal(visible(),false);assert.equal(transitions,1);
+  doc.dispatchEvent(new Event('visibilitychange'));assert.equal(visible(),false);assert.equal(transitions,1);
+  doc.visibilityState='hidden';doc.dispatchEvent(new Event('visibilitychange'));
+  nativeChange({isActive:true});assert.equal(visible(),false);
+  doc.visibilityState='visible';doc.dispatchEvent(new Event('visibilitychange'));nativeChange({isActive:true});assert.equal(transitions,2);
+  navigator.onLine=false;win.dispatchEvent(new Event('offline'));assert.equal(visible(),false);assert.equal(transitions,3);
+  navigator.onLine=true;win.dispatchEvent(new Event('online'));win.dispatchEvent(new Event('online'));assert.equal(visible(),true);assert.equal(transitions,4);
+ }finally{dispose?.();global.document=saved.document;global.window=saved.window;if(saved.navigator)Object.defineProperty(global,'navigator',saved.navigator);else delete global.navigator;}
+});
+test('reachability probes share only in-flight checks and retry after completion',async()=>{
+ const saved={window:global.window,fetch:global.fetch};let calls=0,finish;
+ global.window={setTimeout,clearTimeout};global.fetch=()=>{calls++;return new Promise(resolve=>finish=resolve);};
+ try{
+  const {hasInternetReachability}=load('lib/home/provider-settings.ts');
+  const first=hasInternetReachability(),second=hasInternetReachability();assert.equal(calls,1);
+  finish({});assert.deepEqual(await Promise.all([first,second]),[true,true]);
+  const third=hasInternetReachability();assert.equal(calls,2);finish({});assert.equal(await third,true);
+ }finally{global.window=saved.window;global.fetch=saved.fetch;}
 });

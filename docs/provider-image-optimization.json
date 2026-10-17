@@ -1,0 +1,26 @@
+[
+  {
+    "path": "public/dodaj/pks.png",
+    "width": 1254,
+    "height": 1254,
+    "beforeBytes": 1663619,
+    "afterBytes": 1554566,
+    "rgbaSha256": "7a619ae1b835fcdebe745aedd17ec795f21b9f0ff5b16d673b739dde7f71d380"
+  },
+  {
+    "path": "public/dodaj/mpk-rzeszow.png",
+    "width": 1278,
+    "height": 1231,
+    "beforeBytes": 1497463,
+    "afterBytes": 1389856,
+    "rgbaSha256": "566dc8ffa8c91c489213072079391396762199e137e6dbdd077cda231b1132bf"
+  },
+  {
+    "path": "public/dodaj/marcel.png",
+    "width": 1284,
+    "height": 1225,
+    "beforeBytes": 1320399,
+    "afterBytes": 1236291,
+    "rgbaSha256": "e2996241ffbfa1e16c2a2b6ee4b57919cc39e8f790a1a53125a9f75ead2ded2e"
+  }
+]

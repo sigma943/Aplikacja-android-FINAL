@@ -1,3 +1,4 @@
+import {foregroundRequest} from '../app-activity';
 
 import {type TransportProviderId} from '@/lib/pks-client';
 
@@ -9,19 +10,28 @@ const PKP_INTERCITY_REFRESH_MS = 60_000;
 
 const NETWORK_REACHABILITY_URL = 'https://www.gstatic.com/generate_204';
 
-async function hasInternetReachability(timeoutMs = 2500) {
+// Share overlapping focus/online/poll checks; never cache a completed result.
+const pendingReachability = new Map<number, Promise<boolean>>();
+function hasInternetReachability(timeoutMs = 2500): Promise<boolean> {
+  const pending = pendingReachability.get(timeoutMs);
+  if (pending) return pending;
+  const request = checkInternetReachability(timeoutMs).finally(() => pendingReachability.delete(timeoutMs));
+  pendingReachability.set(timeoutMs, request);
+  return request;
+}
+async function checkInternetReachability(timeoutMs: number) {
   if (typeof window === 'undefined') return true;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
 
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    await fetch(`${NETWORK_REACHABILITY_URL}?ts=${Date.now()}`, {
+    await foregroundRequest(signal => fetch(`${NETWORK_REACHABILITY_URL}?ts=${Date.now()}`, {
       method: 'GET',
       mode: 'no-cors',
       cache: 'no-store',
-      signal: controller.signal,
-    });
+      signal,
+    }), controller.signal);
     return true;
   } catch {
     return false;

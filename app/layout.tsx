@@ -3,6 +3,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import UIMotionProvider from '@/components/UIMotionProvider';
 import StatisticsCollector from '@/components/StatisticsCollector';
+import ApiStatisticsSync from '@/components/ApiStatisticsSync';
 import AppProviders from '@/components/AppProviders';
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       <body suppressHydrationWarning>
         <AppProviders>
           <StatisticsCollector />
+          <ApiStatisticsSync />
           <UIMotionProvider>{children}</UIMotionProvider>
         </AppProviders>
       </body>

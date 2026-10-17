@@ -13,7 +13,7 @@ export async function getDoc(ref:string){
 }
 let profileWrites=0;
 export async function setDoc(ref:string,data:any,options?:any){if(ref.startsWith('installations/'))profileWrites++;records.set(ref,options?.merge?{...records.get(ref),...data}:data);listeners.forEach(fn=>fn());}
-export async function updateDoc(ref:string,data:any){if(!records.has(ref))throw Object.assign(Error('Missing device'),{code:'not-found'});await setDoc(ref,data,{merge:true});}
+export async function updateDoc(ref:string,data:any){if(typeof window!=='undefined'&&Object.prototype.hasOwnProperty.call(data,'lastSeenAt'))(window as any).__startupHeartbeatWrites=((window as any).__startupHeartbeatWrites||0)+1;if(!records.has(ref))throw Object.assign(Error('Missing device'),{code:'not-found'});await setDoc(ref,data,{merge:true});}
 export async function deleteDoc(ref:string){records.delete(ref);listeners.forEach(fn=>fn());}
 export async function runTransaction(){throw Object.assign(Error('Old rules'),{code:'permission-denied'});}
 export function onSnapshot(ref:string,callback:any){const send=()=>{if(ref.startsWith('devices/')&&records.has(ref)&&typeof window!=='undefined'&&!(window as any).__startupDeviceReadyAt)(window as any).__startupDeviceReadyAt=performance.now();callback(snapshot(ref));};listeners.add(send);setTimeout(send,0);return()=>{listeners.delete(send);};}
@@ -44,3 +44,6 @@ export const getDocs=async()=>({docs:[]});
 export const addDoc=async()=>({id:'test'});
 export const writeBatch=()=>({set(){},update(){},delete(){},commit:async()=>{}});
 export type WriteBatch=ReturnType<typeof writeBatch>;
+
+export const disableNetwork=async(_:any)=>{(window as any).__startupNetworkDisabled=true;};
+export const enableNetwork=async(_:any)=>{(window as any).__startupNetworkDisabled=false;};

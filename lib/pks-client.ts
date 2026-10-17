@@ -1,3 +1,5 @@
+import {foregroundRequest} from './app-activity';
+import {writePersistentRouteGeometry} from './map/route-cache';
 import {getEffectiveMpkDelay, fetchMpkTripSchedule} from './providers/mpk-vehicles';
 import {sharedInflight} from './shared-inflight';
 import {verifiedCachedPksStops} from './providers/pks-stops';
@@ -55,7 +57,7 @@ async function fetchPksVehiclesSnapshotUnshared(signal?: AbortSignal) {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
   }
 
-  const wsItems = await fetchPksVehiclesFromPanelWebSocket(signal).catch(() => []);
+  const wsItems = await foregroundRequest(activeSignal => fetchPksVehiclesFromPanelWebSocket(activeSignal), signal).catch(() => []);
   if (wsItems.length > 0) return wsItems;
 
   return [];
@@ -523,13 +525,8 @@ async function fetchRouteGeometryClientImpl(
       .filter((stop) => readBusCoordinates(stop.lat,stop.lon))
       .map((stop) => [Number(stop.lat), Number(stop.lon)] as ShapePoint);
     const persist = (points: ShapePoint[]) => {
-    if (points.length > 1 && typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem('routeGeometry:' + routeGeometryKey(request.mode || 'road', request.carrier,
-          request.line, request.direction, request.stops), JSON.stringify({version: request.dataVersion,
-          expiresAt: Date.now()+30*24*60*60*1000, points: points}));
-      } catch { /* Memory caching remains available when storage is full. */ }
-    }
+      void writePersistentRouteGeometry(routeGeometryKey(request.mode || 'road',request.carrier,
+        request.line,request.direction,request.stops),points,request.dataVersion||'');
     };
     const fallbackPoints = await fetchRoadRouteForStops(
       stopCoords,

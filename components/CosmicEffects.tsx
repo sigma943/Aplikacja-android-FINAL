@@ -1,80 +1,38 @@
 'use client';
-import {useEffect,useRef} from 'react';
+import {useEffect,useRef,useState,type CSSProperties} from 'react';
+import {createPortal} from 'react-dom';
 import {Capacitor} from '@capacitor/core';
 import {App} from '@capacitor/app';
 import {readAppTheme,resolveAppTheme,themeDecoration} from '@/lib/app-theme';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
-import {COSMIC_METEOR_DURATION,COSMIC_TWINKLE_INTERVAL,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed} from '@/lib/cosmic-effects';
+import {COSMIC_METEOR_DURATION,COSMIC_COMET_DURATION,cosmicCometDelay,COSMIC_TWINKLE_INTERVAL,COSMIC_STAR_POSITIONS,cosmicMeteorScheduler,cosmicMotionAllowed,COSMIC_PARALLAX_KEY,cosmicParallaxOffset,cosmicAccentEvent} from '@/lib/cosmic-effects';
 
-import {COSMIC_DUST,COSMIC_SKY,COSMIC_SUN,COSMIC_PLANET_NAMES,COSMIC_PANEL_SELECTOR,cosmicKeySeed,cosmicOrb,cosmicScene,cosmicListScene,cosmicVisitSession} from '@/lib/cosmic-scene';
+import {cosmicBackdropStyle,cosmicScreenSession,COSMIC_PLANET_NAMES,cosmicBackdrop} from '@/lib/cosmic-scene';
 
-let visitSession:ReturnType<typeof cosmicVisitSession>|null=null;
+let visitSession:ReturnType<typeof cosmicScreenSession>|null=null;
 
-/** Static artwork, slow independent twinkles and meteors clipped to space panels. */
+/** One visit-scoped sky, with all motion behind the glass and its text. */
 export default function CosmicEffects(){
-  const streak=useRef<HTMLSpanElement>(null),field=useRef<HTMLDivElement>(null);
+  const [host,setHost]=useState<HTMLElement|null>(null);
+  const [scene,setScene]=useState<ReturnType<typeof cosmicBackdrop>|null>(null);
+  const stage=useRef<HTMLDivElement>(null),transition=useRef<HTMLDivElement>(null),nova=useRef<HTMLSpanElement>(null);
+  const streak=useRef<HTMLSpanElement>(null),field=useRef<HTMLDivElement>(null),comet=useRef<HTMLSpanElement>(null);
   useEffect(()=>{
     const root=document.documentElement,media=matchMedia('(prefers-reduced-motion: reduce)');
-    let nativeActive=true,allowed=false,animation:Animation|null=null,disposed=false;
+    let backdropEpoch=-1;
+    const stars:Animation[]=[],accents:Animation[]=[];
+    let fading:Animation|null=null,parallax=false,lastTilt=0,origin:{beta:number;gamma:number}|null=null;
+    let nativeActive=true,allowed=false,animation:Animation|null=null,cometAnimation:Animation|null=null,disposed=false;
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
     const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
-    const session=visitSession??=cosmicVisitSession(crypto.getRandomValues(new Uint32Array(1))[0]);
-    let sequences=new WeakMap<Element,{previous?:ReturnType<typeof cosmicScene>;gap:number}>();
-    const stars:Animation[]=[],placed=new WeakMap<Element,{epoch:number;key:string}>();
-    const panelKey=(node:HTMLElement)=>{
-      if(node.dataset.stopCardId)return `stop:${node.dataset.stopCardId}`;
-      if(node.dataset.cosmicPanel)return `panel:${node.dataset.cosmicPanel}`;
-      if(node.id)return `id:${node.id}`;
-      const path:string[]=[];
-      for(let element:Element|null=node;element&&element!==document.body;element=element.parentElement){
-        if(element.id){path.unshift(`#${element.id}`);break;}
-        const index=element.parentElement?[...element.parentElement.children].indexOf(element):0;
-        path.unshift(`${element.tagName}:${index}`);
-      }
-      return path.join('/');
-    };
-    const scopedKey=(node:HTMLElement)=>{
-      const seed=node.closest<HTMLElement>('[data-cosmic-seed]')?.dataset.cosmicSeed;
-      return {seed,key:(seed?`scope:${seed}:`:'')+panelKey(node)};
-    };
-    const place=(node:HTMLElement)=>{
-      const card=node.classList.contains('transit-stop-card'),group=node.parentElement;
-      const sequence=card&&group?(sequences.get(group)||{gap:2}):undefined;
-      const {key,seed}=scopedKey(node);
-      const scene=session.scene(key,nextSeed=>{
-        if(seed)nextSeed=cosmicKeySeed(Number(seed),panelKey(node));
-        const value=sequence?cosmicListScene(nextSeed,sequence.previous,sequence.gap):cosmicScene(nextSeed);
-        if(node.classList.contains('pks-map-search-panel'))value.showPlanet=false;
-        return value;
-      });
-      if(sequence&&group){
-        if(scene.showPlanet){sequence.previous=scene;sequence.gap=0;}else sequence.gap++;
-        sequences.set(group,sequence);
-      }
-      node.style.setProperty('--cosmos-planet',scene.showPlanet?cosmicOrb(scene):'none');
-      node.style.setProperty('--cosmos-planet-position',`${scene.x.toFixed(1)}% ${scene.y.toFixed(1)}%`);
-      node.style.setProperty('--cosmos-planet-size',`${scene.size.toFixed(1)}px`);
-      node.style.setProperty('--cosmos-dust',COSMIC_DUST[scene.dust]);
-      node.style.setProperty('--cosmos-dust-position',`${scene.dustX}% ${scene.dustY}%`);
-      node.dataset.cosmicScene=key;
-      node.dataset.cosmicVisit=seed||String(session.epoch);
-      placed.set(node,{epoch:session.epoch,key});
-      node.dataset.cosmicPlanet=scene.showPlanet?'on':'off';
-      node.dataset.cosmicPlanetName=scene.sun?'sun':COSMIC_PLANET_NAMES[scene.planet];
-    };
-    const discover=(node:Element)=>{
-      const panels=[...(node.matches(COSMIC_PANEL_SELECTOR)?[node]:[]),...node.querySelectorAll(COSMIC_PANEL_SELECTOR)];
-      for(const panel of panels){
-        if(!(panel instanceof HTMLElement)||panel.hasAttribute('data-cosmic-owned'))continue;
-        const previous=placed.get(panel),scope=scopedKey(panel);
-        const identityChanged=Boolean(previous&&((panel.dataset.stopCardId||panel.dataset.cosmicPanel)?previous.key!==scope.key:scope.seed?!previous.key.startsWith(`scope:${scope.seed}:`):previous.key.startsWith('scope:')));
-        if(!previous||identityChanged||(!scope.seed&&previous.epoch!==session.epoch))place(panel);
-      }
-    };
+    const session=visitSession??=cosmicScreenSession(crypto.getRandomValues(new Uint32Array(1))[0]);
+    const write=(key:string,value:string)=>{if(root.style.getPropertyValue(key)!==value)root.style.setProperty(key,value);};
     const measure=()=>{
-      if(!region||!field.current)return;
+      write('--cosmos-viewport-width',`${innerWidth}px`);
+      write('--cosmos-viewport-height',`${innerHeight}px`);
+      if(!field.current)return;
       // The sky belongs to the whole screen, including gaps between cards.
-      Object.assign(field.current.style,{inset:'0',width:'100%',height:'100%',borderRadius:'0'});
+      if(field.current.style.inset!=='0px')Object.assign(field.current.style,{inset:'0',width:'100%',height:'100%',borderRadius:'0'});
     };
     const findRegion=()=>{
       for(const selector of regionSelector.split(','))for(const node of document.querySelectorAll<HTMLElement>(selector)){
@@ -85,24 +43,21 @@ export default function CosmicEffects(){
       return null;
     };
     const observer=new MutationObserver(records=>{
+      if(resolveAppTheme(readAppTheme())!=='dark-cosmos'&&root.dataset.cosmicTheme!=='on')return;
       let regionsChanged=false;
-      const added:Element[]=[];
       for(const record of records){
         if(record.type==='attributes'){
-          if(record.attributeName==='aria-hidden'||record.attributeName==='data-cosmic-view'||record.attributeName==='data-cosmic-seed'||(record.attributeName==='aria-current'&&record.target instanceof Element&&record.target.hasAttribute('data-nav-item')))regionsChanged=true;
-          if(record.attributeName==='data-stop-card-id'&&record.target instanceof Element)added.push(record.target);
+          if(record.attributeName==='aria-hidden'||record.attributeName==='data-cosmic-tab')regionsChanged=true;
         }
         for(const node of [...record.addedNodes,...record.removedNodes])if(node instanceof Element){
           if(node.matches(regionSelector)||node.querySelector(regionSelector))regionsChanged=true;
-          if(node.isConnected)added.push(node);
         }
       }
-      // Resolve the final visible view before decorating any newly mounted panels.
+      // Resolve the final visible view before choosing its shared background.
       // A loading render and its completed render must share the same visit.
       if(regionsChanged)update();
-      else if(root.dataset.cosmicTheme==='on')for(const node of added)discover(node);
     });
-    observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-hidden','aria-current','data-stop-card-id','data-cosmic-view','data-cosmic-seed']});
+    observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-hidden','data-cosmic-tab']});
     const stopStars=()=>{for(const star of stars)star.cancel();stars.length=0;};
     const startStars=()=>{
       if(stars.length||!field.current)return;
@@ -110,43 +65,101 @@ export default function CosmicEffects(){
       const positions=COSMIC_STAR_POSITIONS;
       points.forEach((point,i)=>{
         point.style.left=positions[i][0]+'%';point.style.top=positions[i][1]+'%';
-        const duration=COSMIC_TWINKLE_INTERVAL+i*500;
-        stars.push(point.animate([{opacity:.04},{opacity:.38,offset:.5},{opacity:.04}],{duration,delay:-i*1370,iterations:Infinity,easing:'ease-in-out'}));
+        const duration=COSMIC_TWINKLE_INTERVAL+Math.random()*13000;
+        stars.push(point.animate([
+          {opacity:0,transform:'scale(.6)'},{opacity:.8,transform:'scale(1.3)',offset:.12},{opacity:.12,offset:.21},
+          {opacity:.95,transform:'scale(1)',offset:.29},{opacity:0,offset:.43},{opacity:0,offset:.7},{opacity:0,transform:'scale(.6)'},
+        ],{duration,delay:-Math.random()*duration,iterations:Infinity,easing:'ease-in-out'}));
       });
+    };
+    const shift=(x:number,y:number)=>{
+      const value=cosmicParallaxOffset(x,y);
+      stage.current?.style.setProperty('--cosmos-parallax-x',`${value.x.toFixed(2)}px`);
+      stage.current?.style.setProperty('--cosmos-parallax-y',`${value.y.toFixed(2)}px`);
+    };
+    const orient=(event:DeviceOrientationEvent)=>{
+      if(event.beta===null||event.gamma===null||event.timeStamp-lastTilt<50)return;
+      lastTilt=event.timeStamp;origin??={beta:event.beta,gamma:event.gamma};
+      shift((event.gamma-origin.gamma)/18,(event.beta-origin.beta)/18);
+    };
+    const pointer=(event:PointerEvent)=>{if(event.pointerType==='mouse')shift((event.clientX/innerWidth-.5)*2,(event.clientY/innerHeight-.5)*2);};
+    const setParallax=(next:boolean)=>{
+      if(next===parallax)return;parallax=next;origin=null;lastTilt=0;
+      if(next){window.addEventListener('deviceorientation',orient,{passive:true});window.addEventListener('pointermove',pointer,{passive:true});}
+      else{window.removeEventListener('deviceorientation',orient);window.removeEventListener('pointermove',pointer);shift(0,0);}
+    };
+    const stopAccents=()=>{for(const accent of accents)accent.cancel();accents.length=0;};
+    const blend=(previous:{image:string;size:string;position:string}|null)=>{
+      fading?.cancel();const layer=transition.current;if(!layer)return;
+      layer.style.backgroundImage=previous?.image||'none';layer.style.backgroundSize=previous?.size||'cover';layer.style.backgroundPosition=previous?.position||'center';
+      layer.style.display='block';
+      fading=layer.animate([{opacity:1},{opacity:0}],{duration:550,easing:'cubic-bezier(.22,1,.36,1)',fill:'forwards'});
+      fading.onfinish=()=>{layer.style.display='none';};
     };
     const scheduler=cosmicMeteorScheduler(()=>allowed,()=>{
       if(document.querySelector('.pks-loading-screen')||!streak.current?.animate)return;
+      stopAccents();
+      const variant=cosmicAccentEvent();
+      streak.current.dataset.fragment=String(variant==='fragment');
+      if(variant==='fragment')streak.current.querySelectorAll<HTMLElement>('[data-cosmic-fragment]').forEach((fragment,i)=>accents.push(fragment.animate([{opacity:0,transform:'translate(0,0)'},{opacity:.45,offset:.35},{opacity:0,transform:`translate(${20+i*12}px,${9+i*7}px)`}],{duration:1000+i*120,delay:150,fill:'both'})));
+      if(variant==='nova'&&nova.current){const point=COSMIC_STAR_POSITIONS[Math.floor(Math.random()*COSMIC_STAR_POSITIONS.length)];nova.current.style.left=point[0]+'%';nova.current.style.top=point[1]+'%';accents.push(nova.current.animate([{opacity:0,transform:'scale(.6)'},{opacity:.55,transform:'scale(1.2)',offset:.3},{opacity:.15,offset:.65},{opacity:0,transform:'scale(.8)'}],{duration:2400,easing:'ease-in-out'}));}
       measure();
       streak.current.style.left=(55+Math.random()*35)+'%';streak.current.style.top=(8+Math.random()*48)+'%';
       animation?.cancel();
       animation=streak.current.animate([
         {opacity:0,transform:'translate3d(0,0,0) rotate(-35deg)'},
-        {opacity:.65,transform:'translate3d(-18px,13px,0) rotate(-35deg)',offset:.16},
-        {opacity:.45,transform:'translate3d(-105px,74px,0) rotate(-35deg)',offset:.72},
+        {opacity:.95,transform:'translate3d(-18px,13px,0) rotate(-35deg)',offset:.16},
+        {opacity:.8,transform:'translate3d(-105px,74px,0) rotate(-35deg)',offset:.72},
         {opacity:0,transform:'translate3d(-150px,105px,0) rotate(-35deg)'},
-      ],{duration:COSMIC_METEOR_DURATION,easing:'linear'});
+      ],{duration:COSMIC_METEOR_DURATION*(.75+Math.random()*.5),easing:'linear'});
     },{set:(fn,ms)=>setTimeout(fn,ms),clear:id=>clearTimeout(id)});
+    const cometScheduler=cosmicMeteorScheduler(()=>allowed,()=>{
+      const point=comet.current;if(document.querySelector('.pks-loading-screen')||!point?.animate)return;
+      point.style.left=(55+Math.random()*38)+'%';point.style.top=(10+Math.random()*42)+'%';
+      cometAnimation?.cancel();
+      cometAnimation=point.animate([
+        {opacity:0,transform:'translate3d(0,0,0) rotate(-25deg)'},
+        {opacity:.85,transform:'translate3d(-25px,12px,0) rotate(-25deg)',offset:.18},
+        {opacity:.65,transform:'translate3d(-150px,70px,0) rotate(-25deg)',offset:.75},
+        {opacity:0,transform:'translate3d(-210px,98px,0) rotate(-25deg)'},
+      ],{duration:COSMIC_COMET_DURATION*(.85+Math.random()*.3),easing:'linear'});
+    },{set:(fn,ms)=>setTimeout(fn,ms),clear:id=>clearTimeout(id)},()=>cosmicCometDelay());
     const update=()=>{
       if(disposed)return;
-      let reduced=media.matches,light=false;
-      try{light=localStorage.getItem('mks_light_effects')==='true';reduced ||= normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;}catch{}
-      const active=[...document.querySelectorAll<HTMLElement>('.pks-navigation [data-nav-item][aria-current="page"]')].find(node=>!node.closest('.personal-preview-scene'));
-      const tab=active?.dataset.navItem||session.tab?.split(':',1)[0]||'root';
-      const nextRegion=findRegion();
-      const logical=[...document.querySelectorAll<HTMLElement>('[data-cosmic-view]')].find(node=>!node.closest('[aria-hidden="true"],[inert],.personal-preview-scene'));
-      // Loading, entrance animations and panel dimensions cannot start a visit.
-      const overlay=[['.pks-options-sheet','options'],['[data-carrier-sheet]','carriers']].find(([selector])=>nextRegion?.matches(selector))?.[1];
-      const view=overlay||logical?.dataset.cosmicView||(nextRegion?.matches('.map-detail-shell')?'map-detail':'tab');
-      if(session.enter(`${tab}:${view}`))sequences=new WeakMap();
+      setHost(document.querySelector<HTMLElement>('.pks-theme-root'));
+      let reduced=media.matches,light=false,appearance=normalizeInterfaceAppearance(null);
+      try{light=localStorage.getItem('mks_light_effects')==='true';appearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));reduced ||= appearance.reducedMotion;}catch{}
+      // The Home root owns this key. Overlays, admin subviews, loading and data
+      // mutations cannot impersonate a navigation change (Options is an overlay).
+      const tab=document.querySelector<HTMLElement>('.pks-theme-root[data-cosmic-tab]')?.dataset.cosmicTab;
+      const previousTab=session.tab;
+      const entered=session.enterTab(tab);
       const theme=resolveAppTheme(readAppTheme());
+      const nextRegion=theme==='dark-cosmos'?findRegion():null;
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
-      if(theme==='dark-cosmos'){root.style.setProperty('--theme-decoration',themeDecoration(theme));root.style.setProperty('--cosmos-sky',COSMIC_SKY);const backdrop=session.scene('screen-sky',cosmicScene);root.style.setProperty('--cosmos-ambient-orb',backdrop.sun?COSMIC_SUN:'none');discover(document.body);}else {root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-ambient-orb');}
+      try{root.dataset.cosmicGlass=localStorage.getItem('mks_transparent')==='false'?'off':'on';}catch{root.dataset.cosmicGlass='on';}
+      let parallaxPreference=false;try{parallaxPreference=localStorage.getItem(COSMIC_PARALLAX_KEY)==='true';}catch{}
+      write('--cosmos-clear-veil',!appearance.glassBlurEnabled||appearance.glassBlur===0?'rgba(4,8,22,.56)':'transparent');
+      write('--cosmos-veil-alpha',String(appearance.glassOpacity/100*.42));
+      write('--cosmos-sheen-alpha',String(appearance.borderStrength/100*.35));
+      write('--cosmos-glint-alpha',root.dataset.cosmicGlass==='off'||appearance.cardStyle==='flat'?'0':String(appearance.borderStrength/300));
+      if(theme==='dark-cosmos'){
+        write('--theme-decoration',themeDecoration(theme));
+        if(backdropEpoch!==session.epoch){
+          const previous=backdropEpoch>=0&&previousTab!=='map'?{image:root.style.getPropertyValue('--cosmos-scene-image'),size:root.style.getPropertyValue('--cosmos-scene-size'),position:root.style.getPropertyValue('--cosmos-scene-position')}:null;
+          const scene=session.scene;setScene(scene);
+          for(const [key,value] of Object.entries(cosmicBackdropStyle(scene)))write(key,value);
+          backdropEpoch=session.epoch;
+          if((entered||previous===null)&&tab!=='map'&&!reduced&&!light)blend(previous);
+        }
+      }else root.style.removeProperty('--theme-decoration');
       const changed=nextRegion!==region;region=nextRegion;measure();
-      const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region)});
+      const nextAllowed=cosmicMotionAllowed({theme,hidden:document.hidden,nativeActive,reducedMotion:reduced,lightEffects:light,hasRegion:Boolean(region),tab});
       if(nextAllowed!==allowed||changed){
-        allowed=nextAllowed;animation?.cancel();animation=null;stopStars();scheduler.refresh();
+        allowed=nextAllowed;animation?.cancel();animation=null;cometAnimation?.cancel();cometAnimation=null;stopStars();scheduler.refresh();cometScheduler.refresh();
       }
-      if(allowed)startStars();
+      if(allowed)startStars();else{stopAccents();fading?.cancel();if(transition.current)transition.current.style.display='none';}
+      setParallax(allowed&&parallaxPreference&&tab!=='map');
       if(changed){if(settle!==null)clearTimeout(settle);settle=setTimeout(()=>{settle=null;measure();},600);}
       root.dataset.cosmicMotion=allowed?'on':'off';
     };
@@ -156,13 +169,21 @@ export default function CosmicEffects(){
     const native=Capacitor.isNativePlatform()?App.addListener('appStateChange',state=>{nativeActive=state.isActive;update();}):null;
     native?.catch(()=>{});
     return ()=>{
-      disposed=true;if(settle!==null)clearTimeout(settle);scheduler.stop();animation?.cancel();stopStars();observer.disconnect();
+      disposed=true;if(settle!==null)clearTimeout(settle);scheduler.stop();cometScheduler.stop();animation?.cancel();cometAnimation?.cancel();stopStars();stopAccents();fading?.cancel();setParallax(false);observer.disconnect();
       for(const event of ['storage','focus','pks-interface-appearance','pks-profile-applied'])window.removeEventListener(event,update);
       window.removeEventListener('resize',measure);document.removeEventListener('scroll',measure,true);document.removeEventListener('pointerup',measure);
       document.removeEventListener('visibilitychange',update);media.removeEventListener('change',update);
       native?.then(handle=>handle.remove()).catch(()=>{});
-      delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;root.style.removeProperty('--theme-decoration');root.style.removeProperty('--cosmos-sky');root.style.removeProperty('--cosmos-ambient-orb');
+      for(const key of [...Object.keys(cosmicBackdropStyle(session.scene)),'--cosmos-glint-alpha','--cosmos-clear-veil','--cosmos-veil-alpha','--cosmos-sheen-alpha'])root.style.removeProperty(key);
+      delete root.dataset.cosmicTheme;delete root.dataset.cosmicMotion;delete root.dataset.cosmicGlass;root.style.removeProperty('--theme-decoration');for(const key of ['--cosmos-scene-image','--cosmos-scene-size','--cosmos-scene-position','--cosmos-viewport-width','--cosmos-viewport-height'])root.style.removeProperty(key);
     };
-  },[]);
-  return <div ref={field} data-cosmic-effects aria-hidden="true">{COSMIC_STAR_POSITIONS.map((_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor/></div>;
+  },[host]);
+  return host?createPortal(<>
+    <div ref={stage} data-cosmic-stage aria-hidden="true"><div data-cosmic-nebula/><div data-cosmic-distance/><div data-cosmic-planets>{scene?.planets.map((planet,i)=>{
+      const name=COSMIC_PLANET_NAMES[planet.planet],url=`/themes/kosmos/${name}.svg`;
+      return <span data-cosmic-orb data-cosmic-diameter={planet.diameter.toFixed(1)} key={`${name}:${i}`} style={{width:planet.size,left:`${planet.x}%`,top:`${planet.y}%`,transform:'translate(-50%,-50%)',aspectRatio:`512 / ${name==='saturn'?170:288}`,'--orb-image':`url("${url}")`} as CSSProperties}><img src={url} alt="" width="512" height={name==='saturn'?170:288}/><i data-cosmic-terminator/></span>;
+    })}</div></div>
+    <div ref={field} data-cosmic-effects aria-hidden="true">{COSMIC_STAR_POSITIONS.map((_,i)=><span key={i} data-cosmic-star/>)}<span ref={streak} data-cosmic-meteor>{[0,1,2].map(i=><i key={i} data-cosmic-fragment/>)}</span><span ref={comet} data-cosmic-comet><i/></span><span ref={nova} data-cosmic-nova/></div>
+    <div ref={transition} data-cosmic-transition aria-hidden="true"/>
+  </>,host):null;
 }

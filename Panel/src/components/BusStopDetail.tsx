@@ -4,7 +4,6 @@ import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
 import {useForegroundRefresh} from '../../../lib/use-foreground-refresh';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import {cosmicPanelStyle,cosmicKeySeed} from '../../../lib/cosmic-scene';
 import {readAppTheme,resolveAppTheme} from '../../../lib/app-theme';
 import { ArrowLeft, MapPin, LayoutGrid, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
@@ -68,28 +67,13 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     for(const event of ['storage','pks-profile-applied','pks-interface-appearance'])window.addEventListener(event,update);
     return()=>{for(const event of ['storage','pks-profile-applied','pks-interface-appearance'])window.removeEventListener(event,update);};
   },[]);
-  const [cosmicVisit,setCosmicVisit]=useState<{stopId:string;seed:number;panels:Record<string,ReturnType<typeof cosmicPanelStyle>>}|null>(null);
-  useLayoutEffect(()=>{
-    if(!active){setCosmicVisit(null);return;}
-    setCosmicVisit(previous=>{
-      if(previous?.stopId===stop.id)return previous;
-      const seed=crypto.getRandomValues(new Uint32Array(1))[0];
-      const panels=Object.fromEntries(['stop-header','stop-days','stop-departures'].map(key=>[key,cosmicPanelStyle(cosmicKeySeed(seed,key),key==='stop-departures')]));
-      return {stopId:stop.id,seed,panels};
-    });
-  },[active,stop.id]);
-  const cosmicPanel=(key:string)=>({
-    'data-cosmic-owned':true,
-    'data-cosmic-panel':key,
-    'data-cosmic-scene':cosmicVisit?`panel:${key}`:undefined,
-    'data-cosmic-visit':cosmicVisit?String(cosmicVisit.seed):undefined,
-    style:cosmicVisit?.panels[key] as React.CSSProperties|undefined,
-  });
+  const cosmicPanel=(key:string)=>({'data-cosmic-panel':key});
   const [showWidget,setShowWidget]=useState(false);
   const todayKey = warsawDateIso();
   const days = useMemo(getDynamicDays,[todayKey]);
-  const [selectedLine, setSelectedLine] = useState<string>('all');
+  const [selectedLines, setSelectedLines] = useState<string[]>([]);
   const [showAllDepartures, setShowAllDepartures] = useState(false);
+  useEffect(()=>{setSelectedLines([]);setShowAllDepartures(false);},[stop.id]);
   const [selectedDay, setSelectedDay] = useState<string>('today');
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -141,8 +125,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   }));
 
   const filteredDeparturesByLine = processedDepartures.filter(d => {
-    if (!selectedLine || selectedLine === 'all') return true;
-    return d.line === selectedLine;
+    return selectedLines.length === 0 || selectedLines.includes(d.line);
   });
 
   const activeDepartures = filteredDeparturesByLine.filter(d => !d.isPast);
@@ -287,10 +270,10 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
           {/* Line Filter */}
           <div className="relative">
             <h3 className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie</h3>
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-2 px-1 snap-x">
+            <div role="group" aria-label="Filtr linii odjazdów — można wybrać kilka" className="flex gap-1.5 overflow-x-auto no-scrollbar pb-2 px-1 snap-x">
                {lines.map(line => {
                  const value = (line === 'Wszystkie' ? 'all' : line) as string;
-                 const isActive = selectedLine === value;
+                 const isActive = value === 'all' ? selectedLines.length === 0 : selectedLines.includes(value);
                  
                  const activeClass = 'ui-accent-solid';
                  const inactiveClass = value === 'all'
@@ -301,7 +284,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                    <button
                      key={line}
                      aria-pressed={isActive}
-                     onClick={() => setSelectedLine(value)}
+                     data-line-filter={value}
+                     onClick={() => setSelectedLines(previous=>value==='all'?[]:previous.includes(value)?previous.filter(line=>line!==value):[...previous,value])}
                      className={`ui-accent-focus h-10 flex-shrink-0 snap-start px-3.5 rounded-xl text-[12px] font-semibold transition-colors border cursor-pointer ${
                        isActive ? activeClass : inactiveClass
                      }`}
@@ -355,7 +339,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
                         transition={animateDepartures ? { duration: 0.3, delay: Math.min(idx * 0.06, 0.3) } : { duration: 0 }}
                         key={dep.id}
-                        data-interface-row data-departure-row
+                        data-interface-row data-departure-row data-departure-line={dep.line}
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? `border-b ${rowBorderClass}` : ''} ${rowClass} transition-colors cursor-pointer ${isPast ? (isDarkTheme ? 'bg-black/15' : 'bg-slate-100/70') : ''}`}
                       >
                         {/* Left Side: Line Badge & Directions */}
@@ -408,8 +392,8 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                 </AnimatePresence>
 
                 {activeDepartures.length === 0 && (
-                  <div className={`p-8 text-center text-sm leading-relaxed ${subtleTextClass}`}>
-                    {warnings.length ? 'Nie można potwierdzić pełnej listy odjazdów.' : filteredDeparturesByLine.length ? 'Wszystkie kursy na dziś już odjechały.' : selectedLine === 'all' ? 'Brak zaplanowanych odjazdów w wybranym dniu.' : 'Brak odjazdów wybranej linii w tym dniu.'}
+                  <div data-departure-empty className={`px-5 py-5 sm:px-6 sm:py-6 text-center text-sm leading-relaxed ${subtleTextClass}`}>
+                    {warnings.length ? 'Nie można potwierdzić pełnej listy odjazdów.' : filteredDeparturesByLine.length ? 'Wszystkie kursy na dziś już odjechały.' : selectedLines.length === 0 ? 'Brak zaplanowanych odjazdów w wybranym dniu.' : 'Brak odjazdów wybranych linii w tym dniu.'}
                   </div>
                 )}
                 

@@ -10,9 +10,13 @@ import {ensureFirebaseUser, registerDeviceOnce} from '@/lib/firebase-session';
 import {setTransportRuntime} from '@/lib/transport-runtime';
 import {onAuthStateChanged, User} from 'firebase/auth';
 import {httpsCallable} from 'firebase/functions';
-import {doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc, deleteField} from 'firebase/firestore';
+import {doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc, deleteField, disableNetwork, enableNetwork} from 'firebase/firestore';
 import {buildDevicePermissions, type DeviceRole} from '@/lib/admin/rbac';
+import {foregroundRefresh} from '@/lib/foreground-refresh';
+import {isAppVisible, observeAppActivity} from '@/lib/app-activity';
+import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {agentLog} from '@/lib/debug-agent-log';
+import {firebaseDiagnosticCode} from '@/lib/firebase-diagnostics';
 
 export type { DeviceRole };
 
@@ -33,6 +37,7 @@ const FirebaseContext = createContext<FirebaseContextType>({
   loading: true,
   localLastSeenMs: null,
   hiddenProviderIds: [],
+  apiStatisticsEnabled: false,
 });
 
 const HIDDEN_PROVIDERS_CACHE_KEY = 'mks_hidden_provider_ids';
@@ -116,6 +121,7 @@ async function getClientDeviceInfo(): Promise<string> {
 }
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
+  const [apiStatisticsEnabled,setApiStatisticsEnabled]=useState(false);
   useEffect(() => { preloadMapCode(); }, []);
   const [user, setUser] = useState<User | null>(null);
   const [device, setDevice] = useState<DeviceData | null>(null);
@@ -185,6 +191,19 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Keep cached snapshots and the mounted UI, but close every Firestore stream
+  // (including listeners owned by admin panels) while the main app is hidden.
+  useEffect(() => {
+    const sync = (active: boolean) => {
+      void (active ? enableNetwork(db) : disableNetwork(db)).catch(error => {
+        console.warn('Firestore activity transition failed', firebaseDiagnosticCode(error));
+      });
+    };
+    const stop = observeAppActivity(sync);
+    sync(isAppVisible());
+    return stop;
+  }, []);
+
   const buildAutoBanDetails = () => ({
     reason: 'Urządzenie niezweryfikowane',
     expiresAt: '',
@@ -197,26 +216,28 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    const login = () => {
-      if (cancelled) return;
-      ensureFirebaseUser(auth).catch((error) => {
-        if (cancelled) return;
-        console.error('Anonymous sign-in failed', error);
-        setStartupError(startupFailureMessage(error));
-        // A made-up guest UID has no Firebase credentials and cannot write.
-        // Retry with real credentials after temporary network failures.
-        retryTimer = setTimeout(login, 10_000);
-      });
+    let active = isAppVisible();
+    const login = async () => {
+      if (cancelled || !active || auth.currentUser) return;
+      try { await ensureFirebaseUser(auth); }
+      catch (error) {
+        if (!cancelled) {
+          console.error('Anonymous sign-in failed', firebaseDiagnosticCode(error));
+          setStartupError(startupFailureMessage(error));
+        }
+      }
     };
+    const retry = foregroundRefresh(login, () => active && !auth.currentUser, 10_000);
+    const stopActivity = observeAppActivity(next => { active = next; retry.visibilityChanged(); });
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (cancelled) return;
       setUser(currentUser);
-      if (!currentUser) login();
+      if (!currentUser) retry.refresh();
     });
     return () => {
       cancelled = true;
-      clearTimeout(retryTimer);
+      retry.dispose();
+      stopActivity();
       unsubscribe();
     };
   }, []);
@@ -292,7 +313,6 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           'Registering device identity via Firestore',
           {
             uidPrefix: user.uid.slice(0, 8),
-            installationIdPrefix: instId.slice(0, 12),
           },
           'H5',
         );
@@ -304,13 +324,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             'Device identity saved via Cloud Function',
             {
               uidPrefix: user.uid.slice(0, 8),
-              installationIdPrefix: instId.slice(0, 12),
             },
             'H5',
           );
           return;
         } catch (fnErr) {
-          console.warn('Cloud Function device registration unavailable, using Firestore fallback', fnErr);
+          console.warn('Cloud Function device registration unavailable, using Firestore fallback', firebaseDiagnosticCode(fnErr));
         }
 
         const installationRef = doc(db, 'installations', instId);
@@ -358,7 +377,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         );
         // #endregion
       } catch (err: unknown) {
-        console.error('Failed to register device identity', err);
+        console.error('Failed to register device identity', firebaseDiagnosticCode(err));
         const e = err as any;
         // #region agent log
         agentLog(
@@ -366,7 +385,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           'Device identity save failed',
           {
             code: String(e?.code ?? 'unknown'),
-            message: String(e?.message ?? String(err)).slice(0, 200),
+            diagnosticCode: firebaseDiagnosticCode(err),
             detailsType: typeof e?.details,
           },
           'H5',
@@ -377,12 +396,19 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     };
     let registered = false;
     let running = false;
+    let retryTimer: number | undefined;
+    let active = isAppVisible();
+    const startRetry = () => {
+      if (active && !registered && retryTimer === undefined) retryTimer = window.setInterval(attempt, 10_000);
+    };
     const attempt = async () => {
-      if (cancelled || registered || running) return;
+      if (cancelled || !active || registered || running) return;
       running = true;
       try {
         await registerDeviceOnce(user.uid, register);
         registered = true;
+        window.clearInterval(retryTimer);
+        retryTimer = undefined;
         if(!cancelled)setStartupError(null);
       } catch(error) {
         if(!cancelled)setStartupError(startupFailureMessage(error));
@@ -392,8 +418,14 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       }
     };
     void attempt();
-    const retryTimer = window.setInterval(attempt, 10_000);
+    startRetry();
     window.addEventListener('online', attempt);
+    const stopActivity = observeAppActivity(next => {
+      active = next;
+      window.clearInterval(retryTimer);
+      retryTimer = undefined;
+      if (active) { void attempt(); startRetry(); }
+    });
 
     const unsub = onSnapshot(deviceRef, async (snapshot) => {
       if (cancelled) return;
@@ -408,7 +440,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           const signature=JSON.stringify(access);
           if(signature!==mirroredAccess) {
             mirroredAccess=signature;
-            void setDoc(doc(db,'installations',data.installationId),{...access,banDetails:data.banDetails||deleteField(),displayName:data.displayName||deleteField(),updatedBy:user.uid,lastUid:user.uid,updatedAt:serverTimestamp()},{merge:true}).catch(error=>console.warn('Access profile mirror failed',error));
+            void setDoc(doc(db,'installations',data.installationId),{...access,banDetails:data.banDetails||deleteField(),displayName:data.displayName||deleteField(),updatedBy:user.uid,lastUid:user.uid,updatedAt:serverTimestamp()},{merge:true}).catch(error=>console.warn('Access profile mirror failed',firebaseDiagnosticCode(error)));
           }
         }
         if ((data.role === 'owner' || data.role === 'admin') && data.verified !== true) {
@@ -442,11 +474,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         if(registered && snapshot.metadata?.fromCache!==true) {
           registered=false;
           mirroredAccess='';
+          startRetry();
           void attempt();
         }
       }
     }, (err) => {
-      console.error("Snapshot error", err);
+      console.error("Snapshot error", firebaseDiagnosticCode(err));
       const code = String((err as any)?.code || '').toLowerCase();
       const message = String((err as any)?.message || '').toLowerCase();
       const isNetworkProblem =
@@ -466,33 +499,18 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       window.clearInterval(retryTimer);
+      stopActivity();
       window.removeEventListener('online', attempt);
       unsub();
     };
   }, [user]);
 
-  // Heartbeat â€žostatnio onlineâ€ť â€” wymaga prawdziwego konta Firebase (nie trybu guest_*).
-  useEffect(() => {
+  // Presence describes foreground use; hidden apps do not queue heartbeats.
+  useForegroundRefresh(`presence:${user?.uid || ''}`, async () => {
     if (!user?.uid || user.uid.startsWith('guest_')) return;
-
-    const deviceRef = doc(db, 'devices', user.uid);
-    const ping = () => {
-      setLocalLastSeenMs(Date.now());
-      updateDoc(deviceRef, { lastSeenAt: serverTimestamp() }).catch(() => {});
-    };
-
-    ping();
-    const interval = window.setInterval(ping, 30_000);
-    const onVis = () => {
-      if (document.visibilityState === 'visible') ping();
-    };
-    document.addEventListener('visibilitychange', onVis);
-
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [user]);
+    setLocalLastSeenMs(Date.now());
+    await updateDoc(doc(db, 'devices', user.uid), { lastSeenAt: serverTimestamp() }).catch(() => {});
+  }, 30_000, Boolean(user?.uid && !user.uid.startsWith('guest_')), 0);
 
   useEffect(() => {
     if (!user) return;
@@ -505,6 +523,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       (snapshot) => {
         window.clearTimeout(timeout);
         const data = snapshot.exists() ? snapshot.data() : {};
+        setApiStatisticsEnabled(data.apiStatisticsVersion===1);
         const enabled = Boolean(data.maintenanceMode);
         setAutoBanUnverified(Boolean(data.autoBan));
         setLoginEnabled(newLoginsEnabled(data.loginEnabled));
@@ -518,7 +537,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       },
       (err) => {
         window.clearTimeout(timeout);
-        console.error('Global settings snapshot error', err);
+        console.error('Global settings snapshot error', firebaseDiagnosticCode(err));
         setMaintenanceMode(false);
         setSettingsLoading(false);
       },
@@ -550,7 +569,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       status: 'banned',
       verified: false,
       banDetails,
-    }).catch((err) => console.error('Auto-ban update failed', err));
+    }).catch((err) => console.error('Auto-ban update failed', firebaseDiagnosticCode(err)));
     if (instId) {
       setDoc(
         doc(db, 'installations', instId),
@@ -613,14 +632,14 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       setHiddenProviderIds(hiddenIds);
       persistHiddenProviderIdsCache(hiddenIds);
     } catch (err) {
-      console.error('Manual maintenance status check failed', err);
+      console.error('Manual maintenance status check failed', firebaseDiagnosticCode(err));
     } finally {
       setCheckingMaintenance(false);
     }
   };
 
   return (
-    <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs, hiddenProviderIds }}>
+    <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs, hiddenProviderIds,apiStatisticsEnabled }}>
       {startupError && !device && !shouldShowInitialOffline ? (
         <ConnectionTimeoutScreen errorMessage={startupError} />
       ) : connectionTimedOut && shouldHoldInitialRender ? (

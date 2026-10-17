@@ -1,7 +1,8 @@
 'use client';
 
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
-import {motion, AnimatePresence} from 'motion/react';
+import {mapCosmicCrop} from '@/lib/cosmic-scene';
+import {motion, AnimatePresence, type MotionStyle} from 'motion/react';
 import {Navigation, Clock, MapPin} from 'lucide-react';
 import {SHEET_SPRING, type useSheetGesture} from '@/lib/use-sheet-gesture';
 import type {Vehicle, StopSchedule} from '@/lib/transport/vehicle';
@@ -48,7 +49,8 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
   return (
     <motion.div
                   key="bus-panel-map"
-                  style={{height:busDrag.height}}
+                  style={{height:busDrag.height,'--map-cosmos-crop':mapCosmicCrop(`bus:${selectedBus.id}`)} as MotionStyle}
+                  data-map-detail-kind="bus"
                   data-map-bus-sheet={preview?undefined:true}
                   data-cosmic-view={preview?undefined:`map-vehicle:${selectedBus.id}`}
                   data-expanded={isBusPanelExpanded}

@@ -14,7 +14,7 @@ export function foregroundRefresh(run: () => Promise<unknown>, visible: () => bo
       if (!disposed && visible()) timer = schedule(() => { void tick(); }, interval);
     }
   };
-  timer = schedule(() => { void tick(); }, initialDelay);
+  if (visible()) timer = schedule(() => { void tick(); }, initialDelay);
   return {
     refresh: () => { if (!disposed) void tick(); },
     visibilityChanged: () => { cancel(timer); timer = undefined; if (visible()) void tick(); },

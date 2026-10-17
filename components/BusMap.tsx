@@ -6,7 +6,7 @@ import {correctPksStationJunction} from '@/lib/pks-station-junction';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {loadStopPlatforms} from '@/lib/stop-platform-position';
 
-import {startTransition, useEffect, useState, useRef, useCallback, useMemo} from 'react';
+import {memo, startTransition, useEffect, useState, useRef, useCallback, useMemo} from 'react';
 import {MapContainer, TileLayer, Polyline, ZoomControl, Pane} from 'react-leaflet';
 import L from 'leaflet';
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
@@ -35,6 +35,8 @@ const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v13-station-junction';
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 
 interface BusMapProps {
+  active?:boolean;
+  clockMs?:number;
   mapStops?: Stop[];
   onMapStopClick?: (stop:Stop)=>void;
   vehicles: Vehicle[];
@@ -52,7 +54,9 @@ interface BusMapProps {
   onViewportChange?: (payload: { bbox: [number, number, number, number]; center: [number, number]; zoom: number }) => void;
 }
 
-export default function BusMap({ 
+function BusMap({
+  active=true,
+  clockMs,
   mapStops = [],
   onMapStopClick,
   vehicles, 
@@ -139,7 +143,7 @@ export default function BusMap({
   }, [selectedVehicle]);
   const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
     ? routeStopIds
-    : upcomingVehicleStops(routeStopsSource, Date.now(), selectedVehicle?.lastStopId).map(stop => String(stop.id));
+    : upcomingVehicleStops(routeStopsSource, clockMs||Date.now(), selectedVehicle?.lastStopId).map(stop => String(stop.id));
   const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
   const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
     const next: RouteGeometryStop[] = [];
@@ -432,6 +436,7 @@ export default function BusMap({
         </Pane>
 
         <VehicleMarkerLayer
+          active={active}
           vehicles={markerVehicles}
           selectedVehicleId={selectedVehicleId}
           themeColor={themeColor}
@@ -451,3 +456,5 @@ export type {StopData} from '@/lib/transport/vehicle';
 
 export {getCachedBusIcon} from '@/components/map/vehicle-icons';
 import {BusMarker} from '@/components/map/VehicleMarkers';
+
+export default memo(BusMap);

@@ -33,10 +33,10 @@ android {
         }
         release {
             debuggable false
-            shrinkResources false
+            shrinkResources true
             if (System.getenv('APK_SIGNING_STORE_FILE')) signingConfig signingConfigs.persistent
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         releaseTest {
             initWith release

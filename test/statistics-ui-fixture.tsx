@@ -3,6 +3,11 @@ import {useEffect,useState,type CSSProperties} from 'react';
 import {themeDecoration} from '@/lib/app-theme';
 import {StatisticsView} from '@/app/admin/components/StatisticsView';
 import {Sidebar} from '@/app/admin/components/Sidebar';
+import {aggregateApiStatisticsReports} from '@/lib/api-statistics-reports';
+const apiHistory=aggregateApiStatisticsReports([
+  {stream:'a'.repeat(64),installationId:'first-phone',date:'2026-10-06',startedAt:Date.parse('2026-10-06T08:00:00Z'),providers:{pks:{requests:60,errors:2,latencyMs:12000}}},
+  {stream:'b'.repeat(64),installationId:'second-phone',date:'2026-10-06',startedAt:Date.parse('2026-10-06T08:00:00Z'),providers:{pks:{requests:20,errors:0,latencyMs:4000},mpk_rzeszow:{requests:15,errors:1,latencyMs:3000},marcel:{requests:5,errors:0,latencyMs:1000}}},
+]);
 const devices=[
   {id:'one',installationId:'same',firstLogin:'2026-10-06T10:00:00Z',lastSeenAt:'2026-10-06T11:00:00Z',deviceInfo:'Android',verified:true},
   {id:'alias',installationId:'same',firstLogin:'2026-10-06T10:00:00Z',lastSeenAt:'2026-10-06T12:00:00Z',deviceInfo:'Android',verified:true},
@@ -19,7 +24,7 @@ export default function Page(){
     <div>{['dark-forest','light-sky','light-pink','dark-cosmos'].map(mode=><button key={mode} data-statistics-theme={mode} onClick={()=>setTheme(mode)}>{mode}</button>)}</div>
     <div className="pks-panel-scope flex min-h-0 flex-1" data-panel-theme={isDark?'dark':'light'} data-glass="on">
       <Sidebar isOpen={open} onClose={()=>setOpen(false)} user={{name:'Administrator',role:'Administrator',initials:'AD'}} activeView={view} onViewChange={value=>{setView(value);setOpen(false);}} allowedNavIds={['devices','statistics']} accentColor="#00A3A2"/>
-      {view==='statistics'?<StatisticsView devices={devices} onMenuClick={()=>setOpen(true)} isDarkTheme={isDark}/>:<button onClick={()=>setOpen(true)} className="p-4 text-teal-500">Otwórz menu testowe</button>}
+      {view==='statistics'?<StatisticsView apiHistory={apiHistory} devices={devices} onMenuClick={()=>setOpen(true)} isDarkTheme={isDark}/>:<button onClick={()=>setOpen(true)} className="p-4 text-teal-500">Otwórz menu testowe</button>}
     </div>
   </div>;
 }
