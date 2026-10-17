@@ -1,4 +1,5 @@
 'use client';
+import {banDetailsForSave} from '@/lib/admin/ban-details';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
 import {isNewLoginBlocked,newLoginsEnabled} from '@/lib/login-policy';
 import {motion, useReducedMotion} from 'motion/react';
@@ -25,7 +26,7 @@ import {Device, Ban, Operator, OperatorRole, Log} from './types';
 import {cn} from '@/lib/utils';
 
 import {useFirebase, DeviceData} from '@/components/FirebaseProvider';
-import {collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, orderBy, limit, setDoc, deleteField, getDoc, getDocs, writeBatch, type WriteBatch} from 'firebase/firestore';
+import {collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, query, orderBy, limit, setDoc, deleteField, getDoc, getDocs, writeBatch, runTransaction, type Transaction, type WriteBatch} from 'firebase/firestore';
 import {db} from '@/lib/firebase';
 import {buildDevicePermissions, normalizeAdminPermissions, toLegacyPermissions, effectiveAdminPermissionsForDisplay, canAccessAdminDashboard, type DeviceRole} from '@/lib/admin/rbac';
 import {formatDeviceLabel, formatDeviceTechnicalLabel, formatDeviceOsSummary, initialsFromPersonName, extractDeviceModelCode, type DeviceModelAliases} from '@/lib/format-device-label';
@@ -344,6 +345,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     role: mapRole(d.role),
     rawRole: d.role,
     status: mapStatus(d.status),
+    banDetails: d.banDetails,
     loginBlocked:isNewLoginBlocked(d,globalSettings.loginEnabled),
     verified: d.role === 'owner' || d.role === 'admin' || d.verified === true,
     iconType: determineIconType(d.deviceInfo),
@@ -511,7 +513,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     permissions: Record<string, boolean>,
     displayName?: string,
     extras: Partial<Pick<DeviceData, 'status' | 'verified' | 'banDetails'>> = {},
-    batch?: WriteBatch,
+    batch?: WriteBatch | Transaction,
     deviceUid?: string,
   ) => {
     const inst = String(installationId || '').trim();
@@ -536,7 +538,10 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     } else {
       patch.displayName = deleteField();
     }
-    if (batch) batch.set(doc(db, 'installations', inst), patch, { merge: true });
+    if (batch) {
+      if('commit' in batch) batch.set(doc(db,'installations',inst),patch,{merge:true});
+      else batch.set(doc(db,'installations',inst),patch,{merge:true});
+    }
     else await setDoc(doc(db, 'installations', inst), patch, { merge: true });
   };
 
@@ -774,91 +779,35 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   };
 
   const handleBlockDevice = async (device: Device, reason: string, expiryDate: string, gifUrl: string, silent = false) => {
-    if (!assertNotSelf(device.id)) return;
-    if (!canBanUi) {
-      alert('Brak uprawnień do blokowania urządzeń.');
-      return;
-    }
-    const targetDevice = devicesData.find((x) => x.id === device.id);
-    if ((targetDevice?.role === 'owner' || targetDevice?.role === 'admin') && currentDevice.role !== 'owner') return;
-
+    if (!assertNotSelf(device.id)) return false;
+    if (!canBanUi) { alert('Brak uprawnień do blokowania urządzeń.'); return false; }
+    const editing=device.status==='Zablokowany';
     try {
-      const targetRef = doc(db, 'devices', device.id);
-      const freshTargetSnap = await getDoc(targetRef);
-      const freshTarget = freshTargetSnap.exists()
-        ? ({ id: freshTargetSnap.id, ...(freshTargetSnap.data() as DeviceData) })
-        : targetDevice;
-      const deviceLabel = formatAdminTargetLabel(freshTarget, device.id);
-
-      if (freshTarget?.status === 'banned') {
-        const banDetails = {
-          reason: String(reason || freshTarget.banDetails?.reason || 'Naruszenie regulaminu').trim(),
-          expiresAt: freshTarget.banDetails?.expiresAt || (expiryDate ? new Date(expiryDate).toISOString() : ''),
-          gifUrl: freshTarget.banDetails?.gifUrl || gifUrl || '',
-          silent: Boolean(freshTarget.banDetails?.silent ?? silent),
-          autoBan: Boolean(freshTarget.banDetails?.autoBan),
-          bannedBy: currentUser.name,
-          bannedAt: freshTarget.banDetails?.bannedAt || new Date().toISOString(),
-        };
-        await updateDoc(targetRef, {
-          status: 'banned',
-          verified: freshTarget.role === 'owner' || freshTarget.role === 'admin' || freshTarget.verified === true,
-          banDetails,
-        });
-        await syncInstallationProfile(
-          freshTarget.installationId,
-          freshTarget.role || 'user',
-          buildDevicePermissions(freshTarget.role || 'user', freshTarget.permissions),
-          freshTarget.displayName,
-          {
-            status: 'banned',
-            verified: freshTarget.role === 'owner' || freshTarget.role === 'admin' || freshTarget.verified === true,
-            banDetails,
-          },
-        );
-        addToast('Blokada utrwalona', `${deviceLabel}.`, 'ban');
-        setSelectedDeviceForBan(null);
-        return;
-      }
-
-      const reasonText = String(reason || 'Naruszenie regulaminu').trim();
-      const banDetails = {
-        reason: reasonText,
-        expiresAt: expiryDate ? new Date(expiryDate).toISOString() : '',
-        gifUrl: gifUrl || '',
-        silent: Boolean(silent),
-        bannedBy: currentUser.name,
-        bannedAt: new Date().toISOString(),
-      };
-
-      await updateDoc(targetRef, {
-        status: 'banned',
-        verified: freshTarget?.role === 'owner' || freshTarget?.role === 'admin' || freshTarget?.verified === true,
-        banDetails,
+      let deviceLabel=device.name;
+      const auditRef=doc(collection(db,'admin_logs'));
+      await runTransaction(db,async transaction=>{
+        const targetRef=doc(db,'devices',device.id);
+        const snapshot=await transaction.get(targetRef);
+        if(!snapshot.exists())throw new Error('Urządzenie nie jest już dostępne. Odśwież listę.');
+        const freshTarget={id:snapshot.id,...snapshot.data()} as DeviceData&{id:string};
+        if((freshTarget.role==='owner'||freshTarget.role==='admin')&&currentDevice.role!=='owner')throw new Error('Tylko właściciel może zmienić blokadę administratora.');
+        if(editing&&freshTarget.status!=='banned')throw new Error('Ta blokada została już zdjęta. Odśwież listę.');
+        if(!editing&&freshTarget.status==='banned')throw new Error('Urządzenie jest już zablokowane. Otwórz edycję w zakładce Bany / Blokady.');
+        deviceLabel=formatAdminTargetLabel(freshTarget,device.id);
+        const banDetails=banDetailsForSave({previous:editing?freshTarget.banDetails:undefined,reason,expiryDate,image:gifUrl,silent,actor:currentUser.name});
+        const verified=editing?freshTarget.verified===true:freshTarget.role==='owner'||freshTarget.role==='admin'||freshTarget.verified===true;
+        // Editing touches details only: the device never becomes active, even briefly.
+        transaction.update(targetRef,editing?{banDetails}:{status:'banned',verified,banDetails});
+        await syncInstallationProfile(freshTarget.installationId,freshTarget.role||'user',buildDevicePermissions(freshTarget.role||'user',freshTarget.permissions),freshTarget.displayName,{status:'banned',verified,banDetails},transaction);
+        transaction.set(auditRef,{title:editing?'Zmieniono blokadę urządzenia':'Zablokowano urządzenie',description:deviceLabel,iconType:'ban',category:'SYSTEM',createdAt:serverTimestamp(),actorId:user?.uid||null});
       });
-      await syncInstallationProfile(
-        freshTarget?.installationId,
-        freshTarget?.role || 'user',
-        buildDevicePermissions(freshTarget?.role || 'user', freshTarget?.permissions),
-        freshTarget?.displayName,
-        {
-          status: 'banned',
-          verified: freshTarget?.role === 'owner' || freshTarget?.role === 'admin' || freshTarget?.verified === true,
-          banDetails,
-        },
-      );
-      await writeAuditLog({
-        title: 'Zablokowano urządzenie',
-        description: deviceLabel,
-        iconType: 'ban',
-        category: 'SYSTEM',
-      });
-      addToast('Blokada nadana', `${deviceLabel}.`, 'ban');
+      addToast(editing?'Blokada zaktualizowana':'Blokada nadana',`${deviceLabel}.`,'ban');
       setSelectedDeviceForBan(null);
-    } catch (e: unknown) {
+      return true;
+    } catch(e:unknown) {
       console.error(e);
-      const msg = e instanceof Error ? e.message : String(e);
-      alert('Błąd blokowania: ' + msg);
+      alert('Nie udało się zapisać blokady: '+(e instanceof Error?e.message:String(e)));
+      return false;
     }
   };
 
@@ -1375,6 +1324,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
             everWithBanDetails: banStats.everWithBanDetails,
           }}
           onUnblock={handleUnblockDevice}
+          onEdit={(id)=>{const device=devices.find(row=>row.id===id);if(device)setSelectedDeviceForBan(device);}}
           onMenuClick={() => setIsSidebarOpen(true)}
         />
         )}

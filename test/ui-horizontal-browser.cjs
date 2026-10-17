@@ -82,6 +82,9 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[data-admin-viewport][data-cosmic-view="admin:logs"]');
     await button('Wszystkie daty');await button('Zakres niestandardowy');
     await page.waitForSelector('#logs-range-start',{visible:true});await pause();
+    const logButtons=await page.$$eval('[data-admin-log-filters] > div > button',buttons=>buttons.map(button=>({height:button.getBoundingClientRect().height,label:button.querySelector('span').textContent,clipped:button.querySelector('span').scrollWidth>button.querySelector('span').clientWidth+1})));
+    assert.equal(logButtons.length,2);assert.ok(Math.abs(logButtons[0].height-logButtons[1].height)<1,'both log filters keep equal height when a long label wraps');assert.ok(logButtons.every(button=>!button.clipped),'filter labels fit without horizontal clipping');
+
     for(const id of ['logs-range-start','logs-range-end']){
       const style=await page.$eval('#'+id,el=>({type:el.type,scheme:getComputedStyle(el).colorScheme,display:getComputedStyle(el).display,padding:parseFloat(getComputedStyle(el).paddingRight)}));
       assert.equal(style.type,'date');assert.equal(style.scheme,'dark');assert.equal(style.display,'block');assert.ok(style.padding>=40,'date text reserves room for the trailing picker icon');
@@ -101,6 +104,15 @@ const server=http.createServer((req,res)=>{
     for(const [route,scheme] of [['dialog-fixture','dark'],['light-dialog-fixture','light']]){
       await page.goto(origin+'/'+route+'/',{waitUntil:'domcontentloaded'});
       await page.waitForSelector('.admin-modal-overlay',{visible:true});await button('Ban');
+      assert.equal(await page.$('#ban-date'),null,'preset duration must not expose a calendar');
+      for(const duration of ['hour','week','year','day']){
+        await page.click('[data-ban-duration-toggle]');
+        await page.click(`[data-ban-duration="${duration}"]`);
+        assert.equal(await page.$('#ban-date'),null,`${duration} must not expose a calendar`);
+      }
+      await page.click('[data-ban-duration-toggle]');await pause();
+      await page.screenshot({path:`test/ui-previews/ban-duration-dropdown-${scheme}.png`});
+      await page.click('[data-ban-duration="custom"]');
       await page.waitForSelector('#ban-date',{visible:true});await pause();
       assert.equal(await page.$eval('#ban-date',el=>getComputedStyle(el).colorScheme),scheme);
       assert.equal(await page.$eval('#ban-date',el=>el.disabled),false,'temporary ban date remains editable');

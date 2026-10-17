@@ -1051,3 +1051,28 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 /* Keep the native picker and its click target at the trailing edge of range fields. */
 .admin-range-date { display:block; position:relative; min-width:0; padding-inline-end:3rem; }
 .admin-range-date::-webkit-calendar-picker-indicator { position:absolute; right:1rem; top:50%; transform:translateY(-50%); margin:0; }
+
+/* Frosted cosmic drawer: a bounded nebula under a dark veil, never raw live text. */
+html[data-cosmic-theme='on'] .pks-panel-scope[data-glass] .pks-admin-sidebar {
+  background-color:rgb(8 13 29 / 78%) !important;
+  background-image:linear-gradient(145deg,rgb(7 12 30 / 64%),rgb(8 13 29 / 86%)),url('/themes/kosmos/nebula.jpg') !important;
+  background-size:100% 100%,cover !important;
+  background-position:center,62% center !important;
+  background-repeat:no-repeat !important;
+  box-shadow:12px 0 44px rgb(0 0 0 / 24%),inset -1px 0 0 rgb(192 208 255 / 10%) !important;
+}
+html[data-cosmic-theme='on'] .pks-admin-sidebar .pks-admin-sidebar-item {
+  background-color:rgb(5 11 26 / 60%);
+  background-image:linear-gradient(120deg,rgb(162 187 255 / 4%),transparent 70%);
+  border-color:rgb(188 207 255 / 15%);
+}
+html[data-cosmic-theme='on'] .pks-admin-sidebar .pks-admin-sidebar-item[aria-current='page'] {
+  background-color:rgb(18 23 48 / 78%);
+  background-image:linear-gradient(110deg,var(--pks-accent-soft),transparent);
+}
+.admin-date-field > svg { color:var(--ui-muted,#b9c6dd); }
+.admin-date-field .admin-date-input { padding-inline-end:3rem; min-width:0; max-width:100%; }
+:is(.pks-theme-root,.pks-panel-scope) .admin-date-input:is([type='date'],[type='datetime-local'])::-webkit-calendar-picker-indicator { opacity:0 !important; width:24px; height:24px; }
+
+html[data-cosmic-theme='on'] .pks-admin-sidebar .pks-admin-sidebar-item:hover { background-color:rgb(24 33 58 / 85%); }
+html[data-cosmic-theme='on'] .pks-panel-scope[data-glass='off'] .pks-admin-sidebar { background-color:#080d1d !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }

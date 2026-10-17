@@ -1,8 +1,10 @@
-﻿export type Role = 'Właściciel' | 'Administrator' | 'Użytkownik';
+import type {DeviceData} from '@/components/firebase/types';
+export type Role = 'Właściciel' | 'Administrator' | 'Użytkownik';
 export type Status = 'Aktywny' | 'Zablokowany';
 export type IconType = 'mobile' | 'desktop' | 'tablet';
 
 export interface Device {
+  banDetails?: DeviceData['banDetails'];
   id: string;
   name: string;
   deviceInfo?: string;

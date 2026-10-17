@@ -504,3 +504,17 @@ test('API reports survive device deduplication and a reinstall cannot overwrite 
   await assertFails(setDoc(doc(other,'api_statistics',id),apiReport('user','user-install',report.stream,100)));
   await env.withSecurityRulesDisabled(async context=>assert.equal((await getDoc(doc(context.firestore(),'devices','prior-api-user'))).exists(),false));
 });
+
+test('an authorised ban editor can change details and mirror the profile without unbanning; users and denied admins cannot',async()=>{
+ const original={reason:'original',expiresAt:'2026-10-20T12:00:00Z',gifUrl:'https://example.com/old.png',bannedAt:'2026-10-17T12:00:00Z',bannedBy:'First admin'};
+ await env.withSecurityRulesDisabled(async context=>{
+  const db=context.firestore();await updateDoc(doc(db,'devices','user'),{status:'banned',banDetails:original});
+  await setDoc(doc(db,'installations','user-install'),{...device('user','user-install'),status:'banned',banDetails:original});
+  await setDoc(doc(db,'devices','no-ban'),device('admin','no-ban-install',buildDevicePermissions('admin',{ban:false,canBan:false})));
+ });
+ const details={...original,reason:'updated',expiresAt:'',gifUrl:''};
+ for(const uid of ['user','no-ban'])await assertFails(updateDoc(doc(env.authenticatedContext(uid).firestore(),'devices','user'),{banDetails:details}));
+ const db=env.authenticatedContext('admin').firestore(),batch=writeBatch(db);
+ batch.update(doc(db,'devices','user'),{banDetails:details});batch.set(doc(db,'installations','user-install'),{banDetails:details,status:'banned',updatedBy:'admin'},{merge:true});await assertSucceeds(batch.commit());
+ const stored=(await getDoc(doc(db,'devices','user'))).data();assert.equal(stored.status,'banned');assert.deepEqual(stored.banDetails,details);assert.equal(stored.verified,false);
+});
