@@ -65,7 +65,7 @@ function TimeChart({points,color,bars=false,title,dark}:{points:Point[];color:st
   const ticks=[...new Set([0,Math.floor((points.length-1)/2),points.length-1])];
   const muted=dark?'#94a3b8':'#64748b',grid=dark?'#ffffff12':'#0f172a12';
   if(!points.some(p=>p.value!==null))return <div className="flex h-[234px] flex-col items-center justify-center gap-2 text-center"><BarChart3 size={32} className="opacity-30"/><p className="text-sm font-medium">Jeszcze nie ma pomiarów</p><p className="max-w-xs text-xs opacity-60">Wykres pojawi się po zapytaniach aplikacji do przewoźników.</p></div>;
-  return <div ref={chartRef} onKeyDown={e=>{if(e.key==='Escape')setShowDetails(false);}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget)&&!tooltipRef.current?.contains(e.relatedTarget))setShowDetails(false);}}>
+  return <div ref={chartRef} className="relative min-w-0" onKeyDown={e=>{if(e.key==='Escape')setShowDetails(false);}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget)&&!tooltipRef.current?.contains(e.relatedTarget))setShowDetails(false);}}>
     <div className="mt-4 flex min-h-8 flex-wrap items-center justify-between gap-2 text-xs" aria-live="polite">
       <span className="opacity-60">{dateLabel(point.date,true)}</span><span className="font-semibold tabular-nums">{point.value===null?'Brak pomiaru':`${number(point.value)} ${bars?'nowych urządzeń':'zapytań'}`}{point.errors!=null&&!bars&&<span className="ml-3 text-rose-400">{number(point.errors)} błędów</span>}</span>
     </div>
@@ -94,7 +94,7 @@ function TimeChart({points,color,bars=false,title,dark}:{points:Point[];color:st
       {point.value===null&&<p className="mt-2 text-[10px] opacity-60">Brak pomiarów w tym dniu</p>}
     </div>,document.body)}
     </div>
-    <table className="sr-only"><caption>{title}</caption><thead><tr><th>Dzień</th><th>{bars?'Nowe urządzenia':'Zapytania API'}</th>{!bars&&<th>Błędy</th>}</tr></thead><tbody>{points.map(p=><tr key={p.date}><td>{p.date}</td><td>{p.value??'Brak pomiarów'}</td>{!bars&&<td>{p.errors??'Brak pomiarów'}</td>}</tr>)}</tbody></table>
+    <div className="sr-only"><table><caption>{title}</caption><thead><tr><th>Dzień</th><th>{bars?'Nowe urządzenia':'Zapytania API'}</th>{!bars&&<th>Błędy</th>}</tr></thead><tbody>{points.map(p=><tr key={p.date}><td>{p.date}</td><td>{p.value??'Brak pomiarów'}</td>{!bars&&<td>{p.errors??'Brak pomiarów'}</td>}</tr>)}</tbody></table></div>
   </div>;
 }
 
