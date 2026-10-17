@@ -99,7 +99,8 @@ const server=http.createServer((req,res)=>{
     await button('Permanentne');await button('Filtry');await button('Wszystkie');
     assert.equal(await page.$eval('input[placeholder="Szukaj urządzenia lub ID..."]',el=>el.value),'test-query','all ban types preserves the search query');
     for(const [route,scheme] of [['dialog-fixture','dark'],['light-dialog-fixture','light']]){
-      await page.goto(origin+'/'+route+'/',{waitUntil:'domcontentloaded'});await button('Ban');
+      await page.goto(origin+'/'+route+'/',{waitUntil:'domcontentloaded'});
+      await page.waitForSelector('.admin-modal-overlay',{visible:true});await button('Ban');
       await page.waitForSelector('#ban-date',{visible:true});await pause();
       assert.equal(await page.$eval('#ban-date',el=>getComputedStyle(el).colorScheme),scheme);
       assert.equal(await page.$eval('#ban-date',el=>el.disabled),false,'temporary ban date remains editable');
