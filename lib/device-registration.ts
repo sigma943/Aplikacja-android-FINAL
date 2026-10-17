@@ -32,7 +32,7 @@ export async function registerRestoredDevice(db:Firestore,uid:string,installatio
     const enabled=security?.exists()?newLoginsEnabled(security.data().loginEnabled):loginEnabled;
     const payload=restoredDevicePayload(profile,{},installationId,deviceInfo,autoBan,banDetails,enabled);
     await setDoc(currentRef,{...payload,lastSeenAt:serverTimestamp(),updatedAt:serverTimestamp()});
-    await setDoc(profileRef,{...payload,installationId,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
+    await setDoc(profileRef,{...payload,installationId,restorationMetadataVersion:1,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
     if(typeof profile.lastUid==='string'&&profile.lastUid!==uid&&/^[\w-]{6,128}$/.test(profile.lastUid)) {
       const previousRef=doc(db,'devices',profile.lastUid);
       const previous=await getDoc(previousRef);
@@ -54,14 +54,14 @@ async function transferDevice(db:Firestore,uid:string,installationId:string,devi
     // document to fresh anonymous accounts merely to copy its metadata.
     // The legacy read remains only for APK-before-rules compatibility; deployment
     // backfills old profiles before this read is restricted by the new rules.
-    const profileComplete=typeof profile.firstLogin==='string'&&Boolean(profile.firstLogin);
+    const profileComplete=profile.restorationMetadataVersion===1;
     const previous=previousRef&&!profileComplete?await tx.get(previousRef):null;
     const previousData=previous?.exists()&&previous.data().installationId===installationId?previous.data():{};
     const security=Object.keys(profile).length||Object.keys(previousData).length?null:await tx.get(doc(db,'admin_settings','security'));
     const enabled=security?.exists()?newLoginsEnabled(security.data().loginEnabled):loginEnabled;
     const payload=restoredDevicePayload(profile,previousData,installationId,deviceInfo,autoBan,banDetails,enabled);
     tx.set(currentRef,{...payload,lastSeenAt:serverTimestamp(),updatedAt:serverTimestamp()});
-    tx.set(profileRef,{...payload,installationId,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
+    tx.set(profileRef,{...payload,installationId,restorationMetadataVersion:1,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
     if(previousRef&&(profileComplete||(previous?.exists()&&previous.data().installationId===installationId)))tx.delete(previousRef);
   });
 }

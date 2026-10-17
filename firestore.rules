@@ -290,8 +290,8 @@ service cloud.firestore {
       let newPath = /databases/$(database)/documents/devices/$(request.auth.uid);
       let profile = get(path).data;
       let restored = getAfter(newPath).data;
-      return isValidId(instId) && exists(path) && !exists(newPath) &&
-             profile.get('lastUid', '') == deviceId &&
+      return isValidId(instId) && exists(path) &&
+             profile.get('lastUid', '') in [deviceId, request.auth.uid] &&
              getAfter(path).data.lastUid == request.auth.uid &&
              restored.installationId == instId &&
              restored.role == profile.role && restored.permissions == profile.permissions &&

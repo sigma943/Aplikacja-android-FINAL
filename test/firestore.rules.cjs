@@ -399,7 +399,7 @@ test('legacy metadata migration preserves first login and name without exposing 
     const adapter = { doc: path => doc(db, ...path.split('/')), runTransaction: callback => firebaseSdk.runTransaction(db, callback) };
     assert.equal(await migrateInstallationMetadata(adapter, doc(db, 'installations', id)), true);
     assert.equal(await migrateInstallationMetadata(adapter, doc(db, 'installations', id)), false);
-    assert.deepEqual((await getDoc(doc(db, 'installations', id))).data(), { ...profile, firstLogin: previous.firstLogin, deviceName: previous.deviceName });
+    assert.deepEqual((await getDoc(doc(db, 'installations', id))).data(), { ...profile, firstLogin: previous.firstLogin, deviceName: previous.deviceName, restorationMetadataVersion: 1 });
     assert.deepEqual((await getDoc(doc(db, 'devices', 'prior-admin'))).data(), previous);
   });
   const db = env.authenticatedContext('next-admin').firestore();
