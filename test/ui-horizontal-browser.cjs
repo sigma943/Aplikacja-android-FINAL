@@ -82,6 +82,9 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('[data-admin-viewport][data-cosmic-view="admin:logs"]');
     await button('Wszystkie daty');await button('Zakres niestandardowy');
     await page.waitForSelector('#logs-range-start',{visible:true});await pause();
+    const logButtons=await page.$$eval('[data-admin-log-filters] > div > button',buttons=>buttons.map(button=>({height:button.getBoundingClientRect().height,label:button.querySelector('span').textContent,clipped:button.querySelector('span').scrollWidth>button.querySelector('span').clientWidth+1})));
+    assert.equal(logButtons.length,2);assert.ok(Math.abs(logButtons[0].height-logButtons[1].height)<1,'both log filters keep equal height when a long label wraps');assert.ok(logButtons.every(button=>!button.clipped),'filter labels fit without horizontal clipping');
+
     for(const id of ['logs-range-start','logs-range-end']){
       const style=await page.$eval('#'+id,el=>({type:el.type,scheme:getComputedStyle(el).colorScheme,display:getComputedStyle(el).display,padding:parseFloat(getComputedStyle(el).paddingRight)}));
       assert.equal(style.type,'date');assert.equal(style.scheme,'dark');assert.equal(style.display,'block');assert.ok(style.padding>=40,'date text reserves room for the trailing picker icon');

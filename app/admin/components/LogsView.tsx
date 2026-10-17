@@ -259,13 +259,13 @@ export function LogsView({
         </div>
 
         {/* Filters Top */}
-        <div ref={filtersRef} className="grid grid-cols-2 gap-4">
+        <div ref={filtersRef} data-admin-log-filters className="grid grid-cols-2 gap-4">
           <div className="relative">
             <button 
               onClick={toggleTypeFilter}
-              className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
+              className="h-full w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
-              <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
+              <span className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-slate-300 whitespace-normal break-words text-left min-w-0 leading-relaxed">
                 {filterType === 'ALL' ? 'Wszystkie typy' : filterType === 'SYSTEM' ? 'Systemowe' : 'Operatorskie'}
               </span>
               <ChevronDown size={14} className={cn("text-slate-500 shrink-0 group-hover:text-white transition-all duration-300", showFilterDropdown && "rotate-180")} />
@@ -289,7 +289,7 @@ export function LogsView({
           <div className="relative">
             <button 
               onClick={toggleDateFilter}
-              className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer group shadow-lg"
+              className="h-full w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-slate-300 whitespace-normal break-words text-left min-w-0 leading-relaxed">
                 {filterDate === 'ALL' ? 'Wszystkie daty' : 
