@@ -41,17 +41,22 @@ function TimeChart({points,color,bars=false,title,dark}:{points:Point[];color:st
       const maxHeight=Math.max(1,bottom-top);
       tooltip.style.maxHeight=maxHeight+'px';
       const box=tooltip.getBoundingClientRect(),target=anchor.getBoundingClientRect();
+      if(target.bottom<top||target.top>bottom){setShowDetails(false);return;}
       const preferred=target.right+12+box.width<=viewRight-8?target.right+12:target.left-box.width-12;
       setTooltipPosition({left:Math.max(viewLeft+8,Math.min(preferred,viewRight-box.width-8)),top:Math.max(top,Math.min(target.top,bottom-box.height)),maxHeight});
     };
     // A portal escapes glass-card clipping and stacking contexts. Measure the real
     // content height, including the extra no-measurement message, before painting.
     position();
-    const closeOnScroll=(event:Event)=>{if(!tooltipRef.current?.contains(event.target as Node))setShowDetails(false);};
+    let frame=0;
+    const followScroll=(event:Event)=>{
+      if(tooltipRef.current?.contains(event.target as Node))return;
+      cancelAnimationFrame(frame);frame=requestAnimationFrame(position);
+    };
     window.addEventListener('resize',position);
-    window.addEventListener('scroll',closeOnScroll,true);
+    window.addEventListener('scroll',followScroll,true);
     window.visualViewport?.addEventListener('resize',position);
-    return()=>{window.removeEventListener('resize',position);window.removeEventListener('scroll',closeOnScroll,true);window.visualViewport?.removeEventListener('resize',position);};
+    return()=>{window.removeEventListener('resize',position);window.removeEventListener('scroll',followScroll,true);cancelAnimationFrame(frame);window.visualViewport?.removeEventListener('resize',position);};
   },[showDetails,index,point]);
   const max=Math.max(1,...points.map(p=>p.value||0));
   const left=36,width=590,bottom=168,height=132,step=width/Math.max(1,points.length);
