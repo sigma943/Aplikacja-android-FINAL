@@ -999,6 +999,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           : cn('pks-panel-scope flex h-screen min-h-0 flex-row bg-[#040609] overflow-hidden font-sans text-slate-300', !isDarkTheme && 'admin-light')
       }
       style={uiAccentVariables(themeColor, isDarkTheme) as CSSProperties}
+      data-admin-viewport
       data-cosmic-view={`admin:${activeView}`}
       data-cosmic-seed={cosmicScope?.seed}
       data-glass={embedded && transparentUI ? 'on' : 'off'}
@@ -1248,7 +1249,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           </div>
         )}
 
-        <motion.div data-cosmic-content className="flex min-h-0 flex-1 flex-col" key={activeView} initial={reduceMotion ? false : {opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}}>
+        <motion.div data-cosmic-content className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" key={activeView} initial={reduceMotion ? false : {opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1]}}>
         {activeView === 'devices' && (
           <DeviceTable
             devices={devices}

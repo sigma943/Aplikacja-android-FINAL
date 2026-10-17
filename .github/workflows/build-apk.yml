@@ -6,11 +6,21 @@ on:
   pull_request:
     branches: [main, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242, fix/mpk-diagnostics-242, fix/mpk-mybus-fallback-242, fix/mpk-mybus-timetable-242]
   workflow_dispatch:
+    inputs:
+      full_verification:
+        description: Run the full application, backend, browser and native regression suites
+        type: boolean
+        default: true
+
 
 jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
+    env:
+      # Full verification stays the default. A reviewed presentation-only commit
+      # can explicitly request the focused layout check with [quick-ui].
+      FULL_VERIFICATION: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.full_verification) || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[quick-ui]')) }}
 
     steps:
       - name: Checkout Source
@@ -46,9 +56,11 @@ jobs:
         run: npm ci
 
       - name: Test Application
+        if: env.FULL_VERIFICATION == 'true'
         run: npm test
 
       - name: Verify Maintenance Backend
+        if: env.FULL_VERIFICATION == 'true'
         run: |
           npm --prefix functions ci
           npm --prefix functions test
@@ -56,13 +68,19 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify vertical panel layout
+        run: node test/ui-horizontal-browser.cjs
+
       - name: Verify map stop interactions
+        if: env.FULL_VERIFICATION == 'true'
         run: node test/map-stops-browser.cjs
 
       - name: Verify shared accent and stop views
+        if: env.FULL_VERIFICATION == 'true'
         run: node test/accent-browser.cjs
 
       - name: Verify MPK backup route and stop pins
+        if: env.FULL_VERIFICATION == 'true'
         run: node test/mpk-route-browser.cjs
 
       - name: Upload UI previews
@@ -82,6 +100,7 @@ jobs:
           packages: "platform-tools platforms;android-36 build-tools;36.0.0"
 
       - name: Verify Firebase restoration rules
+        if: env.FULL_VERIFICATION == 'true'
         run: npm run test:rules
 
       - name: Setup Gradle
@@ -94,7 +113,11 @@ jobs:
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew testDebugUnitTest testReleaseUnitTest testReleaseTestUnitTest assembleDebug assembleRelease assembleReleaseTest
+          if [ "$FULL_VERIFICATION" = "true" ]; then
+            ./gradlew testDebugUnitTest testReleaseUnitTest testReleaseTestUnitTest assembleDebug assembleRelease assembleReleaseTest
+          else
+            ./gradlew assembleDebug assembleRelease
+          fi
 
       - name: Verify signed release matches debug application
         run: |
@@ -126,6 +149,7 @@ jobs:
           if-no-files-found: error
 
       - name: Verify separate signed release test
+        if: env.FULL_VERIFICATION == 'true'
         run: |
           python scripts/verify-apk-variants.py --separate \
             android/app/build/outputs/apk/debug/app-debug.apk \
@@ -135,6 +159,7 @@ jobs:
             "$RUNNER_TEMP/apk-release-test-verification.json"
 
       - name: Upload separate release test APK
+        if: env.FULL_VERIFICATION == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: pks-live-release-test-apk
@@ -142,6 +167,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload separate release test verification
+        if: env.FULL_VERIFICATION == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: apk-release-test-verification

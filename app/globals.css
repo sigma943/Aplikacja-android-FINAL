@@ -1029,3 +1029,16 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
 /* Status screens use the selected solid theme colour, without decorative skies. */
 .pks-status-screen[data-startup-theme] { background-image:none !important; }
 html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { display:none !important; }
+
+/* Vertical application panels must not become sideways scroll containers when
+   SVG labels, glass effects or enlarged text extend their scrollable bounds.
+   Nested tables/carousels keep their own horizontal scrolling; maps are excluded. */
+[data-statistics-view],
+.transit-view,
+[data-admin-viewport] [data-cosmic-content] > [data-cosmic-canvas],
+[data-options-scroll] {
+  min-width:0;
+  max-width:100%;
+  overflow-x:hidden;
+  overscroll-behavior-x:none;
+}
