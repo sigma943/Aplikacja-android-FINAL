@@ -1,3 +1,5 @@
+import {AdminDateField} from './AdminDateField';
+import {BAN_DURATIONS,banExpiryForDuration,banDateTimeInput,type BanDuration} from '@/lib/admin/ban-details';
 import {readBanImage,banImageAddress} from '@/lib/ban-image';
 import {AdminModalPortal} from './AdminModalPortal';
 import { X, Lock, Upload, Image as ImageIcon, EyeOff } from 'lucide-react';
@@ -8,20 +10,25 @@ import { motion } from 'motion/react';
 interface BanModalProps {
   device: Device;
   onClose: () => void;
-  onConfirm: (device: Device, reason: string, expiryDate: string, gifUrl: string, silent: boolean) => void;
+  onConfirm: (device: Device, reason: string, expiryDate: string, gifUrl: string, silent: boolean) => boolean | void | Promise<boolean | void>;
 }
 
 export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
-  const [gifUrl, setGifUrl] = useState('');
-  const [includeImage, setIncludeImage] = useState(false);
-  const [silentBan, setSilentBan] = useState(false);
+  const editing=device.status==='Zablokowany';
+  const previous=editing?device.banDetails:undefined;
+  const [gifUrl, setGifUrl] = useState(previous?.gifUrl||'');
+  const [includeImage, setIncludeImage] = useState(Boolean(previous?.gifUrl&&!previous?.silent));
+  const [silentBan, setSilentBan] = useState(Boolean(previous?.silent));
   const [imageError, setImageError] = useState('');
   const [imageLoading,setImageLoading]=useState(false);
   const [imageAddress,setImageAddress]=useState('');
   const imageGeneration=useRef(0);
-  const [reason, setReason] = useState('Zbyt dużo lagów na czacie');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [isPermanent, setIsPermanent] = useState(false);
+  const [reason, setReason] = useState(previous?.reason||'');
+  const [duration,setDuration]=useState<BanDuration>(editing?'custom':'day');
+  const [expiryDate, setExpiryDate] = useState(banDateTimeInput(previous?.expiresAt||banExpiryForDuration('day')));
+  const [formError,setFormError]=useState('');
+  const [saving,setSaving]=useState(false);
+  const [isPermanent, setIsPermanent] = useState(editing&&!previous?.expiresAt);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -48,19 +55,25 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
     });
   };
 
-  const handleBan = () => {
-    if (!silentBan && includeImage && (imageLoading || imageError)) return;
+  const handleBan = async () => {
+    if(saving)return;
+    setFormError('');
+    if (!silentBan && includeImage && (imageLoading || (imageError && gifUrl!==previous?.gifUrl))) return;
     if (!silentBan && includeImage && !gifUrl) {
       setImageError('Dodaj obrazek albo wyłącz tę opcję.');
       return;
     }
-    onConfirm(device, reason, isPermanent ? '' : expiryDate, !silentBan && includeImage ? gifUrl : '', silentBan);
-    onClose();
+    const expiry=isPermanent?'':duration==='custom'?(previous?.expiresAt&&expiryDate===banDateTimeInput(previous.expiresAt)?previous.expiresAt:expiryDate):banExpiryForDuration(duration);
+    if(!isPermanent&&(!expiry||!Number.isFinite(new Date(expiry).getTime())||new Date(expiry).getTime()<=Date.now())){setFormError('Wybierz datę i godzinę zakończenia w przyszłości.');return;}
+    setSaving(true);
+    try{const result=await onConfirm(device,reason,expiry,!silentBan&&includeImage?gifUrl:'',silentBan);if(result!==false)onClose();}
+    catch(error){setFormError(error instanceof Error?error.message:'Nie udało się zapisać blokady. Spróbuj ponownie.');}
+    finally{setSaving(false);}
   };
 
   return (
     <AdminModalPortal>
-    <div role="dialog" aria-modal="true" aria-label="Zablokuj urządzenie" className="admin-modal-overlay bg-[#020408]/80 backdrop-blur-sm">
+    <div role="dialog" aria-modal="true" aria-label={editing?'Edytuj blokadę':'Zablokuj urządzenie'} className="admin-modal-overlay bg-[#020408]/80 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -68,7 +81,7 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
       >
         <div className="shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between border-b border-white/5">
           <div>
-            <h2 className="text-lg font-bold text-white tracking-tight">Zablokuj urządzenie</h2>
+            <h2 className="text-lg font-bold text-white tracking-tight">{editing?'Edytuj blokadę':'Zablokuj urządzenie'}</h2>
             <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">Konfiguracja blokady dla tego urządzenia</p>
           </div>
           <button
@@ -81,11 +94,16 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 sm:p-6">
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest px-1">Data wygaśnięcia blokady</label>
-            <input
-              type="date"
+            <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-500">Czas blokady</span>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-ban-durations>{BAN_DURATIONS.map(([id,label])=><button key={id} type="button" data-ban-duration={id} aria-pressed={!isPermanent&&duration===id} onClick={()=>{setDuration(id);setIsPermanent(false);setFormError('');if(id!=='custom')setExpiryDate(banDateTimeInput(banExpiryForDuration(id)));}} className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition-colors ${!isPermanent&&duration===id?'ui-accent-soft':'border-white/10 bg-[#151B28] text-slate-300'}`}>{label}</button>)}</div>
+          </div>
+          <div>
+            <label htmlFor="ban-date" className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest px-1">Data i godzina zakończenia</label>
+            <AdminDateField
+              type="datetime-local"
+              aria-label="Data i godzina zakończenia blokady"
               value={expiryDate}
-              onChange={(e) => setExpiryDate(e.target.value)}
+              onChange={(e) => {setExpiryDate(e.target.value);setDuration('custom');setFormError('');}}
               disabled={isPermanent}
               className="w-full bg-[#151B28] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-rose-500/50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               id="ban-date"
@@ -133,6 +151,7 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
             <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest px-1">Powód blokady <span className="text-slate-600 font-normal">(opcjonalnie)</span></label>
             <input
               type="text"
+              aria-label="Powód blokady"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full bg-[#151B28] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-rose-500/50 transition-colors"
@@ -273,12 +292,15 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
             </div>
           )}
 
+          {formError&&<p role="alert" className="rounded-xl border border-rose-400/25 bg-rose-500/10 p-3 text-sm text-rose-200">{formError}</p>}
           <button
+            type="button"
+            disabled={saving||imageLoading}
             onClick={handleBan}
             className="w-full flex items-center justify-center gap-3 bg-rose-500 hover:bg-rose-600 text-white py-4 rounded-2xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_30px_rgba(244,63,94,0.3)] cursor-pointer"
           >
             <Lock size={18} />
-            ZABLOKUJ URZĄDZENIE
+            {saving?'Zapisywanie…':editing?'ZAPISZ ZMIANY BLOKADY':'ZABLOKUJ URZĄDZENIE'}
           </button>
         </div>
       </motion.div>

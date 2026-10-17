@@ -1,3 +1,4 @@
+import {AdminDateField} from './AdminDateField';
 import {useAppBack} from '@/lib/use-app-back';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, ChevronDown, Calendar, RefreshCcw, LogIn, MonitorOff, ShieldAlert, UserCog, PowerOff, MapPin, Menu, Trash2, X, Check } from 'lucide-react';
@@ -288,9 +289,9 @@ export function LogsView({
           <div className="relative">
             <button 
               onClick={toggleDateFilter}
-              className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
+              className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer group shadow-lg"
             >
-              <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
+              <span className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-slate-300 whitespace-normal break-words text-left min-w-0 leading-relaxed">
                 {filterDate === 'ALL' ? 'Wszystkie daty' : 
                  filterDate === 'TODAY' ? 'Dzisiaj' : 
                  filterDate === 'YESTERDAY' ? 'Wczoraj' : 
@@ -298,9 +299,9 @@ export function LogsView({
                  filterDate === 'LAST_WEEK' ? 'Poprzedni tydzień' : 
                  filterDate === 'THIS_MONTH' ? 'W tym miesiącu' : 
                  filterDate === 'LAST_MONTH' ? 'Poprzedni miesiąc' : 
-                 'Niestandardowy'}
+                 'Niestandardowe'}
               </span>
-              <Calendar size={14} className="text-slate-300 shrink-0 group-hover:text-white transition-colors" />
+              <Calendar size={18} className="text-slate-300 shrink-0 group-hover:text-white transition-colors" />
             </button>
             <AnimatePresence>
               {showDatePicker && (
@@ -333,11 +334,11 @@ export function LogsView({
                             <div className="grid grid-cols-1 gap-3">
                                <div>
                                   <label htmlFor="logs-range-start" className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1.5 block px-1">Początek zakresu</label>
-                                  <input type="date" className="admin-range-date w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all" id="logs-range-start" value={customRange.start} onChange={e => setCustomRange({...customRange, start: e.target.value})} />
+                                  <AdminDateField type="date" className="admin-range-date w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all" id="logs-range-start" value={customRange.start} onChange={e => setCustomRange({...customRange, start: e.target.value})} />
                                </div>
                                <div>
                                   <label htmlFor="logs-range-end" className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1.5 block px-1">Koniec zakresu</label>
-                                  <input type="date" className="admin-range-date w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all" id="logs-range-end" value={customRange.end} onChange={e => setCustomRange({...customRange, end: e.target.value})} />
+                                  <AdminDateField type="date" className="admin-range-date w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all" id="logs-range-end" value={customRange.end} onChange={e => setCustomRange({...customRange, end: e.target.value})} />
                                </div>
                             </div>
                             <div className="px-1 pt-1">

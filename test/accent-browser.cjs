@@ -1370,10 +1370,37 @@ const server=http.createServer((req,res)=>{
     assert.equal(searchLayout.iconZ,'10','search icon paints above the glass input');
     await cosmosPage.click('[aria-label="Otwórz menu administratora"]');
     await cosmosPage.waitForFunction(()=>document.querySelector('[data-admin-sidebar]').getBoundingClientRect().left>=-1);
-    assert.ok(await cosmosPage.$eval('[data-admin-sidebar]',el=>{const s=getComputedStyle(el);return s.backgroundImage==='none'&&Number(s.backgroundColor.match(/[\d.]+/g)?.[3]??1)>=.9;}),'sidebar glass masks text from the device list underneath');
+    assert.ok(await cosmosPage.$eval('[data-admin-sidebar]',el=>{const s=getComputedStyle(el);return s.backgroundImage.includes('nebula.jpg')&&Number(s.backgroundColor.match(/[\d.]+/g)?.[3]??1)>=.7;}),'sidebar uses a bounded nebula behind its glass instead of live device-list text');
     assert.ok(await cosmosPage.$$eval('.pks-admin-sidebar-item',items=>items.every(el=>getComputedStyle(el).backgroundColor!=='rgba(0, 0, 0, 0)')),'every sidebar target has its own filled surface');
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-admin-sidebar.png'});
     await cosmosPage.click('[aria-label="Zamknij menu administratora"]');
+    await cosmosPage.evaluate(()=>window.__banEditTest.seed());
+    await cosmosPage.waitForFunction(()=>document.querySelector('[data-admin-sidebar] nav')?.textContent.includes('Bany / Blokady'));
+    await cosmosPage.$eval('[data-admin-sidebar] nav',nav=>[...nav.querySelectorAll('button')].find(button=>button.textContent.trim()==='Bany / Blokady').click());
+    await cosmosPage.waitForSelector('[aria-label^="Edytuj blokadę:"]');
+    await cosmosPage.$eval('[aria-label^="Edytuj blokadę:"]',button=>button.click());
+    await cosmosPage.waitForSelector('[role="dialog"][aria-label="Edytuj blokadę"]');
+    assert.equal(await cosmosPage.$eval('[aria-label="Powód blokady"]',el=>el.value),'Original reason');
+    assert.ok(await cosmosPage.$eval('#ban-date',el=>el.value.startsWith('2030-10-20')));
+    assert.equal(await cosmosPage.$$eval('[data-ban-duration]',els=>els.length),5);
+    await cosmosPage.click('[data-ban-duration="hour"]');
+    await cosmosPage.click('[aria-label="Powód blokady"]',{clickCount:3});await cosmosPage.keyboard.type('Edited reason');
+    await cosmosPage.evaluate(()=>[...document.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent.includes('Dodaj obrazek')).click());
+    await cosmosPage.screenshot({path:'test/ui-previews/cosmos-ban-edit-form.png'});
+    const beforeSave=Date.now();
+    await cosmosPage.evaluate(()=>[...document.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent.includes('ZAPISZ ZMIANY BLOKADY')).click());
+    await cosmosPage.waitForSelector('[role="dialog"][aria-label="Edytuj blokadę"]',{hidden:true});
+    let saved=await cosmosPage.evaluate(()=>window.__banEditTest.read());
+    assert.equal(saved.device.status,'banned');assert.equal(saved.device.banDetails.reason,'Edited reason');assert.equal(saved.device.banDetails.gifUrl,'');
+    assert.ok(Math.abs(new Date(saved.device.banDetails.expiresAt).getTime()-beforeSave-3600000)<10000);
+    assert.equal(saved.device.banDetails.bannedBy,'First admin');assert.equal(saved.device.banDetails.bannedAt,'2026-10-01T12:00:00Z');
+    assert.deepEqual(saved.profile.banDetails,saved.device.banDetails);
+    assert.ok(saved.writes.filter(w=>w.ref==='devices/ban-edit-target').every(w=>w.data.status===undefined),'editing writes only ban details, never active or a new ban status');
+    await cosmosPage.$eval('[aria-label^="Edytuj blokadę:"]',button=>button.click());await cosmosPage.waitForSelector('#ban-date');
+    await cosmosPage.evaluate(()=>[...document.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent.includes('Ban permanentny')).click());
+    await cosmosPage.evaluate(()=>[...document.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent.includes('ZAPISZ ZMIANY BLOKADY')).click());
+    await cosmosPage.waitForSelector('[role="dialog"]',{hidden:true});saved=await cosmosPage.evaluate(()=>window.__banEditTest.read());assert.equal(saved.device.banDetails.expiresAt,'');
+
 
     await cosmosPage.goto(origin+'/cosmos-route-fixture/',{waitUntil:'domcontentloaded'});await cosmosPage.waitForSelector('.leaflet-interactive');await cosmosPage.waitForFunction(()=>window.__stationRoute?.length>0);
     assert.ok(!await cosmosPage.evaluate(()=>window.__stationRoute.some(p=>p[0]===50.041991&&p[1]===22.002377)),'map paints the corrected station corridor');

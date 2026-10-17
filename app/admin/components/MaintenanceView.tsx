@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock3,
   Database,
+  Download,
   Filter,
   Globe2,
   History,
@@ -483,7 +484,7 @@ export function MaintenanceView({
                   <X size={18} />
                 </button>
               </div>
-              {changes.length>0&&<div className="shrink-0 px-4 py-2"><button onClick={()=>exportMaintenanceHistory(changes)} className="ui-accent-soft rounded-xl border px-3 py-2 text-xs">Eksportuj wczytane wpisy ({changes.length})</button></div>}
+              {changes.length>0&&<div className="shrink-0 px-4 pt-4 pb-2"><button onClick={()=>exportMaintenanceHistory(changes)} className="admin-history-export ui-accent-soft flex w-full items-center justify-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors"><Download size={18} className="shrink-0"/><span className="min-w-0 text-left">Eksportuj wczytane wpisy ({changes.length})</span></button></div>}
               {canEdit&&changes.length>0&&<div className="shrink-0 border-b border-white/10 px-4 py-3">
                 {confirmHistoryClear ? <div className="space-y-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3">
                   <p className="text-sm text-rose-100">Usunąć całą historię konserwacji? Tej operacji nie można cofnąć.</p>
@@ -491,7 +492,7 @@ export function MaintenanceView({
                     <button disabled={Boolean(busy)} onClick={()=>setConfirmHistoryClear(false)} className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white">Anuluj</button>
                     <button disabled={Boolean(busy)} onClick={()=>void runAction('clear-history',async()=>{await callClearHistory({});setOlderChanges([]);historyPaged.current=false;setHasOlder(false);setConfirmHistoryClear(false);})} className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{busy==='clear-history'?'Usuwanie…':'Potwierdź usunięcie historii'}</button>
                   </div>
-                </div> : <button onClick={()=>setConfirmHistoryClear(true)} disabled={Boolean(busy)} className="flex items-center gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-200"><Trash2 size={15}/>Wyczyść historię</button>}
+                </div> : <button onClick={()=>setConfirmHistoryClear(true)} disabled={Boolean(busy)} className="admin-history-clear flex w-full items-center justify-center gap-3 rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition-colors hover:bg-rose-500/20 disabled:opacity-40"><Trash2 size={18} className="shrink-0"/>Wyczyść historię</button>}
               </div>}
               {error&&<p role="alert" className="shrink-0 px-4 py-2 text-sm text-rose-300">{error}</p>}
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
