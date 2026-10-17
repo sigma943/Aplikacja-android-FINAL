@@ -44,6 +44,7 @@ interface InstallationProfile {
 }
 
 interface FirebaseContextType {
+  apiStatisticsEnabled?: boolean;
   user: User | null;
   device: DeviceData | null;
   isBanned: boolean;

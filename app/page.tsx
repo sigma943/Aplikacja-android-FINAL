@@ -16,13 +16,14 @@ import {mapStopDepartureRows} from '@/lib/map-stop-departures';
 import {refreshMapStopSource} from '@/lib/map-stop-source';
 import {marcelCourseStopIndexKey,marcelCourseStopMatchKey} from '@/components/stops-panel/stop-domain';
 import {useTabTransition} from '@/lib/use-tab-transition';
+import {useLatestCallback} from '@/lib/use-latest-callback';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {useSheetGesture} from '@/lib/use-sheet-gesture';
 import {BackScope, useAppBack} from '@/lib/use-app-back';
 import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
 import {loadStopDepartures} from '@/lib/stop-departures';
-import {uiAccentVariables} from '@/lib/ui-accent';
+import {uiAccentVariables,normalizeUiAccent} from '@/lib/ui-accent';
 import {MapHeader,BottomNavigation,StopTabIcon} from '@/components/ApplicationChrome';
 import {applyScheduledProfile} from '@/lib/personalization-profiles';
 import {panelGlowStrength} from '@/lib/panel-glow';
@@ -163,6 +164,7 @@ export default function Home() {
   
   // Customization States
   const [themeColor, setThemeColor] = useState('#00A3A2');
+  const [appearanceReady,setAppearanceReady]=useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [showMapStops,setShowMapStops]=useState(false);
   // Match the exported HTML first; restore preferences after hydration so React
@@ -346,7 +348,7 @@ export default function Home() {
     setHasLoadedTransportProviders(true);
 
     const sTheme = localStorage.getItem('mks_theme');
-    if (sTheme && sTheme !== themeColor) setTimeout(() => setThemeColor(sTheme), 0);
+    setThemeColor(normalizeUiAccent(sTheme||''));
     setShowMapStops(localStorage.getItem('mks_show_map_stops')==='true');
     const sInactive = localStorage.getItem('mks_show_inactive');
     if (sInactive !== null) setTimeout(() => setShowInactive(sInactive === 'true'), 0);
@@ -375,6 +377,7 @@ export default function Home() {
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
     } catch {setAppTheme('system');setSystemIsDark(systemPrefersDark());setHasLoadedTransportProviders(true);}
+    finally {setAppearanceReady(true);}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -389,10 +392,10 @@ export default function Home() {
     window.addEventListener('pks-profile-applied',update);return()=>window.removeEventListener('pks-profile-applied',update);
   },[]);
 
-  const saveThemeColor = (hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex);window.dispatchEvent(new Event('pks-interface-appearance')); };
-  const saveMapStops=(value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));};
-  const saveInactive = (val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); };
-  const saveAppTheme = (val: any) => {
+  const saveThemeColor =useLatestCallback((hex: string) => { setThemeColor(hex); localStorage.setItem('mks_theme', hex);window.dispatchEvent(new Event('pks-interface-appearance')); });
+  const saveMapStops=useLatestCallback((value:boolean)=>{setShowMapStops(value);localStorage.setItem('mks_show_map_stops',String(value));});
+  const saveInactive =useLatestCallback((val: boolean) => { setShowInactive(val); localStorage.setItem('mks_show_inactive', String(val)); fetchVehicles(val); });
+  const saveAppTheme = useLatestCallback((val: any) => {
     val=normalizeAppTheme(val);
     try{localStorage.setItem('mks_app_theme',val);}catch{val='system';}
     setAppTheme(val);window.dispatchEvent(new Event('pks-interface-appearance'));
@@ -401,12 +404,12 @@ export default function Home() {
     document.documentElement.style.setProperty('--pks-loading-text', text);
     document.documentElement.style.backgroundColor = bg;
     document.body.style.backgroundColor = bg;
-  };
-  const saveLightEffects=(value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const saveInterfaceAppearance=(value:InterfaceAppearance)=>{const normalized=normalizeInterfaceAppearance(value);setInterfaceAppearance(normalized);localStorage.setItem(INTERFACE_APPEARANCE_KEY,JSON.stringify(normalized));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const savePanelGlow=(value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const saveGlowStrength=(value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));window.dispatchEvent(new Event('pks-interface-appearance'));};
-  const saveTransparentUI = (val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val));window.dispatchEvent(new Event('pks-interface-appearance')); };
+  });
+  const saveLightEffects=useLatestCallback((value:boolean)=>{setLightEffects(value);localStorage.setItem('mks_light_effects',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  const saveInterfaceAppearance=useLatestCallback((value:InterfaceAppearance)=>{const normalized=normalizeInterfaceAppearance(value);setInterfaceAppearance(normalized);localStorage.setItem(INTERFACE_APPEARANCE_KEY,JSON.stringify(normalized));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  const savePanelGlow=useLatestCallback((value:boolean)=>{setPanelGlow(value);localStorage.setItem('mks_panel_glow',String(value));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  const saveGlowStrength=useLatestCallback((value:number)=>{const strength=panelGlowStrength(value);setGlowStrength(strength);localStorage.setItem('mks_panel_glow_strength',String(strength));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  const saveTransparentUI =useLatestCallback((val: boolean) => { setTransparentUI(val); localStorage.setItem('mks_transparent', String(val));window.dispatchEvent(new Event('pks-interface-appearance')); });
 
   const deferredFilterRoute = useDeferredValue(filterRoute);
   const handleManualRefresh = async () => {
@@ -942,11 +945,14 @@ export default function Home() {
   const optionsSheet = `pks-options-sheet ${transparentUI ? 'pks-glass' : ''}`;
   const optionsCard = 'pks-option-card';
   const optionsButton = 'pks-option-control';
+  const optionsChrome=useMemo(()=>({mapGlassPanel,mapGlassInput,textSub: isDark ? (isPink ? 'text-pink-100/75' : 'text-slate-400') : 'text-slate-500',bottomGlassShell}),[mapGlassPanel,mapGlassInput,isDark,isPink,bottomGlassShell]);
+  const expandOptions=useCallback(()=>setIsOptionsExpanded(true),[]);
   useEffect(() => {
+    if(!appearanceReady)return;
     for (const [key, value] of Object.entries(uiAccentVariables(themeColor, isDark))) {
       document.documentElement.style.setProperty(key, value);
     }
-  }, [themeColor, isDark]);
+  }, [themeColor, isDark,appearanceReady]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isPink ? 'text-pink-100/75' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1099,7 +1105,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...uiAccentVariables(themeColor,isDark),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+    <div data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -1446,7 +1452,7 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <OptionsContent canOpenAdminEmbed={canOpenAdminEmbed} chrome={{mapGlassPanel,mapGlassInput,textSub,bottomGlassShell}} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={()=>setIsOptionsExpanded(true)} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
+            <OptionsContent canOpenAdminEmbed={canOpenAdminEmbed} chrome={optionsChrome} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={expandOptions} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
           </Suspense>
         )}

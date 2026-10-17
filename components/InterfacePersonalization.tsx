@@ -1,6 +1,6 @@
 'use client';
 import {useState,type ReactNode,type CSSProperties} from 'react';
-import {Palette,Shapes,Layers,Sun,Type,Navigation,SlidersHorizontal,Compass,RotateCcw,Check,ChevronDown} from 'lucide-react';
+import {Palette,Shapes,Layers,Sun,Type,Navigation,SlidersHorizontal,Compass,RotateCcw,Check} from 'lucide-react';
 import {DEFAULT_INTERFACE_APPEARANCE,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {INTERFACE_PRESETS,matchesInterfacePreset,type InterfacePreset} from '@/lib/interface-presets';
 import {SCHEDULE_KEY,readSchedule} from '@/lib/personalization-profiles';
@@ -8,6 +8,7 @@ import PresetThumbnail from './PresetThumbnail';
 import PersonalizationTools from './PersonalizationTools';
 import InterfacePreview from './InterfacePreview';
 import CosmicThemeOptions from './CosmicThemeOptions';
+import PersonalizationGroup from './PersonalizationGroup';
 import type {PreviewChrome} from './OptionsContent';
 
 type Props={canOpenAdminEmbed?:boolean;chrome:PreviewChrome;value:InterfaceAppearance;onChange:(value:InterfaceAppearance)=>void;dark:boolean;theme:string;accent:string;setTheme:(theme:string)=>void;setAccent:(color:string)=>void;glass:boolean;setGlass:(on:boolean)=>void;glow:boolean;setGlow:(on:boolean)=>void;glowStrength:number;setGlowStrength:(n:number)=>void;lightEffects:boolean};
@@ -17,14 +18,19 @@ const accents=[['Turkus','#00a3a2'],['Niebieski','#3b82f6'],['Fiolet','#8b5cf6']
 
 export default function InterfacePersonalization(p:Props){
   const {value:v,dark}=p,[query,setQuery]=useState('');
+  const search=query.trim().toLocaleLowerCase('pl');
+  const matches=(text:string)=>!search||text.toLocaleLowerCase('pl').includes(search);
+  const cosmicVisible=p.theme==='dark-cosmos'&&matches('Głębia kosmosu Paralaksa kosmosu Ruch warstw przy przechyleniu telefonu mgławice planety kursor');
+  let matchedGroups=cosmicVisible?1:0;
   const set=<K extends keyof InterfaceAppearance>(key:K,next:InterfaceAppearance[K])=>p.onChange({...v,[key]:next});
   const selected=(active:boolean)=>`personal-choice ui-accent-focus ${active?'ui-accent-soft':'bg-current/[.035] border-current/10'}`;
   const slider=(key:NumericKey,label:string,min:number,max:number,step:number,unit='')=><label className="personal-slider"><span className="flex items-center justify-between gap-3"><span>{label}</span><output>{v[key]}{unit}</output></span><input aria-label={label} type="range" min={min} max={max} step={step} value={v[key]} onChange={e=>set(key,Number(e.target.value))}/></label>;
   const toggle=(label:string,on:boolean,change:(value:boolean)=>void,description?:string)=><label className="personal-toggle"><span><span className="block font-medium">{label}</span>{description&&<span className="mt-1 block text-[11px] opacity-60">{description}</span>}</span><input aria-label={label} type="checkbox" role="switch" checked={on} onChange={e=>change(e.target.checked)}/></label>;
   const choices=<K extends keyof InterfaceAppearance>(key:K,label:string,options:[InterfaceAppearance[K],string][]) => <fieldset className="personal-field"><legend>{label}</legend><div className="personal-choices">{options.map(([next,name])=><button key={String(next)} type="button" aria-pressed={v[key]===next} onClick={()=>set(key,next)} className={selected(v[key]===next)}>{name}</button>)}</div></fieldset>;
   const group=(id:string,title:string,subtitle:string,icon:ReactNode,children:ReactNode,keywords:string,open=false)=>{
-    if(query&&!`${title} ${subtitle} ${keywords}`.toLocaleLowerCase('pl').includes(query.toLocaleLowerCase('pl')))return null;
-    return <details key={id} data-personal-group={id} className="personal-group group" open={query?true:open||undefined}><summary><span className="personal-group-icon">{icon}</span><span className="min-w-0 flex-1"><span className="block font-semibold">{title}</span><span className="mt-1 block text-[11px] opacity-60">{subtitle}</span></span><ChevronDown size={17} className="shrink-0 transition-transform group-open:rotate-180"/></summary><div className="personal-group-body">{children}</div></details>;
+    if(!matches(`${title} ${subtitle} ${keywords}`))return null;
+    matchedGroups++;
+    return <PersonalizationGroup key={id} id={id} title={title} subtitle={subtitle} icon={icon} forceOpen={Boolean(search)||open}>{children}</PersonalizationGroup>;
   };
   const reset=()=>{localStorage.setItem(SCHEDULE_KEY,JSON.stringify({...readSchedule(),enabled:false}));window.dispatchEvent(new Event('pks-profiles-changed'));p.onChange({...DEFAULT_INTERFACE_APPEARANCE});p.setTheme('dark-oled');p.setAccent('#00A3A2');p.setGlass(true);p.setGlow(false);p.setGlowStrength(40);};
   const preset=(next:InterfacePreset)=>{
@@ -54,7 +60,7 @@ export default function InterfacePersonalization(p:Props){
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
     </>,'akcent własny kolor jasny ciemny amoled aurora')}
-    {p.theme==='dark-cosmos'&&<CosmicThemeOptions disabled={p.lightEffects||v.reducedMotion}/>}
+    {cosmicVisible&&<CosmicThemeOptions searchOpen={Boolean(search)} disabled={p.lightEffects||v.reducedMotion}/>}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}
     {group('shapes' ,'Kształty i głębia','Rogi, obramowania i cienie',<Shapes size={19}/>,<>{slider('panelRadius','Zaokrąglenie paneli',0,36,2,' px')}{slider('cardRadius','Zaokrąglenie kart',0,30,2,' px')}{slider('controlRadius','Zaokrąglenie przycisków',0,24,2,' px')}{slider('borderStrength','Widoczność obramowań',0,40,2,'%')}{slider('shadowStrength','Siła cieni',0,100,5,'%')}</>,'zaokrąglenie paneli kart przycisków widoczność obramowań siła cieni')}
     {group('glass','Szkło i przezroczystość','Przezroczyste lub pełne panele',<Layers size={19}/>,<>{toggle('Efekt szkła',p.glass,p.setGlass,'Przezroczyste panele z ochroną czytelności')}{p.glass&&<>{slider('glassOpacity','Krycie tła paneli',20,100,5,'%')}{toggle('Rozmycie tła paneli',v.glassBlurEnabled,on=>set('glassBlurEnabled',on),'Wyłącz, aby zachować ostre tło. Tekst nadal chroni ciemniejsza warstwa szkła.')}{v.glassBlurEnabled&&slider('glassBlur','Rozmycie szkła',0,p.lightEffects?6:28,2,' px')}</>}{p.lightEffects&&<p className="personal-note">Lżejsze efekty: rozmycie do 6 px.</p>}</>,'efekt szkła krycie tła rozmycie przezroczystość')}
@@ -71,6 +77,7 @@ export default function InterfacePersonalization(p:Props){
     {group('nav','Nawigacja i ikony','Etykiety, ikony i aktywna zakładka',<Navigation size={19}/>,<>{choices('navLayout','Układ nawigacji',[['stacked','Podpis pod ikoną'],['inline','Podpis obok ikony']])}{slider('iconSize','Rozmiar ikon nawigacji',18,30,2,' px')}{slider('iconStroke','Grubość ikon',1,3,.25)}{toggle('Podpisy pod ikonami',v.navLabels,on=>set('navLabels',on))}{choices('navIndicator','Aktywna zakładka',[['line','Linia'],['pill','Miękkie tło'],['halo','Poświata ikony'],['block','Pełny akcent'],['none','Sam kolor']])}</>,'rozmiar ikon nawigacji grubość podpisy aktywna zakładka widoczność układ obok poświata pełny akcent')}
     {group('comfort','Układ i komfort','Odstępy i animacje',<SlidersHorizontal size={19}/>,<>{choices('density','Odstępy w kartach',[['compact','Mniejsze'],['comfortable','Standardowe'],['spacious','Większe']])}{toggle('Ogranicz animacje',v.reducedMotion,on=>set('reducedMotion',on))}</>,'odstępy karty animacje ruch wyróżnienie lżejsze efekty')}
     {group('daily','Nawigacja i profile','Zestawy, nawigacja, mapa i harmonogram',<Compass size={19}/>,<PersonalizationTools canOpenAdminEmbed={p.canOpenAdminEmbed} value={v} onChange={p.onChange} theme={p.theme} accent={p.accent} glass={p.glass} glow={p.glow} glowStrength={p.glowStrength}/>,'własne zestawy profile ekran startowy admin kolejność zakładek odjazdy proste szczegółowe znaczniki mapa dzień noc harmonogram godziny')}
+    {search&&matchedGroups===0&&<p role="status" className="personal-note text-center py-6">Brak pasujących wyników wyszukiwania</p>}
     <button type="button" onClick={reset} className="personal-reset ui-accent-focus"><RotateCcw size={16}/>Przywróć domyślny wygląd</button>
     <p className="personal-note text-center">Ustawienia zapisują się automatycznie na tym urządzeniu.</p>
   </div>;

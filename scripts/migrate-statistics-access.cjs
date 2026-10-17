@@ -29,6 +29,10 @@ async function migrate() {
   }
   console.info(result.migrated ? 'Statistics access moved to private settings.' : 'Statistics access migration already complete.');
   console.info(`Installation metadata synchronized: ${changed}.`);
+  if(process.argv.includes('--enable-api-statistics')){
+    await db.doc('admin_settings/security').set({apiStatisticsVersion:1},{merge:true});
+    console.info('Global API statistics reporting enabled.');
+  }
 }
 migrate()
   .catch(() => { console.error('Statistics access migration failed; rules deployment must stop.'); process.exitCode = 1; });

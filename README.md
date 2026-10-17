@@ -177,6 +177,18 @@ Tryb przerwy technicznej blokuje zwykłym użytkownikom korzystanie z aplikacji 
 
 ## Role i uprawnienia
 
+Panel statystyk API sumuje otrzymane raporty ze wszystkich urządzeń z aktualnym
+APK. Liczniki są przesyłane partiami podczas używania aplikacji, co minutę oraz po
+powrocie, wyłącznie gdy uległy zmianie. Nie jest dodawane odpytywanie w tle ani
+raportowanie widżetów. Ponowna wysyłka i zmiana UID nie dublują zapisanej historii;
+nowe dane po reinstalacji są doliczane bez usuwania wcześniejszych raportów.
+Dymek dnia zawiera wyłącznie podsumowanie, skuteczność, średni czas i liczbę
+raportujących urządzeń, bez listy telefonów. Dane starszych i niepołączonych
+telefonów pojawią się po aktualizacji APK i synchronizacji. Zbieranie uruchamia
+końcowy etap workflow wdrażania reguł; przed nim aplikacja zachowuje liczniki
+lokalnie. Wykres i eksport obejmują do 90 dni. Starsze dokumenty nie są usuwane
+automatycznie; ewentualne czyszczenie wymaga osobnej polityki retencji.
+
 System używa trzech ról:
 
 - `owner` - właściciel, pełne uprawnienia,

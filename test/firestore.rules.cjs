@@ -428,14 +428,14 @@ test('deployment CLI runs with the real Admin SDK against only the local emulato
   const { execFile } = require('node:child_process');
   const execute = require('node:util').promisify(execFile);
   for (let repeat = 0; repeat < 2; repeat++) {
-    const result = await execute(process.execPath, ['scripts/migrate-statistics-access.cjs', 'demo-pks-live'], {
+    const result = await execute(process.execPath, ['scripts/migrate-statistics-access.cjs', 'demo-pks-live', ...(repeat===1?['--enable-api-statistics']:[])], {
       env: { ...process.env, FIRESTORE_EMULATOR_HOST: emulatorAddress, GCLOUD_PROJECT: 'demo-pks-live' }, timeout: 30000,
     });
     assert.ok(!result.stdout.includes(id), 'Migration output must not disclose installation identifiers');
   }
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
-    assert.deepEqual((await getDoc(doc(db, 'admin_settings', 'security'))).data(), { loginEnabled: false, autoBan: true });
+    assert.deepEqual((await getDoc(doc(db, 'admin_settings', 'security'))).data(), { loginEnabled: false, autoBan: true, apiStatisticsVersion:1 });
     assert.deepEqual((await getDoc(doc(db, 'admin_settings', 'statistics_access'))).data(), { statisticsAccess: { [id]: false } });
     const profile = (await getDoc(doc(db, 'installations', id))).data();
     assert.equal(profile.firstLogin, previous.firstLogin);
@@ -443,4 +443,64 @@ test('deployment CLI runs with the real Admin SDK against only the local emulato
     assert.equal(profile.restorationMetadataVersion, 1);
     assert.deepEqual((await getDoc(doc(db, 'devices', 'previous-owner'))).data(), previous);
   });
+});
+
+const apiReport = (uid, installationId, stream='a'.repeat(64), requests=10) => ({
+  uid,installationId,stream,date:'2026-10-17',startedAt:Date.parse('2026-10-17T08:00:00Z'),
+  providers:{pks:{requests,errors:1,latencyMs:requests*100},mpk_rzeszow:{requests:0,errors:0,latencyMs:0},marcel:{requests:0,errors:0,latencyMs:0}},updatedAt:firebaseSdk.serverTimestamp(),
+});
+test('global API reports are opt-in, private, attributed to the caller and cumulative', async () => {
+  const user=env.authenticatedContext('user').firestore();
+  const report=apiReport('user','user-install'),id=report.stream+'_'+report.date;
+  await assertFails(setDoc(doc(user,'api_statistics',id),report));
+  await env.withSecurityRulesDisabled(context=>updateDoc(doc(context.firestore(),'admin_settings','security'),{apiStatisticsVersion:1}));
+  await assertSucceeds(setDoc(doc(user,'api_statistics',id),report));
+  await assertSucceeds(setDoc(doc(user,'api_statistics',id),{...report,updatedAt:firebaseSdk.serverTimestamp()}));
+  await assertFails(setDoc(doc(user,'api_statistics',id),{...report,installationId:'owner-install'}));
+  await assertFails(setDoc(doc(user,'api_statistics',id),{...report,uid:'owner'}));
+  await assertFails(updateDoc(doc(user,'api_statistics',id),{providers:{...report.providers,pks:{requests:1,errors:0,latencyMs:1}},updatedAt:firebaseSdk.serverTimestamp()}));
+  await assertFails(updateDoc(doc(user,'api_statistics',id),{providers:{...report.providers,pks:{requests:11,errors:12,latencyMs:100}},updatedAt:firebaseSdk.serverTimestamp()}));
+  await assertFails(getDocs(collection(user,'api_statistics')));
+  await assertSucceeds(getDoc(doc(user,'api_statistics',id)));
+  await assertFails(getDoc(doc(env.authenticatedContext('fresh-user').firestore(),'api_statistics',id)));
+  const owner=env.authenticatedContext('owner').firestore();
+  const result=await assertSucceeds(getDocs(firebaseSdk.query(collection(owner,'api_statistics'),firebaseSdk.where('date','>=','2026-10-01'),firebaseSdk.where('date','<=','2026-10-31'))));
+  assert.equal(result.size,1);
+  const admin=env.authenticatedContext('admin').firestore();
+  await assertSucceeds(getDocs(collection(admin,'api_statistics')));
+  await setDoc(doc(owner,'admin_settings','statistics_access'),{statisticsAccess:{'admin-install':false}});
+  await assertFails(getDocs(collection(admin,'api_statistics')));
+  await assertFails(getDoc(doc(admin,'api_statistics',id)));
+  await assertFails(firebaseSdk.deleteDoc(doc(user,'api_statistics',id)));
+});
+
+test('banned, pending and unregistered devices cannot publish global API reports',async()=>{
+  await env.withSecurityRulesDisabled(async context=>{
+    const db=context.firestore();await updateDoc(doc(db,'admin_settings','security'),{apiStatisticsVersion:1});
+    await setDoc(doc(db,'devices','banned-user'),{...device('user','banned-install'),status:'banned'});
+    await setDoc(doc(db,'devices','pending-user'),{...device('user','pending-install'),loginApproved:false});
+  });
+  for(const uid of ['banned-user','pending-user','unknown-user']){
+    const db=env.authenticatedContext(uid).firestore(),report=apiReport(uid,uid.replace('-user','-install'));
+    await assertFails(setDoc(doc(db,'api_statistics',report.stream+'_'+report.date),report));
+  }
+});
+
+test('API reports survive device deduplication and a reinstall cannot overwrite another phone',async()=>{
+  const installationId='shared-api-install',profile={...device('user',installationId),lastUid:'prior-api-user',updatedBy:'owner',restorationMetadataVersion:1};
+  await env.withSecurityRulesDisabled(async context=>{
+    const db=context.firestore();await updateDoc(doc(db,'admin_settings','security'),{apiStatisticsVersion:1});
+    await setDoc(doc(db,'devices','prior-api-user'),profile);await setDoc(doc(db,'installations',installationId),profile);
+  });
+  const oldDb=env.authenticatedContext('prior-api-user').firestore();
+  const report=apiReport('prior-api-user',installationId),id=report.stream+'_'+report.date;
+  await assertSucceeds(setDoc(doc(oldDb,'api_statistics',id),report));
+  const db=env.authenticatedContext('reinstalled-api-user').firestore();
+  const {registerRestoredDevice}=loadTs('lib/device-registration.ts',{'firebase/firestore':firebaseSdk});
+  await assertSucceeds(registerRestoredDevice(db,'reinstalled-api-user',installationId,'Phone',false,{}));
+  await assertSucceeds(setDoc(doc(db,'api_statistics',id),apiReport('reinstalled-api-user',installationId,report.stream,11)));
+  assert.equal((await getDoc(doc(db,'api_statistics',id))).data().providers.pks.requests,11);
+  const other=env.authenticatedContext('user').firestore();
+  await assertFails(setDoc(doc(other,'api_statistics',id),apiReport('user','user-install',report.stream,100)));
+  await env.withSecurityRulesDisabled(async context=>assert.equal((await getDoc(doc(context.firestore(),'devices','prior-api-user'))).exists(),false));
 });

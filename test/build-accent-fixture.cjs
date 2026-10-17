@@ -95,7 +95,7 @@ export default function Route(){const [fixed,setFixed]=useState(true);const loca
   fs.writeFileSync(path.join(fixture,'app/cosmos-route-fixture/page.tsx'),`'use client';import dynamic from 'next/dynamic';const Route=dynamic(()=>import('./Route'),{ssr:false});export default function Page(){return <Route/>;}`);
   fs.copyFileSync(path.join(source,'tsconfig.json'),path.join(fixture,'tsconfig.json'));
   fs.copyFileSync(path.join(source,'package.json'),path.join(fixture,'package.json'));
-  fs.writeFileSync(path.join(fixture,'app/layout.tsx'),`import UIMotionProvider from '@/components/UIMotionProvider';export default function Layout({children}:{children:React.ReactNode}){return <html lang="pl"><head><link rel="stylesheet" href="/production.css" /></head><body><UIMotionProvider>{children}</UIMotionProvider></body></html>}`);
+  fs.writeFileSync(path.join(fixture,'app/layout.tsx'),`import UIMotionProvider from '@/components/UIMotionProvider';import {INITIAL_THEME_SCRIPT} from '@/lib/app-theme';export default function Layout({children}:{children:React.ReactNode}){return <html lang="pl"><head><script dangerouslySetInnerHTML={{__html:INITIAL_THEME_SCRIPT}}/><link rel="stylesheet" href="/production.css" /></head><body><UIMotionProvider>{children}</UIMotionProvider></body></html>}`);
   fs.writeFileSync(path.join(fixture,'next.config.mjs'),`export default {output:'export',trailingSlash:true,images:{unoptimized:true},eslint:{ignoreDuringBuilds:true},typescript:{ignoreBuildErrors:true},transpilePackages:['motion']};`);
   try{
     execFileSync(process.execPath,[require.resolve('next/dist/bin/next'),'build'],{cwd:fixture,env:{...process.env,NODE_ENV:'production'},stdio:'inherit'});

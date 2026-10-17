@@ -43,7 +43,7 @@ export interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
-  const { device: currentDevice, loading, user, localLastSeenMs } = useFirebase();
+  const { device: currentDevice, loading, user, localLastSeenMs,apiStatisticsEnabled } = useFirebase();
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
   const [statisticsAccess,setStatisticsAccess]=useState<StatisticsAccess>({});
   const [statisticsAccessReady,setStatisticsAccessReady]=useState(false);
@@ -1344,7 +1344,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         )}
 
         {activeView === 'statistics' && statisticsAllowed && (
-          <StatisticsView devices={devicesData} devicesError={devicesError} devicesReady={statisticsDevicesReady} onMenuClick={() => setIsSidebarOpen(true)} accentColor={themeColor} isDarkTheme={isDarkTheme} />
+          <StatisticsView devices={devicesData} devicesError={devicesError} devicesReady={statisticsDevicesReady} reportsEnabled={apiStatisticsEnabled===true} onMenuClick={() => setIsSidebarOpen(true)} accentColor={themeColor} isDarkTheme={isDarkTheme} />
         )}
 
         {activeView === 'maintenance' && (

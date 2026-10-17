@@ -33,7 +33,7 @@ jobs:
     permissions:
       contents: read
     env:
-      PERF_BASELINE_SHA: cb6b94d9d1a0b60b836eb333a749f5e03c7b3778
+      PERF_BASELINE_SHA: d552c3fd3f14ac5fc11366172c23ab89d16b24aa
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,7 +42,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - name: Prepare pre-optimization checkout and identical measurement harness
+      - name: Prepare previous build checkout and identical measurement harness
         run: |
           PERF_BASELINE_ROOT="$RUNNER_TEMP/pks-performance-before"
           echo "PERF_BASELINE_ROOT=$PERF_BASELINE_ROOT" >> "$GITHUB_ENV"
@@ -54,7 +54,7 @@ jobs:
           cp test/startup-ui-stub.ts "$PERF_BASELINE_ROOT/test/startup-ui-stub.ts"
       - name: Verify identical catalogs, names, aliases, coordinates and visible markers
         run: node test/catalog-optimization-equivalence.cjs
-      - name: Build and measure pre-optimization version
+      - name: Build and measure previous build
         run: |
           cd "$PERF_BASELINE_ROOT"
           npm run build:android:web

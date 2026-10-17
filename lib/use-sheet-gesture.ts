@@ -3,13 +3,13 @@ import {useEffect,useRef,useState,type PointerEvent} from 'react';
 import {animate,useMotionValue,useReducedMotion} from 'motion/react';
 export const SHEET_SPRING={type:'spring' as const,stiffness:380,damping:36};
 /** Pointer capture makes the whole sheet follow the handle, with one snap policy. */
-export function useSheetGesture(expanded:boolean,change:(expanded:boolean)=>void,compact:number,full:number){
+export function useSheetGesture(expanded:boolean,change:(expanded:boolean)=>void,compact:number,full:number,settledHeight=false){
   const height=useMotionValue(compact),reduce=useReducedMotion();
   const gesture=useRef<{id:number;y:number;height:number;moved:boolean}|null>(null),skip=useRef(false);
   const animation=useRef<ReturnType<typeof animate>|null>(null);
   const [dragging,setDragging]=useState(false);
-  const settle=(target:number)=>{animation.current?.stop();animation.current=animate(height,target,reduce?{duration:0}:SHEET_SPRING);};
-  useEffect(()=>{if(!gesture.current)settle(expanded?full:compact);return()=>animation.current?.stop();},[expanded,compact,full,reduce]);
+  const settle=(target:number)=>{animation.current?.stop();if(settledHeight||reduce){height.set(target);return;}animation.current=animate(height,target,SHEET_SPRING);};
+  useEffect(()=>{if(!gesture.current)settle(expanded?full:compact);return()=>animation.current?.stop();},[expanded,compact,full,reduce,settledHeight]);
   const finish=(event:PointerEvent<HTMLElement>,cancel=false)=>{
     const start=gesture.current;if(!start||start.id!==event.pointerId)return;
     gesture.current=null;setDragging(false);

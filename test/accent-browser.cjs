@@ -81,7 +81,7 @@ const server=http.createServer((req,res)=>{
       console.log('Selecting accent:',name);
       await button('Opcje');await page.waitForSelector('[role="dialog"]');
       await page.click('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');
-      await page.$eval('[data-personal-group="colors"]',el=>el.open=true);
+      await page.$eval('[data-personal-group="colors"]',el=>el.open=true);await page.waitForSelector('[data-personal-group="colors"] .personal-group-body');
       await page.click(`[aria-label="Kolor akcentu: ${name}"]`);
       await page.mouse.click(4,4);await page.waitForSelector('[role="dialog"]',{hidden:true});
     };
@@ -118,6 +118,21 @@ const server=http.createServer((req,res)=>{
     await page.click('[data-ban-kind="silent"]');await page.waitForSelector('[data-ban-screen]',{hidden:true});
     assert.equal(await page.evaluate(()=>document.body.innerText.includes('Przykładowy powód')),false,'silent ban still hides reason and ban state');
     await page.click('[data-ban-kind="none"]');await page.waitForSelector('[data-ban-screen]');assert.equal(await page.$('[data-ban-image]'),null);
+    const previousAccent=await page.evaluate(()=>localStorage.getItem('mks_theme'));
+    const loadingPage=await browser.newPage();
+    await loadingPage.setViewport({width:393,height:851,deviceScaleFactor:1});
+    const loadingCdp=await loadingPage.createCDPSession();await loadingCdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+    await loadingPage.setRequestInterception(true);
+    loadingPage.on('request',request=>request.url().startsWith(origin)?request.continue():request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'[]'}));
+    await loadingPage.evaluateOnNewDocument(()=>{
+      localStorage.setItem('mks_theme','#3b82f6');window.__mapLoaderColors=[];
+      const capture=()=>{const spinner=document.querySelector('.pks-map-loading-spinner');if(spinner&&window.__mapLoaderColors.length<1000)window.__mapLoaderColors.push(getComputedStyle(spinner).borderTopColor);};
+      new MutationObserver(capture).observe(document,{childList:true,subtree:true,attributes:true,attributeFilter:['style']});
+    });
+    await loadingPage.goto(origin,{waitUntil:'domcontentloaded'});await loadingPage.waitForSelector('.leaflet-container');
+    const loaderColors=await loadingPage.evaluate(()=>window.__mapLoaderColors);
+    assert.ok(loaderColors.length>0,'cold map loader was observed');assert.ok(loaderColors.every(color=>color==='rgb(59, 130, 246)'),'map loader keeps the saved accent from its first frame: '+JSON.stringify(loaderColors));
+    await loadingPage.close();await page.evaluate(value=>{if(value===null)localStorage.removeItem('mks_theme');else localStorage.setItem('mks_theme',value);},previousAccent);
     await page.goto(origin,{waitUntil:'domcontentloaded'});
     console.log('App loaded');
     await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
@@ -199,6 +214,7 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.$eval('[data-theme-presets]',el=>el.tagName),'DIV','ready-made presets remain a plain grid');
       assert.ok(await page.$eval('[data-theme-presets]',el=>!el.closest('details')&&el.querySelector('button').getBoundingClientRect().height>0),'presets are visible without opening a section');
       assert.equal(await page.$eval('[data-personal-group="colors"]',el=>el.open),false,'theme and colour controls are collapsed by default');
+      assert.equal(await page.$$eval('[data-personal-group] input,[data-personal-group] select',nodes=>nodes.length),0,'unopened settings do not mount hidden controls');
       await screenshot('personalization-collapsed-'+mode);
       await page.waitForSelector(`[aria-label="Zestaw: ${name}"]`);
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());await page.waitForSelector(`[data-ui-theme="${mode}"]`);
@@ -211,6 +227,10 @@ const server=http.createServer((req,res)=>{
       if(mode==='dark-cosmos'){
         assert.ok(await page.$$eval('.pks-navigation',navs=>navs.every(nav=>getComputedStyle(nav).borderTopWidth==='0px'&&!getComputedStyle(nav).boxShadow.includes('inset'))),'cosmic navigation has no straight top border or inset highlight');
         assert.ok(await page.$eval('[data-cosmic-settings] summary .personal-group-icon',el=>Boolean(el.querySelector('svg'))),'cosmic depth has a matching group icon');
+        await page.type('[aria-label="Szukaj ustawień personalizacji"]','nieistniejace-ustawienie-xyz');
+        await page.waitForFunction(()=>document.querySelector('[data-personalization-panel] [role="status"]')?.textContent==='Brak pasujących wyników wyszukiwania');
+        assert.equal(await page.$('[data-cosmic-settings]'),null,'cosmic depth respects the search');
+        await page.click('[aria-label="Wyczyść wyszukiwanie personalizacji"]');await page.waitForSelector('[data-cosmic-settings]');
         assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Aurora')),false);
         const planetImages=await page.evaluate(async()=>Promise.all(['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune'].map(async name=>{
           const image=new Image();image.src=`/themes/kosmos/${name}.svg`;await image.decode();const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d');context.drawImage(image,0,0);
@@ -258,7 +278,8 @@ const server=http.createServer((req,res)=>{
           assert.equal(await page.$eval(selector,el=>getComputedStyle(el,'::before').content),'none','chrome does not duplicate the sky in a pseudo layer');
         }
         await page.$eval('[data-personalization-panel] details',el=>el.open=true);
-        await page.evaluate(()=>{const group=[...document.querySelectorAll('.personal-group')].find(el=>el.textContent.includes('Rozmycie tła paneli'));group.open=true;});
+        await page.evaluate(()=>{const group=document.querySelector('[data-personal-group="glass"]');group.open=true;});
+        await page.waitForSelector('[aria-label="Rozmycie tła paneli"]');
         const selectedRadius=await page.evaluate(()=>JSON.parse(localStorage.getItem('mks_interface_appearance_v1')).glassBlur);
         await page.$eval('[aria-label="Rozmycie tła paneli"]',el=>el.click());
         await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-options-sheet]')).backdropFilter.includes('blur(0px)'));
@@ -721,7 +742,7 @@ const server=http.createServer((req,res)=>{
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');
     await page.click('#options-personal-tab');await openPreview();
     assert.ok(await page.$$eval('[data-personalization-panel] details',els=>els.length)>=7);
-    const openGroup=async text=>page.evaluate(label=>[...document.querySelectorAll('.personal-group summary')].find(el=>el.textContent.includes(label)).parentElement.open=true,text);
+    const openGroup=async text=>{await page.evaluate(label=>[...document.querySelectorAll('.personal-group summary')].find(el=>el.textContent.includes(label)).parentElement.open=true,text);await page.waitForFunction(label=>[...document.querySelectorAll('.personal-group summary')].find(el=>el.textContent.includes(label)).parentElement.querySelector('.personal-group-body'),{},text);};
     const choose=async(legend,name)=>page.evaluate((title,label)=>[...document.querySelectorAll('.personal-field')].find(el=>el.querySelector('legend').textContent===title).querySelectorAll('button').forEach(button=>{if(button.textContent.trim()===label)button.click();}),legend,name);
     const range=async(label,key)=>{await page.focus(`[aria-label="${label}"]`);await page.keyboard.press(key);};
     const sameChrome=async()=>{
@@ -1093,6 +1114,9 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('.pks-navigation [data-nav-item="admin"]');
     await page.click('.pks-navigation [data-nav-item="admin"]');
     await page.waitForSelector('.admin-topbar');
+    await page.type('.pks-panel-scope input[placeholder="Szukaj..."]','nieistniejacy-telefon-xyz');
+    await page.waitForFunction(()=>document.querySelector('.pks-panel-scope').textContent.includes('Brak pasujących wyników wyszukiwania'));
+    await page.click('.pks-panel-scope input[placeholder="Szukaj..."]');await page.keyboard.down('Control');await page.keyboard.press('A');await page.keyboard.up('Control');await page.keyboard.press('Backspace');
 
     for(const [mode,color] of [['dark-forest','rgb(25, 67, 51)'],['light-sky','rgb(174, 219, 250)'],['dark-cosmos',null]]){
       await page.evaluate(mode=>{localStorage.setItem('mks_app_theme',mode);window.dispatchEvent(new Event('pks-profile-applied'));},mode);
@@ -1120,7 +1144,7 @@ const server=http.createServer((req,res)=>{
     await screenshot('admin-revoked-map');
 
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
-    await page.evaluate(()=>localStorage.setItem('pks-live:api-statistics:v1',JSON.stringify({version:1,startedAt:Date.now(),days:[{date:'2026-10-06',providers:{pks:{requests:80,errors:2,latencyMs:16000},mpk_rzeszow:{requests:15,errors:1,latencyMs:3000},marcel:{requests:5,errors:0,latencyMs:1000}}}]})));
+    await page.evaluate(()=>localStorage.setItem('pks-live:api-statistics:v1',JSON.stringify({version:1,startedAt:Date.now(),days:[{date:'2026-10-06',providers:{pks:{requests:9999,errors:2,latencyMs:16000},mpk_rzeszow:{requests:15,errors:1,latencyMs:3000},marcel:{requests:5,errors:0,latencyMs:1000}}}]})));
     await page.goto(`${origin}/statistics-fixture/`,{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-statistics-fixture-ready="true"]');
     await button('Otwórz menu testowe');await page.waitForFunction(()=>{const r=document.querySelector('nav button:nth-child(2)').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;});await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
@@ -1143,7 +1167,7 @@ const server=http.createServer((req,res)=>{
       await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
       await page.waitForSelector('[data-statistics-tooltip]');
       const detail=await page.$eval('[data-statistics-tooltip]',el=>({text:el.textContent,box:el.getBoundingClientRect().toJSON(),background:getComputedStyle(el).backgroundColor}));
-      assert.match(detail.text,/6 października/);assert.match(detail.text,/Zapytania API100/);assert.match(detail.text,/Błędy API3/);
+      assert.match(detail.text,/6 października/);assert.match(detail.text,/Zapytania API100/);assert.match(detail.text,/Błędy API3/);assert.match(detail.text,/Skuteczność97%/);assert.match(detail.text,/Średni czas200 ms/);assert.match(detail.text,/Raportujące urządzenia2/);assert.ok(!detail.text.includes('first-phone')&&!detail.text.includes('second-phone'));
       assert.ok(detail.box.left>=0&&detail.box.right<=await page.evaluate(()=>innerWidth),'tooltip fits the viewport');
       assert.ok(detail.background.startsWith('rgb('),'tooltip has a solid readable surface');
       assert.equal(await page.$eval('[data-statistics-chart="requests"] rect[role="button"]:focus',el=>getComputedStyle(el).stroke),'none','focused day does not paint a white rectangle');

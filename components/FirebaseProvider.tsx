@@ -37,6 +37,7 @@ const FirebaseContext = createContext<FirebaseContextType>({
   loading: true,
   localLastSeenMs: null,
   hiddenProviderIds: [],
+  apiStatisticsEnabled: false,
 });
 
 const HIDDEN_PROVIDERS_CACHE_KEY = 'mks_hidden_provider_ids';
@@ -120,6 +121,7 @@ async function getClientDeviceInfo(): Promise<string> {
 }
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
+  const [apiStatisticsEnabled,setApiStatisticsEnabled]=useState(false);
   useEffect(() => { preloadMapCode(); }, []);
   const [user, setUser] = useState<User | null>(null);
   const [device, setDevice] = useState<DeviceData | null>(null);
@@ -521,6 +523,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       (snapshot) => {
         window.clearTimeout(timeout);
         const data = snapshot.exists() ? snapshot.data() : {};
+        setApiStatisticsEnabled(data.apiStatisticsVersion===1);
         const enabled = Boolean(data.maintenanceMode);
         setAutoBanUnverified(Boolean(data.autoBan));
         setLoginEnabled(newLoginsEnabled(data.loginEnabled));
@@ -636,7 +639,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs, hiddenProviderIds }}>
+    <FirebaseContext.Provider value={{ user, device, isBanned, loading, localLastSeenMs, hiddenProviderIds,apiStatisticsEnabled }}>
       {startupError && !device && !shouldShowInitialOffline ? (
         <ConnectionTimeoutScreen errorMessage={startupError} />
       ) : connectionTimedOut && shouldHoldInitialRender ? (

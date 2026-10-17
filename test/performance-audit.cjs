@@ -144,6 +144,16 @@ async function browserAudit(fixture, runIndex) {
     await measure('hidden-map-idle',()=>pause(4000));
     await measure('stop-list-search',async()=>{await page.type('input[placeholder*="Babica"]','Rzeszów',{delay:100});await page.waitForSelector('[data-stop-card-id]');await pause(1000);});
     await measure('stop-panel',async()=>{await page.evaluate(()=>document.querySelector('[data-stop-card-id]').click());await page.waitForSelector('[aria-label="Pokaż przystanek na mapie"]');await pause(1500);});
+    await measure('options-open',async()=>{
+      await button('Opcje');await page.waitForSelector('[data-options-sheet]');await pause(1000);
+      return {nodes:await page.$$eval('[data-options-sheet] *',nodes=>nodes.length)};
+    });
+    await measure('options-personalization',async()=>{
+      await page.click('#options-personal-tab');await page.waitForSelector('[data-personalization-panel]');await pause(1000);
+      return {nodes:await page.$$eval('[data-options-sheet] *',nodes=>nodes.length),controls:await page.$$eval('[data-personalization-panel] input,[data-personalization-panel] select',nodes=>nodes.length)};
+    });
+    await page.evaluate(()=>document.querySelector('[data-options-sheet]').parentElement.click());
+    await page.waitForSelector('[data-options-sheet]',{hidden:true});
     await measure('background-35s',async()=>{
       // Allow any foreground request already in flight to settle, then count only hidden work.
       await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
