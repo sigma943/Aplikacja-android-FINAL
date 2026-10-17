@@ -104,6 +104,15 @@ const server=http.createServer((req,res)=>{
     for(const [route,scheme] of [['dialog-fixture','dark'],['light-dialog-fixture','light']]){
       await page.goto(origin+'/'+route+'/',{waitUntil:'domcontentloaded'});
       await page.waitForSelector('.admin-modal-overlay',{visible:true});await button('Ban');
+      assert.equal(await page.$('#ban-date'),null,'preset duration must not expose a calendar');
+      for(const duration of ['hour','week','year','day']){
+        await page.click('[data-ban-duration-toggle]');
+        await page.click(`[data-ban-duration="${duration}"]`);
+        assert.equal(await page.$('#ban-date'),null,`${duration} must not expose a calendar`);
+      }
+      await page.click('[data-ban-duration-toggle]');await pause();
+      await page.screenshot({path:`test/ui-previews/ban-duration-dropdown-${scheme}.png`});
+      await page.click('[data-ban-duration="custom"]');
       await page.waitForSelector('#ban-date',{visible:true});await pause();
       assert.equal(await page.$eval('#ban-date',el=>getComputedStyle(el).colorScheme),scheme);
       assert.equal(await page.$eval('#ban-date',el=>el.disabled),false,'temporary ban date remains editable');

@@ -1,10 +1,11 @@
+import {useAppBack} from '@/lib/use-app-back';
 import {AdminDateField} from './AdminDateField';
 import {BAN_DURATIONS,banExpiryForDuration,banDateTimeInput,type BanDuration} from '@/lib/admin/ban-details';
 import {readBanImage,banImageAddress} from '@/lib/ban-image';
 import {AdminModalPortal} from './AdminModalPortal';
-import { X, Lock, Upload, Image as ImageIcon, EyeOff } from 'lucide-react';
+import { X, Lock, ChevronDown, Check, Upload, Image as ImageIcon, EyeOff } from 'lucide-react';
 import { Device } from '../types';
-import React, { useState, useRef, ChangeEvent } from 'react';
+import React, { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { motion } from 'motion/react';
 
 interface BanModalProps {
@@ -25,6 +26,17 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
   const imageGeneration=useRef(0);
   const [reason, setReason] = useState(previous?.reason||'');
   const [duration,setDuration]=useState<BanDuration>(editing?'custom':'day');
+  const [durationOpen,setDurationOpen]=useState(false);
+  const durationRef=useRef<HTMLDivElement>(null);
+  const durationButtonRef=useRef<HTMLButtonElement>(null);
+  useAppBack(durationOpen,()=>{setDurationOpen(false);return true;},110);
+  useEffect(()=>{
+    if(!durationOpen)return;
+    const outside=(event:PointerEvent)=>{if(!durationRef.current?.contains(event.target as Node))setDurationOpen(false);};
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.stopPropagation();setDurationOpen(false);durationButtonRef.current?.focus();}};
+    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape,true);
+    return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape,true);};
+  },[durationOpen]);
   const [expiryDate, setExpiryDate] = useState(banDateTimeInput(previous?.expiresAt||banExpiryForDuration('day')));
   const [formError,setFormError]=useState('');
   const [saving,setSaving]=useState(false);
@@ -50,7 +62,8 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
   const togglePermanent = () => {
     setIsPermanent((prev) => {
       const next = !prev;
-      if (next) setExpiryDate('');
+      setDurationOpen(false);
+      setFormError('');
       return next;
     });
   };
@@ -93,22 +106,45 @@ export function BanModal({ device, onClose, onConfirm }: BanModalProps) {
         </div>
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 sm:p-6">
-          <div>
-            <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-500">Czas blokady</span>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-ban-durations>{BAN_DURATIONS.map(([id,label])=><button key={id} type="button" data-ban-duration={id} aria-pressed={!isPermanent&&duration===id} onClick={()=>{setDuration(id);setIsPermanent(false);setFormError('');if(id!=='custom')setExpiryDate(banDateTimeInput(banExpiryForDuration(id)));}} className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition-colors ${!isPermanent&&duration===id?'ui-accent-soft':'border-white/10 bg-[#151B28] text-slate-300'}`}>{label}</button>)}</div>
-          </div>
-          <div>
-            <label htmlFor="ban-date" className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest px-1">Data i godzina zakończenia</label>
-            <AdminDateField
-              type="datetime-local"
-              aria-label="Data i godzina zakończenia blokady"
-              value={expiryDate}
-              onChange={(e) => {setExpiryDate(e.target.value);setDuration('custom');setFormError('');}}
+          <div ref={durationRef} className="relative">
+            <span id="ban-duration-label" className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-500">Czas blokady</span>
+            <button
+              ref={durationButtonRef}
+              type="button"
+              data-ban-duration-toggle
+              aria-labelledby="ban-duration-label ban-duration-value"
+              aria-expanded={durationOpen}
+              aria-controls="ban-duration-options"
               disabled={isPermanent}
-              className="w-full bg-[#151B28] border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-rose-500/50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              id="ban-date"
-            />
+              onClick={()=>setDurationOpen(open=>!open)}
+              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#111623] px-4 py-3.5 text-left text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <span id="ban-duration-value">{BAN_DURATIONS.find(([id])=>id===duration)?.[1]}</span>
+              <ChevronDown size={18} className={`shrink-0 transition-transform ${durationOpen?'rotate-180':''}`} />
+            </button>
+            {durationOpen&&(
+              <div id="ban-duration-options" className="pks-personal-card absolute left-0 right-0 top-full z-30 mt-2 flex flex-col gap-1 rounded-2xl border border-white/10 bg-[#111623] p-1.5 shadow-2xl" data-ban-durations>
+                {BAN_DURATIONS.map(([id,label])=><button
+                  key={id} type="button" data-ban-duration={id} aria-pressed={duration===id}
+                  onClick={()=>{setDuration(id);setDurationOpen(false);setFormError('');durationButtonRef.current?.focus();}}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-left text-sm font-medium transition-colors ${duration===id?'ui-accent-soft':'text-slate-400 hover:bg-white/5'}`}
+                >{label}{duration===id&&<Check size={16} className="shrink-0" />}</button>)}
+              </div>
+            )}
           </div>
+          {!isPermanent&&duration==='custom'&&(
+            <div className="rounded-2xl border border-white/5 bg-black/10 p-3" data-ban-custom-date>
+              <label htmlFor="ban-date" className="mb-2 block px-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Data i godzina zakończenia</label>
+              <AdminDateField
+                type="datetime-local"
+                aria-label="Data i godzina zakończenia blokady"
+                value={expiryDate}
+                onChange={(e)=>{setExpiryDate(e.target.value);setFormError('');}}
+                className="w-full cursor-pointer rounded-xl border border-white/10 bg-[#151B28] px-4 py-3 text-sm text-white transition-colors focus:outline-none focus:border-rose-500/50"
+                id="ban-date"
+              />
+            </div>
+          )}
 
           <button
             type="button"

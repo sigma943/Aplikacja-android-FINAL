@@ -1382,8 +1382,10 @@ const server=http.createServer((req,res)=>{
     await cosmosPage.waitForSelector('[role="dialog"][aria-label="Edytuj blokadę"]');
     assert.equal(await cosmosPage.$eval('[aria-label="Powód blokady"]',el=>el.value),'Original reason');
     assert.ok(await cosmosPage.$eval('#ban-date',el=>el.value.startsWith('2030-10-20')));
+    await cosmosPage.click('[data-ban-duration-toggle]');
     assert.equal(await cosmosPage.$$eval('[data-ban-duration]',els=>els.length),5);
     await cosmosPage.click('[data-ban-duration="hour"]');
+    assert.equal(await cosmosPage.$('#ban-date'),null,'hour preset hides the custom calendar');
     await cosmosPage.click('[aria-label="Powód blokady"]',{clickCount:3});await cosmosPage.keyboard.type('Edited reason');
     await cosmosPage.evaluate(()=>[...document.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent.includes('Dodaj obrazek')).click());
     await cosmosPage.screenshot({path:'test/ui-previews/cosmos-ban-edit-form.png'});
