@@ -22,11 +22,12 @@ const server=http.createServer((req,res)=>{
   page.on('pageerror',error=>errors.push(error.message));
   await page.setRequestInterception(true);
   page.on('request',request=>request.url().startsWith(origin)?request.continue():request.abort());
-  await page.evaluateOnNewDocument(()=>{
+  await page.evaluateOnNewDocument(expectedOrigin=>{
+    if(location.origin!==expectedOrigin)return;
     localStorage.setItem('mks_app_theme','dark-cosmos');
     const Original=Date,now=Original.parse('2026-10-06T12:18:30Z');
     window.Date=class extends Original{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
-  });
+  },origin);
   const cdp=await page.createCDPSession();
   const button=label=>page.evaluate(text=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===text)?.click(),label);
   const pause=()=>new Promise(resolve=>setTimeout(resolve,350));
