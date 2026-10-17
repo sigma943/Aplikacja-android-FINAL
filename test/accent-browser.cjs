@@ -203,6 +203,7 @@ const server=http.createServer((req,res)=>{
     };
     await page.goto(origin+'/statistics-fixture/',{waitUntil:'domcontentloaded'});
     await verifyStatistics();
+    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.goto(origin+'/ban-fixture/',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-ban-image]');
     for(const [kind,ratio] of [['wide',4],['tall',.25]]){
