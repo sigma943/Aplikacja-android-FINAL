@@ -24,7 +24,7 @@ const server=http.createServer((req,res)=>{
   page.on('request',request=>request.url().startsWith(origin)?request.continue():request.abort());
   await page.evaluateOnNewDocument(expectedOrigin=>{
     if(location.origin!==expectedOrigin)return;
-    localStorage.setItem('mks_app_theme','dark-cosmos');
+    localStorage.setItem('mks_app_theme',location.pathname.startsWith('/light-dialog-fixture')?'light':'dark-cosmos');
     const Original=Date,now=Original.parse('2026-10-06T12:18:30Z');
     window.Date=class extends Original{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
   },origin);
@@ -77,6 +77,35 @@ const server=http.createServer((req,res)=>{
       await page.waitForSelector(`[data-admin-viewport][data-cosmic-view="admin:${view}"]`);
       await check('[data-admin-viewport] [data-cosmic-content] > '+(view==='statistics'?'[data-statistics-view]':'[data-cosmic-canvas]'),'admin '+view);
     }
+    // Date controls retain native editing while their icon follows the panel palette.
+    await page.evaluate(()=>[...document.querySelectorAll('[data-admin-viewport] nav button')].find(el=>el.textContent.trim()==='Logi aktywności').click());
+    await page.waitForSelector('[data-admin-viewport][data-cosmic-view="admin:logs"]');
+    await button('Wszystkie daty');await button('Zakres niestandardowy');
+    await page.waitForSelector('#logs-range-start',{visible:true});await pause();
+    for(const id of ['logs-range-start','logs-range-end']){
+      const style=await page.$eval('#'+id,el=>({type:el.type,scheme:getComputedStyle(el).colorScheme,display:getComputedStyle(el).display,padding:parseFloat(getComputedStyle(el).paddingRight)}));
+      assert.equal(style.type,'date');assert.equal(style.scheme,'dark');assert.equal(style.display,'block');assert.ok(style.padding>=40,'date text reserves room for the trailing picker icon');
+    }
+    await page.$eval('#logs-range-start',el=>el.scrollIntoView({block:'center'}));await pause();
+    await page.screenshot({path:'test/ui-previews/calendar-logs-dark.png'});
+    await button('Zastosuj okres');
+    await page.evaluate(()=>[...document.querySelectorAll('[data-admin-viewport] nav button')].find(el=>el.textContent.trim()==='Bany / Blokady').click());
+    await page.waitForSelector('[data-admin-viewport][data-cosmic-view="admin:bans"]');
+    await page.type('input[placeholder="Szukaj urządzenia lub ID..."]','test-query');
+    await button('Filtry');await pause();
+    const choices=await page.evaluate(()=>[...document.querySelectorAll('[data-cosmic-content] button')].map(el=>el.textContent.trim()).filter(text=>['Wszystkie','Permanentne','Czasowe','Wyczyść filtry'].includes(text)));
+    assert.deepEqual(choices,['Wszystkie','Permanentne','Czasowe']);
+    await page.screenshot({path:'test/ui-previews/bans-filter-order.png'});
+    await button('Permanentne');await button('Filtry');await button('Wszystkie');
+    assert.equal(await page.$eval('input[placeholder="Szukaj urządzenia lub ID..."]',el=>el.value),'test-query','all ban types preserves the search query');
+    for(const [route,scheme] of [['dialog-fixture','dark'],['light-dialog-fixture','light']]){
+      await page.goto(origin+'/'+route+'/',{waitUntil:'domcontentloaded'});await button('Ban');
+      await page.waitForSelector('#ban-date',{visible:true});await pause();
+      assert.equal(await page.$eval('#ban-date',el=>getComputedStyle(el).colorScheme),scheme);
+      assert.equal(await page.$eval('#ban-date',el=>el.disabled),false,'temporary ban date remains editable');
+      await page.screenshot({path:`test/ui-previews/calendar-ban-${scheme}.png`});
+    }
+    console.log('Calendar and ban filter checks passed: dark/light native pickers, trailing range icons, all types first and search preserved.');
     await page.goto(origin+'/',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>Boolean(document.querySelector('.pks-theme-root')?.style.getPropertyValue('--pks-accent').trim()));
     await page.click('.pks-navigation [data-nav-item="stops"]');

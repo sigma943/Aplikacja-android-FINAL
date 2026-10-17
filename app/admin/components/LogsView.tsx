@@ -300,7 +300,7 @@ export function LogsView({
                  filterDate === 'LAST_MONTH' ? 'Poprzedni miesiąc' : 
                  'Niestandardowy'}
               </span>
-              <Calendar size={14} className="text-slate-500 shrink-0 group-hover:text-white transition-colors" />
+              <Calendar size={14} className="text-slate-300 shrink-0 group-hover:text-white transition-colors" />
             </button>
             <AnimatePresence>
               {showDatePicker && (
@@ -332,12 +332,12 @@ export function LogsView({
                          <div className="p-2 space-y-4">
                             <div className="grid grid-cols-1 gap-3">
                                <div>
-                                  <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1.5 block px-1">Początek zakresu</label>
-                                  <input type="date" className="w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all flex justify-between items-center" value={customRange.start} onChange={e => setCustomRange({...customRange, start: e.target.value})} />
+                                  <label htmlFor="logs-range-start" className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1.5 block px-1">Początek zakresu</label>
+                                  <input type="date" className="admin-range-date w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all" id="logs-range-start" value={customRange.start} onChange={e => setCustomRange({...customRange, start: e.target.value})} />
                                </div>
                                <div>
-                                  <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1.5 block px-1">Koniec zakresu</label>
-                                  <input type="date" className="w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all flex justify-between items-center" value={customRange.end} onChange={e => setCustomRange({...customRange, end: e.target.value})} />
+                                  <label htmlFor="logs-range-end" className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1.5 block px-1">Koniec zakresu</label>
+                                  <input type="date" className="admin-range-date w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all" id="logs-range-end" value={customRange.end} onChange={e => setCustomRange({...customRange, end: e.target.value})} />
                                </div>
                             </div>
                             <div className="px-1 pt-1">

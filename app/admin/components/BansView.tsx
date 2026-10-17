@@ -118,11 +118,9 @@ export function BansView({
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
                   className="pks-personal-card absolute right-0 top-full mt-2 w-56 bg-[#111623] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-20 p-1.5 flex flex-col gap-1"
                 >
+                  <button onClick={() => { setFilterStatus('ALL'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Wszystkie</button>
                   <button onClick={() => { setFilterStatus('PERMANENTNY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Permanentne</button>
                   <button onClick={() => { setFilterStatus('CZASOWY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Czasowe</button>
-                  <button onClick={() => { setFilterStatus('ALL'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Wszystkie</button>
-                  <div className="border-t border-white/5 my-1" />
-                  <button onClick={() => { setFilterStatus('ALL'); setSearch(''); setShowFilters(false); }} className="w-full px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer text-center">Wyczyść filtry</button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -177,7 +175,7 @@ function StatCard({ title, value, subtitle, icon, color }: any) {
 
   return (
     <div className={cn('pks-personal-card relative bg-[#111623] border rounded-2xl p-4 flex flex-col items-start shadow-lg transition-all hover:bg-white/[0.03] cursor-default group overflow-hidden', colorMap[color as keyof typeof colorMap])}>
-      <div className="absolute top-3 right-3 opacity-20">{icon}</div>
+      <div className={cn("absolute top-3 right-3", color === "amber" ? "opacity-80" : "opacity-20")}>{icon}</div>
       <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1">{title}</div>
       <div className="text-2xl font-black tracking-tight text-white mb-1 font-mono">{value}</div>
       <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{subtitle}</div>
