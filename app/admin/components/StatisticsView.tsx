@@ -48,7 +48,7 @@ function TimeChart({points,color,bars=false,title,dark}:{points:Point[];color:st
       }} className="cursor-pointer" style={{outline:'none'}}/>)}
       {ticks.map(i=><text key={i} x={x(i)} y="194" textAnchor="middle" fill={muted} fontSize="11">{dateLabel(points[i].date)}</text>)}
     </svg>
-    {showDetails&&<div id={tooltipId} role="tooltip" data-statistics-tooltip className="pointer-events-none absolute top-1 z-20 w-44 max-w-[calc(100%-1rem)] rounded-2xl border p-3 text-xs shadow-xl" style={{left:`clamp(8px, calc(${x(index)/640*100}% + 12px), calc(100% - 184px))`,backgroundColor:dark?'#111b2a':'#ffffff',color:dark?'#f1f5f9':'#0f172a',borderColor:color+'60'}}>
+    {showDetails&&<div id={tooltipId} role="tooltip" data-statistics-tooltip className="pointer-events-none absolute top-1 z-20 w-44 max-w-[calc(100%-1rem)] rounded-2xl border p-3 text-xs shadow-xl" style={{left:`clamp(8px, calc(${x(index)/640*100}% ${index>=points.length/2?'- 188px':'+ 12px'}), calc(100% - 184px))`,backgroundColor:dark?'#111b2a':'#ffffff',color:dark?'#f1f5f9':'#0f172a',borderColor:color+'60'}}>
       <div className="mb-2 flex items-center gap-2 font-semibold"><span className="h-2 w-2 shrink-0 rounded-full" style={{backgroundColor:color}}/>{dateLabel(point.date,true)}</div>
       <div className="flex items-center justify-between gap-2"><span className="opacity-65">{bars?'Nowe urządzenia':'Zapytania API'}</span><strong className="tabular-nums">{point.value===null?'—':number(point.value)}</strong></div>
       {!bars&&<div className="mt-1.5 flex items-center justify-between gap-2"><span className="opacity-65">Błędy API</span><strong className="tabular-nums" style={{color:dark?'#fb7185':'#be123c'}}>{point.errors==null?'—':number(point.errors)}</strong></div>}

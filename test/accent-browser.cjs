@@ -1147,7 +1147,8 @@ const server=http.createServer((req,res)=>{
       assert.ok(detail.box.left>=0&&detail.box.right<=await page.evaluate(()=>innerWidth),'tooltip fits the viewport');
       assert.ok(detail.background.startsWith('rgb('),'tooltip has a solid readable surface');
       assert.equal(await page.$eval('[data-statistics-chart="requests"] rect[role="button"]:focus',el=>getComputedStyle(el).stroke),'none','focused day does not paint a white rectangle');
-      await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('7 października'));
+      await page.keyboard.press('ArrowLeft');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('5 października'));
+      await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('6 października'));
       await page.keyboard.press('Escape');await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
       await page.click('[data-statistics-chart="installations"] rect[role="button"]');
       await page.waitForSelector('[data-statistics-tooltip]');
