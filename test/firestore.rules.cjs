@@ -412,3 +412,35 @@ test('legacy metadata migration preserves first login and name without exposing 
   assert.deepEqual(restored.permissions, previous.permissions);
   await env.withSecurityRulesDisabled(async context => assert.equal((await getDoc(doc(context.firestore(), 'devices', 'prior-admin'))).exists(), false));
 });
+
+const backendRequire = require('node:module').createRequire(require('node:path').resolve('functions/package.json'));
+let adminSdkAvailable = false;
+try { backendRequire.resolve('firebase-admin/app'); adminSdkAvailable = true; } catch {}
+test('deployment CLI runs with the real Admin SDK against only the local emulator', { skip: !adminSdkAvailable }, async () => {
+  const id = 'android_8123456789abcdef';
+  const previous = { ...device('owner', id), firstLogin: '2025-01-01', deviceName: 'Original phone' };
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'admin_settings', 'security'), { loginEnabled: false, autoBan: true, statisticsAccess: { [id]: false } });
+    await setDoc(doc(db, 'devices', 'previous-owner'), previous);
+    await setDoc(doc(db, 'installations', id), { ...device('owner', id), lastUid: 'previous-owner' });
+  });
+  const { execFile } = require('node:child_process');
+  const execute = require('node:util').promisify(execFile);
+  for (let repeat = 0; repeat < 2; repeat++) {
+    const result = await execute(process.execPath, ['scripts/migrate-statistics-access.cjs', 'demo-pks-live'], {
+      env: { ...process.env, FIRESTORE_EMULATOR_HOST: emulatorAddress, GCLOUD_PROJECT: 'demo-pks-live' }, timeout: 30000,
+    });
+    assert.ok(!result.stdout.includes(id), 'Migration output must not disclose installation identifiers');
+  }
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    assert.deepEqual((await getDoc(doc(db, 'admin_settings', 'security'))).data(), { loginEnabled: false, autoBan: true });
+    assert.deepEqual((await getDoc(doc(db, 'admin_settings', 'statistics_access'))).data(), { statisticsAccess: { [id]: false } });
+    const profile = (await getDoc(doc(db, 'installations', id))).data();
+    assert.equal(profile.firstLogin, previous.firstLogin);
+    assert.equal(profile.deviceName, previous.deviceName);
+    assert.equal(profile.restorationMetadataVersion, 1);
+    assert.deepEqual((await getDoc(doc(db, 'devices', 'previous-owner'))).data(), previous);
+  });
+});

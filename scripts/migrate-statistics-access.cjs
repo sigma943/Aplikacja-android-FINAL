@@ -1,7 +1,8 @@
 'use strict';
 
-const { initializeApp, applicationDefault } = require('../functions/node_modules/firebase-admin/app');
-const { getFirestore, FieldValue } = require('../functions/node_modules/firebase-admin/firestore');
+const backendRequire = require('node:module').createRequire(require('node:path').resolve(__dirname, '../functions/package.json'));
+const { initializeApp, applicationDefault } = backendRequire('firebase-admin/app');
+const { getFirestore, FieldValue } = backendRequire('firebase-admin/firestore');
 const { migrateStatisticsAccess } = require('./lib/migrate-statistics-access.cjs');
 const { migrateInstallationMetadata } = require('./lib/migrate-installation-metadata.cjs');
 
