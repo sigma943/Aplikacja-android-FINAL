@@ -1054,7 +1054,7 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 
 /* A drawer covers live content, so its glass needs a stronger base than a card.
    Local button fills separate the targets without repeating the sky inside them. */
-html[data-cosmic-theme='on'] .pks-panel-scope .pks-admin-sidebar {
+html[data-cosmic-theme='on'] .pks-panel-scope[data-glass] .pks-admin-sidebar {
   background-color:rgb(6 10 23 / 94%) !important;
   background-image:none !important;
   -webkit-backdrop-filter:blur(var(--cosmos-glass-blur,18px)) saturate(var(--cosmos-saturation,125%)) !important;
