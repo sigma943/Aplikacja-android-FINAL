@@ -1,5 +1,5 @@
-import {banDetailsForSave} from '@/lib/admin/ban-details';
 'use client';
+import {banDetailsForSave} from '@/lib/admin/ban-details';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
 import {isNewLoginBlocked,newLoginsEnabled} from '@/lib/login-policy';
 import {motion, useReducedMotion} from 'motion/react';
