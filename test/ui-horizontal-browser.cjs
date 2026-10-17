@@ -58,7 +58,8 @@ const server=http.createServer((req,res)=>{
       await button('Otwórz menu testowe');await pause();
       await page.click('nav button:nth-child(2)');
       for(const theme of ['dark-cosmos','light-sky']){
-        await page.click(`[data-statistics-theme="${theme}"]`);
+        await page.$eval(`[data-statistics-theme="${theme}"]`,el=>el.click());
+        await page.waitForSelector(`[data-ui-theme="${theme}"]`);
         for(const fontSize of [16,20]){
           await page.evaluate(size=>document.documentElement.style.fontSize=size+'px',fontSize);
           await check('[data-statistics-view]',`statistics ${width}px ${theme} font ${fontSize}`);
