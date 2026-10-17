@@ -214,12 +214,12 @@ service cloud.firestore {
     function userInstallationUpdateAllowed(data) {
       return data.get('loginApproved', true) == existing().get('loginApproved', true) && callerDeviceExists() &&
              callerDeviceData().role == 'user' &&
+             callerDeviceData().get('installationId', '') == data.installationId &&
              data.role == 'user' &&
              (!(data.verified is bool) || data.verified == false) &&
              userPermissionsAreSafe(data) &&
              (
-               !(data.status is string) ||
-               data.status == existing().status ||
+               (data.status == existing().status && data.get('banDetails', null) == existing().get('banDetails', null)) ||
                (data.status == 'banned' && autoBanUnverifiedEnabled() && hasAutoBanDetails(data))
              );
     }
@@ -258,6 +258,7 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/installations/$(instId)) &&
              data.role in ['owner', 'admin', 'user'] &&
              data.role == profile.role &&
+             (profile.get('banDetails', null) == null || data.get('banDetails', null) == profile.banDetails) &&
              data.get('loginApproved', true) == profile.get('loginApproved', true) &&
              (
                !(data.verified is bool) ||
@@ -265,7 +266,8 @@ service cloud.firestore {
                (!(profile.verified is bool) && data.verified == false) ||
                data.role in ['owner', 'admin']
              ) &&
-             (!(data.status is string) || !(profile.status is string) || data.status == profile.status) &&
+             data.status in ['active', 'banned'] &&
+             (profile.get('status', null) == null || data.status == profile.status) &&
              data.permissions is map && data.permissions == profile.permissions &&
              (
                profile.role == 'user' ||
@@ -278,7 +280,8 @@ service cloud.firestore {
     function previousInstallationDeviceReadable(deviceId) {
       let instId = existing().get('installationId', '');
       let path = /databases/$(database)/documents/installations/$(instId);
-      return isValidId(instId) && exists(path) && get(path).data.get('lastUid', '') == deviceId;
+      return isValidId(instId) && exists(path) && callerDeviceExists() &&
+             callerDeviceData().get('installationId', '') == instId;
     }
 
     function deviceReinstallationTransferAllowed(deviceId) {
@@ -424,8 +427,13 @@ service cloud.firestore {
     }
 
     match /installations/{installationId} {
-      // Shared installation profile used to keep role/permissions stable across localhost ports.
-      allow read: if isSignedIn() && isValidId(installationId);
+      // A fresh Auth UID must still fetch a known profile after reinstall.
+      // Existing users can read only their own profile; enumeration is admin-only.
+      allow get: if isSignedIn() && isValidId(installationId) && (
+        !callerDeviceExists() || canListDevices() ||
+        callerDeviceData().get('installationId', '') == installationId
+      );
+      allow list: if isSignedIn() && canListDevices();
       allow create: if isSignedIn() && isValidId(installationId) &&
                     incoming().installationId == installationId &&
                     incoming().updatedBy == request.auth.uid &&
@@ -545,11 +553,15 @@ service cloud.firestore {
     }
     match /admin_settings/{settingId} {
       allow read: if isSignedIn() && isValidId(settingId) &&
-        (settingId == 'security' || settingId == 'transport_runtime' || canReadGlobalAdminSettings());
+        (settingId == 'security' || settingId == 'transport_runtime' ||
+         (settingId == 'statistics_access' ? canListDevices() : canReadGlobalAdminSettings()));
       allow create, update: if isSignedIn() && isValidId(settingId) && (
+        (settingId == 'statistics_access' && isCallerOwner() &&
+         incoming().keys().hasOnly(['statisticsAccess']) && incoming().statisticsAccess is map) ||
         (settingId == 'transport_runtime' && maintenanceEditor() && validRuntime(incoming())) ||
         (settingId == 'maintenance' && maintenanceEditor() && validMaintenanceSettings(incoming())) ||
-        (!(settingId in ['transport_runtime', 'maintenance']) && canWriteGlobalAdminSettings())
+        (!(settingId in ['transport_runtime', 'maintenance', 'statistics_access']) && canWriteGlobalAdminSettings() &&
+         (settingId != 'security' || !incoming().keys().hasAny(['statisticsAccess'])))
       );
       allow delete: if false;
     }

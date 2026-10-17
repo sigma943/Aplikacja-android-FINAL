@@ -182,10 +182,21 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     const caps = effectiveAdminPermissionsForDisplay(currentDevice.role, currentDevice.permissions);
     if (!canAccessAdminDashboard(currentDevice.role,currentDevice.permissions)) return;
     setStatisticsAccessReady(false);
+    // Legacy fallback lets the APK be installed before the rules/data migration.
+    let legacyAccess: StatisticsAccess = {};
+    let privateAccess: StatisticsAccess | null = null;
+    let publicReady = false;
+    let privateReady = false;
+    const publishAccess = () => {
+      setStatisticsAccess(privateAccess ?? legacyAccess);
+      setStatisticsAccessReady(publicReady && privateReady);
+    };
     const unsub = onSnapshot(doc(db, 'admin_settings', 'security'), (snap) => {
       const data = (snap.data()||{}) as Record<string, unknown>;
       setGlobalSettings(previous=>({...previous,loginEnabled:newLoginsEnabled(data.loginEnabled)}));
-      setStatisticsAccess(readStatisticsAccess(data.statisticsAccess));setStatisticsAccessReady(true);
+      legacyAccess = readStatisticsAccess(data.statisticsAccess);
+      publicReady = true;
+      publishAccess();
       if (!snap.exists() || (!caps.globalSettings && !caps.globalSettingsEdit)) return;
       setGlobalSettings({
         loginEnabled: Boolean(data.loginEnabled ?? true),
@@ -196,8 +207,13 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
               .filter((providerId) => providerId !== 'pkp_intercity')
           : [],
       });
-    },()=>{setStatisticsAccess({});setStatisticsAccessReady(false);});
-    return () => unsub();
+    },()=>{publicReady=false;publishAccess();});
+    const unsubAccess = onSnapshot(doc(db, 'admin_settings', 'statistics_access'), (snap) => {
+      privateAccess = snap.exists() ? readStatisticsAccess(snap.data().statisticsAccess) : null;
+      privateReady = true;
+      publishAccess();
+    }, () => { privateReady=false;publishAccess(); });
+    return () => { unsub(); unsubAccess(); };
   }, [loading,user?.uid,currentDevice?.role,currentDevice?.installationId,currentDevice?.permissions?.globalSettings,currentDevice?.permissions?.globalSettingsEdit]);
 
   useEffect(() => {
@@ -888,7 +904,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     const change=statisticsAccessChange(target,role,requested,statisticsAccess);
     if(!change)return;
     if(currentDevice.role!=='owner')throw new Error('Tylko właściciel może zmieniać dostęp do statystyk.');
-    batch.set(doc(db,'admin_settings','security'),{statisticsAccess:{[change.key]:change.enabled}},{merge:true});
+    batch.set(doc(db,'admin_settings','statistics_access'),{statisticsAccess:{[change.key]:change.enabled}},{merge:true});
   };
 
   const saveOperatorPatch = async (operatorId: string, role: OperatorRole, permissions: Operator['permissions']) => {

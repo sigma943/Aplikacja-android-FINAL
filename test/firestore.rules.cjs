@@ -5,6 +5,9 @@ const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@fir
 const { doc, setDoc, updateDoc, getDoc, getDocs, collection, writeBatch } = require('firebase/firestore');
 const loadTs = require('./load-ts.cjs');
 const { buildDevicePermissions } = loadTs('lib/admin/rbac.ts');
+const emulatorAddress = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8088';
+assert.match(emulatorAddress, /^(127\.0\.0\.1|localhost):[0-9]+$/, 'Rules tests require a loopback emulator');
+const [emulatorHost, emulatorPort] = emulatorAddress.split(':');
 let env;
 const device = (role, installationId, permissions = buildDevicePermissions(role)) => ({
   role, permissions, installationId, verified: role !== 'user', status:'active',
@@ -12,7 +15,7 @@ const device = (role, installationId, permissions = buildDevicePermissions(role)
 });
 before(async () => {
   env = await initializeTestEnvironment({ projectId:'demo-pks-live', firestore:{
-    host:'127.0.0.1',port:8088,rules:fs.readFileSync('firestore.rules','utf8'),
+    host:emulatorHost,port:Number(emulatorPort),rules:fs.readFileSync('firestore.rules','utf8'),
   }});
 });
 after(async () => { await env?.cleanup(); });
@@ -223,7 +226,7 @@ test('restore works if the prior UID document is already absent; failed transfer
 });
 
 test('owner reinstallation starts under the previously deployed rules and removes the old record',async()=>{
- const legacy=await initializeTestEnvironment({projectId:'demo-pks-legacy',firestore:{host:'127.0.0.1',port:8088,rules:fs.readFileSync('test/fixtures/firestore-before-device-transfer.rules','utf8')}});
+ const legacy=await initializeTestEnvironment({projectId:'demo-pks-legacy',firestore:{host:emulatorHost,port:Number(emulatorPort),rules:fs.readFileSync('test/fixtures/firestore-before-device-transfer.rules','utf8')}});
  try{
   await legacy.clearFirestore();const id='android_0123456789abcdef';const saved={...device('owner',id),lastUid:'previous-owner-uid',updatedBy:'owner',displayName:'Owner',firstLogin:'2026-01-01'};
   await legacy.withSecurityRulesDisabled(async context=>{const db=context.firestore();await setDoc(doc(db,'devices','previous-owner-uid'),saved);await setDoc(doc(db,'installations',id),saved);await setDoc(doc(db,'admin_settings','security'),{autoBan:false});});
@@ -247,11 +250,11 @@ test('maintenance editor clears history on Spark; read-only admin and users cann
 test('owner atomically saves statistics access with existing device schema and preserves security settings',async()=>{
  const db=env.authenticatedContext('owner').firestore();
  await assertSucceeds(setDoc(doc(db,'admin_settings','security'),{loginEnabled:true,maintenanceMode:false,autoBan:false,hiddenProviderIds:['marcel']}));
- const batch=writeBatch(db);batch.update(doc(db,'devices','admin'),{permissions:buildDevicePermissions('admin')});batch.set(doc(db,'admin_settings','security'),{statisticsAccess:{'admin-install':false}},{merge:true});await assertSucceeds(batch.commit());
- const saved=(await getDoc(doc(db,'admin_settings','security'))).data();assert.equal(saved.loginEnabled,true);assert.deepEqual(saved.hiddenProviderIds,['marcel']);assert.equal(saved.statisticsAccess['admin-install'],false);
- const adminDb=env.authenticatedContext('admin').firestore();assert.equal((await assertSucceeds(getDoc(doc(adminDb,'admin_settings','security')))).data().statisticsAccess['admin-install'],false);
- await assertFails(setDoc(doc(adminDb,'admin_settings','security'),{statisticsAccess:{'admin-install':true}},{merge:true}));
- await assertFails(setDoc(doc(env.authenticatedContext('user').firestore(),'admin_settings','security'),{statisticsAccess:{'admin-install':true}},{merge:true}));
+ const batch=writeBatch(db);batch.update(doc(db,'devices','admin'),{permissions:buildDevicePermissions('admin')});batch.set(doc(db,'admin_settings','statistics_access'),{statisticsAccess:{'admin-install':false}},{merge:true});await assertSucceeds(batch.commit());
+ const saved=(await getDoc(doc(db,'admin_settings','security'))).data();assert.equal(saved.loginEnabled,true);assert.deepEqual(saved.hiddenProviderIds,['marcel']);assert.equal(saved.statisticsAccess,undefined);
+ const adminDb=env.authenticatedContext('admin').firestore();assert.equal((await assertSucceeds(getDoc(doc(adminDb,'admin_settings','statistics_access')))).data().statisticsAccess['admin-install'],false);
+ await assertFails(setDoc(doc(adminDb,'admin_settings','statistics_access'),{statisticsAccess:{'admin-install':true}},{merge:true}));
+ await assertFails(setDoc(doc(env.authenticatedContext('user').firestore(),'admin_settings','statistics_access'),{statisticsAccess:{'admin-install':true}},{merge:true}));
 });
 test('closed new logins require a pending device and installation; callers cannot approve themselves',async()=>{
  const owner=env.authenticatedContext('owner').firestore();await updateDoc(doc(owner,'admin_settings','security'),{loginEnabled:false});
@@ -274,4 +277,138 @@ test('pending reinstall cannot change approval even after global logins reopen',
  const db=env.authenticatedContext('next-pending').firestore();
  await assertFails(setDoc(doc(db,'devices','next-pending'),{...device('user',id),loginApproved:true}));
  const batch=writeBatch(db);const pending={...device('user',id),loginApproved:false};batch.set(doc(db,'devices','next-pending'),pending);batch.set(doc(db,'installations',id),{...pending,lastUid:'next-pending',updatedBy:'next-pending'});batch.delete(doc(db,'devices','prior-pending'));await assertSucceeds(batch.commit());
+});
+
+test('users and fresh anonymous accounts cannot enumerate installation identities', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    for (const role of ['owner', 'admin', 'user']) {
+      await setDoc(doc(context.firestore(), 'installations', `${role}-install`), {
+        ...device(role, `${role}-install`), lastUid: role, updatedBy: 'owner',
+      });
+    }
+  });
+  for (const uid of ['user', 'fresh-anonymous']) {
+    const db = env.authenticatedContext(uid).firestore();
+    await assertFails(getDocs(collection(db, 'installations')));
+    await assertFails(getDocs(firebaseSdk.query(collection(db, 'installations'), firebaseSdk.limit(1))));
+    await assertFails(getDocs(collection(db, 'devices')));
+    await assertFails(getDoc(doc(db, 'admin_settings', 'statistics_access')));
+    await assertFails(getDocs(collection(db, 'admin_logs')));
+    await assertFails(getDoc(doc(db, 'devices', 'owner')));
+  }
+  const db = env.authenticatedContext('user').firestore();
+  await assertSucceeds(getDoc(doc(db, 'installations', 'user-install')));
+  await assertFails(getDoc(doc(db, 'installations', 'owner-install')));
+  await assertFails(getDoc(doc(db, 'devices', 'owner')));
+  for (const uid of ['owner', 'admin']) {
+    await assertSucceeds(getDocs(collection(env.authenticatedContext(uid).firestore(), 'installations')));
+  }
+});
+
+test('statistics identifiers stay private while public startup settings remain readable', async () => {
+  const db = env.authenticatedContext('owner').firestore();
+  await assertSucceeds(setDoc(doc(db, 'admin_settings', 'statistics_access'), {
+    statisticsAccess: { 'owner-install': true, 'admin-install': false },
+  }));
+  // Reject accidentally reintroducing installation IDs into a public document.
+  await assertFails(setDoc(doc(db, 'admin_settings', 'security'), { statisticsAccess: { 'owner-install': true } }, { merge: true }));
+  for (const uid of ['user', 'fresh-anonymous']) {
+    const client = env.authenticatedContext(uid).firestore();
+    const security = (await assertSucceeds(getDoc(doc(client, 'admin_settings', 'security')))).data();
+    assert.equal(security.statisticsAccess, undefined);
+    await assertFails(getDoc(doc(client, 'admin_settings', 'statistics_access')));
+  }
+  await assertSucceeds(getDoc(doc(env.authenticatedContext('admin').firestore(), 'admin_settings', 'statistics_access')));
+  await assertFails(setDoc(doc(env.authenticatedContext('admin').firestore(), 'admin_settings', 'statistics_access'), { statisticsAccess: {} }));
+});
+
+test('settings migration is atomic, idempotent and leaves identities and public policies unchanged', async () => {
+  const { migrateStatisticsAccess } = require('../scripts/lib/migrate-statistics-access.cjs');
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    const source = { autoBan: true, loginEnabled: false, maintenanceMode: true, hiddenProviderIds: ['marcel'], statisticsAccess: { 'owner-install': true, 'admin-install': false, 'conflict-install': false } };
+    await setDoc(doc(db, 'admin_settings', 'security'), source);
+    await setDoc(doc(db, 'admin_settings', 'statistics_access'), { statisticsAccess: { 'conflict-install': true, 'new-admin': false } });
+    const ownerBefore = (await getDoc(doc(db, 'devices', 'owner'))).data();
+    const adapter = { doc: path => doc(db, ...path.split('/')), runTransaction: callback => firebaseSdk.runTransaction(db, callback) };
+    assert.deepEqual(await migrateStatisticsAccess(adapter, firebaseSdk.deleteField), { migrated: true });
+    assert.deepEqual(await migrateStatisticsAccess(adapter, firebaseSdk.deleteField), { migrated: false });
+    const { statisticsAccess, ...publicPolicy } = source;
+    assert.deepEqual((await getDoc(doc(db, 'admin_settings', 'security'))).data(), publicPolicy);
+    assert.deepEqual((await getDoc(doc(db, 'admin_settings', 'statistics_access'))).data().statisticsAccess, { ...statisticsAccess, 'new-admin': false });
+    assert.deepEqual((await getDoc(doc(db, 'devices', 'owner'))).data(), ownerBefore);
+    await setDoc(doc(db, 'admin_settings', 'security'), { statisticsAccess: { bad: 'invalid' } }, { merge: true });
+    await assert.rejects(migrateStatisticsAccess(adapter, firebaseSdk.deleteField), /migration stopped/);
+    assert.equal((await getDoc(doc(db, 'admin_settings', 'security'))).data().statisticsAccess.bad, 'invalid');
+  });
+});
+
+for (const role of ['owner', 'admin', 'user']) test(`closed admission and auto-ban do not change saved ${role} on reinstall`, async () => {
+  const id = 'android_4123456789abcdef';
+  const saved = { ...device(role, id), lastUid: 'previous-device', loginApproved: true, updatedBy: 'owner', firstLogin: '2025-01-01',
+    ...(role === 'user' ? { status: 'banned', banDetails: { reason: 'retain', expiresAt: '', silent: true } } : {}) };
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'admin_settings', 'security'), { loginEnabled: false, autoBan: true });
+    await setDoc(doc(db, 'devices', 'previous-device'), saved);
+    await setDoc(doc(db, 'installations', id), saved);
+  });
+  const db = env.authenticatedContext('reinstalled-device').firestore();
+  const { registerRestoredDevice } = loadTs('lib/device-registration.ts', { 'firebase/firestore': firebaseSdk });
+  await assertSucceeds(registerRestoredDevice(db, 'reinstalled-device', id, 'Same phone', true, { reason: 'new ban' }, false));
+  const restored = (await getDoc(doc(db, 'devices', 'reinstalled-device'))).data();
+  for (const field of ['role', 'permissions', 'status', 'verified', 'loginApproved', 'firstLogin', 'banDetails']) assert.deepEqual(restored[field], saved[field]);
+  assert.equal((await getDoc(doc(db, 'installations', id))).data().lastUid, 'reinstalled-device');
+});
+
+test('restoration cannot drop or alter a saved ban reason', async () => {
+  const id = 'android_5123456789abcdef';
+  const saved = { ...device('user', id), status: 'banned', banDetails: { reason: 'keep ban', silent: true, expiresAt: '' } };
+  await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), 'installations', id), saved));
+  const db = env.authenticatedContext('new-device').firestore();
+  const { banDetails, ...withoutBan } = saved;
+  await assertFails(setDoc(doc(db, 'devices', 'new-device'), withoutBan));
+  await assertFails(setDoc(doc(db, 'devices', 'new-device'), { ...saved, banDetails: { ...banDetails, silent: false } }));
+  await assertFails(setDoc(doc(db, 'devices', 'new-device'), { ...saved, status: null }));
+  await assertSucceeds(setDoc(doc(db, 'devices', 'new-device'), saved));
+});
+
+test('users cannot rewrite another installation or remove their persisted ban details', async () => {
+  const saved = { ...device('user', 'user-install'), lastUid: 'user', updatedBy: 'owner', status: 'banned', banDetails: { reason: 'keep', silent: true, expiresAt: '' } };
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'devices', 'user'), saved);
+    await setDoc(doc(context.firestore(), 'installations', 'user-install'), saved);
+    await setDoc(doc(context.firestore(), 'installations', 'other-install'), { ...device('user', 'other-install'), updatedBy: 'owner' });
+  });
+  const db = env.authenticatedContext('user').firestore();
+  await assertFails(updateDoc(doc(db, 'installations', 'other-install'), { updatedBy: 'user', lastUid: 'user' }));
+  await assertFails(updateDoc(doc(db, 'installations', 'user-install'), { updatedBy: 'user', banDetails: firebaseSdk.deleteField() }));
+  await assertFails(updateDoc(doc(db, 'installations', 'user-install'), { updatedBy: 'user', status: firebaseSdk.deleteField() }));
+  await assertSucceeds(setDoc(doc(db, 'installations', 'user-install'), { ...saved, updatedBy: 'user' }));
+});
+
+test('legacy metadata migration preserves first login and name without exposing previous UID documents', async () => {
+  const { migrateInstallationMetadata } = require('../scripts/lib/migrate-installation-metadata.cjs');
+  const id = 'android_6123456789abcdef';
+  const profile = { ...device('admin', id), firstLogin: '2026-06-01', lastUid: 'prior-admin', updatedBy: 'owner' };
+  const previous = { ...profile, firstLogin: '2025-01-01', deviceName: 'My original phone' };
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'devices', 'prior-admin'), previous);
+    await setDoc(doc(db, 'installations', id), profile);
+    const adapter = { doc: path => doc(db, ...path.split('/')), runTransaction: callback => firebaseSdk.runTransaction(db, callback) };
+    assert.equal(await migrateInstallationMetadata(adapter, doc(db, 'installations', id)), true);
+    assert.equal(await migrateInstallationMetadata(adapter, doc(db, 'installations', id)), false);
+    assert.deepEqual((await getDoc(doc(db, 'installations', id))).data(), { ...profile, firstLogin: previous.firstLogin, deviceName: previous.deviceName });
+    assert.deepEqual((await getDoc(doc(db, 'devices', 'prior-admin'))).data(), previous);
+  });
+  const db = env.authenticatedContext('next-admin').firestore();
+  await assertFails(getDoc(doc(db, 'devices', 'prior-admin')));
+  const { registerRestoredDevice } = loadTs('lib/device-registration.ts', { 'firebase/firestore': firebaseSdk });
+  await assertSucceeds(registerRestoredDevice(db, 'next-admin', id, 'Phone', false, {}));
+  const restored = (await getDoc(doc(db, 'devices', 'next-admin'))).data();
+  assert.equal(restored.firstLogin, previous.firstLogin);
+  assert.equal(restored.deviceName, previous.deviceName);
+  assert.deepEqual(restored.permissions, previous.permissions);
+  await env.withSecurityRulesDisabled(async context => assert.equal((await getDoc(doc(context.firestore(), 'devices', 'prior-admin'))).exists(), false));
 });

@@ -16,6 +16,7 @@ import {foregroundRefresh} from '@/lib/foreground-refresh';
 import {isAppVisible, observeAppActivity} from '@/lib/app-activity';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {agentLog} from '@/lib/debug-agent-log';
+import {firebaseDiagnosticCode} from '@/lib/firebase-diagnostics';
 
 export type { DeviceRole };
 
@@ -193,7 +194,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const sync = (active: boolean) => {
       void (active ? enableNetwork(db) : disableNetwork(db)).catch(error => {
-        console.warn('Firestore activity transition failed', error);
+        console.warn('Firestore activity transition failed', firebaseDiagnosticCode(error));
       });
     };
     const stop = observeAppActivity(sync);
@@ -219,7 +220,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       try { await ensureFirebaseUser(auth); }
       catch (error) {
         if (!cancelled) {
-          console.error('Anonymous sign-in failed', error);
+          console.error('Anonymous sign-in failed', firebaseDiagnosticCode(error));
           setStartupError(startupFailureMessage(error));
         }
       }
@@ -310,7 +311,6 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           'Registering device identity via Firestore',
           {
             uidPrefix: user.uid.slice(0, 8),
-            installationIdPrefix: instId.slice(0, 12),
           },
           'H5',
         );
@@ -322,13 +322,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             'Device identity saved via Cloud Function',
             {
               uidPrefix: user.uid.slice(0, 8),
-              installationIdPrefix: instId.slice(0, 12),
             },
             'H5',
           );
           return;
         } catch (fnErr) {
-          console.warn('Cloud Function device registration unavailable, using Firestore fallback', fnErr);
+          console.warn('Cloud Function device registration unavailable, using Firestore fallback', firebaseDiagnosticCode(fnErr));
         }
 
         const installationRef = doc(db, 'installations', instId);
@@ -376,7 +375,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         );
         // #endregion
       } catch (err: unknown) {
-        console.error('Failed to register device identity', err);
+        console.error('Failed to register device identity', firebaseDiagnosticCode(err));
         const e = err as any;
         // #region agent log
         agentLog(
@@ -384,7 +383,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           'Device identity save failed',
           {
             code: String(e?.code ?? 'unknown'),
-            message: String(e?.message ?? String(err)).slice(0, 200),
+            diagnosticCode: firebaseDiagnosticCode(err),
             detailsType: typeof e?.details,
           },
           'H5',
@@ -439,7 +438,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           const signature=JSON.stringify(access);
           if(signature!==mirroredAccess) {
             mirroredAccess=signature;
-            void setDoc(doc(db,'installations',data.installationId),{...access,banDetails:data.banDetails||deleteField(),displayName:data.displayName||deleteField(),updatedBy:user.uid,lastUid:user.uid,updatedAt:serverTimestamp()},{merge:true}).catch(error=>console.warn('Access profile mirror failed',error));
+            void setDoc(doc(db,'installations',data.installationId),{...access,banDetails:data.banDetails||deleteField(),displayName:data.displayName||deleteField(),updatedBy:user.uid,lastUid:user.uid,updatedAt:serverTimestamp()},{merge:true}).catch(error=>console.warn('Access profile mirror failed',firebaseDiagnosticCode(error)));
           }
         }
         if ((data.role === 'owner' || data.role === 'admin') && data.verified !== true) {
@@ -478,7 +477,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }, (err) => {
-      console.error("Snapshot error", err);
+      console.error("Snapshot error", firebaseDiagnosticCode(err));
       const code = String((err as any)?.code || '').toLowerCase();
       const message = String((err as any)?.message || '').toLowerCase();
       const isNetworkProblem =
@@ -535,7 +534,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       },
       (err) => {
         window.clearTimeout(timeout);
-        console.error('Global settings snapshot error', err);
+        console.error('Global settings snapshot error', firebaseDiagnosticCode(err));
         setMaintenanceMode(false);
         setSettingsLoading(false);
       },
@@ -567,7 +566,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       status: 'banned',
       verified: false,
       banDetails,
-    }).catch((err) => console.error('Auto-ban update failed', err));
+    }).catch((err) => console.error('Auto-ban update failed', firebaseDiagnosticCode(err)));
     if (instId) {
       setDoc(
         doc(db, 'installations', instId),
@@ -630,7 +629,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       setHiddenProviderIds(hiddenIds);
       persistHiddenProviderIdsCache(hiddenIds);
     } catch (err) {
-      console.error('Manual maintenance status check failed', err);
+      console.error('Manual maintenance status check failed', firebaseDiagnosticCode(err));
     } finally {
       setCheckingMaintenance(false);
     }

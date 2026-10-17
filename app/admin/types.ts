@@ -28,7 +28,7 @@ export interface Device {
 
 export type OperatorRole = 'WŁAŚCICIEL' | 'ADMIN' | 'UŻYTKOWNIK';
 export interface AdminPermissions {
-  /** UI-only access, persisted separately in admin_settings/security. */
+  /** UI-only access, persisted separately in admin_settings/statistics_access. */
   statistics: boolean;
   monitor: boolean;
   shield: boolean;

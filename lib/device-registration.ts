@@ -22,8 +22,8 @@ export async function registerRestoredDevice(db:Firestore,uid:string,installatio
   } catch(error) {
     const code=String((error as {code?:string})?.code||'');
     if(code!=='permission-denied'&&code!=='firestore/permission-denied')throw error;
-    // Older deployed rules allow restoring our own UID, but not reading/deleting
-    // the previous UID until the owner record exists. Do not downgrade its role.
+    // Some rule versions require our restored identity to exist before reading
+    // or deleting the previous UID. Never downgrade its saved role.
     const currentRef=doc(db,'devices',uid),profileRef=doc(db,'installations',installationId);
     if((await getDoc(currentRef)).exists())return;
     const snapshot=await getDoc(profileRef);
@@ -33,7 +33,7 @@ export async function registerRestoredDevice(db:Firestore,uid:string,installatio
     const payload=restoredDevicePayload(profile,{},installationId,deviceInfo,autoBan,banDetails,enabled);
     await setDoc(currentRef,{...payload,lastSeenAt:serverTimestamp(),updatedAt:serverTimestamp()});
     await setDoc(profileRef,{...payload,installationId,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
-    if(payload.role==='owner'&&typeof profile.lastUid==='string'&&profile.lastUid!==uid&&/^[\w-]{6,128}$/.test(profile.lastUid)) {
+    if(typeof profile.lastUid==='string'&&profile.lastUid!==uid&&/^[\w-]{6,128}$/.test(profile.lastUid)) {
       const previousRef=doc(db,'devices',profile.lastUid);
       const previous=await getDoc(previousRef);
       if(previous.exists()&&previous.data().installationId===installationId)await deleteDoc(previousRef);
@@ -50,14 +50,19 @@ async function transferDevice(db:Firestore,uid:string,installationId:string,devi
     const profile=snapshot.exists()?snapshot.data():{};
     const previousUid=typeof profile.lastUid==='string'&&/^[\w-]{6,128}$/.test(profile.lastUid)&&profile.lastUid!==uid?profile.lastUid:'';
     const previousRef=previousUid?doc(db,'devices',previousUid):null;
-    const previous=previousRef?await tx.get(previousRef):null;
+    // The mirrored profile is authoritative. Do not expose another UID's device
+    // document to fresh anonymous accounts merely to copy its metadata.
+    // The legacy read remains only for APK-before-rules compatibility; deployment
+    // backfills old profiles before this read is restricted by the new rules.
+    const profileComplete=typeof profile.firstLogin==='string'&&Boolean(profile.firstLogin);
+    const previous=previousRef&&!profileComplete?await tx.get(previousRef):null;
     const previousData=previous?.exists()&&previous.data().installationId===installationId?previous.data():{};
     const security=Object.keys(profile).length||Object.keys(previousData).length?null:await tx.get(doc(db,'admin_settings','security'));
     const enabled=security?.exists()?newLoginsEnabled(security.data().loginEnabled):loginEnabled;
     const payload=restoredDevicePayload(profile,previousData,installationId,deviceInfo,autoBan,banDetails,enabled);
     tx.set(currentRef,{...payload,lastSeenAt:serverTimestamp(),updatedAt:serverTimestamp()});
     tx.set(profileRef,{...payload,installationId,lastUid:uid,updatedBy:uid,updatedAt:serverTimestamp()},{merge:true});
-    if(previousRef&&previous?.exists()&&previous.data().installationId===installationId)tx.delete(previousRef);
+    if(previousRef&&(profileComplete||(previous?.exists()&&previous.data().installationId===installationId)))tx.delete(previousRef);
   });
 }
 
