@@ -71,7 +71,9 @@ const server=http.createServer((req,res)=>{
       console.log('Opening stops');
       await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--pks-accent').trim()!=='');
       await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Przystanki'));
-      await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
+      // Initial theme script runs before hydration; wait for Home's restored preferences.
+      await page.waitForFunction(()=>Boolean(document.querySelector('.pks-theme-root')?.style.getPropertyValue('--pks-accent').trim()));
+      await page.click('.pks-navigation [data-nav-item="stops"]');await page.waitForSelector('input[placeholder*="Babica"]');
       await page.type('input[placeholder*="Babica"]','Baryczka');
       await page.waitForFunction(()=>[...document.querySelectorAll('h3')].some(el=>el.textContent==='Baryczka 69'));
       await new Promise(resolve=>setTimeout(resolve,650));
@@ -106,6 +108,101 @@ const server=http.createServer((req,res)=>{
       }
     };
     const screenshot=async name=>{await new Promise(resolve=>setTimeout(resolve,650));return page.screenshot({path:`test/ui-previews/${name}.png`});};
+    const verifyStatistics=async()=>{
+    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+    await page.evaluate(()=>localStorage.setItem('pks-live:api-statistics:v1',JSON.stringify({version:1,startedAt:Date.now(),days:[{date:'2026-10-06',providers:{pks:{requests:9999,errors:2,latencyMs:16000},mpk_rzeszow:{requests:15,errors:1,latencyMs:3000},marcel:{requests:5,errors:0,latencyMs:1000}}}]})));
+    await page.goto(`${origin}/statistics-fixture/`,{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-statistics-fixture-ready="true"]');
+    await button('Otwórz menu testowe');await page.waitForFunction(()=>{const r=document.querySelector('nav button:nth-child(2)').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;});await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
+    await page.waitForFunction(()=>document.querySelector('[data-statistic="Zapytania API"]').textContent==='100');
+    assert.equal(await page.$eval('[data-statistic="Nowe urządzenia"]',el=>el.textContent),'2');
+    assert.equal(await page.$eval('[data-statistic="Aktywne urządzenia"]',el=>el.textContent),'2');
+    assert.equal(await page.$eval('[data-statistic="Skuteczność API"]',el=>el.textContent),'97%');
+    const statisticsFits=async()=>assert.equal(await page.$eval('[data-statistics-view]',el=>el.scrollWidth>el.clientWidth+1),false,'Statistics must fit without horizontal overflow');
+    await statisticsFits();await screenshot('statistics-dark-mobile');
+    const headerStyle=await page.$eval('[data-statistics-view] header',el=>({position:getComputedStyle(el).position,background:getComputedStyle(el).backgroundColor}));
+    assert.ok(!['fixed','sticky'].includes(headerStyle.position));assert.equal(headerStyle.background,'rgba(0, 0, 0, 0)');
+    await page.$eval('[data-statistics-view]',el=>el.scrollTop=400);
+    await page.waitForFunction(()=>document.querySelector('[data-statistics-view] header').getBoundingClientRect().bottom<document.querySelector('[data-statistics-view]').getBoundingClientRect().top);
+    await screenshot('statistics-header-scrolled-away');await page.$eval('[data-statistics-view]',el=>el.scrollTop=0);
+
+    await button('90 dni');assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect[role="button"]',nodes=>nodes.length),90);
+    await button('Dzisiaj');assert.equal(await page.$$eval('[data-statistics-chart="installations"] rect[role="button"]',nodes=>nodes.length),1);
+    await button('7 dni');
+    const assertTooltipVisible=async()=>{
+      const visibility=await page.$eval('[data-statistics-tooltip]',el=>{
+        const box=el.getBoundingClientRect(),panel=document.querySelector('[data-statistics-view]').getBoundingClientRect();
+        const inset=8;
+        return {
+          fits:box.left>=0&&box.right<=innerWidth&&box.top>=Math.max(0,panel.top)&&box.bottom<=Math.min(innerHeight,panel.bottom),
+          unobscured:[box.top+inset,(box.top+box.bottom)/2,box.bottom-inset].every(y=>el.contains(document.elementFromPoint(box.left+box.width/2,y))),
+          scrollable:el.scrollHeight>el.clientHeight,
+        };
+      });
+      assert.ok(visibility.fits,'the complete tooltip fits vertically and horizontally in the visible statistics panel');
+      assert.ok(visibility.unobscured,'later glass cards cannot paint over the tooltip');
+      assert.equal(visibility.scrollable,false,'all normal-size tooltip rows are visible without internal scrolling');
+      assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect',nodes=>nodes.every(el=>el.getAttribute('fill')==='transparent'&&getComputedStyle(el).stroke==='none')),true,'day selection never adds a painted rectangle');
+    };
+    const checkChartDetails=async()=>{
+      await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
+      await page.waitForSelector('[data-statistics-tooltip]');
+      await assertTooltipVisible();await screenshot('statistics-api-details-'+await page.evaluate(()=>innerWidth));
+      const detail=await page.$eval('[data-statistics-tooltip]',el=>({text:el.textContent,box:el.getBoundingClientRect().toJSON(),background:getComputedStyle(el).backgroundColor}));
+      assert.match(detail.text,/6 października/);assert.match(detail.text,/Zapytania API100/);assert.match(detail.text,/Błędy API3/);assert.match(detail.text,/Skuteczność97%/);assert.match(detail.text,/Średni czas200 ms/);assert.match(detail.text,/Raportujące urządzenia2/);assert.ok(!detail.text.includes('first-phone')&&!detail.text.includes('second-phone'));
+      assert.ok(detail.box.left>=0&&detail.box.right<=await page.evaluate(()=>innerWidth),'tooltip fits the viewport');
+      assert.ok(detail.background.startsWith('rgb('),'tooltip has a solid readable surface');
+      assert.equal(await page.$eval('[data-statistics-chart="requests"] rect[role="button"]:focus',el=>getComputedStyle(el).stroke),'none','focused day does not paint a white rectangle');
+      await page.keyboard.press('ArrowLeft');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('5 października'));
+      await assertTooltipVisible();await screenshot('statistics-api-no-measurement-'+await page.evaluate(()=>innerWidth));
+      await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('6 października'));
+      await page.keyboard.press('Escape');await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
+      await page.click('[data-statistics-chart="installations"] rect[role="button"]');
+      await page.waitForSelector('[data-statistics-tooltip]');
+      await assertTooltipVisible();
+      const bounds=await page.$eval('[data-statistics-tooltip]',el=>el.getBoundingClientRect().toJSON());
+      assert.ok(bounds.left>=0&&bounds.right<=await page.evaluate(()=>innerWidth),'edge-point tooltip stays inside the viewport');
+      await screenshot('statistics-details-'+await page.evaluate(()=>innerWidth));
+      await page.keyboard.press('Escape');await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
+    };
+    // A real tap/click, keyboard navigation, dismissal and both chart kinds.
+    // Dismiss by pressing Escape after the screenshot; outside click is checked below.
+    await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
+    await page.waitForSelector('[data-statistics-tooltip]');
+    await page.click('[data-statistics-view] h1');
+    await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
+    await checkChartDetails();
+    await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
+    await page.waitForSelector('[data-statistics-tooltip]');
+    await page.$eval('[data-statistics-view]',el=>el.scrollTop+=30);
+    await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
+    await page.evaluate(()=>{URL.createObjectURL=blob=>{blob.text().then(text=>window.__statisticsCsv=text);return 'blob:test-statistics';};HTMLAnchorElement.prototype.click=()=>{};});
+    await button('Eksport CSV');await page.waitForFunction(()=>window.__statisticsCsv);
+    const csv=await page.evaluate(()=>window.__statisticsCsv);assert.match(csv,/2026-10-06;2;100;3/);assert.ok(!csv.includes('same'));
+    await button('Zmień motyw testowy');await statisticsFits();await checkChartDetails();await screenshot('statistics-light-mobile');
+    await page.setViewport({width:320,height:568,deviceScaleFactor:1});await statisticsFits();await checkChartDetails();await screenshot('statistics-small-phone');
+    await page.setViewport({width:1440,height:1000,deviceScaleFactor:1});await statisticsFits();await screenshot('statistics-desktop');
+    await page.click('nav button:first-child');await page.waitForFunction(()=>!document.querySelector('[data-statistics-view]'));
+    await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
+    // Admin statistics keeps solid surfaces even with personalised glass enabled.
+    await page.evaluate(()=>{document.documentElement.dataset.personalGlass='true';document.documentElement.style.setProperty('--personal-glass','rgba(255,255,255,.2)');});
+    for(const theme of ['dark-forest','light-sky','light-pink','dark-cosmos']){
+      await page.click(`[data-statistics-theme="${theme}"]`);
+      await page.waitForSelector(`[data-ui-theme="${theme}"]`);
+      if(theme==='dark-cosmos')await checkChartDetails();
+      const surfaces=await page.$eval('[data-statistics-view]',el=>{
+        const root=getComputedStyle(el),card=getComputedStyle(el.querySelector('.pks-personal-card'));
+        return {root:root.backgroundColor,card:card.backgroundColor,blur:card.backdropFilter,decoration:card.backgroundImage,canvas:getComputedStyle(el.closest('.pks-theme-root')).backgroundImage};
+      });
+      if(theme==='dark-cosmos'){assert.equal(surfaces.root,'rgba(0, 0, 0, 0)','statistics reveals the shared cosmic canvas');assert.equal(surfaces.card,await page.evaluate(()=>{const el=document.createElement('i');el.style.backgroundColor='var(--personal-glass)';document.body.append(el);const color=getComputedStyle(el).backgroundColor;el.remove();return color;}),'cosmic statistics respects the saved opacity');}else{assert.ok(surfaces.root.startsWith('rgb('),'statistics background is fully opaque: '+theme);assert.ok(surfaces.card.startsWith('rgb('),'statistics cards are fully opaque: '+theme);}
+      if(theme==='dark-cosmos')assert.ok(surfaces.blur.includes('blur('));else assert.equal(surfaces.blur,'none');
+      assert.ok(theme==='dark-cosmos'?surfaces.canvas.includes('nebula.jpg'):backgroundSvgs(surfaces.decoration).length>0,'statistics uses the selected theme decoration: '+theme);
+      await statisticsFits();await screenshot('statistics-'+theme);
+    }
+    console.log('Browser: statistics navigation, unique installations, local API totals, date ranges, CSV, light/dark and 320px mobile layouts passed without backend writes.');
+    };
+    await page.goto(origin+'/statistics-fixture/',{waitUntil:'domcontentloaded'});
+    await verifyStatistics();
     await page.goto(origin+'/ban-fixture/',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-ban-image]');
     for(const [kind,ratio] of [['wide',4],['tall',.25]]){
@@ -126,7 +223,7 @@ const server=http.createServer((req,res)=>{
     loadingPage.on('request',request=>request.url().startsWith(origin)?request.continue():request.respond({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:'[]'}));
     await loadingPage.evaluateOnNewDocument(()=>{
       localStorage.setItem('mks_theme','#3b82f6');window.__mapLoaderColors=[];
-      const capture=()=>{const spinner=document.querySelector('.pks-map-loading-spinner');if(spinner&&window.__mapLoaderColors.length<1000)window.__mapLoaderColors.push(getComputedStyle(spinner).borderTopColor);};
+      const capture=()=>{const spinner=document.querySelector('.pks-map-loading-spinner');if(spinner&&spinner.clientWidth>0&&spinner.clientHeight>0&&getComputedStyle(spinner).borderTopStyle==='solid'&&window.__mapLoaderColors.length<1000)window.__mapLoaderColors.push(getComputedStyle(spinner).borderTopColor);};
       new MutationObserver(capture).observe(document,{childList:true,subtree:true,attributes:true,attributeFilter:['style']});
     });
     await loadingPage.goto(origin,{waitUntil:'domcontentloaded'});await loadingPage.waitForSelector('.leaflet-container');
@@ -1143,97 +1240,6 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$('.pks-navigation [data-nav-item="admin"]'),null,'revoked admin tab disappears');
     await screenshot('admin-revoked-map');
 
-    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
-    await page.evaluate(()=>localStorage.setItem('pks-live:api-statistics:v1',JSON.stringify({version:1,startedAt:Date.now(),days:[{date:'2026-10-06',providers:{pks:{requests:9999,errors:2,latencyMs:16000},mpk_rzeszow:{requests:15,errors:1,latencyMs:3000},marcel:{requests:5,errors:0,latencyMs:1000}}}]})));
-    await page.goto(`${origin}/statistics-fixture/`,{waitUntil:'domcontentloaded'});
-    await page.waitForSelector('[data-statistics-fixture-ready="true"]');
-    await button('Otwórz menu testowe');await page.waitForFunction(()=>{const r=document.querySelector('nav button:nth-child(2)').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;});await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
-    await page.waitForFunction(()=>document.querySelector('[data-statistic="Zapytania API"]').textContent==='100');
-    assert.equal(await page.$eval('[data-statistic="Nowe urządzenia"]',el=>el.textContent),'2');
-    assert.equal(await page.$eval('[data-statistic="Aktywne urządzenia"]',el=>el.textContent),'2');
-    assert.equal(await page.$eval('[data-statistic="Skuteczność API"]',el=>el.textContent),'97%');
-    const statisticsFits=async()=>assert.equal(await page.$eval('[data-statistics-view]',el=>el.scrollWidth>el.clientWidth+1),false,'Statistics must fit without horizontal overflow');
-    await statisticsFits();await screenshot('statistics-dark-mobile');
-    const headerStyle=await page.$eval('[data-statistics-view] header',el=>({position:getComputedStyle(el).position,background:getComputedStyle(el).backgroundColor}));
-    assert.ok(!['fixed','sticky'].includes(headerStyle.position));assert.equal(headerStyle.background,'rgba(0, 0, 0, 0)');
-    await page.$eval('[data-statistics-view]',el=>el.scrollTop=400);
-    await page.waitForFunction(()=>document.querySelector('[data-statistics-view] header').getBoundingClientRect().bottom<document.querySelector('[data-statistics-view]').getBoundingClientRect().top);
-    await screenshot('statistics-header-scrolled-away');await page.$eval('[data-statistics-view]',el=>el.scrollTop=0);
-
-    await button('90 dni');assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect[role="button"]',nodes=>nodes.length),90);
-    await button('Dzisiaj');assert.equal(await page.$$eval('[data-statistics-chart="installations"] rect[role="button"]',nodes=>nodes.length),1);
-    await button('7 dni');
-    const assertTooltipVisible=async()=>{
-      const visibility=await page.$eval('[data-statistics-tooltip]',el=>{
-        const box=el.getBoundingClientRect(),panel=document.querySelector('[data-statistics-view]').getBoundingClientRect();
-        const inset=8;
-        return {
-          fits:box.left>=0&&box.right<=innerWidth&&box.top>=Math.max(0,panel.top)&&box.bottom<=Math.min(innerHeight,panel.bottom),
-          unobscured:[box.top+inset,(box.top+box.bottom)/2,box.bottom-inset].every(y=>el.contains(document.elementFromPoint(box.left+box.width/2,y))),
-          scrollable:el.scrollHeight>el.clientHeight,
-        };
-      });
-      assert.ok(visibility.fits,'the complete tooltip fits vertically and horizontally in the visible statistics panel');
-      assert.ok(visibility.unobscured,'later glass cards cannot paint over the tooltip');
-      assert.equal(visibility.scrollable,false,'all normal-size tooltip rows are visible without internal scrolling');
-      assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect',nodes=>nodes.every(el=>el.getAttribute('fill')==='transparent'&&getComputedStyle(el).stroke==='none')),true,'day selection never adds a painted rectangle');
-    };
-    const checkChartDetails=async()=>{
-      await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
-      await page.waitForSelector('[data-statistics-tooltip]');
-      await assertTooltipVisible();await screenshot('statistics-api-details-'+await page.evaluate(()=>innerWidth));
-      const detail=await page.$eval('[data-statistics-tooltip]',el=>({text:el.textContent,box:el.getBoundingClientRect().toJSON(),background:getComputedStyle(el).backgroundColor}));
-      assert.match(detail.text,/6 października/);assert.match(detail.text,/Zapytania API100/);assert.match(detail.text,/Błędy API3/);assert.match(detail.text,/Skuteczność97%/);assert.match(detail.text,/Średni czas200 ms/);assert.match(detail.text,/Raportujące urządzenia2/);assert.ok(!detail.text.includes('first-phone')&&!detail.text.includes('second-phone'));
-      assert.ok(detail.box.left>=0&&detail.box.right<=await page.evaluate(()=>innerWidth),'tooltip fits the viewport');
-      assert.ok(detail.background.startsWith('rgb('),'tooltip has a solid readable surface');
-      assert.equal(await page.$eval('[data-statistics-chart="requests"] rect[role="button"]:focus',el=>getComputedStyle(el).stroke),'none','focused day does not paint a white rectangle');
-      await page.keyboard.press('ArrowLeft');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('5 października'));
-      await assertTooltipVisible();await screenshot('statistics-api-no-measurement-'+await page.evaluate(()=>innerWidth));
-      await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('6 października'));
-      await page.keyboard.press('Escape');await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
-      await page.click('[data-statistics-chart="installations"] rect[role="button"]');
-      await page.waitForSelector('[data-statistics-tooltip]');
-      await assertTooltipVisible();
-      const bounds=await page.$eval('[data-statistics-tooltip]',el=>el.getBoundingClientRect().toJSON());
-      assert.ok(bounds.left>=0&&bounds.right<=await page.evaluate(()=>innerWidth),'edge-point tooltip stays inside the viewport');
-      await screenshot('statistics-details-'+await page.evaluate(()=>innerWidth));
-      await page.keyboard.press('Escape');await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
-    };
-    // A real tap/click, keyboard navigation, dismissal and both chart kinds.
-    // Dismiss by pressing Escape after the screenshot; outside click is checked below.
-    await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
-    await page.waitForSelector('[data-statistics-tooltip]');
-    await page.click('[data-statistics-view] h1');
-    await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
-    await checkChartDetails();
-    await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
-    await page.waitForSelector('[data-statistics-tooltip]');
-    await page.$eval('[data-statistics-view]',el=>el.scrollTop+=30);
-    await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
-    await page.evaluate(()=>{URL.createObjectURL=blob=>{blob.text().then(text=>window.__statisticsCsv=text);return 'blob:test-statistics';};HTMLAnchorElement.prototype.click=()=>{};});
-    await button('Eksport CSV');await page.waitForFunction(()=>window.__statisticsCsv);
-    const csv=await page.evaluate(()=>window.__statisticsCsv);assert.match(csv,/2026-10-06;2;100;3/);assert.ok(!csv.includes('same'));
-    await button('Zmień motyw testowy');await statisticsFits();await checkChartDetails();await screenshot('statistics-light-mobile');
-    await page.setViewport({width:320,height:568,deviceScaleFactor:1});await statisticsFits();await checkChartDetails();await screenshot('statistics-small-phone');
-    await page.setViewport({width:1440,height:1000,deviceScaleFactor:1});await statisticsFits();await screenshot('statistics-desktop');
-    await page.click('nav button:first-child');await page.waitForFunction(()=>!document.querySelector('[data-statistics-view]'));
-    await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');
-    // Admin statistics keeps solid surfaces even with personalised glass enabled.
-    await page.evaluate(()=>{document.documentElement.dataset.personalGlass='true';document.documentElement.style.setProperty('--personal-glass','rgba(255,255,255,.2)');});
-    for(const theme of ['dark-forest','light-sky','light-pink','dark-cosmos']){
-      await page.click(`[data-statistics-theme="${theme}"]`);
-      await page.waitForSelector(`[data-ui-theme="${theme}"]`);
-      if(theme==='dark-cosmos')await checkChartDetails();
-      const surfaces=await page.$eval('[data-statistics-view]',el=>{
-        const root=getComputedStyle(el),card=getComputedStyle(el.querySelector('.pks-personal-card'));
-        return {root:root.backgroundColor,card:card.backgroundColor,blur:card.backdropFilter,decoration:card.backgroundImage,canvas:getComputedStyle(el.closest('.pks-theme-root')).backgroundImage};
-      });
-      if(theme==='dark-cosmos'){assert.equal(surfaces.root,'rgba(0, 0, 0, 0)','statistics reveals the shared cosmic canvas');assert.equal(surfaces.card,await page.evaluate(()=>{const el=document.createElement('i');el.style.backgroundColor='var(--personal-glass)';document.body.append(el);const color=getComputedStyle(el).backgroundColor;el.remove();return color;}),'cosmic statistics respects the saved opacity');}else{assert.ok(surfaces.root.startsWith('rgb('),'statistics background is fully opaque: '+theme);assert.ok(surfaces.card.startsWith('rgb('),'statistics cards are fully opaque: '+theme);}
-      if(theme==='dark-cosmos')assert.ok(surfaces.blur.includes('blur('));else assert.equal(surfaces.blur,'none');
-      assert.ok(theme==='dark-cosmos'?surfaces.canvas.includes('nebula.jpg'):backgroundSvgs(surfaces.decoration).length>0,'statistics uses the selected theme decoration: '+theme);
-      await statisticsFits();await screenshot('statistics-'+theme);
-    }
-    console.log('Browser: statistics navigation, unique installations, local API totals, date ranges, CSV, light/dark and 320px mobile layouts passed without backend writes.');
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     await page.goto(`${origin}/widget-fixture/`,{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-widget-preview]');
