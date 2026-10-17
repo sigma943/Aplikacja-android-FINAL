@@ -402,18 +402,16 @@ const server=http.createServer((req,res)=>{
       const screens=await browser.newPage();screens.on('pageerror',e=>errors.push(e.message));
       await screens.setViewport({width:393,height:851,deviceScaleFactor:1});
       await screens.goto(`${origin}/theme-screens-fixture/`,{waitUntil:'domcontentloaded'});
-      for(const kind of ['loading','error','maintenance','ban','silent']){
+      for(const kind of ['loading','error','timeout','maintenance','ban','silent']){
         await screens.click(`[data-screen-kind="${kind}"]`);await screens.waitForSelector(`[data-startup-theme="${mode}"]`);
         const background=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundColor);
         assert.equal(background,mode==='dark-cosmos'?'rgb(0, 0, 0)':mode==='dark-forest'?'rgb(6, 26, 19)':'rgb(213, 239, 255)',kind+' uses selected theme');
         const decoration=await screens.$eval('[data-startup-theme]',el=>getComputedStyle(el).backgroundImage);
-        if(kind==='loading'){
-          assert.equal(decoration,'none','loading always has a uniform background');
-          assert.equal(await screens.$$eval('[data-cosmic-effects]',els=>els.some(el=>getComputedStyle(el).display!=='none')),false,'loading has no animated effects');
-        }else if(mode==='dark-cosmos')assert.ok(decoration.includes('nebula.jpg'),'non-loading cosmic screens use the panorama');
-        else assert.ok(decoration.includes('svg'));
+        assert.equal(decoration,'none',kind+' always has a uniform background');
+        assert.equal(await screens.$$eval('[data-cosmic-effects],[data-cosmic-stage]',els=>els.some(el=>getComputedStyle(el).display!=='none')),false,kind+' has no decorative sky or animated effects');
+        assert.equal(await screens.$$eval('[data-startup-theme] > .absolute',els=>els.some(el=>getComputedStyle(el).backgroundImage!=='none')),false,kind+' has no gradient or grid overlay');
         if(kind==='silent'){assert.equal(await screens.$('[data-ban-screen]'),null);assert.equal(await screens.evaluate(()=>document.body.innerText.includes('Prywatny powód')),false);}
-        if(kind==='ban'||kind==='loading')await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
+        if(['ban','loading','error','timeout','silent'].includes(kind))await screens.screenshot({path:`test/ui-previews/${kind}-${mode}.png`});
       }
       await screens.close();await page.bringToFront();await page.waitForSelector(`[data-ui-theme="${mode}"]`);
     }
@@ -1141,11 +1139,35 @@ const server=http.createServer((req,res)=>{
     await button('90 dni');assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect[role="button"]',nodes=>nodes.length),90);
     await button('Dzisiaj');assert.equal(await page.$$eval('[data-statistics-chart="installations"] rect[role="button"]',nodes=>nodes.length),1);
     await button('7 dni');
+    const checkChartDetails=async()=>{
+      await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
+      await page.waitForSelector('[data-statistics-tooltip]');
+      const detail=await page.$eval('[data-statistics-tooltip]',el=>({text:el.textContent,box:el.getBoundingClientRect().toJSON(),background:getComputedStyle(el).backgroundColor}));
+      assert.match(detail.text,/6 października/);assert.match(detail.text,/Zapytania API100/);assert.match(detail.text,/Błędy API3/);
+      assert.ok(detail.box.left>=0&&detail.box.right<=await page.evaluate(()=>innerWidth),'tooltip fits the viewport');
+      assert.ok(detail.background.startsWith('rgb('),'tooltip has a solid readable surface');
+      assert.equal(await page.$eval('[data-statistics-chart="requests"] rect[role="button"]:focus',el=>getComputedStyle(el).stroke),'none','focused day does not paint a white rectangle');
+      await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('7 października'));
+      await page.keyboard.press('Escape');await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
+      await page.click('[data-statistics-chart="installations"] rect[role="button"]');
+      await page.waitForSelector('[data-statistics-tooltip]');
+      const bounds=await page.$eval('[data-statistics-tooltip]',el=>el.getBoundingClientRect().toJSON());
+      assert.ok(bounds.left>=0&&bounds.right<=await page.evaluate(()=>innerWidth),'edge-point tooltip stays inside the viewport');
+      await screenshot('statistics-details-'+await page.evaluate(()=>innerWidth));
+      await page.keyboard.press('Escape');await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
+    };
+    // A real tap/click, keyboard navigation, dismissal and both chart kinds.
+    // Dismiss by pressing Escape after the screenshot; outside click is checked below.
+    await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
+    await page.waitForSelector('[data-statistics-tooltip]');
+    await page.click('[data-statistics-view] h1');
+    await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
+    await checkChartDetails();
     await page.evaluate(()=>{URL.createObjectURL=blob=>{blob.text().then(text=>window.__statisticsCsv=text);return 'blob:test-statistics';};HTMLAnchorElement.prototype.click=()=>{};});
     await button('Eksport CSV');await page.waitForFunction(()=>window.__statisticsCsv);
     const csv=await page.evaluate(()=>window.__statisticsCsv);assert.match(csv,/2026-10-06;2;100;3/);assert.ok(!csv.includes('same'));
-    await button('Zmień motyw testowy');await statisticsFits();await screenshot('statistics-light-mobile');
-    await page.setViewport({width:320,height:568,deviceScaleFactor:1});await statisticsFits();await screenshot('statistics-small-phone');
+    await button('Zmień motyw testowy');await statisticsFits();await checkChartDetails();await screenshot('statistics-light-mobile');
+    await page.setViewport({width:320,height:568,deviceScaleFactor:1});await statisticsFits();await checkChartDetails();await screenshot('statistics-small-phone');
     await page.setViewport({width:1440,height:1000,deviceScaleFactor:1});await statisticsFits();await screenshot('statistics-desktop');
     await page.click('nav button:first-child');await page.waitForFunction(()=>!document.querySelector('[data-statistics-view]'));
     await page.click('nav button:nth-child(2)');await page.waitForSelector('[data-statistics-view]');

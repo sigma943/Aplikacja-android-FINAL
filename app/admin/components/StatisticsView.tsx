@@ -1,5 +1,5 @@
 'use client';
-import {useMemo,useState,useSyncExternalStore} from 'react';
+import {useEffect,useId,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {saveStatisticsCsv} from '@/lib/admin/statistics-export';
 import {Activity,BarChart3,CheckCircle2,Clock3,Download,Menu,Server,Smartphone,UserPlus,Users,ShieldCheck,AlertTriangle} from 'lucide-react';
 import {getApiStatistics,getServerApiStatistics,subscribeApiStatistics} from '@/lib/api-statistics';
@@ -13,7 +13,15 @@ const ranges:[StatisticsRange,string][]=[[1,'Dzisiaj'],[7,'7 dni'],[30,'30 dni']
 type Point={date:string;value:number|null;errors?:number|null};
 
 function TimeChart({points,color,bars=false,title,dark}:{points:Point[];color:string;bars?:boolean;title:string;dark:boolean}){
-  const [selected,setSelected]=useState(points.length-1);
+  const [selected,setSelected]=useState(points.length-1),[showDetails,setShowDetails]=useState(false);
+  const chartRef=useRef<HTMLDivElement>(null),tooltipId=useId();
+  const select=(i:number)=>{setSelected(i);setShowDetails(true);};
+  useEffect(()=>{
+    if(!showDetails)return;
+    const close=(event:PointerEvent)=>{if(!chartRef.current?.contains(event.target as Node))setShowDetails(false);};
+    document.addEventListener('pointerdown',close);
+    return()=>document.removeEventListener('pointerdown',close);
+  },[showDetails]);
   const index=Math.min(selected,points.length-1),point=points[index];
   const max=Math.max(1,...points.map(p=>p.value||0));
   const left=36,width=590,bottom=168,height=132,step=width/Math.max(1,points.length);
@@ -22,18 +30,31 @@ function TimeChart({points,color,bars=false,title,dark}:{points:Point[];color:st
   const ticks=[...new Set([0,Math.floor((points.length-1)/2),points.length-1])];
   const muted=dark?'#94a3b8':'#64748b',grid=dark?'#ffffff12':'#0f172a12';
   if(!points.some(p=>p.value!==null))return <div className="flex h-[234px] flex-col items-center justify-center gap-2 text-center"><BarChart3 size={32} className="opacity-30"/><p className="text-sm font-medium">Jeszcze nie ma pomiarów</p><p className="max-w-xs text-xs opacity-60">Wykres pojawi się po zapytaniach aplikacji do przewoźników.</p></div>;
-  return <div>
+  return <div ref={chartRef} onKeyDown={e=>{if(e.key==='Escape')setShowDetails(false);}} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setShowDetails(false);}}>
     <div className="mt-4 flex min-h-8 flex-wrap items-center justify-between gap-2 text-xs" aria-live="polite">
       <span className="opacity-60">{dateLabel(point.date,true)}</span><span className="font-semibold tabular-nums">{point.value===null?'Brak pomiaru':`${number(point.value)} ${bars?'nowych urządzeń':'zapytań'}`}{point.errors!=null&&!bars&&<span className="ml-3 text-rose-400">{number(point.errors)} błędów</span>}</span>
     </div>
-    <svg data-statistics-chart={bars?'installations':'requests'} role="img" aria-label={title} viewBox="0 0 640 202" className="mt-2 w-full overflow-visible">
+    <div className="relative">
+    <svg data-statistics-chart={bars?'installations':'requests'} role="group" aria-label={title} viewBox="0 0 640 202" className="mt-2 w-full overflow-visible">
       <title>{title}</title>
       {[0,.5,1].map(f=><g key={f}><line x1={left} x2={left+width} y1={bottom-f*height} y2={bottom-f*height} stroke={grid} strokeDasharray={f?'3 5':undefined}/><text x={left-8} y={bottom-f*height+4} textAnchor="end" fill={muted} fontSize="10">{number(Math.round(max*f))}</text></g>)}
       {bars?points.map((p,i)=>p.value===null?null:<rect key={p.date} x={x(i)-Math.min(step*.62,48)/2} y={y(p.value)} width={Math.min(step*.62,48)} height={Math.max(0,bottom-y(p.value))} rx={Math.min(5,step*.12)} fill={color} opacity={i===index?1:.65}/>):<><path d={path('value')} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/><path d={path('errors')} fill="none" stroke="#fb7185" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/></>}
+      {showDetails&&<rect x={left+index*step} y={20} width={step} height={height+16} fill={color} opacity=".08" pointerEvents="none"/>}
       {point.value!==null&&<><line x1={x(index)} x2={x(index)} y1={22} y2={bottom} stroke={color} opacity=".25" strokeDasharray="3 4"/>{!bars&&<circle cx={x(index)} cy={y(point.value)} r="4.5" fill={color} stroke={dark?'#101820':'#ffffff'} strokeWidth="2"/>}</>}
-      {points.map((p,i)=><rect key={p.date} x={left+i*step} y={20} width={step} height={height+16} fill="transparent" role="button" tabIndex={0} aria-label={`${dateLabel(p.date,true)}: ${p.value===null?'brak pomiarów':number(p.value)}`} onMouseEnter={()=>setSelected(i)} onFocus={()=>setSelected(i)} onClick={()=>setSelected(i)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ')setSelected(i);if(e.key==='ArrowRight'){e.preventDefault();setSelected(Math.min(points.length-1,index+1));}if(e.key==='ArrowLeft'){e.preventDefault();setSelected(Math.max(0,index-1));}}} className="cursor-pointer focus:stroke-current focus:outline-none"/>)}
+      {points.map((p,i)=><rect key={p.date} x={left+i*step} y={20} width={step} height={height+16} fill="transparent" stroke="none" role="button" tabIndex={0} aria-label={`${dateLabel(p.date,true)}: ${p.value===null?'brak pomiarów':number(p.value)}`} aria-describedby={showDetails&&i===index?tooltipId:undefined} onMouseEnter={()=>select(i)} onFocus={()=>select(i)} onClick={()=>select(i)} onKeyDown={e=>{
+        if(e.key==='Enter'||e.key===' '){e.preventDefault();select(i);}
+        const next=e.key==='ArrowRight'?Math.min(points.length-1,index+1):e.key==='ArrowLeft'?Math.max(0,index-1):null;
+        if(next!==null){e.preventDefault();select(next);e.currentTarget.ownerSVGElement?.querySelectorAll<SVGElement>('[role="button"]')[next]?.focus();}
+      }} className="cursor-pointer" style={{outline:'none'}}/>)}
       {ticks.map(i=><text key={i} x={x(i)} y="194" textAnchor="middle" fill={muted} fontSize="11">{dateLabel(points[i].date)}</text>)}
     </svg>
+    {showDetails&&<div id={tooltipId} role="tooltip" data-statistics-tooltip className="pointer-events-none absolute top-1 z-20 w-44 max-w-[calc(100%-1rem)] rounded-2xl border p-3 text-xs shadow-xl" style={{left:`clamp(8px, calc(${x(index)/640*100}% + 12px), calc(100% - 184px))`,backgroundColor:dark?'#111b2a':'#ffffff',color:dark?'#f1f5f9':'#0f172a',borderColor:color+'60'}}>
+      <div className="mb-2 flex items-center gap-2 font-semibold"><span className="h-2 w-2 shrink-0 rounded-full" style={{backgroundColor:color}}/>{dateLabel(point.date,true)}</div>
+      <div className="flex items-center justify-between gap-2"><span className="opacity-65">{bars?'Nowe urządzenia':'Zapytania API'}</span><strong className="tabular-nums">{point.value===null?'—':number(point.value)}</strong></div>
+      {!bars&&<div className="mt-1.5 flex items-center justify-between gap-2"><span className="opacity-65">Błędy API</span><strong className="tabular-nums" style={{color:dark?'#fb7185':'#be123c'}}>{point.errors==null?'—':number(point.errors)}</strong></div>}
+      {point.value===null&&<p className="mt-2 text-[10px] opacity-60">Brak pomiarów w tym dniu</p>}
+    </div>}
+    </div>
     <table className="sr-only"><caption>{title}</caption><thead><tr><th>Dzień</th><th>{bars?'Nowe urządzenia':'Zapytania API'}</th>{!bars&&<th>Błędy</th>}</tr></thead><tbody>{points.map(p=><tr key={p.date}><td>{p.date}</td><td>{p.value??'Brak pomiarów'}</td>{!bars&&<td>{p.errors??'Brak pomiarów'}</td>}</tr>)}</tbody></table>
   </div>;
 }

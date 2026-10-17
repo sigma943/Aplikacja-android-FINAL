@@ -576,7 +576,7 @@ export function DeviceTable({
                     <div className="font-mono text-[11px] text-slate-400 break-all leading-tight font-bold">{device.installationId || device.deviceId}</div>
                   </div>
                   <div className="flex flex-col items-end text-right border-l border-white/5">
-                    <div className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Logowanie</div>
+                    <div className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Pierwsze logowanie</div>
                     <div className="text-xs text-slate-300 font-bold">{device.firstLogin.split(',')[0]}</div>
                     <div className="text-[10px] text-slate-500 font-medium">{device.firstLogin.split(',')[1]}</div>
                   </div>

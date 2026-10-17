@@ -1025,3 +1025,7 @@ html[data-cosmic-theme='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],.p
 .personal-preview-navigation [data-nav-label] { font-size:calc(11px * var(--preview-scale)); }
 .personal-preview-navigation [data-nav-indicator] { width:calc(40px * var(--preview-scale)); }
 .personal-preview-navigation * { animation:none !important; transition:none !important; }
+
+/* Status screens use the selected solid theme colour, without decorative skies. */
+.pks-status-screen[data-startup-theme] { background-image:none !important; }
+html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { display:none !important; }
