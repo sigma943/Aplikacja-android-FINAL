@@ -1163,19 +1163,37 @@ const server=http.createServer((req,res)=>{
     await button('90 dni');assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect[role="button"]',nodes=>nodes.length),90);
     await button('Dzisiaj');assert.equal(await page.$$eval('[data-statistics-chart="installations"] rect[role="button"]',nodes=>nodes.length),1);
     await button('7 dni');
+    const assertTooltipVisible=async()=>{
+      const visibility=await page.$eval('[data-statistics-tooltip]',el=>{
+        const box=el.getBoundingClientRect(),panel=document.querySelector('[data-statistics-view]').getBoundingClientRect();
+        const inset=8;
+        return {
+          fits:box.left>=0&&box.right<=innerWidth&&box.top>=Math.max(0,panel.top)&&box.bottom<=Math.min(innerHeight,panel.bottom),
+          unobscured:[box.top+inset,(box.top+box.bottom)/2,box.bottom-inset].every(y=>el.contains(document.elementFromPoint(box.left+box.width/2,y))),
+          scrollable:el.scrollHeight>el.clientHeight,
+        };
+      });
+      assert.ok(visibility.fits,'the complete tooltip fits vertically and horizontally in the visible statistics panel');
+      assert.ok(visibility.unobscured,'later glass cards cannot paint over the tooltip');
+      assert.equal(visibility.scrollable,false,'all normal-size tooltip rows are visible without internal scrolling');
+      assert.equal(await page.$$eval('[data-statistics-chart="requests"] rect',nodes=>nodes.every(el=>el.getAttribute('fill')==='transparent'&&getComputedStyle(el).stroke==='none')),true,'day selection never adds a painted rectangle');
+    };
     const checkChartDetails=async()=>{
       await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
       await page.waitForSelector('[data-statistics-tooltip]');
+      await assertTooltipVisible();await screenshot('statistics-api-details-'+await page.evaluate(()=>innerWidth));
       const detail=await page.$eval('[data-statistics-tooltip]',el=>({text:el.textContent,box:el.getBoundingClientRect().toJSON(),background:getComputedStyle(el).backgroundColor}));
       assert.match(detail.text,/6 października/);assert.match(detail.text,/Zapytania API100/);assert.match(detail.text,/Błędy API3/);assert.match(detail.text,/Skuteczność97%/);assert.match(detail.text,/Średni czas200 ms/);assert.match(detail.text,/Raportujące urządzenia2/);assert.ok(!detail.text.includes('first-phone')&&!detail.text.includes('second-phone'));
       assert.ok(detail.box.left>=0&&detail.box.right<=await page.evaluate(()=>innerWidth),'tooltip fits the viewport');
       assert.ok(detail.background.startsWith('rgb('),'tooltip has a solid readable surface');
       assert.equal(await page.$eval('[data-statistics-chart="requests"] rect[role="button"]:focus',el=>getComputedStyle(el).stroke),'none','focused day does not paint a white rectangle');
       await page.keyboard.press('ArrowLeft');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('5 października'));
+      await assertTooltipVisible();await screenshot('statistics-api-no-measurement-'+await page.evaluate(()=>innerWidth));
       await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('[data-statistics-tooltip]').textContent.includes('6 października'));
       await page.keyboard.press('Escape');await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
       await page.click('[data-statistics-chart="installations"] rect[role="button"]');
       await page.waitForSelector('[data-statistics-tooltip]');
+      await assertTooltipVisible();
       const bounds=await page.$eval('[data-statistics-tooltip]',el=>el.getBoundingClientRect().toJSON());
       assert.ok(bounds.left>=0&&bounds.right<=await page.evaluate(()=>innerWidth),'edge-point tooltip stays inside the viewport');
       await screenshot('statistics-details-'+await page.evaluate(()=>innerWidth));
@@ -1188,6 +1206,10 @@ const server=http.createServer((req,res)=>{
     await page.click('[data-statistics-view] h1');
     await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
     await checkChartDetails();
+    await page.click('[data-statistics-chart="requests"] rect[role="button"][aria-label$=": 100"]');
+    await page.waitForSelector('[data-statistics-tooltip]');
+    await page.$eval('[data-statistics-view]',el=>el.scrollTop+=30);
+    await page.waitForSelector('[data-statistics-tooltip]',{hidden:true});
     await page.evaluate(()=>{URL.createObjectURL=blob=>{blob.text().then(text=>window.__statisticsCsv=text);return 'blob:test-statistics';};HTMLAnchorElement.prototype.click=()=>{};});
     await button('Eksport CSV');await page.waitForFunction(()=>window.__statisticsCsv);
     const csv=await page.evaluate(()=>window.__statisticsCsv);assert.match(csv,/2026-10-06;2;100;3/);assert.ok(!csv.includes('same'));
@@ -1201,6 +1223,7 @@ const server=http.createServer((req,res)=>{
     for(const theme of ['dark-forest','light-sky','light-pink','dark-cosmos']){
       await page.click(`[data-statistics-theme="${theme}"]`);
       await page.waitForSelector(`[data-ui-theme="${theme}"]`);
+      if(theme==='dark-cosmos')await checkChartDetails();
       const surfaces=await page.$eval('[data-statistics-view]',el=>{
         const root=getComputedStyle(el),card=getComputedStyle(el.querySelector('.pks-personal-card'));
         return {root:root.backgroundColor,card:card.backgroundColor,blur:card.backdropFilter,decoration:card.backgroundImage,canvas:getComputedStyle(el.closest('.pks-theme-root')).backgroundImage};
