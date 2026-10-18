@@ -161,8 +161,8 @@ function BusMap({
     }
     return next;
   }, [routeStopIds, routeStopsData]);
-  // Paint only road geometry. Stop-to-stop chords can cut across buildings and fields.
-  const paintedRoute = snappedRoute;
+  // A distinctly marked stop schematic remains visible until road geometry is available.
+  const schematicRoute=useMemo(()=>routeGeometryStops.map(stop=>[stop.lat,stop.lon] as [number,number]),[routeGeometryStops]);
   // Selected details contain punctuality before the background fleet cache warms.
   const markerVehicles = useMemo(() => vehicles.map(vehicle =>
     selectedVehicle?.provider === vehicle.provider && selectedVehicle?.id === vehicle.id &&
@@ -191,6 +191,10 @@ function BusMap({
   const routeKey = selectedVehicle
     ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops)
     : '';
+  const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}`:'';
+  const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
+  const isSchematic=selectedVehicle?.type!=='train'&&selectedVehicle?.provider!=='pkp_intercity'&&currentGeometry.length<2&&schematicRoute.length>1;
+  const paintedRoute=isSchematic?schematicRoute:currentGeometry;
 
   useEffect(() => {
     activeRouteRequestIdRef.current += 1;
@@ -243,11 +247,12 @@ function BusMap({
         return;
       }
 
-      const officialRoute = routeMode === 'road'
+      const loadBundledRoute = async()=>routeMode === 'road'
         ? selectedVehicle.provider==='marcel'
-          ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon]))
+          ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon])).catch(()=>[])
           : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon])).catch(()=>[])
         : [];
+      const officialRoute=await loadBundledRoute();
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (officialRoute.length > 1) {
         const refinedOfficialRoute = simplifyRouteForPaint(cleanRoadJunctionLoops(correctPksStationJunction(correctMarcelNiebylecRoute(officialRoute,selectedVehicle.provider),selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])));
@@ -258,7 +263,11 @@ function BusMap({
         return;
       }
 
-      const response = await loadRouteWithRetry(() => fetchRouteGeometryClient({
+      const response = await loadRouteWithRetry(async() => {
+        // A temporary local asset read failure must not permanently lock us into remote routing.
+        const recovered=await loadBundledRoute();
+        if(recovered.length>1)return {geometry:{type:'LineString' as const,coordinates:recovered.map(([lat,lon])=>[lon,lat] as [number,number])},cacheKey:''};
+        return fetchRouteGeometryClient({
         carrier: selectedVehicle.provider || 'pks',
         line: selectedVehicle.routeShortName || selectedVehicle.routeId || selectedVehicle.name || 'unknown',
         direction: selectedVehicle.direction || routeGeometryStops[routeGeometryStops.length - 1]?.name || 'unknown',
@@ -273,7 +282,7 @@ function BusMap({
         dataVersion: routeGeometryVersion,
         mode: routeMode,
         stops: routeGeometryStops,
-      }, { signal: controller.signal }), controller.signal, [1000, 3000, 10000, 30000], {
+      }, { signal: controller.signal });}, controller.signal, [1000, 3000, 10000, 30000], {
         keepRetrying: true,
         isUsable: response => (response.geometry?.coordinates || [])
           .filter(([lon, lat]) => Number.isFinite(lat) && Number.isFinite(lon)).length > 1,
@@ -392,6 +401,7 @@ function BusMap({
           filter: drop-shadow(0 0 7px rgba(255,255,255,0.62)) drop-shadow(0 2px 6px rgba(0,0,0,0.5));
         }
       `}</style>
+      {isSchematic&&<div data-route-schematic role="status" className="absolute left-3 top-[132px] md:top-[120px] z-[600] max-w-[calc(100%-24px)] rounded-xl bg-slate-950/90 px-3 py-2 text-xs text-white shadow-lg pointer-events-none">Schemat między przystankami · pobieranie przebiegu po drogach</div>}
       <MapContainer
         center={initMapState.center}
         zoom={initMapState.zoom}
@@ -417,9 +427,9 @@ function BusMap({
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
           {paintedRoute.length > 1 && (
             <>
-              <Polyline pane="routeLinePane" key={`route-halo-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeHaloOpts} />
-              <Polyline pane="routeLinePane" key={`route-glow-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeGlowOpts} />
-              <Polyline pane="routeLinePane" key={`route-line-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routePolylineOpts} />
+              {!isSchematic&&<Polyline pane="routeLinePane" key={`route-halo-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeHaloOpts} />}
+              {!isSchematic&&<Polyline pane="routeLinePane" key={`route-glow-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeGlowOpts} />}
+              <Polyline pane="routeLinePane" key={`route-line-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={isSchematic?{...routePolylineOpts,dashArray:'7 11',weight:3,opacity:.8}:routePolylineOpts} />
             </>
           )}
         </Pane>
