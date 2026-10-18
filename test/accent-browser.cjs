@@ -1273,8 +1273,13 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.querySelector('#widget-transparency').value==='0');
     await page.click('[aria-label="Akcent: Fiolet"]');
     const changeInput=async(selector,value)=>page.$eval(selector,(el,value)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));},value);
-    await changeInput('#widget-custom-accent','#ee00aa');
-    await page.waitForFunction(()=>document.querySelector('#widget-custom-accent').value==='#ee00aa'&&document.body.textContent.includes('#EE00AA'));
+    await page.click('.widget-personalization [aria-label="Własny kolor akcentu"]');
+    await page.waitForSelector('.color-picker-dialog');
+    await changeInput('.color-picker-dialog [aria-label="Kod HEX"]','#ee00aa');
+    await page.waitForFunction(()=>document.querySelector('.color-picker-dialog [aria-label="Kod RGB"]').value==='238, 0, 170');
+    await button('Zastosuj kolor');
+    await page.waitForSelector('.color-picker-dialog',{hidden:true});
+    await page.waitForFunction(()=>document.querySelector('.widget-personalization').textContent.includes('#EE00AA'));
     await page.focus('#widget-radius');await page.keyboard.press('Home');
     await page.waitForFunction(()=>document.querySelector('[data-widget-preview]').style.borderRadius==='0px');
     await button('Większy');await button('Kompaktowe');await button('Kolor akcentu');
