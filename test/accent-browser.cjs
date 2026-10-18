@@ -897,7 +897,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('mks_interface_appearance_v1')).glowColor==='#8b5cf6');
     assert.equal(await page.$eval('[aria-label="Kolor poświaty: Fioletowy"]',el=>el.getAttribute('aria-pressed')),'true');
     assert.equal(await page.evaluate(()=>localStorage.getItem('mks_theme')),savedAccent,'glow palette is independent from the UI accent');
-    assert.equal(await page.$eval('[aria-label="Kolor miękkiej poświaty"]',el=>el.value),'#8b5cf6');
+    assert.ok(await page.$eval('[aria-label="Kolor miękkiej poświaty"]',el=>el.textContent.includes('#8B5CF6')));
     await page.$eval('[aria-label="Kolor poświaty: Turkusowy"]',el=>el.click());
 
     assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).backdropFilter),glowBlur,'soft patches preserve glass');
