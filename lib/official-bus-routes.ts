@@ -72,5 +72,19 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
   if(!shape || !/^[\w.+-]+$/.test(shape))return [];
   const points=await loadShape(provider, shape);
   const stops=stopCoordinates || expected.flatMap(id=>index.stops[id] ? [[index.stops[id].lat,index.stops[id].lon] as [number,number]] : []);
-  return roadRouteMatchesStops(points,stops,180) ? points : [];
+  if (roadRouteMatchesStops(points,stops,180)) return points;
+  // A complete live course can start later on its bundled GTFS shape. For
+  // example, PKS 202 / trip 9078 starts ~685 m after shape 370's first point.
+  // Remove only the unused prefix of this exact trip; never move stop pins,
+  // invent a connector, accept a partial stop list or relax route validation.
+  if (completeCoordinates && shape === index.tripShapes[trip] && stops.length > 1 && points.length > 1
+      && roadDistance(points[0],stops[0]) <= 1000) {
+    let nearest = 0;
+    for (let i = 1; i < points.length - 1; i++) {
+      if (roadDistance(points[i],stops[0]) < roadDistance(points[nearest],stops[0])) nearest = i;
+    }
+    const trimmed = points.slice(nearest);
+    if (roadRouteMatchesStops(trimmed,stops,180)) return trimmed;
+  }
+  return [];
 }
