@@ -935,7 +935,8 @@ const server=http.createServer((req,res)=>{
     await openGroup('Tekst i czytelność');
     await range('Wielkość tekstu interfejsu','End');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-map-surface .text-lg')).fontSize==='21.6px');
-    await choose('Krój pisma','Monospace');
+    await page.click('[aria-label="Wybierz krój pisma"]');
+    await page.evaluate(()=>[...document.querySelectorAll('.personal-font-list button')].find(el=>el.textContent.includes('Monospace')).click());
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-map-surface')).fontFamily.includes('monospace'));
     await range('Grubość nagłówków','End');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-map-surface .font-extrabold')).fontWeight==='800');
