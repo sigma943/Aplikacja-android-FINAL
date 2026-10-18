@@ -106,6 +106,25 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.$eval('#ban-date',el=>el.disabled),false,'temporary ban date remains editable');
       await page.screenshot({path:`test/ui-previews/calendar-ban-${scheme}.png`});
     }
+    await page.goto(origin+'/bus-sheet-fixture/',{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-map-bus-sheet][data-expanded="true"]');
+    await page.evaluate(()=>{document.documentElement.dataset.cosmicTheme='on';});
+    for(const count of [0,1,30]){
+      await page.click(`[data-stop-count="${count}"]`);await pause();
+      const geometry=await page.evaluate(()=>{
+        const sheet=document.querySelector('[data-map-bus-sheet]'),body=sheet.querySelector('.map-detail-body');
+        return{sheetBottom:sheet.getBoundingClientRect().bottom,bodyBottom:body.getBoundingClientRect().bottom,clientHeight:body.clientHeight,scrollHeight:body.scrollHeight,background:getComputedStyle(body).backgroundImage,headerBackground:getComputedStyle(sheet.querySelector('[data-vehicle-header]')).backgroundImage};
+      });
+      assert.ok(Math.abs(geometry.sheetBottom-geometry.bodyBottom)<=2,'bus sheet sky fills its remaining height with '+count+' stops: '+JSON.stringify(geometry));
+      assert.ok(geometry.background.includes('nebula.jpg'),'cosmic sky remains visible with '+count+' stops');
+      assert.equal(geometry.headerBackground,'none','carrier header remains untextured');
+      if(count===30){
+        assert.ok(geometry.scrollHeight>geometry.clientHeight,'long lists retain scrolling');
+        await page.$eval('.map-detail-body',el=>{el.scrollTop=el.scrollHeight;});
+        assert.ok(await page.$eval('.map-detail-body',el=>el.scrollTop>0),'long stop list can scroll');
+      }else await page.screenshot({path:`test/ui-previews/cosmos-bus-${count}-stops.png`});
+    }
+    console.log('Bus sheet sky fills empty and single-stop panels; long lists remain scrollable and carrier headers retain their colour.');
     console.log('Calendar and ban filter checks passed: dark/light native pickers, trailing range icons, all types first and search preserved.');
     await page.goto(origin+'/',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>Boolean(document.querySelector('.pks-theme-root')?.style.getPropertyValue('--pks-accent').trim()));

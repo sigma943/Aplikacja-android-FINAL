@@ -20,6 +20,18 @@ module.exports=function buildAccentFixture(){
   fs.writeFileSync(path.join(fixture,'app/maintenance/Component.tsx'),maintenance);
   fs.copyFileSync(path.join(source,'test/maintenance-ui-stub.ts'),path.join(fixture,'app/maintenance/sdk.ts'));
   fs.writeFileSync(path.join(fixture,'app/maintenance/page.tsx'),`'use client';import {MaintenanceView} from './Component';export default function Page(){return <MaintenanceView onMenuClick={()=>{}} canEdit={true}/>}`);
+  fs.mkdirSync(path.join(fixture,'app/bus-sheet-fixture'));
+  fs.writeFileSync(path.join(fixture,'app/bus-sheet-fixture/page.tsx'),`'use client';
+    import {useState,useRef} from 'react';import BusDetailsPanel from '@/components/BusDetailsPanel';import {useSheetGesture} from '@/lib/use-sheet-gesture';
+    export default function Page(){const [count,setCount]=useState(0),[expanded,setExpanded]=useState(true);const header=useRef<HTMLDivElement>(null);const drag=useSheetGesture(expanded,setExpanded,160,440,true);
+    const bus:any={id:'short-list',provider:'marcel',routeShortName:'M',direction:'Tarnobrzeg',lat:50,lon:22,speed:0,delay:120,status:'active'};
+    return <div className="pks-theme-root" data-bus-sheet-fixture data-ui-theme="dark-cosmos" style={{height:'100dvh',position:'relative'}}>
+      <nav style={{position:'absolute',top:20}}>{[0,1,30].map(n=><button key={n} data-stop-count={n} onClick={()=>setCount(n)}>{n} przystanków</button>)}</nav>
+      <BusDetailsPanel selectedBus={bus} busDrag={drag} busHeaderRef={header} isBusPanelExpanded={expanded} setIsBusPanelExpanded={setExpanded}
+        transparentUI isDark mapDetailPanel="map-detail-shell" mapDetailContent="map-detail-body" mapDetailCard="map-detail-row" mapDetailDivider="border-white/10" mapDetailLine="bg-white/10"
+        selectedBusHeaderStyle={{backgroundColor:'#365e2d'}} selectedVehicleIsTrain={false} selectedBusStatusLabel="W trasie" selectedBusGpsSignalClock="15:06" breakCountdownLabel={null} selectedBusIsWaitingForDeparture={false} selectedBusScheduleLoading={false}
+        selectedBusDisplayedStops={Array.from({length:count},(_,i)=>({id:i+1,name:'Przystanek '+(i+1),planned:null,real:null}))} selectedStopId={null} selectedVehicleColor="#84cc16" textSub="map-detail-muted" textMain="text-white" themeColor="#b8a3ff" openVehicleRouteStop={()=>{}} formatScheduleStopName={name=>name}/>
+    </div>;}`);
   fs.mkdirSync(path.join(fixture,'app/dialog-fixture'));
   fs.writeFileSync(path.join(fixture,'app/dialog-fixture/page.tsx'),`'use client';import {useState} from 'react';import {RolesModal} from '@/app/admin/components/RolesModal';import {BanModal} from '@/app/admin/components/BanModal';
   export default function Page(){const [open,setOpen]=useState('roles');const device:any={id:'test-device',name:'Windows 19.0.0',deviceInfo:'Windows 19.0.0',rawRole:'admin',role:'Administrator',verified:true,permissions:{monitor:true}};return <div className="pks-theme-root" data-ui-theme="dark-oled"><div className="pks-panel-scope" data-panel-theme="amoled" data-glass="on" style={{transform:'translateX(0)',height:200,overflow:'hidden'}}><button onClick={()=>setOpen('roles')}>Role</button><button onClick={()=>setOpen('ban')}>Ban</button>{open==='roles'&&<RolesModal device={device} onClose={()=>setOpen('')} onUpdateUser={()=>{}} onSave={(role,permissions)=>{(window as any).__savedRole={role,permissions};setOpen('');}} canAssignOwner canManageTabAccess canManageVerification/>}{open==='ban'&&<BanModal device={device} onClose={()=>setOpen('')} onConfirm={()=>setOpen('')}/>}</div><nav id="fixture-nav" style={{position:'fixed',bottom:0,height:80,width:'100%',background:'black',zIndex:11000}}>Navigation</nav></div>}`);
