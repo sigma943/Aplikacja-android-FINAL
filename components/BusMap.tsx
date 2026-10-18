@@ -273,7 +273,11 @@ function BusMap({
         dataVersion: routeGeometryVersion,
         mode: routeMode,
         stops: routeGeometryStops,
-      }, { signal: controller.signal }), controller.signal);
+      }, { signal: controller.signal }), controller.signal, [1000, 3000, 10000, 30000], {
+        keepRetrying: true,
+        isUsable: response => (response.geometry?.coordinates || [])
+          .filter(([lon, lat]) => Number.isFinite(lat) && Number.isFinite(lon)).length > 1,
+      });
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
         const points = (response.geometry?.coordinates || [])
           .map(([lon, lat]) => [lat, lon] as [number, number])
