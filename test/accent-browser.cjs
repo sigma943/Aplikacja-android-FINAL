@@ -897,7 +897,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('mks_interface_appearance_v1')).glowColor==='#8b5cf6');
     assert.equal(await page.$eval('[aria-label="Kolor poświaty: Fioletowy"]',el=>el.getAttribute('aria-pressed')),'true');
     assert.equal(await page.evaluate(()=>localStorage.getItem('mks_theme')),savedAccent,'glow palette is independent from the UI accent');
-    assert.equal(await page.$eval('[aria-label="Kolor miękkiej poświaty"]',el=>el.value),'#8b5cf6');
+    assert.ok(await page.$eval('[aria-label="Kolor miękkiej poświaty"]',el=>el.textContent.includes('#8B5CF6')));
     await page.$eval('[aria-label="Kolor poświaty: Turkusowy"]',el=>el.click());
 
     assert.equal(await page.$eval('.pks-map-surface',el=>getComputedStyle(el).backdropFilter),glowBlur,'soft patches preserve glass');
@@ -935,7 +935,8 @@ const server=http.createServer((req,res)=>{
     await openGroup('Tekst i czytelność');
     await range('Wielkość tekstu interfejsu','End');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-map-surface .text-lg')).fontSize==='21.6px');
-    await choose('Krój pisma','Monospace');
+    await page.click('[aria-label="Wybierz krój pisma"]');
+    await page.evaluate(()=>[...document.querySelectorAll('.personal-font-list button')].find(el=>el.textContent.includes('Monospace')).click());
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-map-surface')).fontFamily.includes('monospace'));
     await range('Grubość nagłówków','End');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pks-map-surface .font-extrabold')).fontWeight==='800');
@@ -1272,8 +1273,13 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.querySelector('#widget-transparency').value==='0');
     await page.click('[aria-label="Akcent: Fiolet"]');
     const changeInput=async(selector,value)=>page.$eval(selector,(el,value)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));},value);
-    await changeInput('#widget-custom-accent','#ee00aa');
-    await page.waitForFunction(()=>document.querySelector('#widget-custom-accent').value==='#ee00aa'&&document.body.textContent.includes('#EE00AA'));
+    await page.click('.widget-personalization [aria-label="Własny kolor akcentu"]');
+    await page.waitForSelector('.color-picker-dialog');
+    await changeInput('.color-picker-dialog [aria-label="Kod HEX"]','#ee00aa');
+    await page.waitForFunction(()=>document.querySelector('.color-picker-dialog [aria-label="Kod RGB"]').value==='238, 0, 170');
+    await button('Zastosuj kolor');
+    await page.waitForSelector('.color-picker-dialog',{hidden:true});
+    await page.waitForFunction(()=>document.querySelector('.widget-personalization').textContent.includes('#EE00AA'));
     await page.focus('#widget-radius');await page.keyboard.press('Home');
     await page.waitForFunction(()=>document.querySelector('[data-widget-preview]').style.borderRadius==='0px');
     await button('Większy');await button('Kompaktowe');await button('Kolor akcentu');
