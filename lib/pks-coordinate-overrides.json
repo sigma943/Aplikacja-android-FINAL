@@ -8,5 +8,25 @@
     "lon": 22.0486789,
     "erroneousLat": 50.035257,
     "erroneousLon": 21.994693
+  },
+  "9737": {
+    "areaId": "2758",
+    "code": "18",
+    "name": "GŁOGÓW MŁP. AL. NIEPODLEGŁOŚCI RONDO",
+    "gtfsStopId": "630",
+    "lat": 50.115694,
+    "lon": 21.967661,
+    "erroneousLat": 50.116781,
+    "erroneousLon": 21.97139
+  },
+  "9739": {
+    "areaId": "3228",
+    "code": "12",
+    "name": "GŁOGÓW MŁP. AL. NIEPODLEGŁOŚCI CMENTARZ",
+    "gtfsStopId": "624",
+    "lat": 50.11009,
+    "lon": 21.951202,
+    "erroneousLat": 50.112941,
+    "erroneousLon": 21.955654
   }
 }

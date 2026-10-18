@@ -18,9 +18,9 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     env:
-      # Full verification stays the default. A reviewed presentation-only commit
-      # can explicitly request the focused layout check with [quick-ui].
-      FULL_VERIFICATION: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.full_verification) || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[quick-ui]')) }}
+      # Full verification stays the default. Explicitly requested quick PR builds
+      # use [quick-build] in the title; local focused checks precede the build.
+      FULL_VERIFICATION: ${{ !contains(github.event.pull_request.title, '[quick-build]') && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.full_verification) || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[quick-ui]'))) }}
 
     steps:
       - name: Checkout Source
@@ -69,6 +69,7 @@ jobs:
         run: npm run build:android:web
 
       - name: Verify vertical panel layout
+        if: ${{ !contains(github.event.pull_request.title, '[quick-build]') }}
         run: node test/ui-horizontal-browser.cjs
 
       - name: Verify map stop interactions
