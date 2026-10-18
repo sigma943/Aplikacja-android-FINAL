@@ -3,7 +3,7 @@ import CosmicFilterEffects from './CosmicFilterEffects';
 import {NAV_ITEMS,type NavItem} from '@/lib/interface-appearance';
 import type {CSSProperties} from 'react';
 import {motion} from 'motion/react';
-import {Bus,Search,RefreshCw,X,Map as MapIcon,Settings,Shield} from 'lucide-react';
+import {Bus,Search,RefreshCw,X,Map as MapIcon,Settings,Shield,Route} from 'lucide-react';
 export function StopTabIcon({ className = '' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 28 28" fill="none" aria-hidden="true">
@@ -68,9 +68,9 @@ export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,
               </div>
 );}
 
-type NavigationProps={preview?:boolean;order?:readonly NavItem[];activeTab:string;className:string;themeColor:string;isMapTabDisabled?:boolean;isStopsTabDisabled?:boolean;canOpenAdminEmbed?:boolean;onMap:()=>void;onStops:()=>void;onAdmin?:()=>void;onOptions:()=>void};
-export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,className,themeColor,isMapTabDisabled=false,isStopsTabDisabled=false,canOpenAdminEmbed=false,onMap,onStops,onAdmin,onOptions}:NavigationProps){
- const items={map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
+type NavigationProps={preview?:boolean;order?:readonly NavItem[];activeTab:string;className:string;themeColor:string;isMapTabDisabled?:boolean;isStopsTabDisabled?:boolean;canOpenAdminEmbed?:boolean;onMap:()=>void;onStops:()=>void;onAdmin?:()=>void;onOptions:()=>void;onJourneys?:()=>void};
+export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,className,themeColor,isMapTabDisabled=false,isStopsTabDisabled=false,canOpenAdminEmbed=false,onMap,onStops,onAdmin,onOptions,onJourneys}:NavigationProps){
+ const items={journeys:{label:'Połączenia',Icon:Route,disabled:isStopsTabDisabled,onClick:onJourneys},map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
  return <div data-navigation-preview={preview||undefined} className={`relative isolate pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${className}`}>
   <svg data-cosmic-nav-stars viewBox="0 0 393 64" preserveAspectRatio="none" aria-hidden="true">
    <g fill="#bfeaff"><path d="M25 5l1.2 3.8L30 10l-3.8 1.2L25 15l-1.2-3.8L20 10l3.8-1.2Z"/><circle cx="163" cy="8" r=".8"/></g>
@@ -79,7 +79,7 @@ export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,classN
    <g fill="#ffbacf"><path transform="translate(0 9)" d="M63 48l.6 2.4L66 51l-2.4.6L63 54l-.6-2.4L60 51l2.4-.6Z"/></g>
    <g fill="#b9e6d8"><circle cx="270" cy="61" r=".7"/><path d="M345 15h4m-2-2v4" stroke="#b9e6d8" strokeWidth=".7"/></g>
   </svg>
-  {order.filter(id=>id!=='admin'||canOpenAdminEmbed).map(id=>{
+  {(onJourneys?order.flatMap(id=>id==='map'?['map','journeys'] as const:[id]):order).filter(id=>id!=='admin'||canOpenAdminEmbed).map(id=>{
    const item=items[id],Icon=item.Icon,active=activeTab===id;
    return <button type="button" key={id} data-nav-item={id} disabled={item.disabled} aria-current={active?'page':undefined} aria-label={item.label} onClick={item.onClick} className={`relative z-[1] flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${item.disabled?'cursor-not-allowed opacity-35 grayscale':active?'':'hover:text-current/90'}`} style={active?{color:themeColor}:{}}>
     <Icon className="h-6 w-6"/><span data-nav-label className="text-[11px] font-semibold leading-none">{item.label}</span>

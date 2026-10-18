@@ -1099,6 +1099,7 @@ function departureFromMpkSchedule(entry: Record<string, unknown>, dateIso: strin
   }
   return {
     id: `mpk:${entry.trip_id || entry.block_id || index}:${plannedAtMs || entry.departure_time}`,
+    courseId: entry.trip_id != null ? String(entry.trip_id) : undefined,
     line,
     direction,
     time: formatWarsawTime(realAtMs, entry.departure_time),
