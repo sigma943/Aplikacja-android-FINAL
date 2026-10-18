@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),load=require('./load-ts.cjs');
 const {parseHexColor,parseRgbColor,hexHsv,hsvHex}=load('lib/color-input.ts');
-const {parseGoogleFontLink,INTERFACE_FONTS,interfaceFontStack}=load('lib/interface-fonts.ts');
+const {parseGoogleFontInput,parseGoogleFontLink,INTERFACE_FONTS,interfaceFontStack}=load('lib/interface-fonts.ts');
 const {normalizeInterfaceAppearance,interfaceAppearanceVariables}=load('lib/interface-appearance.ts');
 test('manual HEX/RGB colours accept shorthand and reject invalid or out-of-range input',()=>{
   assert.equal(parseHexColor('#AbC'),'#aabbcc');assert.equal(parseHexColor('38BDF8'),'#38bdf8');
@@ -31,4 +31,23 @@ test('Google font loader requests only the selected family and confirms loaded g
   global.document={createElement:()=>({dataset:{},remove(){this.removed=true;}}),head:{appendChild(link){links.push(link);queueMicrotask(()=>link.onload());}},fonts:{load:async(css,text)=>{assert.ok(css.includes('Inter'));assert.ok(text.includes('Zażółć'));return [{}];}}};
   try{const {loadInterfaceGoogleFont}=load('lib/interface-fonts.ts');await loadInterfaceGoogleFont('Inter');await loadInterfaceGoogleFont('Inter');assert.equal(links.length,1);assert.equal(links[0].href,'https://fonts.googleapis.com/css2?family=Inter&display=swap');}
   finally{global.document=previous;}
+});
+
+test('copied Google Fonts link and import blocks offer every distinct family, ignoring preconnects',()=>{
+  const address='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Space+Grotesk:wght@300..700&display=swap';
+  const expected=['Plus Jakarta Sans','Space Grotesk'];
+  for(const input of [address,`<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="${address.replaceAll('&','&amp;')}" rel="stylesheet">`,`<style>@import url('${address}');</style>`,`@import "${address}";`,`@import url(${address});`])assert.deepEqual(parseGoogleFontInput(input).map(font=>font.family),expected);
+  assert.equal(parseGoogleFontLink(address),null,'persist only the explicitly chosen single family');
+  assert.deepEqual(parseGoogleFontInput('https://fonts.googleapis.com/css?family=Inter|Roboto:400,700').map(font=>font.family),['Inter','Roboto']);
+  assert.deepEqual(parseGoogleFontInput('<script>alert(1)</script><link href="https://evil.test/font.css">'),[]);
+});
+test('font download failures stay short, reject empty faces and can be retried',async()=>{
+  const previous=global.document;let mode='error',removed=0;
+  global.document={createElement:()=>({dataset:{},remove(){removed++;}}),head:{appendChild(link){queueMicrotask(()=>mode==='error'?link.onerror():link.onload());}},fonts:{load:async()=>mode==='empty'?[]:[{}]}};
+  try{
+    const {loadInterfaceGoogleFont}=load('lib/interface-fonts.ts');
+    await assert.rejects(loadInterfaceGoogleFont('Space Grotesk'),/Nie udało się pobrać czcionki\./);
+    mode='empty';await assert.rejects(loadInterfaceGoogleFont('Space Grotesk'),/Nie znaleziono czcionki\./);
+    mode='success';await loadInterfaceGoogleFont('Space Grotesk');assert.equal(removed,2);
+  }finally{global.document=previous;}
 });

@@ -6,18 +6,34 @@ export const INTERFACE_FONTS=[
   ...['Inter','Roboto','Open Sans','Lato','Montserrat','Nunito','Poppins','Ubuntu','Merriweather','Source Sans 3','JetBrains Mono','Comfortaa'].map(name=>({id:name,name,kind:'Google Fonts'})),
 ] as const;
 export type InterfaceFont=string;
-export function parseGoogleFontLink(input:unknown):{family:string;url:string}|null{
-  if(typeof input!=='string'||input.length>2048)return null;
-  try{
-    const url=new URL(input.trim());
-    if(url.protocol!=='https:'||url.username||url.password||url.port)return null;
-    let family='';
-    if(url.hostname==='fonts.google.com'&&/^\/specimen\/[^/]+\/?$/.test(url.pathname))family=decodeURIComponent(url.pathname.split('/')[2].replace(/\+/g,' '));
-    else if(url.hostname==='fonts.googleapis.com'&&['/css','/css2'].includes(url.pathname)&&url.searchParams.getAll('family').length===1)family=(url.searchParams.get('family')||'').split(':')[0];
-    family=family.trim().replace(/\s+/g,' ');
-    if(!/^[A-Za-z][A-Za-z0-9 -]{0,79}$/.test(family))return null;
-    return {family,url:googleFontUrl(family)};
-  }catch{return null;}
+export type GoogleFontLink={family:string;url:string};
+/** Read URLs from Google's copied link/import snippets without executing HTML or CSS. */
+export function parseGoogleFontInput(input:unknown):GoogleFontLink[]{
+  if(typeof input!=='string'||input.length>16384)return [];
+  const text=input.trim().replace(/&(?:amp|#38|#x26);/gi,'&');
+  const links=[...text.matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi)].map(match=>match[1]);
+  links.push(...[...text.matchAll(/@import\s+(?:url\(\s*)?["']([^"']+)["']/gi)].map(match=>match[1]));
+  links.push(...[...text.matchAll(/@import\s+url\(\s*(https:\/\/[^\s)]+)\s*\)/gi)].map(match=>match[1]));
+  if(!links.length)links.push(text);
+  const families=new Set<string>();
+  for(const address of links){
+    try{
+      const url=new URL(address);
+      if(url.protocol!=='https:'||url.username||url.password||url.port)continue;
+      let names:string[]=[];
+      if(url.hostname==='fonts.google.com'&&/^\/specimen\/[^/]+\/?$/.test(url.pathname))names=[decodeURIComponent(url.pathname.split('/')[2].replace(/\+/g,' '))];
+      else if(url.hostname==='fonts.googleapis.com'&&['/css','/css2'].includes(url.pathname))names=url.searchParams.getAll('family').flatMap(spec=>spec.split('|')).map(spec=>spec.split(':')[0]);
+      for(const name of names){
+        const family=name.trim().replace(/\s+/g,' ');
+        if(/^[A-Za-z][A-Za-z0-9 -]{0,79}$/.test(family))families.add(family);
+      }
+    }catch{/* Ignore preconnects and non-font text from a copied embed block. */}
+  }
+  if(families.size>20)return [];
+  return [...families].map(family=>({family,url:googleFontUrl(family)}));
+}
+export function parseGoogleFontLink(input:unknown):GoogleFontLink|null{
+  const fonts=parseGoogleFontInput(input);return fonts.length===1?fonts[0]:null;
 }
 export function googleFontUrl(family:string){return 'https://fonts.googleapis.com/css2?family='+encodeURIComponent(family).replace(/%20/g,'+')+'&display=swap';}
 export function interfaceGoogleFont(value:{fontFamily:string;customFontUrl:string}):string{
@@ -36,12 +52,17 @@ const loading=new Map<string,Promise<void>>();
 export function loadInterfaceGoogleFont(family:string):Promise<void>{
   if(!family||typeof document==='undefined')return Promise.resolve();
   const existing=loading.get(family);if(existing)return existing;
+  if(typeof navigator!=='undefined'&&navigator.onLine===false)return Promise.reject(new Error('Brak połączenia z internetem.'));
   const promise=new Promise<void>((resolve,reject)=>{
     const link=document.createElement('link');link.rel='stylesheet';link.href=googleFontUrl(family);link.dataset.interfaceFont=family;
-    const timer=setTimeout(()=>fail(),12000);
-    const fail=()=>{clearTimeout(timer);link.remove();reject(new Error('Nie udało się pobrać czcionki. Sprawdź link i połączenie z internetem.'));};
-    link.onerror=fail;
-    link.onload=()=>{document.fonts.load('16px '+JSON.stringify(family),'Zażółć gęślą jaźń 0123456789').then(faces=>{if(!faces.length){fail();return;}clearTimeout(timer);resolve();},fail);};
+    let settled=false;
+    const finish=(error?:string)=>{
+      if(settled)return;settled=true;clearTimeout(timer);link.onload=null;link.onerror=null;
+      if(error){link.remove();reject(new Error(error));}else resolve();
+    };
+    const timer=setTimeout(()=>finish('Przekroczono czas pobierania.'),12000);
+    link.onerror=()=>finish(typeof navigator!=='undefined'&&navigator.onLine===false?'Brak połączenia z internetem.':'Nie udało się pobrać czcionki.');
+    link.onload=()=>{document.fonts.load('16px '+JSON.stringify(family),'Zażółć gęślą jaźń 0123456789').then(faces=>finish(faces.length?undefined:'Nie znaleziono czcionki.'),()=>finish('Nie udało się wczytać czcionki.'));};
     document.head.appendChild(link);
   });
   loading.set(family,promise);promise.catch(()=>loading.delete(family));return promise;

@@ -21,7 +21,8 @@ const server=http.createServer((req,res)=>{
   const page=await browser.newPage();const errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.setRequestInterception(true);
-  page.on('request',request=>request.url().startsWith(origin)?request.continue():request.abort());
+  let fontTestMode='offline';
+  page.on('request',request=>{if(request.url().startsWith('https://fonts.googleapis.com/')&&fontTestMode==='success')return request.respond({status:200,contentType:'text/css',body:'/* font service fixture */',headers:{'access-control-allow-origin':'*'}});return request.url().startsWith(origin)?request.continue():request.abort();});
   await page.evaluateOnNewDocument(expectedOrigin=>{
     if(location.origin!==expectedOrigin)return;
     localStorage.setItem('mks_app_theme',location.pathname.startsWith('/light-dialog-fixture')?'light':'dark-cosmos');
@@ -108,7 +109,7 @@ const server=http.createServer((req,res)=>{
     }
     await page.goto(origin+'/colors-fonts-fixture/',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-picker-ready="true"]');
-    const fill=async(selector,text)=>{await page.click(selector,{clickCount:3});await page.keyboard.press('Backspace');await page.type(selector,text);};
+    const fill=async(selector,text)=>{await page.focus(selector);await page.keyboard.down('Control');await page.keyboard.press('A');await page.keyboard.up('Control');await page.keyboard.press('Backspace');await page.type(selector,text);};
     for(const width of [320,393])for(const scheme of ['dark','light']){
       await page.setViewport({width,height:851,deviceScaleFactor:1});
       if((await page.$eval('[data-picker-ready]',el=>el.dataset.uiTheme==='light'))!==(scheme==='light'))await page.click('[data-picker-theme]');
@@ -146,11 +147,34 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.documentElement.dataset.personalFont==='mono');
     assert.ok(await page.$eval('.personal-font-sample',el=>getComputedStyle(el).fontFamily.includes('monospace')));
     await fill('[aria-label="Link do Google Fonts"]','https://example.com/Inter');await button('Zastosuj z linku');
-    assert.ok((await page.$eval('[role="status"]',el=>el.textContent)).includes('Wklej link'));
+    assert.ok((await page.$eval('[data-font-import-feedback]',el=>el.textContent)).includes('Nieprawidłowy link'));
     await fill('[aria-label="Link do Google Fonts"]','https://fonts.google.com/specimen/Inter');await button('Zastosuj z linku');
-    await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent.includes('Nie udało się pobrać'));
+    await page.waitForFunction(()=>document.querySelector('[data-font-import-feedback]')?.textContent.includes('Nie udało się pobrać'));
     assert.equal(await page.$eval('[aria-label="Wybierz krój pisma"]',el=>el.textContent),'Monospace','offline/failed import preserves the selected font');
-    console.log('Colour editor passed: HEX/RGB synchronization, validation, apply/cancel, dark/light 320/393px. Font list/search/persistence and invalid/offline imports passed.');
+    const feedbackColor=await page.$eval('[data-font-import-feedback] p',el=>getComputedStyle(el).color);
+    assert.equal(feedbackColor,'rgb(251, 113, 133)','font import errors are red');
+    await page.$eval('[data-font-import-feedback]',el=>el.scrollIntoView({block:'center'}));
+    await page.screenshot({path:'test/ui-previews/font-import-error.png'});
+    const embed='<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet">';
+    await fill('[aria-label="Link do Google Fonts"]',embed);await button('Zastosuj z linku');
+    assert.ok((await page.$eval('[data-font-import-feedback]',el=>el.textContent)).includes('Wybierz jedną'));
+    assert.equal(await page.$$eval('.personal-font-candidates button',els=>els.length),2);
+    await page.$eval('.personal-font-candidates',el=>el.scrollIntoView({block:'center'}));
+    await page.screenshot({path:'test/ui-previews/font-import-families.png'});
+    await page.$eval('.personal-font-candidates',el=>[...el.querySelectorAll('button')].find(button=>button.textContent==='Space Grotesk').click());
+    // Simulate a successful font service independently of external network availability.
+    fontTestMode='success';await page.evaluate(()=>{document.fonts.load=async()=>[{}];});
+    await button('Zastosuj z linku');
+    await page.waitForFunction(()=>document.querySelector('[data-font-import-feedback]')?.textContent.includes('Zastosowano: Space Grotesk.'));
+    assert.equal(await page.$eval('[data-font-import-feedback] p',el=>getComputedStyle(el).color),'rgb(110, 231, 183)','successful font imports are green');
+    const fontSaved=await page.evaluate(()=>JSON.parse(localStorage.getItem('mks_interface_appearance_v1')));
+    assert.equal(fontSaved.fontFamily,'custom');assert.equal(fontSaved.customFontUrl,'https://fonts.googleapis.com/css2?family=Space+Grotesk&display=swap');
+    assert.ok(await page.$eval('[aria-label="Link do Google Fonts"]',el=>el.value.includes('<link')),'preserve the pasted code so another family remains selectable');
+    await page.$eval('[data-font-import-feedback]',el=>el.scrollIntoView({block:'center'}));
+    await page.screenshot({path:'test/ui-previews/font-import-success.png'});
+    await page.click('[aria-label="Wybierz krój pisma"]');await fill('[aria-label="Szukaj czcionki"]','Monospace');await page.$eval('.personal-font-list button',el=>el.click());
+    fontTestMode='offline';
+    console.log('Colour editor passed: HEX/RGB synchronization, validation, apply/cancel, dark/light 320/393px. Font list/search/persistence and invalid/offline/multi-family embed imports and green success passed.');
     await page.goto(origin+'/bus-sheet-fixture/',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-map-bus-sheet][data-expanded="true"]');
     await page.evaluate(()=>{document.documentElement.dataset.cosmicTheme='on';});
