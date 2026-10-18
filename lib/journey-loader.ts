@@ -1,7 +1,7 @@
 import type {Stop,Departure} from '@/Panel/src/types';
 import {loadStopDepartures} from './stop-departures';
 import {runJourneySearch} from './journey-worker-client';
-import {buildJourneyLegs,findJourneys,stopDistance,departureCourse,type JourneyOptions} from './journey-planner';
+import {buildJourneyLegs,stopDistance,departureCourse,type JourneyOptions} from './journey-planner';
 import {fetchMpkTripStops} from './providers/mpk-vehicles';
 import {fetchMarcelPublicCourseStopsClient} from './pks-client';
 import {warsawDateIso,warsawTimeMs} from './transit-time';
@@ -27,9 +27,12 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
  }));check();
  // Resolve complete trip timetables where the connected API exposes them.
  // This includes terminal stops that departure boards intentionally hide.
+ const originCourses=new Set(boards.filter(b=>b.stop.id===from.id).flatMap(b=>b.departures.map(departureCourse)));
  const courses=[...new Map(boards.flatMap(b=>b.departures.filter(d=>options.providers.includes(d.carrier?.id||'')&&
   d.plannedAtMs!>=options.at-(options.arriveBy?6*3600_000:0)&&d.plannedAtMs!<=options.at+(options.arriveBy?0:6*3600_000))
-  .map(d=>[departureCourse(d),d] as const))).entries()].filter(([key])=>key).sort((a,b)=>{const atOrigin=(key:string)=>boards.some(board=>board.stop.id===from.id&&board.departures.some(d=>departureCourse(d)===key));return Number(atOrigin(b[0]))-Number(atOrigin(a[0]))||Math.abs(a[1].plannedAtMs!-options.at)-Math.abs(b[1].plannedAtMs!-options.at);});
+  .map(d=>[departureCourse(d),d] as const))).entries()].filter(([key,row])=>key&&['mpk','marcel'].includes(row.carrier?.id||'')).sort((a,b)=>{return Number(originCourses.has(b[0]))-Number(originCourses.has(a[0]))||Math.abs(a[1].plannedAtMs!-options.at)-Math.abs(b[1].plannedAtMs!-options.at);});
+ const mpkStops=new Map<string,Stop>();for(const stop of catalog)for(const id of String(stop.providerStopIds?.mpk_rzeszow||'').split(','))if(id)mpkStops.set(id.trim(),stop);
+ const marcelStops=catalog.filter(s=>s.sourceProviderIds?.includes('marcel'));
  let tripIndex=0;
  await Promise.all(Array.from({length:4},async()=>{
   while(tripIndex<Math.min(courses.length,100)){
@@ -43,13 +46,16 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
     for(const point of points){
      let time=warsawTimeMs(date,point.time);if(!Number.isFinite(time))continue;
      if(time<previous&&previous-time>12*3600_000)time+=86400_000;previous=time;
-     const match=provider==='mpk'?catalog.find(s=>String(s.providerStopIds?.mpk_rzeszow||'').split(',').includes(point.id!)):
-      catalog.filter(s=>s.sourceProviderIds?.includes('marcel')).find(s=>stopDistance(s,{lat:point.lat,lon:point.lon} as Stop)<60);
+     const matches=provider==='mpk'?[mpkStops.get(point.id!)].filter((s):s is Stop=>Boolean(s)):
+      marcelStops.filter(s=>stopDistance(s,{lat:point.lat,lon:point.lon} as Stop)<60);
+     const match=matches.length===1?matches[0]:undefined;
      if(!match)continue;
      boards.push({stop:match,departures:[{...row,id:`planner:${key}:${match.id}:${time}`,courseId:id,plannedAtMs:time,realAtMs:undefined}]});
     }
    }catch{check();warnings.add('Nie wszystkie pełne rozkłady kursów są dostępne.');}
   }
  }));check();
- return {journeys:await runJourneySearch(from,to,buildJourneyLegs(boards,options.providers),options,signal),warnings:[...warnings],limited:candidates.length<catalog.length-2};
+ const earliest=options.arriveBy?options.at-6*3600_000:options.at,latest=options.arriveBy?options.at:options.at+6*3600_000;
+ const windowed=boards.map(b=>({...b,departures:b.departures.filter(d=>d.plannedAtMs!>=earliest&&d.plannedAtMs!<=latest)}));
+ return {journeys:await runJourneySearch(from,to,buildJourneyLegs(windowed,options.providers),options,signal),warnings:[...warnings],limited:candidates.length<catalog.length-2};
 }
