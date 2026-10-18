@@ -2,12 +2,14 @@
 import {useEffect,useId,useRef,useState} from 'react';
 import {Check,ChevronDown,ExternalLink,Link as LinkIcon,LoaderCircle,Search,Type} from 'lucide-react';
 import {INTERFACE_FONTS,interfaceFontStack,interfaceGoogleFont,parseGoogleFontLink,loadInterfaceGoogleFont} from '@/lib/interface-fonts';
+import {useDialogFocus} from '@/lib/use-dialog-focus';
 import {useAppBack} from '@/lib/use-app-back';
 export default function FontPicker({value,onChange}:{value:{fontFamily:string;customFontUrl:string};onChange:(fontFamily:string,customFontUrl:string)=>void}){
   const [open,setOpen]=useState(false),[query,setQuery]=useState(''),[url,setUrl]=useState(value.customFontUrl),[status,setStatus]=useState(''),[busy,setBusy]=useState(false);
   const root=useRef<HTMLDivElement>(null),trigger=useRef<HTMLButtonElement>(null),search=useRef<HTMLInputElement>(null),request=useRef(0),latest=useRef(onChange),id=useId();latest.current=onChange;
   const family=interfaceGoogleFont(value),name=value.fontFamily==='custom'?family:INTERFACE_FONTS.find(font=>font.id===value.fontFamily)?.name||'Systemowy';
   useAppBack(open,()=>{setOpen(false);return true;},110);
+  useDialogFocus(root,open,()=>setOpen(false));
   useEffect(()=>()=>{request.current++;},[]);
   useEffect(()=>{setUrl(value.customFontUrl);},[value.customFontUrl]);
   useEffect(()=>{
@@ -18,9 +20,8 @@ export default function FontPicker({value,onChange}:{value:{fontFamily:string;cu
   useEffect(()=>{
     if(!open)return;search.current?.focus();
     const outside=(event:PointerEvent)=>{if(!root.current?.contains(event.target as Node))setOpen(false);};
-    const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setOpen(false);trigger.current?.focus();}};
-    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',key,true);
-    return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',key,true);};
+    document.addEventListener('pointerdown',outside);
+    return()=>{document.removeEventListener('pointerdown',outside);};
   },[open]);
   const add=async()=>{
     const parsed=parseGoogleFontLink(url);if(!parsed){setStatus('Wklej link do jednej czcionki z fonts.google.com lub fonts.googleapis.com.');return;}

@@ -135,6 +135,8 @@ const server=http.createServer((req,res)=>{
     await page.setViewport({width:393,height:851,deviceScaleFactor:1});
     assert.equal(await page.$$eval('input[type="color"]',els=>els.length),0,'no native colour picker');
     await page.click('[aria-label="Wybierz krój pisma"]');
+    await page.keyboard.press('Escape');await page.waitForSelector('.personal-font-list',{hidden:true});
+    await page.click('[aria-label="Wybierz krój pisma"]');
     assert.ok(await page.$$eval('.personal-font-list button',els=>els.length)>=16);
     await page.screenshot({path:'test/ui-previews/font-list.png'});
     await fill('[aria-label="Szukaj czcionki"]','Monospace');
