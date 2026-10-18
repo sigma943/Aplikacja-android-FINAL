@@ -189,6 +189,8 @@ const server=http.createServer((req,res)=>{
     await page.$eval('[data-font-import-feedback]',el=>el.scrollIntoView({block:'center'}));
     await page.screenshot({path:'test/ui-previews/font-import-success.png'});
     await page.click('[aria-label="Wybierz krój pisma"]');await fill('[aria-label="Szukaj czcionki"]','Monospace');await page.$eval('.personal-font-list button',el=>el.click());
+    await page.waitForSelector('.personal-font-list',{hidden:true});
+    await page.waitForFunction(()=>!history.state?.pksBackGuard);
     fontTestMode='offline';
     console.log('Colour editor passed: HEX/RGB synchronization, validation, apply/cancel, dark/light 320/393px. Font list/search/persistence and invalid/offline/multi-family embed imports and green success passed.');
     await page.goto(origin+'/bus-sheet-fixture/',{waitUntil:'domcontentloaded'});
