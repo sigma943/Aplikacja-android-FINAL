@@ -1,8 +1,10 @@
+import {loadTimetableAssets} from './journey-assets';
 import type {TimetableSearch} from './journey-schedules';
 import type {Journey} from './journey-planner';
 type Result={journeys:Journey[];warnings:string[];limited:boolean};
-export async function runTimetableSearch(input:TimetableSearch,signal:AbortSignal,progress:(n:number,total:number)=>void):Promise<Result>{
+export async function runTimetableSearch(request:Omit<TimetableSearch,'assets'>,signal:AbortSignal,progress:(n:number,total:number)=>void):Promise<Result>{
  signal.throwIfAborted();
+ const input:TimetableSearch={...request,assets:await loadTimetableAssets(request.options.providers,signal)};
  const direct=async()=>{const {executeTimetableSearch}=await import('./journey-schedules');const result=await executeTimetableSearch(input,progress);signal.throwIfAborted();return result;};
  if(typeof Worker==='undefined')return direct();
  let worker:Worker;
