@@ -44,3 +44,12 @@ test('map points reject invalid coordinates and current location works as the de
  const result=scanJourneys(p2,location,[c(p2,other,1600000,2400000)],{...o,walkMeters:500})[0];
  assert.equal(result.legs.at(-1).to.id,LOCATION_ID);assert.ok(result.legs.at(-1).walking>0);
 });
+
+test('map picker shares the main map zoom threshold and an accent-colored pin',()=>{
+ const {visibleMapStops,MAP_STOPS_MIN_ZOOM,mapStopPinHtml}=load('lib/map-stop-markers.ts');
+ const bounds=[21.9,50,22.1,50.1];
+ assert.deepEqual(visibleMapStops([p2],bounds,MAP_STOPS_MIN_ZOOM-1),[]);
+ assert.equal(visibleMapStops([p2],bounds,MAP_STOPS_MIN_ZOOM).length,1);
+ const pin=mapStopPinHtml('var(--cn-accent)');
+ assert.match(pin,/color:var\(--cn-accent\)/);assert.match(pin,/fill="currentColor"/);assert.match(pin,/map-stop-pin/);
+});

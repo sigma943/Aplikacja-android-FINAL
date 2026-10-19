@@ -250,3 +250,5 @@
 .connections-place-map .leaflet-control-attribution{font-size:8px;max-width:100%;white-space:normal}
 .connections-place-map .leaflet-control-zoom a{width:36px;height:36px;line-height:36px}
 @media(min-width:768px){.connections-picker-host .connections-picker{bottom:calc(64px + env(safe-area-inset-bottom))}}
+
+.connections-picked-pin{background:none;border:0;pointer-events:none;color:var(--cn-accent,var(--pks-accent,#00a3a2))}

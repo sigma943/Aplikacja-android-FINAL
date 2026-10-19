@@ -16,7 +16,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>!document.querySelector('.connections-primary').disabled);
    await page.click('.connections-preferences');await page.click('[data-journey-to]');
    await page.waitForSelector('[data-journey-picker] .connections-picker-actions');
-   assert.match(await page.$eval('[data-journey-picker] .connections-picker-actions',e=>e.textContent),/Twoja lokalizacja/);
+   assert.doesNotMatch(await page.$eval('[data-journey-picker] .connections-picker-actions',e=>e.textContent),/Twoja lokalizacja/);
    for(const width of [320,393,430]){
     await page.setViewport({width,height:851,deviceScaleFactor:1});
     const covered=await page.evaluate(()=>{const host=document.querySelector('.connections-picker-host'),rect=host.getBoundingClientRect(),picker=document.querySelector('[data-journey-picker]').getBoundingClientRect();return {bottom:rect.bottom,pickerBottom:picker.bottom,hit:Boolean(document.elementFromPoint(innerWidth/2,innerHeight-70)?.closest('.connections-picker-host')),overflow:host.scrollWidth>innerWidth};});
@@ -24,19 +24,29 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    }
    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
    await page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(success){success({coords:{latitude:50.0412,longitude:21.9991}});}}}));
-   await page.click('[data-journey-picker] .connections-use-location');await page.waitForFunction(()=>document.querySelector('[data-journey-to]').textContent.includes('Twoja lokalizacja'));
-   await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location:nth-child(2)');
-   await page.waitForSelector('.connections-place-leaflet canvas');
+   await page.keyboard.press('Escape');await page.click('[data-journey-from]');
+   await page.click('[data-journey-picker] .connections-use-location');await page.waitForFunction(()=>document.querySelector('[data-journey-from]').textContent.includes('Twoja lokalizacja'));
+   await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location');
+   await page.waitForSelector('.connections-place-leaflet');
+   assert.equal(await page.$('.connections-place-leaflet canvas'),null,'catalog stops are hidden at the initial distant zoom');
    assert.equal(await page.$('.connections-place-map .leaflet-marker-icon'),null,'map picker has no vehicle or stop bus icons');
    const mapRect=await page.$eval('.connections-place-leaflet',e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};});
    await page.mouse.click(mapRect.x+mapRect.w*.2,mapRect.y+mapRect.h*.35);
    await page.waitForFunction(()=>document.querySelector('.connections-place-confirm strong').textContent==='Punkt na mapie');
+   await page.waitForSelector('.connections-picked-pin .map-stop-pin');
+   assert.equal(await page.$('.connections-place-map .leaflet-marker-icon:not(.connections-picked-pin)'),null);
+   for(const [accent,expectedColor] of [['#8b5cf6','rgb(139, 92, 246)'],['#ff7a00','rgb(255, 122, 0)']]){
+    await page.evaluate(value=>document.documentElement.style.setProperty('--pks-accent',value),accent);
+    const pin=await page.$eval('.connections-picked-pin svg',e=>getComputedStyle(e).color);
+    const selectedAccent=await page.$eval('.connections-picker-host',e=>getComputedStyle(e).getPropertyValue('--cn-accent').trim());
+    assert.equal(pin,expectedColor);assert.equal(selectedAccent,accent);
+   }
    await screenshot('map-picker-point');await page.click('.connections-place-confirm button');
    await page.waitForFunction(()=>document.querySelector('[data-journey-to]').textContent.includes('Punkt na mapie'));
-   await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location:nth-child(2)');await page.waitForSelector('.connections-place-leaflet');
+   await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location');await page.waitForSelector('.connections-place-leaflet');
    await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker] input');assert.equal(await page.$('.connections-place-leaflet'),null);
    await page.keyboard.press('Escape');assert.equal(await page.$('[data-journey-picker]'),null);assert.deepEqual(errors,[]);
-   console.log('PASS: destination location, full picker coverage at 320/393/430px, map point selection, no bus icons and back navigation');return;
+   console.log('PASS: origin-only location, full picker coverage at 320/393/430px, map point selection, no bus icons and back navigation');return;
   }
   if(!process.env.JOURNEY_MAP_ONLY){
   await page.goto(origin,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForFunction(()=>document.querySelector('.connections-primary')&&!document.querySelector('.connections-primary').disabled,{timeout:20000}).catch(async error=>{console.log('Initial screen',await page.$eval('body',e=>e.innerText),'errors',errors,'external',external);await screenshot('failure');throw error;});

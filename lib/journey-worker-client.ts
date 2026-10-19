@@ -1,7 +1,11 @@
 import type {TimetableSearch} from './journey-schedules';
+import {withRequestDeadline} from './request-deadline';
 import type {Journey} from './journey-planner';
 type Result={journeys:Journey[];warnings:string[];limited:boolean};
 export async function runTimetableSearch(input:TimetableSearch,signal:AbortSignal,progress:(n:number,total:number)=>void):Promise<Result>{
+ signal.throwIfAborted();
+ const {prepareTimetableSearch}=await import('./journey-schedules');
+ input=await withRequestDeadline(()=>prepareTimetableSearch(input,progress),signal,26000);
  signal.throwIfAborted();
  const direct=async()=>{const {executeTimetableSearch}=await import('./journey-schedules');const result=await executeTimetableSearch(input,progress);signal.throwIfAborted();return result;};
  if(typeof Worker==='undefined')return direct();

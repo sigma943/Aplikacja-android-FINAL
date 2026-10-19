@@ -55,6 +55,11 @@ if (!fs.existsSync(path.join(outDir, 'index.html'))) {
   throw new Error('Failed to assemble Android web assets: out/index.html is missing.');
 }
 
+for(const provider of ['pks','mpk']){
+  const file=path.join(outDir,'data','journeys',provider+'.json');
+  if(!fs.existsSync(file)||!JSON.parse(fs.readFileSync(file,'utf8')).trips?.length)throw new Error(`Missing Android timetable: ${provider}`);
+}
+
 execFileSync(process.execPath, ['scripts/build-platform-index.cjs'], {stdio:'inherit'});
 
 execFileSync(process.execPath, ['scripts/optimize-provider-png.cjs'], {stdio:'inherit'});
