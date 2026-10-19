@@ -69,6 +69,13 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.waitForFunction(()=>!document.querySelector('.journey-map .leaflet-container').classList.contains('leaflet-grab'));
   const assertFitted=async()=>{await page.waitForFunction(()=>{const root=document.querySelector('.connections-map-modal')||document.querySelector('.journey-map'),map=root.querySelector('.leaflet-container').getBoundingClientRect(),path=root.querySelector('.connections-walking-path').getBoundingClientRect();return path.left>=map.left+15&&path.right<=map.right-15&&path.top>=map.top+15&&path.bottom<=map.bottom-15;});};
   await assertFitted();
+  for(const [accent,color] of [['#8b5cf6','rgb(139, 92, 246)'],['#ff7a00','rgb(255, 122, 0)']]){
+   await page.evaluate(value=>document.documentElement.style.setProperty('--pks-accent',value),accent);
+   assert.equal(await page.$eval('.connections-walk-marker',e=>getComputedStyle(e).color),color,'pedestrian uses the selected accent');
+   assert.equal(await page.$eval('.connections-walk-marker',e=>getComputedStyle(e).backgroundColor),'rgb(255, 255, 255)');
+   await page.click('[aria-label="Powiększ mapę"]');await page.waitForSelector('.connections-map-modal .connections-walk-marker');assert.equal(await page.$eval('.connections-map-modal .connections-walk-marker',e=>getComputedStyle(e).color),color,'accent is preserved in the full-screen portal');await page.keyboard.press('Escape');
+  }
+  await page.evaluate(()=>document.documentElement.style.setProperty('--pks-accent','#00a3a2'));
   assert.ok(await page.evaluate(()=>{const dot=document.querySelector('.connections-stop-point').closest('.leaflet-pane'),route=document.querySelector('.connections-walking-path').closest('.leaflet-pane');return Number(getComputedStyle(dot).zIndex)>Number(getComputedStyle(route).zIndex); }),'stop points stay above asynchronously loaded route strokes');
   for(const [width,height] of [[320,568],[393,851],[430,932]]){
    await page.setViewport({width,height,deviceScaleFactor:1,isMobile:true,hasTouch:true});await assertFitted();
@@ -90,6 +97,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const touch=await page.touchscreen.touchStart(180,300);await touch.move(180,220);await touch.move(180,140);await touch.end();await page.waitForFunction(()=>document.querySelector('.connections-view').scrollTop>40);
   await page.goto(origin+'/?map-case=missing',{waitUntil:'domcontentloaded'});await page.waitForSelector('.connections-map-error');assert.equal(await page.$('.connections-map-status'),null,'invalid coordinates terminate loading');
   await page.click('.connections-map-error button');await page.waitForSelector('.connections-map-error');await page.waitForFunction(()=>!document.querySelector('.connections-map-status'));assert.ok(await page.$('.connections-walking-path'),'a failed leg does not remove the valid route');assert.deepEqual(errors,[]);
+  await page.goto(origin+'/?icons=1',{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-nav-item="journeys"] [data-journey-tab-icon]');await page.screenshot({path:'test/ui-previews/journeys-new-icon.png'});
   console.log(process.env.JOURNEY_MAP_ONLY?'PASS: mobile fullscreen, touch scrolling, rotation, complete route framing, focus restoration and missing-coordinate recovery.':'PASS: shared stop picker, Polish search, full PKS 301 and MPK timetables in a Worker, real map tiles, physical platforms, location and routed walking, recents, desktop/mobile layouts, swap, dark/light mobile layouts, fullscreen map, touch scrolling, rotation, complete route framing, missing-coordinate recovery and offline API independence.');
  }finally{if(android&&browser){const page=(await browser.pages())[0];page.removeAllListeners('request');await page.setViewport(null).catch(()=>{});if(originalUrl)await page.goto(originalUrl,{waitUntil:'domcontentloaded',timeout:15000}).catch(()=>{});browser.disconnect();}else await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -73,19 +73,20 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   neighbors.set(stop.id,result);return result;
  };
  const labels=new Map<string,Label[]>(),onboard=new Map<string,Label[]>(),answers:Journey[]=[];
+ let revision=0;const answerIds=new Set<string>();
  const departure=(l:Label)=>l.legs[0]?.departure??earliest;
  const add=(label:Label)=>{
   if(matchesJourneyPlace(to,label.stop)&&label.legs.length){
    const shift=o.arriveBy&&!label.rides?latest-label.time:0;
    const legs=shift?label.legs.map(leg=>({...leg,departure:leg.departure+shift,arrival:leg.arrival+shift})):label.legs;
    const id=legs.map(l=>`${l.course}:${l.from.id}:${l.to.id}:${l.departure}`).join('|');
-   answers.push({id,legs,departure:legs[0].departure,arrival:label.time+shift,walking:label.walking,transfers:Math.max(0,label.rides-1)});
+   if(!answerIds.has(id)){answerIds.add(id);answers.push({id,legs,departure:legs[0].departure,arrival:label.time+shift,walking:label.walking,transfers:Math.max(0,label.rides-1)});}
    return;
   }
   const key=label.stop.id,list=labels.get(key)||[];
   if(list.some(l=>l.time<=label.time&&l.walking<=label.walking&&l.rides<=label.rides&&(!o.arriveBy||departure(l)>=departure(label))))return;
   const next=list.filter(l=>!(label.time<=l.time&&label.walking<=l.walking&&label.rides<=l.rides&&(!o.arriveBy||departure(label)>=departure(l))));next.push(label);
-  labels.set(key,next);
+  labels.set(key,next);revision++;
  };
  const walk=(label:Label)=>{for(const {stop,meters,minutes} of near(label.stop)){
   if(label.walking+meters>o.walkMeters||label.time+minutes*60000>latest)continue;
@@ -94,8 +95,8 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
  }};
  const origins=stops.filter(s=>matchesJourneyPlace(from,s)&&s.id!==from.id);
  for(const origin of origins.length?origins:[from]){const initial:Label={stop:origin,time:earliest,legs:[],rides:0,walking:0};add(initial);walk(initial);}
- for(const c of [...connections].sort((a,b)=>a.departure-b.departure||a.arrival-b.arrival)){
-  if(c.departure<earliest||c.arrival>latest||!o.providers.includes(c.provider))continue;
+ const process=(c:Connection)=>{
+  if(c.departure<earliest||c.arrival>latest||!o.providers.includes(c.provider))return;
   const continuing=(onboard.get(c.course)||[]).filter(l=>l.stop.id===c.from.id&&l.time<=c.departure);
   const boarding=c.pickup===false?[]:(labels.get(c.from.id)||[]).filter(l=>l.rides<=o.maxTransfers&&l.time+(l.rides?o.transferMinutes*60000:0)<=c.departure&&l.legs.at(-1)?.course!==c.course);
   const next:Label[]=[];
@@ -107,7 +108,23 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
    if(next.some(n=>n.rides<=result.rides&&n.walking<=result.walking&&(!o.arriveBy||departure(n)>=departure(result))))continue;
    next.push(result);if(c.dropoff!==false){add(result);walk(result);}
   }
-  onboard.set(c.course,next);
+  if(c.arrival===c.departure){
+   // Keep the incoming onboard position while resolving this instantaneous
+   // cluster; a no-dropoff stop may have no corresponding platform label.
+   let cluster=onboard.get(c.course)||[];
+   const dominates=(a:Label,b:Label)=>a.stop.id===b.stop.id&&a.time<=b.time&&a.rides<=b.rides&&a.walking<=b.walking&&(!o.arriveBy||departure(a)>=departure(b));
+   for(const label of next){if(cluster.some(old=>dominates(old,label)))continue;cluster=cluster.filter(old=>!dominates(label,old));cluster.push(label);revision++;}
+   onboard.set(c.course,cluster);
+  }else onboard.set(c.course,next);
+ };
+ const ordered=[...connections].sort((a,b)=>a.departure-b.departure||a.arrival-b.arrival);
+ for(let first=0;first<ordered.length;){
+  let end=first+1;while(end<ordered.length&&ordered[end].departure===ordered[first].departure)end++;
+  let zeroEnd=first;while(zeroEnd<end&&ordered[zeroEnd].arrival===ordered[first].departure)zeroEnd++;
+  // Resolve all instantaneous connections at this clock time before advancing.
+  // This also handles GTFS minute rounding and simultaneous carrier departures.
+  if(zeroEnd>first){let previous;do{previous=revision;for(let i=first;i<zeroEnd;i++)process(ordered[i]);}while(revision!==previous);}
+  for(let i=zeroEnd;i<end;i++)process(ordered[i]);first=end;
  }
  const score=(j:Journey)=>o.sort==='transfers'?j.transfers*86400_000+(o.arriveBy?-j.departure:j.arrival):o.sort==='walking'?j.walking*86400_000+(o.arriveBy?-j.departure:j.arrival):o.arriveBy?-j.departure:j.arrival;
  // Keep later departures, but remove worse detours for the very same boarding.

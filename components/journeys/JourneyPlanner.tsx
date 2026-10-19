@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Route,ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,X,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft} from 'lucide-react';
+import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,X,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft} from 'lucide-react';
 import type {Stop} from '@/Panel/src/types';
 import StopList from '@/Panel/src/components/StopList';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
@@ -12,6 +12,7 @@ import {warsawClock,warsawDateIso,warsawTimeMs} from '@/lib/transit-time';
 import {useDialogFocus} from '@/lib/use-dialog-focus';
 import {useAppBack} from '@/lib/use-app-back';
 import dynamic from 'next/dynamic';
+import JourneyIcon from './JourneyIcon';
 import './journeys.css';
 const JourneyMap=dynamic(()=>import('./JourneyMap'),{ssr:false,loading:()=> <p className="connections-hint">Ładowanie mapy…</p>});
 const providers=[['pks','PKS Rzeszów'],['mpk','MPK Rzeszów'],['marcel','Marcel']];
@@ -62,7 +63,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
  const changeOption=(patch:Partial<typeof options>)=>{invalidate();setOptions(value=>({...value,...patch}));};
  return <section className="connections-view" data-panel-theme={dark?'dark':'light'} data-cosmic-canvas aria-label="Połączenia">
   <div className="connections-content">
-   <header className="connections-heading"><span className="connections-emblem"><Route size={24}/></span><div><h1>Połączenia</h1><p>Twoja droga, krok po kroku</p></div></header>
+   <header className="connections-heading"><span className="connections-emblem"><JourneyIcon size={28}/></span><div><h1>Połączenia</h1><p>Twoja droga, krok po kroku</p></div></header>
    <div className="connections-workspace"><aside className="connections-search-column"><div data-cosmic-panel className="connections-card connections-form">
     <div className="connections-route-fields">
      <button data-journey-from className="connections-location" onClick={()=>setPicker('from')}><span className="connections-origin-dot"/><span><small>SKĄD JEDZIESZ?</small><strong>{from?label(from):'Wybierz przystanek początkowy'}</strong></span><ChevronDown size={18}/></button>

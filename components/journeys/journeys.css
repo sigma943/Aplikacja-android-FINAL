@@ -122,7 +122,7 @@
 .connections-use-location strong{display:block;font-size:14px}
 .connections-use-location small{display:block;font-size:11px;line-height:1.5;color:var(--cn-muted);margin-top:4px}
 .connections-leaflet{height:360px;width:100%;isolation:isolate}
-.connections-walk-marker{display:grid!important;place-items:center;background:#fff;color:#172536;border:2px solid #fff;border-radius:50%;box-shadow:0 2px 7px #0006}
+.connections-walk-marker{display:grid!important;place-items:center;background:#fff;color:var(--cn-accent,var(--pks-accent,#00a3a2));border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 11px color-mix(in srgb,currentColor 15%,transparent),0 3px 9px #0003}
 .connections-map-legend{display:flex;align-items:center;flex-wrap:wrap;gap:15px;padding:12px 4px 3px;font-size:10px;color:var(--cn-muted)}
 .connections-map-legend>span{display:flex;align-items:center;gap:6px}
 .connections-map-legend i{width:18px;height:4px;border-radius:3px;display:inline-block}

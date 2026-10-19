@@ -26,11 +26,12 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
    const named=known.filter(s=>String(s.providerStopIds?.marcelCityMatchKeys||'').split(',').includes(identity));
    const candidates=known.map(s=>({stop:s,d:stopDistance(s,{lat:coordinate?.lat,lon:coordinate?.lon} as Stop)})).filter(x=>x.d<35).sort((a,b)=>a.d-b.d);
    const stop=named.length===1?named[0]:candidates.length&&(!candidates[1]||candidates[1].d-candidates[0].d>5)?candidates[0].stop:{id:'journey:marcel:'+course.idKu+':'+index,name:[p.nazMi,p.nazPr].filter(Boolean).join(' '),type:'bus' as const,lat:coordinate?.lat,lon:coordinate?.lon,carriers:[{id:'marcel',name:'Marcel',colorClass:''}],lines:['M'],isFavorite:false};return {stop,time};});
-  for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel'});}
+  for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>=a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel'});}
  }}));return result;
 }
 export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:string,options:JourneyOptions,signal:AbortSignal,progress:(n:number,total:number)=>void){
  const warnings:string[]=[];let extra:Connection[]=[];
+ if(options.providers.includes('marcel')&&![from,to,...catalog].some(s=>String(s.providerStopIds?.marcelRouteIds||'').trim()))warnings.push('Marcel: lista przystanków jest niedostępna. Wyniki mogą nie obejmować tego przewoźnika. Sprawdź połączenie z internetem.');
  if(options.providers.includes('marcel')){
   try{extra=await withRequestDeadline(()=>marcelConnections(from,to,catalog,date,options,signal),signal,12000);}
   catch{signal.throwIfAborted();warnings.push('Marcel: rozkład internetowy jest teraz niedostępny. Wyniki obejmują pozostałych wybranych przewoźników.');}

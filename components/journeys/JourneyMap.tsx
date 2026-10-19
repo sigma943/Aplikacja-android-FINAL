@@ -18,7 +18,7 @@ type Point=[number,number];
 type Geometry={key:string;paths:Record<number,Point[]>;failed:number[]};
 const color=(leg:JourneyLeg)=>getVehicleColor({provider:leg.provider==='mpk'?'mpk_rzeszow':leg.provider as 'pks'|'marcel'});
 const hasCoordinates=(stop:Stop)=>Number.isFinite(stop.lat)&&Number.isFinite(stop.lon);
-const walkSvg='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="m7 21 3-6m6 6-2-9m-6 1 2-5 4 1 3 4 3 1M10 8l-2 5-3 1"/></svg>';
+const walkSvg='<svg width="29" height="29" viewBox="0 0 32 32" aria-hidden="true"><circle cx="20" cy="5.5" r="3.3" fill="currentColor"/><path d="m13 28 3-9 3-8m5 17-5-10m-8 0 3-6 5-1 5 6 4 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boolean;fitVersion:number}){
  const map=useMap();
@@ -96,7 +96,7 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
   }));
   return [...unique.values()];
  },[journey]);
- const walkingIcon=useMemo(()=>L.divIcon({className:'connections-walk-marker',html:walkSvg,iconSize:[36,36],iconAnchor:[18,18]}),[]);
+ const walkingIcon=useMemo(()=>L.divIcon({className:'connections-walk-marker',html:walkSvg,iconSize:[46,46],iconAnchor:[23,23]}),[]);
  const paths=geometry.key===requestKey?geometry.paths:{};
  const failed=geometry.key===requestKey?geometry.failed:[];
  const pending=Object.keys(paths).length+failed.length<journey.legs.length;

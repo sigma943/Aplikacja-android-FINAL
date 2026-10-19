@@ -43,3 +43,16 @@ Ten sam komponent mapy przeszedł dodatkowo powyższe testy mobilne w Android We
 - Kropki przystanków są w osobnej warstwie Leaflet nad trasami, niezależnie od kolejności zakończenia żądań sieciowych. Ikona pieszego i dymki mają własne warstwy. Lista wyboru ma czytelniejsze długie nazwy, strzałki wyboru i wyróżnienie aktywnego wiersza.
 
 Weryfikacja: 20/20 testów planera i regresji. Rzeczywisty rozkład PKS dla Rzeszów D.A. → Gwoźnica Górna SKR 13 daje kurs 108 z dojściem około 50 m o 14:22 zamiast powrotu z pętli; SKR 14 osiągany jest bezpośrednio o 14:21 (wyjazd 13:20). Test przeglądarkowy powtarza wybór SKR 13 i sprawdza jeden autobus z dojściem. Osobne testy obejmują dojście na początku podróży, całkowity limit pieszy, zachowanie autobusu przy zbyt długiej rzeczywistej ścieżce oraz kolejność warstw mapy.
+
+## Ikony i rozszerzona weryfikacja niezawodności
+
+Ikona nagłówka i zakładki Połączenia przedstawia dwie pinezki połączone przerywaną ścieżką. Znacznik pieszego to pełna sylwetka w białym kole z delikatną poświatą; sylwetka i poświata dziedziczą akcent aplikacji. Test interfejsu zmienia akcent na fioletowy i pomarańczowy, także po otwarciu mapy na pełnym ekranie. Sprawdzono ten widok również w Android WebView.
+
+Weryfikacja obejmuje 33 testy najwyższego poziomu:
+
+- 720 konfiguracji na 120 deterministycznych sieciach testowych, porównywanych z niezależnym, wyczerpującym wyliczeniem możliwych kursów i przesiadek. Uwzględniono tryby odjazdu i przyjazdu, trzy sposoby sortowania, filtry przewoźników, 0–2 przesiadki, różne limity chodzenia, zakazy wsiadania/wysiadania i odcinki o zerowym czasie. 489 konfiguracji miało dostępną trasę, w 79 najlepsza trasa łączyła różnych przewoźników; pozostałe poprawnie kończyły się brakiem połączenia.
+- Wszystkie sześć uporządkowanych par PKS/MPK/Marcel oraz sześć kolejności trzech przewoźników, z kontrolą liczby przesiadek i marginesu czasu co do sekundy.
+- Cztery rzeczywiste relacje w obu trybach czasu: PKS → MPK, MPK → PKS, Marcel → MPK i Marcel → PKS. Źródłem są lokalne rozkłady GTFS i zapisany kurs Marcel Jasło–Rzeszów 1181798; jest to osiem zapytań na danych rzeczywistych, bez potwierdzania bieżącej dostępności internetowego API Marcel.
+- Osobna integracja adaptera Marcel z zapisanym kursem i pełnym rozkładem MPK: scalanie indeksu przystanków, pomijanie duplikatów kursów, zachowanie innych przewoźników przy błędzie serwisu, ostrzeżenie o brakującym indeksie, wyłączenie przewoźnika i anulowanie trwającego żądania.
+
+Testy wykryły i zabezpieczyły regresjami dwa przypadki graniczne: kolejność jednoczesnych połączeń oraz odrzucanie przez adapter Marcel odcinków z tą samą minutą przyjazdu i odjazdu. Silnik rozwiązuje teraz grupę takich połączeń przed przejściem do następnej godziny, zachowując pozycję pasażera w autobusie także na przystanku bez wysiadania. Adapter zachowuje odcinki o zerowym czasie. Cykl takich odcinków kończy obliczenia bez nieskończonej pętli.

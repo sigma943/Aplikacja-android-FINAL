@@ -1,9 +1,10 @@
 'use client';
+import JourneyIcon from './journeys/JourneyIcon';
 import CosmicFilterEffects from './CosmicFilterEffects';
 import {NAV_ITEMS,type NavItem} from '@/lib/interface-appearance';
 import type {CSSProperties} from 'react';
 import {motion} from 'motion/react';
-import {Bus,Search,RefreshCw,X,Map as MapIcon,Settings,Shield,Route} from 'lucide-react';
+import {Bus,Search,RefreshCw,X,Map as MapIcon,Settings,Shield} from 'lucide-react';
 export function StopTabIcon({ className = '' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 28 28" fill="none" aria-hidden="true">
@@ -70,7 +71,7 @@ export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,
 
 type NavigationProps={preview?:boolean;order?:readonly NavItem[];activeTab:string;className:string;themeColor:string;isMapTabDisabled?:boolean;isStopsTabDisabled?:boolean;canOpenAdminEmbed?:boolean;onMap:()=>void;onStops:()=>void;onAdmin?:()=>void;onOptions:()=>void;onJourneys?:()=>void};
 export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,className,themeColor,isMapTabDisabled=false,isStopsTabDisabled=false,canOpenAdminEmbed=false,onMap,onStops,onAdmin,onOptions,onJourneys}:NavigationProps){
- const items={journeys:{label:'Połączenia',Icon:Route,disabled:isStopsTabDisabled,onClick:onJourneys},map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
+ const items={journeys:{label:'Połączenia',Icon:JourneyIcon,disabled:isStopsTabDisabled,onClick:onJourneys},map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
  return <div data-navigation-preview={preview||undefined} className={`relative isolate pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${className}`}>
   <svg data-cosmic-nav-stars viewBox="0 0 393 64" preserveAspectRatio="none" aria-hidden="true">
    <g fill="#bfeaff"><path d="M25 5l1.2 3.8L30 10l-3.8 1.2L25 15l-1.2-3.8L20 10l3.8-1.2Z"/><circle cx="163" cy="8" r=".8"/></g>
