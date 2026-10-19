@@ -21,7 +21,8 @@ const server=http.createServer((req,res)=>{
   const page=await browser.newPage();const errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.setRequestInterception(true);
-  page.on('request',request=>request.url().startsWith(origin)?request.continue():request.abort());
+  let fontTestMode='offline';
+  page.on('request',request=>{if(request.url().startsWith('https://fonts.googleapis.com/')&&fontTestMode==='success')return request.respond({status:200,contentType:'text/css',body:'/* font service fixture */',headers:{'access-control-allow-origin':'*'}});return request.url().startsWith(origin)?request.continue():request.abort();});
   await page.evaluateOnNewDocument(expectedOrigin=>{
     if(location.origin!==expectedOrigin)return;
     localStorage.setItem('mks_app_theme',location.pathname.startsWith('/light-dialog-fixture')?'light':'dark-cosmos');
@@ -69,6 +70,22 @@ const server=http.createServer((req,res)=>{
     }
     await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});
     await page.goto(origin+'/startup-home/',{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('.pks-navigation [data-nav-item="journeys"]');
+    await page.click('.pks-navigation [data-nav-item="journeys"]');
+    await page.waitForSelector('.journey-form');
+    for(const width of [320,393]){
+      await page.setViewport({width,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});
+      const bounds=await page.$eval('.journey-view',el=>({width:el.clientWidth,scroll:el.scrollWidth}));
+      assert.ok(bounds.scroll<=bounds.width+1,'journey planner fits '+width+'px');
+      await page.screenshot({path:`test/ui-previews/journeys-${width}.png`});
+    }
+    await button('Szukaj połączeń');
+    assert.ok(await page.$eval('.journey-error',el=>el.textContent.includes('Wybierz przystanek')),'missing stops have a readable error');
+    await button('Preferencje podróży');await page.waitForSelector('.journey-preference-body');
+    await page.screenshot({path:'test/ui-previews/journeys-preferences.png'});
+    await page.$eval('.journey-location',el=>el.click());await page.waitForSelector('.journey-picker');
+    await page.screenshot({path:'test/ui-previews/journeys-stops.png'});
+    await page.keyboard.press('Escape');await page.waitForSelector('.journey-picker',{hidden:true});
     await page.waitForSelector('.pks-navigation [data-nav-item="admin"]');
     await page.click('.pks-navigation [data-nav-item="admin"]');
     await page.waitForSelector('[data-admin-viewport] .admin-topbar');
@@ -106,6 +123,76 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.$eval('#ban-date',el=>el.disabled),false,'temporary ban date remains editable');
       await page.screenshot({path:`test/ui-previews/calendar-ban-${scheme}.png`});
     }
+    await page.goto(origin+'/colors-fonts-fixture/',{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-picker-ready="true"]');
+    const fill=async(selector,text)=>{await page.focus(selector);await page.keyboard.down('Control');await page.keyboard.press('A');await page.keyboard.up('Control');await page.keyboard.press('Backspace');await page.type(selector,text);};
+    for(const width of [320,393])for(const scheme of ['dark','light']){
+      await page.setViewport({width,height:851,deviceScaleFactor:1});
+      if((await page.$eval('[data-picker-ready]',el=>el.dataset.uiTheme==='light'))!==(scheme==='light'))await page.click('[data-picker-theme]');
+      await page.click('[aria-label="Własny kolor akcentu"]');await page.waitForSelector('.color-picker-dialog');
+      await fill('[aria-label="Kod HEX"]','#38BDF8');
+      assert.equal(await page.$eval('[aria-label="Kod RGB"]',el=>el.value),'56, 189, 248');
+      await fill('[aria-label="Kod RGB"]','256, 1, 2');
+      assert.equal(await page.$eval('.color-picker-dialog footer button:last-child',el=>el.disabled),true,'invalid RGB cannot be saved');
+      await fill('[aria-label="Kod RGB"]','56, 189, 248');
+      assert.equal(await page.$eval('[aria-label="Kod HEX"]',el=>el.value),'#38bdf8');
+      const bounds=await page.$eval('.color-picker-dialog',el=>{const r=el.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:innerWidth,height:innerHeight};});
+      assert.ok(bounds.left>=0&&bounds.right<=bounds.width&&bounds.top>=0&&bounds.bottom<=bounds.height,'colour dialog fits '+width+' '+scheme);
+      if(width===393)await page.screenshot({path:`test/ui-previews/color-picker-${scheme}.png`});
+      await button('Zastosuj kolor');await page.waitForSelector('.color-picker-dialog',{hidden:true});
+      assert.equal(await page.$eval('[data-saved-color]',el=>el.textContent),'#38bdf8');
+      await page.click('[aria-label="Własny kolor akcentu"]');await fill('[aria-label="Kod HEX"]','#ff0000');await button('Anuluj');
+      assert.equal(await page.$eval('[data-saved-color]',el=>el.textContent),'#38bdf8','cancel preserves the saved colour');
+    }
+    await page.click('[aria-label="Własny kolor akcentu"]');
+    await page.setViewport({width:320,height:480,deviceScaleFactor:1});await pause();
+    const smallDialog=await page.$eval('.color-picker-dialog',el=>{const r=el.getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:innerHeight};});
+    assert.ok(smallDialog.top>=0&&smallDialog.bottom<=smallDialog.height,'dialog and action footer fit a reduced keyboard-height viewport');
+    await page.keyboard.press('Escape');await page.waitForSelector('.color-picker-dialog',{hidden:true});
+    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+    assert.equal(await page.$$eval('input[type="color"]',els=>els.length),0,'no native colour picker');
+    await page.click('[aria-label="Wybierz krój pisma"]');
+    await page.keyboard.press('Escape');await page.waitForSelector('.personal-font-list',{hidden:true});
+    await page.click('[aria-label="Wybierz krój pisma"]');
+    assert.ok(await page.$$eval('.personal-font-list button',els=>els.length)>=16);
+    await page.screenshot({path:'test/ui-previews/font-list.png'});
+    await fill('[aria-label="Szukaj czcionki"]','Monospace');
+    await page.$eval('.personal-font-list button',el=>el.click());
+    await page.waitForFunction(()=>document.documentElement.dataset.personalFont==='mono');
+    await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('[data-picker-ready="true"]');
+    await page.waitForFunction(()=>document.documentElement.dataset.personalFont==='mono');
+    assert.ok(await page.$eval('.personal-font-sample',el=>getComputedStyle(el).fontFamily.includes('monospace')));
+    await fill('[aria-label="Link do Google Fonts"]','https://example.com/Inter');await button('Zastosuj z linku');
+    assert.ok((await page.$eval('[data-font-import-feedback]',el=>el.textContent)).includes('Nieprawidłowy link'));
+    await fill('[aria-label="Link do Google Fonts"]','https://fonts.google.com/specimen/Inter');await button('Zastosuj z linku');
+    await page.waitForFunction(()=>document.querySelector('[data-font-import-feedback]')?.textContent.includes('Nie udało się pobrać'));
+    assert.equal(await page.$eval('[aria-label="Wybierz krój pisma"]',el=>el.textContent),'Monospace','offline/failed import preserves the selected font');
+    const feedbackColor=await page.$eval('[data-font-import-feedback] p',el=>getComputedStyle(el).color);
+    assert.equal(feedbackColor,'rgb(251, 113, 133)','font import errors are red');
+    await page.$eval('[data-font-import-feedback]',el=>el.scrollIntoView({block:'center'}));
+    await page.screenshot({path:'test/ui-previews/font-import-error.png'});
+    const embed='<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet">';
+    await fill('[aria-label="Link do Google Fonts"]',embed);await button('Zastosuj z linku');
+    assert.ok((await page.$eval('[data-font-import-feedback]',el=>el.textContent)).includes('Wybierz jedną'));
+    assert.equal(await page.$$eval('.personal-font-candidates button',els=>els.length),2);
+    await page.$eval('.personal-font-candidates',el=>el.scrollIntoView({block:'center'}));
+    await page.screenshot({path:'test/ui-previews/font-import-families.png'});
+    await page.$eval('.personal-font-candidates',el=>[...el.querySelectorAll('button')].find(button=>button.textContent==='Space Grotesk').click());
+    // Simulate a successful font service independently of external network availability.
+    fontTestMode='success';await page.evaluate(()=>{document.fonts.load=async()=>[{}];});
+    await button('Zastosuj z linku');
+    await page.waitForFunction(()=>document.querySelector('[data-font-import-feedback]')?.textContent.includes('Zastosowano: Space Grotesk.'));
+    assert.equal(await page.$eval('[data-font-import-feedback] p',el=>getComputedStyle(el).color),'rgb(110, 231, 183)','successful font imports are green');
+    const fontSaved=await page.evaluate(()=>JSON.parse(localStorage.getItem('mks_interface_appearance_v1')));
+    assert.equal(fontSaved.fontFamily,'custom');assert.equal(fontSaved.customFontUrl,'https://fonts.googleapis.com/css2?family=Space+Grotesk&display=swap');
+    assert.ok(await page.$eval('[aria-label="Link do Google Fonts"]',el=>el.value.includes('<link')),'preserve the pasted code so another family remains selectable');
+    await page.$eval('[data-font-import-feedback]',el=>el.scrollIntoView({block:'center'}));
+    await page.screenshot({path:'test/ui-previews/font-import-success.png'});
+    await page.click('[aria-label="Wybierz krój pisma"]');await fill('[aria-label="Szukaj czcionki"]','Monospace');await page.$eval('.personal-font-list button',el=>el.click());
+    await page.waitForSelector('.personal-font-list',{hidden:true});
+    await page.waitForFunction(()=>!history.state?.pksBackGuard);
+    fontTestMode='offline';
+    console.log('Colour editor passed: HEX/RGB synchronization, validation, apply/cancel, dark/light 320/393px. Font list/search/persistence and invalid/offline/multi-family embed imports and green success passed.');
     await page.goto(origin+'/bus-sheet-fixture/',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-map-bus-sheet][data-expanded="true"]');
     await page.evaluate(()=>{document.documentElement.dataset.cosmicTheme='on';});

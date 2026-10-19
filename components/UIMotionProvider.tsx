@@ -1,4 +1,5 @@
 "use client";
+import {interfaceGoogleFont,loadInterfaceGoogleFont} from '@/lib/interface-fonts';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {usePathname} from 'next/navigation';
 import AppBackBridge from './AppBackBridge';
@@ -38,6 +39,7 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
       appliedKey=key;
       cleanupAppearance?.();
       cleanupAppearance=applyInterfaceAppearance(root,value,dark,accent,lightEffects,theme);
+      void loadInterfaceGoogleFont(interfaceGoogleFont(value)).catch(()=>{/* The system font keeps the interface usable offline. */});
       const strength=panelGlowStrength(localStorage.getItem('mks_panel_glow_strength'));
       root.dataset.panelGlow=localStorage.getItem('mks_panel_glow')==='true'&&strength>0?'on':'off';
       const variables=panelGlowVariables(value.glowColor,strength,dark,lightEffects,{style:value.glowStyle,spread:value.glowSpread,placement:value.glowPlacement});

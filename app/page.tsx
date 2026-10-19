@@ -66,6 +66,7 @@ const TransportSelectorPanel=dynamic(loadTransportSelectorCode,{ssr:false});
 const BusDetailsPanel=dynamic(loadBusDetailsCode,{ssr:false});
 const TrainDetailsPanel=dynamic(loadTrainDetailsCode,{ssr:false});
 
+const JourneyPlanner=dynamic(()=>import('@/components/journeys/JourneyPlanner'),{ssr:false,loading:()=> <CosmicTabLoading label="Otwieranie połączeń…"/>});
 const StopsPanel = dynamic(() => import('@/components/stops-panel/StopsPanel'), { ssr: false, loading: () => <CosmicTabLoading/> });
 
 const BusMap = dynamic(loadMapCode, {
@@ -178,13 +179,15 @@ export default function Home() {
   const [interfaceAppearance,setInterfaceAppearance]=useState<InterfaceAppearance>(()=>({...DEFAULT_INTERFACE_APPEARANCE}));
 
   // Stops States
-  const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin'>('map');
+  const [hasOpenedJourneys,setHasOpenedJourneys]=useState(false);
+  const [activeTab, setActiveTab] = useState<'map' | 'stops' | 'admin' | 'journeys'>('map');
   const startScreenApplied=useRef(false);
   const [widgetStop,setWidgetStop]=useState<StopsPanelStop|null>(null);
   useEffect(()=>onWidgetOpen(stop=>{startScreenApplied.current=true;setWidgetStop(stop);setActiveTab('stops');}),[]);
   const [hasOpenedStops, setHasOpenedStops] = useState(false);
   useEffect(() => {
     if (activeTab === 'stops') setHasOpenedStops(true);
+    if(activeTab==='journeys')setHasOpenedJourneys(true);
   }, [activeTab]);
   const canOpenAdminEmbed = Boolean(
     device && canAccessAdminDashboard(device.role, device.permissions),
@@ -202,7 +205,7 @@ export default function Home() {
   useEffect(() => {
     if (activeTab === 'admin' && !canOpenAdminEmbed) setActiveTab('map');
     if (activeTab === 'map' && isMapTabDisabled) setActiveTab('stops');
-    if (activeTab === 'stops' && isStopsTabDisabled) setActiveTab('map');
+    if ((activeTab === 'stops'||activeTab==='journeys') && isStopsTabDisabled) setActiveTab('map');
   }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled]);
   const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, apiLat?: number | null, apiLon?: number | null, lat?: number, lon?: number}[]>([]);
   const [stopsLoadError, setStopsLoadError] = useState(false);
@@ -839,7 +842,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if ((activeTab === 'stops' || selectedBus || selectedStopId || showMapStops) && stopsList.length === 0 && !stopsLoadError) loadStops();
+    if ((activeTab === 'stops' || activeTab === 'journeys' || selectedBus || selectedStopId || showMapStops) && stopsList.length === 0 && !stopsLoadError) loadStops();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedBus?.id, selectedStopId, showMapStops]);
 
@@ -1379,6 +1382,7 @@ export default function Home() {
               </AnimatePresence>
 
             </div>
+         {(hasOpenedJourneys||activeTab==='journeys')&&<div hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
          {/* ============== NEW STOPS VIEW ============== */}
          <motion.div
             key="new-stops-panel"
@@ -1431,10 +1435,12 @@ export default function Home() {
 
       </div>
 
+         {activeTab==='map'&&!isStopsTabDisabled&&<button className="hidden md:flex absolute bottom-6 left-6 z-[1000] journey-desktop-link" onClick={()=>setActiveTab('journeys')}>Połączenia →</button>}
          {/* Bottom Navigation for Mobile */}
       <div className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
          <BottomNavigation order={interfaceAppearance.navOrder} activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
             onMap={()=>{if(!isMapTabDisabled){setActiveTab('map');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);}}}
+            onJourneys={()=>{if(isStopsTabDisabled)return;setActiveTab('journeys');setSelectedBus(null);setSelectedStopId(null);setIsSettingsOpen(false);}}
             onStops={()=>{if(!isStopsTabDisabled){setActiveTab('stops');setSelectedBus(null);}}}
             onAdmin={()=>{if(activeTab!=='admin')adminReturnTab.current=activeTab==='stops'?'stops':'map';setActiveTab('admin');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);setIsSettingsOpen(false);}}
             onOptions={openOptions}/>

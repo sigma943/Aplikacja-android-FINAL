@@ -1,3 +1,4 @@
+import {INTERFACE_FONTS,parseGoogleFontLink,interfaceFontStack} from './interface-fonts';
 import {normalizeUiAccent} from './ui-accent';
 import {withAlpha} from './home/vehicle-display';
 export function vehicleHeaderStyle(color:string,glass:boolean,isDark=true){
@@ -20,7 +21,7 @@ export interface InterfaceAppearance {
   glassOpacity:number; glassBlur:number; glassBlurEnabled:boolean; glassSaturation:number;
   surfaceTint:'original'|'accent'|'warm'|'custom';
   panelColor:string; panelTintStrength:number; cardStyle:'original'|'soft'|'outlined'|'flat'; buttonStyle:'original'|'solid'|'outline';
-  textScale:number; fontFamily:'system'|'sans'|'mono'; titleWeight:number;
+  textScale:number; fontFamily:string; customFontUrl:string; titleWeight:number;
   letterSpacing:number; tabularNumbers:boolean;
   density:'comfortable'|'compact'|'spacious';
   iconSize:number; iconStroke:number; navLabels:boolean;
@@ -35,7 +36,7 @@ export const DEFAULT_INTERFACE_APPEARANCE:InterfaceAppearance={
   startScreen:'map',navOrder:[...NAV_ITEMS],departureView:'detailed',markerSize:100,markerLabel:'line',
   panelRadius:24,cardRadius:20,controlRadius:12,borderStrength:12,shadowStrength:30,
   glassOpacity:64,glassBlur:18,glassBlurEnabled:true,glassSaturation:135,surfaceTint:'original',panelColor:'#64748b',panelTintStrength:35,cardStyle:'original',buttonStyle:'original',
-  textScale:100,fontFamily:'system',titleWeight:700,letterSpacing:0,tabularNumbers:true,
+  textScale:100,fontFamily:'system',customFontUrl:'',titleWeight:700,letterSpacing:0,tabularNumbers:true,
   density:'comfortable',iconSize:24,iconStroke:2,navLabels:true,navIndicator:'line',inactiveOpacity:100,
   reducedMotion:false,hoverHighlight:true,navLayout:'stacked',panelPattern:'none',patternStrength:12,textContrast:'standard',
   glowStyle:'mixed',glowColor:'#00a3a2',glowSpread:75,glowPlacement:'corners',
@@ -55,7 +56,7 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
     borderStrength:n('borderStrength',0,40),shadowStrength:n('shadowStrength',0,100),
     glassOpacity:n('glassOpacity',20,100),glassBlur:n('glassBlur',0,28),glassBlurEnabled:flag('glassBlurEnabled'),glassSaturation:135,
     surfaceTint:choice('surfaceTint',['original','accent','warm','custom']),panelColor:normalizeUiAccent(typeof v.panelColor==='string'?v.panelColor:d.panelColor),panelTintStrength:n('panelTintStrength',5,55),cardStyle:choice('cardStyle',['original','soft','outlined','flat']),buttonStyle:choice('buttonStyle',['original','solid','outline']),textScale:n('textScale',90,120),
-    fontFamily:choice('fontFamily',['system','sans','mono']),titleWeight:n('titleWeight',500,800),letterSpacing:0,tabularNumbers:true,
+    fontFamily:v.fontFamily==='custom'&&parseGoogleFontLink(v.customFontUrl)?'custom':choice('fontFamily',INTERFACE_FONTS.map(font=>font.id)),customFontUrl:parseGoogleFontLink(v.customFontUrl)?.url||'',titleWeight:n('titleWeight',500,800),letterSpacing:0,tabularNumbers:true,
     density:choice('density',['comfortable','compact','spacious']),iconSize:n('iconSize',18,30),iconStroke:n('iconStroke',1,3),
     navLabels:flag('navLabels'),navIndicator:choice('navIndicator',['line','pill','halo','block','none']),inactiveOpacity:100,
     navLayout:choice('navLayout',['stacked','inline']),panelPattern:choice('panelPattern',['none','grid','dots','diagonal']),patternStrength:n('patternStrength',5,30),textContrast:choice('textContrast',['standard','strong']),
@@ -87,7 +88,7 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
     '--personal-surface':`rgb(${bg.join(',')})`,
     '--personal-blur':`${v.glassBlurEnabled?Math.min(v.glassBlur,lightEffects?6:28):0}px`,'--personal-saturation':`${v.glassSaturation}%`,
     '--personal-title-weight':`${v.titleWeight}`,'--personal-letter-spacing':`${v.letterSpacing}px`,
-    '--personal-font':v.fontFamily==='mono'?'ui-monospace, SFMono-Regular, Consolas, monospace':v.fontFamily==='sans'?'Arial, Helvetica, sans-serif':'system-ui, sans-serif',
+    '--personal-font':interfaceFontStack(v),
     '--personal-icon-size':`${v.iconSize}px`,'--personal-icon-stroke':`${v.iconStroke}`,'--personal-inactive-opacity':`${v.inactiveOpacity/100}`,
     '--personal-marker-scale':String(v.markerSize/100),
     '--personal-nav-map':String(v.navOrder.indexOf('map')),'--personal-nav-stops':String(v.navOrder.indexOf('stops')),'--personal-nav-admin':String(v.navOrder.indexOf('admin')),'--personal-nav-options':String(v.navOrder.indexOf('options')),

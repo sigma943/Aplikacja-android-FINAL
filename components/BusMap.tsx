@@ -7,8 +7,8 @@ import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {loadStopPlatforms} from '@/lib/stop-platform-position';
 
 import {memo, startTransition, useEffect, useState, useRef, useCallback, useMemo} from 'react';
-import {MapContainer, TileLayer, Polyline, ZoomControl, Pane} from 'react-leaflet';
-import L from 'leaflet';
+import {MapContainer, TileLayer, ZoomControl, Pane} from 'react-leaflet';
+import RouteLines from './map/RouteLines';
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
 import type {Stop} from '@/Panel/src/types';
 import {canonicalMapStopId, mapStopColor} from '@/lib/map-stop-markers';
@@ -161,8 +161,6 @@ function BusMap({
     }
     return next;
   }, [routeStopIds, routeStopsData]);
-  // Paint only road geometry. Stop-to-stop chords can cut across buildings and fields.
-  const paintedRoute = snappedRoute;
   // Selected details contain punctuality before the background fleet cache warms.
   const markerVehicles = useMemo(() => vehicles.map(vehicle =>
     selectedVehicle?.provider === vehicle.provider && selectedVehicle?.id === vehicle.id &&
@@ -176,9 +174,6 @@ function BusMap({
   const selectedStopColor = selectedVehicle?.provider === 'pkp_intercity' ? themeColor
     : selectedVehicle ? selectedRouteColor
     : highlightedStop ? mapStopColor({name: highlightedStop.n}) : themeColor;
-  const routeHaloOpts = useMemo<L.PolylineOptions>(() => ({ pane: 'routeLinePane', color: '#f8fafc', weight: 11, opacity: 0.5, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), []);
-  const routeGlowOpts = useMemo<L.PolylineOptions>(() => ({ pane: 'routeLinePane', color: '#020617', weight: 7.5, opacity: 0.58, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), []);
-  const routePolylineOpts = useMemo<L.PolylineOptions>(() => ({ className: 'mks-route-line', pane: 'routeLinePane', color: selectedRouteColor, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round', noClip: false, smoothFactor: 0 }), [selectedRouteColor]);
   const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
   const routeDirection = normalizeRouteCachePart(
     selectedVehicle?.direction ||
@@ -191,6 +186,8 @@ function BusMap({
   const routeKey = selectedVehicle
     ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops)
     : '';
+  const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}`:'';
+  const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
 
   useEffect(() => {
     activeRouteRequestIdRef.current += 1;
@@ -243,11 +240,12 @@ function BusMap({
         return;
       }
 
-      const officialRoute = routeMode === 'road'
+      const loadBundledRoute = async()=>routeMode === 'road'
         ? selectedVehicle.provider==='marcel'
-          ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon]))
+          ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon])).catch(()=>[])
           : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon])).catch(()=>[])
         : [];
+      const officialRoute=await loadBundledRoute();
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       if (officialRoute.length > 1) {
         const refinedOfficialRoute = simplifyRouteForPaint(cleanRoadJunctionLoops(correctPksStationJunction(correctMarcelNiebylecRoute(officialRoute,selectedVehicle.provider),selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])));
@@ -258,7 +256,11 @@ function BusMap({
         return;
       }
 
-      const response = await loadRouteWithRetry(() => fetchRouteGeometryClient({
+      const response = await loadRouteWithRetry(async() => {
+        // A temporary local asset read failure must not permanently lock us into remote routing.
+        const recovered=await loadBundledRoute();
+        if(recovered.length>1)return {geometry:{type:'LineString' as const,coordinates:recovered.map(([lat,lon])=>[lon,lat] as [number,number])},cacheKey:''};
+        return fetchRouteGeometryClient({
         carrier: selectedVehicle.provider || 'pks',
         line: selectedVehicle.routeShortName || selectedVehicle.routeId || selectedVehicle.name || 'unknown',
         direction: selectedVehicle.direction || routeGeometryStops[routeGeometryStops.length - 1]?.name || 'unknown',
@@ -273,7 +275,7 @@ function BusMap({
         dataVersion: routeGeometryVersion,
         mode: routeMode,
         stops: routeGeometryStops,
-      }, { signal: controller.signal }), controller.signal, [1000, 3000, 10000, 30000], {
+      }, { signal: controller.signal });}, controller.signal, [1000, 3000, 10000, 30000], {
         keepRetrying: true,
         isUsable: response => (response.geometry?.coordinates || [])
           .filter(([lon, lat]) => Number.isFinite(lat) && Number.isFinite(lon)).length > 1,
@@ -415,13 +417,7 @@ function BusMap({
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
-          {paintedRoute.length > 1 && (
-            <>
-              <Polyline pane="routeLinePane" key={`route-halo-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeHaloOpts} />
-              <Polyline pane="routeLinePane" key={`route-glow-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routeGlowOpts} />
-              <Polyline pane="routeLinePane" key={`route-line-${selectedVehicleId}-${routeKey}`} positions={paintedRoute} pathOptions={routePolylineOpts} />
-            </>
-          )}
+          <RouteLines positions={currentGeometry} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
         </Pane>
 
         {/* Draw Route Stops */}

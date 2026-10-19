@@ -1,4 +1,6 @@
 'use client';
+import ColorPicker from './ColorPicker';
+import FontPicker from './FontPicker';
 import {useState,type ReactNode,type CSSProperties} from 'react';
 import {Palette,Shapes,Layers,Sun,Type,Navigation,SlidersHorizontal,Compass,RotateCcw,Check} from 'lucide-react';
 import {DEFAULT_INTERFACE_APPEARANCE,type InterfaceAppearance} from '@/lib/interface-appearance';
@@ -38,7 +40,7 @@ export default function InterfacePersonalization(p:Props){
   };
   const colorPicker=(label:string,color:string,onChange:(value:string)=>void,customLabel:string,inputLabel:string,prefix:string)=><>
     <fieldset className="personal-field"><legend>{label}</legend><div className="grid grid-cols-4 gap-2">{accents.map(([name,next])=><button type="button" key={name} aria-label={`${prefix}: ${({'Turkus':'Turkusowy','Fiolet':'Fioletowy','Róż':'Różowy','Bursztyn':'Bursztynowy'} as Record<string,string>)[name]||name}`} aria-pressed={color.toLowerCase()===next} onClick={()=>onChange(next)} className={`${selected(color.toLowerCase()===next)} flex flex-col items-center gap-2`}><span className="flex h-6 w-6 items-center justify-center rounded-full" style={{background:next}}>{color.toLowerCase()===next&&<Check size={14} style={{color:name==='Bursztyn'?'#172536':'white'}}/>}</span><span className="text-[10px]">{name}</span></button>)}</div></fieldset>
-    <label className="personal-color"><span>{customLabel}</span><span className="ml-auto font-mono text-[10px] opacity-60">{color.toUpperCase()}</span><input aria-label={inputLabel} type="color" value={color} onChange={e=>onChange(e.target.value)}/></label>
+    <ColorPicker label={customLabel} ariaLabel={inputLabel} value={color} onChange={onChange} dark={dark}/>
   </>;
   return <div data-personalization-panel className="personal-editor">
     <InterfacePreview canOpenAdminEmbed={p.canOpenAdminEmbed} navOrder={v.navOrder} chrome={p.chrome} accent={p.accent} glass={p.glass} dark={dark}/>
@@ -55,7 +57,7 @@ export default function InterfacePersonalization(p:Props){
       <div className="grid grid-cols-3 gap-2">{[['system','Systemowy'],['light','Jasny'],['light-warm','Piaskowy'],['dark','Ciemny'],['dark-oled','AMOLED'],['dark-cosmos','Kosmos'],['light-pink','Różowy'],['dark-forest','Leśny'],['light-sky','Niebo']].map(([key,name])=><button type="button" key={key} aria-pressed={p.theme===key} className={selected(p.theme===key)} onClick={()=>{if(key==='dark-forest'||key==='light-sky'||key==='dark-cosmos'){preset(INTERFACE_PRESETS.find(next=>next.theme===key)!);return;}p.setTheme(key);if(key==='light-pink')p.setAccent('#c02674');}}>{name}</button>)}</div>
       {colorPicker('Kolor akcentu',p.accent,p.setAccent,'Własny kolor akcentu','Własny akcent interfejsu','Kolor akcentu')}
       {choices('surfaceTint','Zabarwienie paneli',[['original','Według motywu'],['accent','Akcent'],['warm','Ciepłe'],['custom','Własne']])}
-      {v.surfaceTint==='custom'&&<label className="personal-color"><span>Kolor tła paneli</span><input aria-label="Kolor tła paneli" type="color" value={v.panelColor} onChange={e=>set('panelColor',e.target.value)}/></label>}
+      {v.surfaceTint==='custom'&&<ColorPicker label="Kolor tła paneli" value={v.panelColor} onChange={color=>set('panelColor',color)} dark={dark}/>}
       {v.surfaceTint!=='original'&&slider('panelTintStrength','Siła zabarwienia paneli',5,55,5,'%')}
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
@@ -73,7 +75,7 @@ export default function InterfacePersonalization(p:Props){
       {slider('glowSpread','Rozproszenie plam',40,100,5,'%')}{choices('glowPlacement','Rozmieszczenie',[['corners','W rogach'],['center','Centralnie'],['diagonal','Po przekątnej']])}
       </>}
     </>,'miękka poświata siła kolor grafit plamy rozproszenie rozmieszczenie')}
-    {group('text','Tekst i czytelność','Rozmiar, krój i wyróżnienie tytułów',<Type size={19}/>,<>{slider('textScale','Wielkość tekstu interfejsu',90,120,5,'%')}{choices('fontFamily','Krój pisma',[['system','Systemowy'],['sans','Klasyczny'],['mono','Monospace']])}{slider('titleWeight','Grubość nagłówków',500,800,100)}{choices('textContrast','Kontrast tekstu',[['standard','Standardowy'],['strong','Mocniejszy']])}</>,'wielkość tekstu interfejsu krój pisma grubość nagłówków litery cyfry kontrast mocniejszy')}
+    {group('text','Tekst i czytelność','Rozmiar, krój i wyróżnienie tytułów',<Type size={19}/>,<>{slider('textScale','Wielkość tekstu interfejsu',90,120,5,'%')}<FontPicker value={v} onChange={(fontFamily,customFontUrl)=>p.onChange({...v,fontFamily,customFontUrl})}/>{slider('titleWeight','Grubość nagłówków',500,800,100)}{choices('textContrast','Kontrast tekstu',[['standard','Standardowy'],['strong','Mocniejszy']])}</>,'wielkość tekstu interfejsu krój pisma czcionka czcionki google fonts link grubość nagłówków litery cyfry kontrast mocniejszy')}
     {group('nav','Nawigacja i ikony','Etykiety, ikony i aktywna zakładka',<Navigation size={19}/>,<>{choices('navLayout','Układ nawigacji',[['stacked','Podpis pod ikoną'],['inline','Podpis obok ikony']])}{slider('iconSize','Rozmiar ikon nawigacji',18,30,2,' px')}{slider('iconStroke','Grubość ikon',1,3,.25)}{toggle('Podpisy pod ikonami',v.navLabels,on=>set('navLabels',on))}{choices('navIndicator','Aktywna zakładka',[['line','Linia'],['pill','Miękkie tło'],['halo','Poświata ikony'],['block','Pełny akcent'],['none','Sam kolor']])}</>,'rozmiar ikon nawigacji grubość podpisy aktywna zakładka widoczność układ obok poświata pełny akcent')}
     {group('comfort','Układ i komfort','Odstępy i animacje',<SlidersHorizontal size={19}/>,<>{choices('density','Odstępy w kartach',[['compact','Mniejsze'],['comfortable','Standardowe'],['spacious','Większe']])}{toggle('Ogranicz animacje',v.reducedMotion,on=>set('reducedMotion',on))}</>,'odstępy karty animacje ruch wyróżnienie lżejsze efekty')}
     {group('daily','Nawigacja i profile','Zestawy, nawigacja, mapa i harmonogram',<Compass size={19}/>,<PersonalizationTools canOpenAdminEmbed={p.canOpenAdminEmbed} value={v} onChange={p.onChange} theme={p.theme} accent={p.accent} glass={p.glass} glow={p.glow} glowStrength={p.glowStrength}/>,'własne zestawy profile ekran startowy admin kolejność zakładek odjazdy proste szczegółowe znaczniki mapa dzień noc harmonogram godziny')}

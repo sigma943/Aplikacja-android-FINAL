@@ -1,0 +1,261 @@
+{
+  "capturedAt": "2026-10-19 07:41:50",
+  "line": "314",
+  "vehicleId": "102",
+  "tripId": "4253",
+  "direction": "Rzeszów D.A.",
+  "stops": [
+    {
+      "id": 2206,
+      "name": "KORCZOWISKA",
+      "lat": 50.297527,
+      "lon": 22.067926
+    },
+    {
+      "id": 2207,
+      "name": "KORCZOWISKA, LAS",
+      "lat": 50.297028,
+      "lon": 22.05222
+    },
+    {
+      "id": 2258,
+      "name": "TURKA, PÓLKO",
+      "lat": 50.287894,
+      "lon": 22.049274
+    },
+    {
+      "id": 2256,
+      "name": "POSUCHY, KĄTY",
+      "lat": 50.280316,
+      "lon": 22.034971
+    },
+    {
+      "id": 9072,
+      "name": "ZIELONKA",
+      "lat": 50.257836,
+      "lon": 22.030347
+    },
+    {
+      "id": 2209,
+      "name": "MAZURY, ZAWADA",
+      "lat": 50.261745,
+      "lon": 22.047197
+    },
+    {
+      "id": 2212,
+      "name": "MAZURY",
+      "lat": 50.263843,
+      "lon": 22.062814
+    },
+    {
+      "id": 2210,
+      "name": "MAZURY, ZAWADA",
+      "lat": 50.261853,
+      "lon": 22.047044
+    },
+    {
+      "id": 9071,
+      "name": "ZIELONKA",
+      "lat": 50.258513,
+      "lon": 22.028134
+    },
+    {
+      "id": 9070,
+      "name": "STANISZEWSKIE",
+      "lat": 50.258213,
+      "lon": 22.011834
+    },
+    {
+      "id": 9109,
+      "name": "RANIŻÓW, PORĄBKI",
+      "lat": 50.258486,
+      "lon": 21.999123
+    },
+    {
+      "id": 9068,
+      "name": "RANIŻÓW, SKR",
+      "lat": 50.259381,
+      "lon": 21.984512
+    },
+    {
+      "id": 2222,
+      "name": "RANIŻÓW",
+      "lat": 50.258641,
+      "lon": 21.972147
+    },
+    {
+      "id": 1534,
+      "name": "POGWIZDÓW STARY",
+      "lat": 50.240365,
+      "lon": 21.967097
+    },
+    {
+      "id": 5860,
+      "name": "PRZEWROTNE, GÓRKA",
+      "lat": 50.221468,
+      "lon": 21.954308
+    },
+    {
+      "id": 1541,
+      "name": "PRZEWROTNE, SKRZ.",
+      "lat": 50.213381,
+      "lon": 21.949883
+    },
+    {
+      "id": 1553,
+      "name": "PRZEWROTNE, LAS",
+      "lat": 50.199869,
+      "lon": 21.945949
+    },
+    {
+      "id": 1574,
+      "name": "GŁOGÓW MŁP., STYKOWSKA SKRZYŻOWANIE",
+      "lat": 50.191759,
+      "lon": 21.945578
+    },
+    {
+      "id": 1564,
+      "name": "GŁOGÓW MŁP., STYKOWSKA SZKOŁA",
+      "lat": 50.185479,
+      "lon": 21.949084
+    },
+    {
+      "id": 1570,
+      "name": "GŁOGÓW MŁP.,  STYKOWSKA OSIEDLE",
+      "lat": 50.178116,
+      "lon": 21.949757
+    },
+    {
+      "id": 3957,
+      "name": "GŁOGÓW MŁP. WYGODA",
+      "lat": 50.169773,
+      "lon": 21.955908
+    },
+    {
+      "id": 3948,
+      "name": "GŁOGÓW MŁP., SIKORSKIEGO I/II",
+      "lat": 50.16313,
+      "lon": 21.957868
+    },
+    {
+      "id": 3931,
+      "name": "GŁOGÓW MŁP. UL 3 MAJA - RYNEK",
+      "lat": 50.151207,
+      "lon": 21.962172
+    },
+    {
+      "id": 7205,
+      "name": "GŁOGÓW MŁP., CENT.PRZESIADKOWE",
+      "lat": 50.149137,
+      "lon": 21.9579
+    },
+    {
+      "id": 5504,
+      "name": "GŁOGÓW MŁP., PIŁSUD. I/II",
+      "lat": 50.14398,
+      "lon": 21.970082
+    },
+    {
+      "id": 5507,
+      "name": "GŁOGÓW MŁP., JPII KOSCIÓŁ I/II",
+      "lat": 50.140513,
+      "lon": 21.972707
+    },
+    {
+      "id": 5514,
+      "name": "GŁOGÓW MŁP., JPII STOKROTKA",
+      "lat": 50.137145,
+      "lon": 21.966535
+    },
+    {
+      "id": 5518,
+      "name": "GŁOGÓW MŁP. OBWODNICA/NIWA",
+      "lat": 50.13627,
+      "lon": 21.965295
+    },
+    {
+      "id": 3936,
+      "name": "GŁOGÓW MŁP., BÓR",
+      "lat": 50.127541,
+      "lon": 21.968129
+    },
+    {
+      "id": 8711,
+      "name": "GŁOGÓW MŁP.,WIADUKT",
+      "lat": 50.113778,
+      "lon": 21.973091
+    },
+    {
+      "id": 9372,
+      "name": "RUDNA MAŁA, SZPITAL",
+      "lat": 50.10205,
+      "lon": 21.97756
+    },
+    {
+      "id": 9327,
+      "name": "ZACZERNIE",
+      "lat": 50.09485,
+      "lon": 21.98019
+    },
+    {
+      "id": 8101,
+      "name": "RZESZÓW, WARSZAWSKA GRANICA ",
+      "lat": 50.08716,
+      "lon": 21.98309
+    },
+    {
+      "id": 9328,
+      "name": "ZACZERNIE-MIŁOCIN",
+      "lat": 50.0806,
+      "lon": 21.98548
+    },
+    {
+      "id": 6985,
+      "name": "RZESZÓW, WARSZAW.PKP/ŁOWIECKA",
+      "lat": 50.07486,
+      "lon": 21.98768
+    },
+    {
+      "id": 5265,
+      "name": "RZESZÓW, WARSZAWSKA/BOROWA",
+      "lat": 50.06769,
+      "lon": 21.99057
+    },
+    {
+      "id": 5269,
+      "name": "RZESZÓW, WARSZAW./STAR. ",
+      "lat": 50.05993,
+      "lon": 21.99377
+    },
+    {
+      "id": 3831,
+      "name": "RZESZÓW, WARSZAWSKA ZSS ",
+      "lat": 50.054015,
+      "lon": 21.996233
+    },
+    {
+      "id": 5273,
+      "name": "RZESZÓW, WARSZ. ZS.SPOŻ. ",
+      "lat": 50.05016,
+      "lon": 21.99783
+    },
+    {
+      "id": 11126,
+      "name": "RZESZÓW, MARSZAŁKOWSKA 03",
+      "lat": 50.047248,
+      "lon": 21.999312
+    },
+    {
+      "id": 11449,
+      "name": "RZESZÓW, PIŁSUDSKIEGO/TOWARN..",
+      "lat": 50.042131,
+      "lon": 21.996955
+    },
+    {
+      "id": 3731,
+      "name": "RZESZÓW  D.A.",
+      "lat": 50.042104,
+      "lon": 22.002738
+    }
+  ]
+}
