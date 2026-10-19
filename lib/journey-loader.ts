@@ -5,7 +5,9 @@ import {runTimetableSearch} from './journey-worker-client';
 import {stopDistance,type JourneyOptions} from './journey-planner';
 import type {Connection} from './journey-timetable';
 import {fetchMarcelCoursesClient,fetchMarcelPublicCourseStopsClient} from './pks-client';
-import {warsawTimeMs} from './transit-time';
+import {fetchVehiclesClient} from './pks-client';
+import type {TransportProviderId} from './transport/types';
+import {warsawDateIso,warsawTimeMs} from './transit-time';
 import {withRequestDeadline} from './request-deadline';
 import {readBusCoordinates} from './bus-coordinates';
 import {marcelCourseStopIndexKey} from '@/components/stops-panel/stop-domain';
@@ -36,8 +38,13 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
   try{extra=await withRequestDeadline(()=>marcelConnections(from,to,catalog,date,options,signal),signal,12000);}
   catch{signal.throwIfAborted();warnings.push('Marcel: rozkład internetowy jest teraz niedostępny. Wyniki obejmują pozostałych wybranych przewoźników.');}
  }
+ let vehicles:Awaited<ReturnType<typeof fetchVehiclesClient>>=[];
+ if(date===warsawDateIso()){
+  try{vehicles=await withRequestDeadline(liveSignal=>fetchVehiclesClient(false,options.providers.map(p=>p==='mpk'?'mpk_rzeszow':p) as TransportProviderId[],{signal:liveSignal}),signal,4500);}
+  catch{signal.throwIfAborted();warnings.push('Dane o opóźnieniach są niedostępne. Pokazujemy godziny rozkładowe.');}
+ }
  const walking=from.id===LOCATION_ID?journeyWalkingRoute(from,to).catch(()=>null):Promise.resolve(null);
- const result=await runTimetableSearch({from,to,catalog,date,options,extra,warnings},signal,progress);
+ const result=await runTimetableSearch({from,to,catalog,date,options,extra,warnings,vehicles,observedAt:Date.now()},signal,progress);
  const estimatedWalking=result.journeys.some(j=>j.legs.every(l=>l.walking!==undefined));
  const foot=await (from.id===LOCATION_ID?walking:estimatedWalking?journeyWalkingRoute(from,to).catch(()=>null):Promise.resolve(null));signal.throwIfAborted();
  if(foot){result.journeys=result.journeys.filter(j=>!j.legs.every(l=>l.walking!==undefined));}

@@ -139,7 +139,7 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
   <div className="connections-map-toolbar"><strong>Mapa podróży</strong><button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
   {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
-   <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journey.legs[0].from.name} → {journey.legs.at(-1)!.to.name}</small></div><button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/><span>Zamknij</span></button></header>
+   <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journey.legs[0].from.name} → {journey.legs.at(-1)!.to.name}</small></div><button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
    {mapContent}
   </section>,document.body)}
  </div>;

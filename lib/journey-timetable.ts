@@ -6,14 +6,14 @@ import {warsawTimeMs} from './transit-time';
 export type TimetableFeed={version:number;provider:string;validFrom:string;validUntil:string;stops:Record<string,{name:string;lat:number;lon:number}>;
  calendars:Record<string,{start:string;end:string;days:string}>;exceptions:Record<string,Record<string,number>>;
  patterns:Array<Array<[string,number,number,number,number]>>;trips:Array<[string,string,string,number,number]>};
-export type Connection={from:Stop;to:Stop;departure:number;arrival:number;course:string;line:string;provider:string;pickup?:boolean;dropoff?:boolean};
+export type Connection={from:Stop;to:Stop;departure:number;arrival:number;course:string;line:string;provider:string;pickup?:boolean;dropoff?:boolean;delaySeconds?:number;scheduledDeparture?:number;scheduledArrival?:number};
 const carrier=(id:string)=>({id,name:id==='pks'?'PKS Rzeszów':id==='mpk'?'MPK Rzeszów':'Marcel',colorClass:''});
 export function serviceRuns(feed:TimetableFeed,id:string,date:string){
  const day=date.replaceAll('-',''),exception=feed.exceptions[day]?.[id];if(exception)return exception===1;
  const c=feed.calendars[id],weekday=(new Date(date+'T12:00:00Z').getUTCDay()+6)%7;
  return Boolean(c&&c.start<=day&&c.end>=day&&c.days[weekday]==='1');
 }
-export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,options:JourneyOptions):Connection[]{
+export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,options:JourneyOptions,delayWindow=0):Connection[]{
  const provider=feed.provider,namespace=provider==='mpk'?'mpk_rzeszow':provider;
  const exact=new Map<string,Stop>();for(const stop of catalog)for(const id of String(stop.providerStopIds?.[namespace]||'').split(',').filter(Boolean)){
   // PKS technical IDs differ from GTFS. Only explicitly stored GTFS IDs are exact.
@@ -35,7 +35,7 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
   const match=closest&&(!candidates[1]||candidates[1].distance-closest.distance>5)?closest.stop:undefined;
   mapped.set(id,match||{...point,id:`journey:${provider}:${id}`,type:'bus',carriers:[carrier(provider)],lines:[],isFavorite:false,sourceProviderIds:[namespace],providerStopIds:{[namespace]:id}});
  }
- const earliest=options.arriveBy?options.at-6*3600_000:options.at,latest=options.arriveBy?options.at:options.at+6*3600_000;
+ const earliest=(options.arriveBy?options.at-6*3600_000:options.at)-delayWindow,latest=(options.arriveBy?options.at:options.at+6*3600_000)+delayWindow;
  const connections:Connection[]=[];
  for(const delta of [-1,0,1]){
   const day=new Date(date+'T12:00:00Z');day.setUTCDate(day.getUTCDate()+delta);const serviceDate=day.toISOString().slice(0,10);
@@ -103,7 +103,10 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   for(const label of [...continuing,...boarding]){
    const same=continuing.includes(label);let path=label.legs;
    if(!label.rides&&path.length){const old=path[0];path=[{...old,departure:c.departure-(old.arrival-old.departure),arrival:c.departure}];}
-   const ride:JourneyLeg=same?{...path.at(-1)!,to:c.to,arrival:c.arrival}:{from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,provider:c.provider,course:c.course};
+   const startCall={stop:c.from,arrival:c.departure,departure:c.departure,scheduledArrival:c.scheduledDeparture,scheduledDeparture:c.scheduledDeparture};
+   const endCall={stop:c.to,arrival:c.arrival,departure:c.arrival,scheduledArrival:c.scheduledArrival,scheduledDeparture:c.scheduledArrival};
+   const calls=same?[...(path.at(-1)!.stops||[]).slice(0,-1),{...path.at(-1)!.stops!.at(-1)!,departure:c.departure,scheduledDeparture:c.scheduledDeparture},endCall]:[startCall,endCall];
+   const ride:JourneyLeg=same?{...path.at(-1)!,to:c.to,arrival:c.arrival,scheduledArrival:c.scheduledArrival,stops:calls}:{from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,provider:c.provider,course:c.course,stops:calls,delaySeconds:c.delaySeconds,scheduledDeparture:c.scheduledDeparture,scheduledArrival:c.scheduledArrival};
    const result:Label={stop:c.to,time:c.arrival,legs:same?[...path.slice(0,-1),ride]:[...path,ride],rides:label.rides+(same?0:1),walking:label.walking};
    if(next.some(n=>n.rides<=result.rides&&n.walking<=result.walking&&(!o.arriveBy||departure(n)>=departure(result))))continue;
    next.push(result);if(c.dropoff!==false){add(result);walk(result);}

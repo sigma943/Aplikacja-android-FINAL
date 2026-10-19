@@ -190,3 +190,41 @@
 .connections-picker>header{padding-bottom:12px;border-bottom:1px solid var(--cn-edge)}
 .connections-picker-list [data-stop-list-scroll]{scrollbar-width:thin;scrollbar-color:var(--cn-edge) transparent}
 @media(min-width:768px){.connections-picker [data-stop-card-id]{padding:14px 16px}.connections-picker .connections-use-location{margin-inline:22px}}
+/* Compact journey picker, with an inset border that survives surface masks. */
+.connections-picker .connections-use-location{margin:10px 14px 0;padding:9px 12px;gap:10px;border-radius:14px;min-height:54px}
+.connections-use-location>span{width:32px;height:32px;border-radius:10px;flex-shrink:0}
+.connections-use-location strong{font-size:13px;font-weight:650}
+.connections-use-location small{font-size:10px;margin-top:2px}
+.connections-picker>header{padding:12px 14px 10px;gap:10px}
+.connections-picker h2{font-size:17px}
+.connections-picker-list [data-stop-list-mode=preview]>div:first-child{margin:10px 12px 0;padding:10px;border-radius:18px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--cn-edge)}
+.connections-picker-list input{font-size:12px;padding-block:10px;border-radius:12px}
+.connections-picker-list [aria-pressed]{min-height:36px;padding:7px 10px;font-size:11px;border-radius:11px}
+.connections-picker-list [data-stop-list-scroll]{padding:10px 12px 24px;gap:8px}
+.connections-picker-list [data-stop-card-id]{padding:10px 12px;border-radius:18px;min-height:76px;overflow:hidden;clip-path:none;mask-image:none;background:var(--cn-surface);border:1px solid color-mix(in srgb,var(--cn-muted) 26%,var(--cn-surface));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--cn-muted) 9%,transparent)}
+.connections-picker-list [data-stop-card-id]>div:first-child{width:34px;height:34px;margin-right:10px;border-radius:11px}
+.connections-picker-list [data-stop-card-id]>div:first-child svg{width:18px;height:18px}
+.connections-picker-list [data-stop-card-id] h3{font-size:13px;line-height:1.4}
+.connections-picker-list [data-stop-card-id] h3+div{margin-top:3px;gap:3px}
+.connections-picker-list [data-stop-card-id] h3+div>div:first-child{font-size:10px}
+.connections-result-card{overflow:hidden;border-radius:20px}
+.connections-result{padding:14px}
+.connections-result-times strong{font-size:20px}
+.connections-result-times>span{font-size:11px}
+.connections-leg-badges{margin:10px 0}
+.connections-endpoints{display:grid;grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr);gap:10px;align-items:center;padding:12px 0;border-top:1px solid var(--cn-edge);font-size:12px;font-weight:650;line-height:1.5}
+.connections-endpoints>span{overflow-wrap:anywhere}
+.connections-endpoints>span:last-child{text-align:right}
+.connections-endpoints svg{color:var(--cn-muted)}
+.connections-stops-summary{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:9px 10px;margin:0 0 10px;border-radius:11px;background:color-mix(in srgb,var(--cn-accent) 9%,var(--cn-surface));color:var(--cn-accent);font-size:11px}
+.connections-stops-summary>span{display:flex;align-items:center;gap:6px}
+.connections-delay{display:block;color:#d97706;font-size:11px;line-height:1.5;margin:5px 0 8px}
+.connections-stop-details{margin:-10px 0 20px 0;border:1px solid var(--cn-edge);border-radius:13px;background:color-mix(in srgb,var(--cn-text) 2%,var(--cn-surface));overflow:hidden}
+.connections-stop-details summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;padding:12px;color:var(--cn-accent);font-size:11px;list-style:none;min-height:44px}
+.connections-stop-details summary::-webkit-details-marker{display:none}
+.connections-stop-details[open] summary svg{transform:rotate(180deg)}
+.connections-stop-details ol{list-style:none;margin:0;padding:0 12px 10px}
+.connections-stop-details li{display:grid;grid-template-columns:45px minmax(0,1fr);gap:14px;padding:9px 0;font-size:12px;line-height:1.5;border-top:1px solid var(--cn-edge)}
+.connections-stop-details li>span{overflow-wrap:anywhere}
+.connections-stop-details time{font-weight:700}
+.connections-stop-details del{display:block;color:var(--cn-muted);font-size:10px}
