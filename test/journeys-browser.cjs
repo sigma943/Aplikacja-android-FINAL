@@ -56,6 +56,12 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await screenshot('location-walk');
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});await page.click('[aria-label="Powiększ mapę"]');await page.waitForSelector('.connections-map-modal .connections-walking-path');await page.waitForFunction(()=>{const tiles=[...document.querySelectorAll('.connections-map-modal .leaflet-tile')];return tiles.length>3&&tiles.every(t=>t.complete&&t.naturalWidth>0);},{timeout:20000});await page.screenshot({path:'test/ui-previews/journeys-mobile-real-route.png'});await page.keyboard.press('Escape');
   await page.click('[data-journey-from]');await page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_success,failure){failure({code:1});}}}));await page.click('.connections-use-location');await page.waitForFunction(()=>document.querySelector('[data-journey-picker] [role="alert"]')?.textContent.includes('Zezwól'));await page.keyboard.press('Escape');assert.deepEqual(errors,[]);
+  await page.click('[data-journey-from]');await page.type('[data-journey-picker] input[placeholder*="Babica"]','Rzeszów D.A.');await page.waitForSelector('[data-stop-card-id="journey:rzeszow-da"]');await page.click('[data-stop-card-id="journey:rzeszow-da"]');
+  await page.click('[data-journey-to]');await page.type('[data-journey-picker] input[placeholder*="Babica"]','Gwoźnica Górna, Skr 13');await page.waitForSelector('[data-stop-card-id="10672"]');await page.screenshot({path:'test/ui-previews/journeys-crossing-picker.png'});await page.click('[data-stop-card-id="10672"]');
+  await page.$eval('[aria-label="Godzina podróży"]',e=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'12:11');e.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.click('.connections-primary');await page.waitForSelector('[data-journey-result]',{timeout:30000});await page.click('[data-journey-result] .connections-result');await page.waitForSelector('.connections-detail');
+  assert.equal(await page.$$eval('.connections-detail .connections-leg[data-provider="pks"]',nodes=>nodes.length),1,'Gwoznica uses one outward bus instead of a trip to the terminus and back');
+  assert.match(await page.$eval('.connections-detail',e=>e.textContent),/Dojście pieszo/);await page.screenshot({path:'test/ui-previews/journeys-gwoznica-crossing.png'});
   }
   // Mobile map controls, true viewport fitting and error recovery use deterministic geometry.
   await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});
@@ -63,6 +69,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.waitForFunction(()=>!document.querySelector('.journey-map .leaflet-container').classList.contains('leaflet-grab'));
   const assertFitted=async()=>{await page.waitForFunction(()=>{const root=document.querySelector('.connections-map-modal')||document.querySelector('.journey-map'),map=root.querySelector('.leaflet-container').getBoundingClientRect(),path=root.querySelector('.connections-walking-path').getBoundingClientRect();return path.left>=map.left+15&&path.right<=map.right-15&&path.top>=map.top+15&&path.bottom<=map.bottom-15;});};
   await assertFitted();
+  assert.ok(await page.evaluate(()=>{const dot=document.querySelector('.connections-stop-point').closest('.leaflet-pane'),route=document.querySelector('.connections-walking-path').closest('.leaflet-pane');return Number(getComputedStyle(dot).zIndex)>Number(getComputedStyle(route).zIndex); }),'stop points stay above asynchronously loaded route strokes');
   for(const [width,height] of [[320,568],[393,851],[430,932]]){
    await page.setViewport({width,height,deviceScaleFactor:1,isMobile:true,hasTouch:true});await assertFitted();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'mobile map does not overflow '+width);

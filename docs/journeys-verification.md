@@ -34,3 +34,12 @@ Dodatkowe sprawdzenie: 14/14 testów planera, kalendarzy, stanowisk i położeni
 - Testy komponentu obejmują 320×568, 393×851, 430×932 oraz obrót do 851×393, pełny ekran, kadr zakrzywionej trasy, powrót fokusu, przywrócenie przewijania i rzeczywisty gest przewijania. Sprawdzono również mapę rzeczywistej trasy pieszej po załadowaniu kafelków.
 
 Ten sam komponent mapy przeszedł dodatkowo powyższe testy mobilne w Android WebView na emulatorze: pełny ekran, obrót, gest przewijania, przywracanie fokusu i obsługa brakujących współrzędnych. Komponent uruchomiono w osobnym widoku testowym; test nie obejmuje logowania.
+
+## Przejścia między przystankami i zbędne objazdy
+
+- Silnik dopuszcza podróż wyłącznie pieszą między przystankami, także przy wyszukiwaniu według godziny przyjazdu. Dla takiego wariantu pobierana jest rzeczywista trasa piesza; jeżeli jej długość przekracza limit, wariant jest odrzucany z zachowaniem dostępnych autobusów.
+- Dla tego samego kursu początkowego i tego samego momentu wsiadania usuwane są gorsze warianty z objazdem lub powrotem z pętli. Krótkie dojście do 100 m może zastąpić wariant wolniejszy o co najmniej 5 minut. Jawne sortowanie według najmniejszego dystansu pieszo zachowuje tę preferencję. Późniejsze odjazdy pozostają dostępne.
+- Dopasowanie przystanków PKS uwzględnia pełną nazwę z numerem stanowiska przed dopasowaniem przestrzennym. Dla jednoznacznego dopasowania w zasięgu 250 m zachowywane są fizyczne współrzędne GTFS, aby nie pomylić stron drogi przy przesuniętej pozycji katalogowej.
+- Kropki przystanków są w osobnej warstwie Leaflet nad trasami, niezależnie od kolejności zakończenia żądań sieciowych. Ikona pieszego i dymki mają własne warstwy. Lista wyboru ma czytelniejsze długie nazwy, strzałki wyboru i wyróżnienie aktywnego wiersza.
+
+Weryfikacja: 20/20 testów planera i regresji. Rzeczywisty rozkład PKS dla Rzeszów D.A. → Gwoźnica Górna SKR 13 daje kurs 108 z dojściem około 50 m o 14:22 zamiast powrotu z pętli; SKR 14 osiągany jest bezpośrednio o 14:21 (wyjazd 13:20). Test przeglądarkowy powtarza wybór SKR 13 i sprawdza jeden autobus z dojściem. Osobne testy obejmują dojście na początku podróży, całkowity limit pieszy, zachowanie autobusu przy zbyt długiej rzeczywistej ścieżce oraz kolejność warstw mapy.

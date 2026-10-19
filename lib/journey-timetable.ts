@@ -19,11 +19,17 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
   // PKS technical IDs differ from GTFS. Only explicitly stored GTFS IDs are exact.
   if(provider!=='pks')exact.set(id.trim(),stop);
  }
+ const nameKey=(name:string,code='')=>{const value=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l').replace(/[^a-z0-9]/g,'');const suffix=code.toLowerCase().replace(/[^a-z0-9]/g,'');return suffix&&!value.endsWith(suffix)?value+suffix:value;};
+ const providerStops=catalog.filter(s=>s.sourceProviderIds?.includes(namespace)||s.carriers.some(c=>c.id===provider));
+ const named=new Map<string,Stop[]>();for(const stop of providerStops){const key=nameKey(stop.name,stop.code),list=named.get(key)||[];list.push(stop);named.set(key,list);}
  const mapped=new Map<string,Stop>();
  for(const [id,point] of Object.entries(feed.stops)){
   if(isRzeszowStation(point)){mapped.set(id,{...point,id:`journey:${provider}:${id}`,name:point.name.replace(/(D\.?A\.?)\s+(\d+)$/i,'$1 st. $2'),type:'bus',carriers:[carrier(provider)],lines:[],isFavorite:false,sourceProviderIds:[namespace],providerStopIds:{[namespace]:id}});continue;}
   const known=exact.get(id);if(known){mapped.set(id,known);continue;}
-  const candidates=catalog.filter(s=>s.sourceProviderIds?.includes(namespace)||s.carriers.some(c=>c.id===provider))
+  const names=named.get(nameKey(point.name))||[];
+  const sameName=names.length===1&&stopDistance(names[0],point as Stop)<250?names[0]:undefined;
+  if(sameName){mapped.set(id,{...sameName,lat:point.lat,lon:point.lon});continue;}
+  const candidates=providerStops
    .map(stop=>({stop,distance:stopDistance(stop,point as Stop)})).filter(x=>x.distance<45).sort((a,b)=>a.distance-b.distance);
   const closest=candidates[0];
   const match=closest&&(!candidates[1]||candidates[1].distance-closest.distance>5)?closest.stop:undefined;
@@ -50,6 +56,7 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
 type Label={stop:Stop;time:number;legs:JourneyLeg[];rides:number;walking:number};
 /** Chronological connection scan. Staying on one bus never consumes a transfer. */
 export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:JourneyOptions):Journey[]{
+ if(from.id===to.id)return [];
  const earliest=o.arriveBy?o.at-6*3600_000:o.at,latest=o.arriveBy?o.at:o.at+6*3600_000;
  const stops=[...new Map([from,to,...connections.flatMap(c=>[c.from,c.to])].map(s=>[s.id,s])).values()];
  const buckets=new Map<string,Stop[]>(),cell=(s:Stop)=>[Math.floor((s.lat||0)*100),Math.floor((s.lon||0)*100)];
@@ -60,7 +67,7 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   if(o.walkMeters>0&&Number.isFinite(stop.lat)&&Number.isFinite(stop.lon)){
    const [y,x]=cell(stop),radius=Math.ceil(o.walkMeters/600);
    for(let a=-radius;a<=radius;a++)for(let b=-radius;b<=radius;b++)for(const target of buckets.get(`${y+a}:${x+b}`)||[]){
-    if(target.id===stop.id)continue;const meters=Math.ceil(stopDistance(stop,target)*1.35);if(meters<=o.walkMeters)result.push({stop:target,meters,minutes:Math.ceil(meters/70)});
+    if(target.id===stop.id)continue;const meters=Math.ceil(stopDistance(stop,target)*1.35);if(meters<=o.walkMeters)result.push({stop:target,meters,minutes:Math.max(1,Math.ceil(meters/70))});
    }
   }
   neighbors.set(stop.id,result);return result;
@@ -68,7 +75,13 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
  const labels=new Map<string,Label[]>(),onboard=new Map<string,Label[]>(),answers:Journey[]=[];
  const departure=(l:Label)=>l.legs[0]?.departure??earliest;
  const add=(label:Label)=>{
-  if(matchesJourneyPlace(to,label.stop)&&label.rides){const legs=label.legs,id=legs.map(l=>`${l.course}:${l.from.id}:${l.to.id}:${l.departure}`).join('|');answers.push({id,legs,departure:departure(label),arrival:label.time,walking:label.walking,transfers:label.rides-1});}
+  if(matchesJourneyPlace(to,label.stop)&&label.legs.length){
+   const shift=o.arriveBy&&!label.rides?latest-label.time:0;
+   const legs=shift?label.legs.map(leg=>({...leg,departure:leg.departure+shift,arrival:leg.arrival+shift})):label.legs;
+   const id=legs.map(l=>`${l.course}:${l.from.id}:${l.to.id}:${l.departure}`).join('|');
+   answers.push({id,legs,departure:legs[0].departure,arrival:label.time+shift,walking:label.walking,transfers:Math.max(0,label.rides-1)});
+   return;
+  }
   const key=label.stop.id,list=labels.get(key)||[];
   if(list.some(l=>l.time<=label.time&&l.walking<=label.walking&&l.rides<=label.rides&&(!o.arriveBy||departure(l)>=departure(label))))return;
   const next=list.filter(l=>!(label.time<=l.time&&label.walking<=l.walking&&label.rides<=l.rides&&(!o.arriveBy||departure(label)>=departure(l))));next.push(label);
@@ -97,5 +110,14 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   onboard.set(c.course,next);
  }
  const score=(j:Journey)=>o.sort==='transfers'?j.transfers*86400_000+(o.arriveBy?-j.departure:j.arrival):o.sort==='walking'?j.walking*86400_000+(o.arriveBy?-j.departure:j.arrival):o.arriveBy?-j.departure:j.arrival;
- const seen=new Set<string>();return answers.sort((a,b)=>score(a)-score(b)||a.transfers-b.transfers).filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|');if(seen.has(key))return false;seen.add(key);return true;}).slice(0,12);
+ // Keep later departures, but remove worse detours for the very same boarding.
+ const firstRide=(j:Journey)=>j.legs.find(l=>l.walking===undefined);
+ const boardingKey=(j:Journey)=>{const ride=firstRide(j);return ride?JSON.stringify([ride.course,ride.from.id,ride.departure]):'walking';};
+ const groups=new Map<string,Journey[]>();for(const journey of answers){const key=boardingKey(journey),list=groups.get(key)||[];list.push(journey);groups.set(key,list);}
+ const useful=answers.filter(candidate=>!(groups.get(boardingKey(candidate))||[]).some(better=>{
+  if(better===candidate||better.arrival>candidate.arrival||better.transfers>candidate.transfers)return false;
+  const walkingOkay=better.walking<=candidate.walking||(o.sort!=='walking'&&better.walking<=Math.max(100,candidate.walking)&&candidate.arrival-better.arrival>=5*60000);
+  return walkingOkay&&(better.arrival<candidate.arrival||better.transfers<candidate.transfers||better.walking<candidate.walking);
+ }));
+ const seen=new Set<string>();return useful.sort((a,b)=>score(a)-score(b)||a.transfers-b.transfers).filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|')||'walk:'+from.id+':'+to.id;if(seen.has(key))return false;seen.add(key);return true;}).slice(0,12);
 }

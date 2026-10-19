@@ -1,7 +1,7 @@
 'use client';
 import {Fragment,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {createPortal} from 'react-dom';
-import {MapContainer,TileLayer,CircleMarker,Popup,Tooltip,Polyline,Marker,ZoomControl,useMap} from 'react-leaflet';
+import {MapContainer,TileLayer,CircleMarker,Popup,Tooltip,Polyline,Marker,ZoomControl,useMap,Pane} from 'react-leaflet';
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle} from 'lucide-react';
 import L from 'leaflet';
 import {officialBusRoute} from '@/lib/official-bus-routes';
@@ -115,15 +115,18 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
   <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
    <MapViewport points={bounds} expanded={expanded} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
    <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" attribution='Map tiles by Google · &copy; OpenStreetMap contributors' maxZoom={19}/>
+   <Pane name="journey-route-strokes" style={{zIndex:410}}>
    {journey.legs.map((leg,index)=>{
     const path=paths[index];if(!path)return null;const walking=leg.walking!==undefined;
     return <Fragment key={index}>
      <Polyline positions={path} pathOptions={{color:'#172536',weight:walking?7:9,opacity:.6,lineCap:'round',lineJoin:'round'}}/>
      <Polyline positions={path} className={walking?'connections-walking-path':'connections-bus-path'} pathOptions={{color:walking?'#fff':color(leg),dashArray:walking?'5 10':undefined,weight:walking?4:5.5,opacity:1,lineCap:'round',lineJoin:'round'}}/>
-     {walking&&<Marker position={path[Math.floor(path.length/2)]} icon={walkingIcon} keyboard={false}><Tooltip>Dojście pieszo · {leg.walking} m</Tooltip></Marker>}
+     {walking&&<Marker pane="markerPane" position={path[Math.floor(path.length/2)]} icon={walkingIcon} keyboard={false}><Tooltip pane="tooltipPane">Dojście pieszo · {leg.walking} m</Tooltip></Marker>}
     </Fragment>;
    })}
-   {markers.map(({stop,color})=><CircleMarker key={stop.id+':'+stop.lat+':'+stop.lon} center={[stop.lat!,stop.lon!]} radius={7} pathOptions={{color:'#fff',weight:2.5,fillColor:color,fillOpacity:1}}><Popup closeButton maxWidth={240}>{stop.name}</Popup></CircleMarker>)}
+   </Pane><Pane name="journey-stop-points" style={{zIndex:450}}>
+   {markers.map(({stop,color})=><CircleMarker className="connections-stop-point" key={stop.id+':'+stop.lat+':'+stop.lon} center={[stop.lat!,stop.lon!]} radius={7} pathOptions={{color:'#fff',weight:2.5,fillColor:color,fillOpacity:1}}><Popup pane="popupPane" closeButton maxWidth={240}>{stop.name}</Popup></CircleMarker>)}
+   </Pane>
   </MapContainer>
   <div className="connections-map-footer">
    <div className="connections-map-legend"><span><i style={{background:'#14b8a6'}}/>PKS</span><span><i style={{background:'#ff7a00'}}/>MPK</span><span><i style={{background:'#68c44a'}}/>Marcel</span><span><i className="is-walk"/>Pieszo</span></div>
