@@ -42,8 +42,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
     const selectedAccent=await page.$eval('.connections-picker-host',e=>getComputedStyle(e).getPropertyValue('--cn-accent').trim());
     assert.equal(pin,expectedColor);assert.equal(selectedAccent,accent);
    }
-   for(let i=0;i<3;i++){await page.click('.connections-place-map .leaflet-control-zoom-in');await page.waitForFunction(()=>!document.querySelector('.connections-place-leaflet').classList.contains('leaflet-zoom-anim'));}
-   await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring');
+   // Leaflet ignores another zoom while an animated zoom is in progress.
+   // Shift-click requests 13 -> 16 in one action; wait for the actual tile zoom.
+   await page.keyboard.down('Shift');
+   try{await page.click('.connections-place-map .leaflet-control-zoom-in');}finally{await page.keyboard.up('Shift');}
+   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(tile=>new URL(tile.src).searchParams.get('z')==='16'));
+   await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring').catch(async error=>{
+    await screenshot('picker-markers-failure');
+    console.error('Picker diagnostics',await page.evaluate(()=>({tiles:[...new Set([...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].map(tile=>new URL(tile.src).searchParams.get('z')))],errors:document.querySelector('.connections-place-map')?.textContent})),errors);throw error;
+   });
    const colors=await page.$$eval('.connections-place-map .map-stop-ring',nodes=>nodes.map(e=>e.style.getPropertyValue('--stop-color')));
    assert.ok(colors.every(c=>['#14b8a6','#ff7a00'].includes(c)));
    await screenshot('map-picker-point');await page.click('.connections-place-confirm button');
