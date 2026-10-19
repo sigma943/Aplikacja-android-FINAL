@@ -1,7 +1,7 @@
 'use client';
-import {Fragment,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
+import {Fragment,memo,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {createPortal} from 'react-dom';
-import {MapContainer,TileLayer,CircleMarker,Popup,Tooltip,Polyline,Marker,ZoomControl,useMap,Pane} from 'react-leaflet';
+import {MapContainer,TileLayer,CircleMarker,Popup,Tooltip,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle} from 'lucide-react';
 import L from 'leaflet';
 import {officialBusRoute} from '@/lib/official-bus-routes';
@@ -13,16 +13,26 @@ import {useDialogFocus} from '@/lib/use-dialog-focus';
 import {useAppBack} from '@/lib/use-app-back';
 import type {Stop} from '@/Panel/src/types';
 import {journeyDepartureLabel} from '@/lib/journey-label';
+import {journeyMapKey} from '@/lib/journey-view-state';
 import 'leaflet/dist/leaflet.css';
 
 type Point=[number,number];
 type Geometry={key:string;paths:Record<number,Point[]>;failed:number[]};
 const color=(leg:JourneyLeg)=>getVehicleColor({provider:leg.provider==='mpk'?'mpk_rzeszow':leg.provider as 'pks'|'marcel'});
 const hasCoordinates=(stop:Stop)=>Number.isFinite(stop.lat)&&Number.isFinite(stop.lon);
-const walkSvg='<svg width="29" height="29" viewBox="0 0 32 32" aria-hidden="true"><circle cx="20" cy="5.5" r="3.3" fill="currentColor"/><path d="m13 28 3-9 3-8m5 17-5-10m-8 0 3-6 5-1 5 6 4 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const walkSvg='<svg width="18" height="18" viewBox="3.5 0 32 32" aria-hidden="true"><circle cx="20" cy="5.5" r="3.3" fill="currentColor"/><path d="m13 28 3-9 3-8m5 17-5-10m-8 0 3-6 5-1 5 6 4 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function WalkingMarker({position,meters}:{position:Point;meters?:number}){
+ const map=useMap(),[zoom,setZoom]=useState(()=>map.getZoom());
+ useMapEvents({zoomend:()=>setZoom(map.getZoom())});
+ const size=zoom<14?20:zoom<16?24:28;
+ const icon=useMemo(()=>L.divIcon({className:'connections-walk-marker',html:walkSvg,iconSize:[size,size],iconAnchor:[size/2,size/2]}),[size]);
+ return <Marker pane="markerPane" position={position} icon={icon} keyboard={false}><Tooltip pane="tooltipPane">Dojście pieszo · {meters} m</Tooltip></Marker>;
+}
 
 function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boolean;fitVersion:number}){
  const map=useMap();
+ useEffect(()=>{map.attributionControl.setPrefix(false);},[map]);
  useEffect(()=>{
   let frame=0;
   const fit=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
@@ -55,7 +65,7 @@ async function legPath(leg:JourneyLeg):Promise<Point[]>{
  return fetchRoadRouteForStops([[leg.from.lat!,leg.from.lon!],[leg.to.lat!,leg.to.lon!]],'journey:'+leg.course+':'+leg.from.id+':'+leg.to.id);
 }
 
-export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
+function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
  const [geometry,setGeometry]=useState<Geometry>({key:'',paths:{},failed:[]});
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
  const [placeholderHeight,setPlaceholderHeight]=useState(0);
@@ -97,7 +107,6 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
   }));
   return [...unique.values()];
  },[journey]);
- const walkingIcon=useMemo(()=>L.divIcon({className:'connections-walk-marker',html:walkSvg,iconSize:[46,46],iconAnchor:[23,23]}),[]);
  const paths=geometry.key===requestKey?geometry.paths:{};
  const failed=geometry.key===requestKey?geometry.failed:[];
  const pending=Object.keys(paths).length+failed.length<journey.legs.length;
@@ -122,7 +131,7 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
     return <Fragment key={index}>
      <Polyline positions={path} pathOptions={{color:'#172536',weight:walking?7:9,opacity:.6,lineCap:'round',lineJoin:'round'}}/>
      <Polyline positions={path} className={walking?'connections-walking-path':'connections-bus-path'} pathOptions={{color:walking?'#fff':color(leg),dashArray:walking?'5 10':undefined,weight:walking?4:5.5,opacity:1,lineCap:'round',lineJoin:'round'}}/>
-     {walking&&<Marker pane="markerPane" position={path[Math.floor(path.length/2)]} icon={walkingIcon} keyboard={false}><Tooltip pane="tooltipPane">Dojście pieszo · {leg.walking} m</Tooltip></Marker>}
+     {walking&&<WalkingMarker position={path[Math.floor(path.length/2)]} meters={leg.walking}/>}
     </Fragment>;
    })}
    </Pane><Pane name="journey-stop-points" style={{zIndex:450}}>
@@ -145,3 +154,6 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
   </section>,document.body)}
  </div>;
 }
+
+// Updating live times must not refit the map or collapse its fullscreen view.
+export default memo(JourneyMap,(before,after)=>before.dark===after.dark&&journeyMapKey(before.journey)===journeyMapKey(after.journey));

@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,X,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft,Map as MapIcon} from 'lucide-react';
+import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,Trash2,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft,Map as MapIcon} from 'lucide-react';
 import type {Stop} from '@/Panel/src/types';
 import StopList from '@/Panel/src/components/StopList';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
@@ -9,6 +9,8 @@ import {journeyDepartureLabel} from '@/lib/journey-label';
 import {journeyPickerStops,currentJourneyLocation,LOCATION_ID,isJourneyCoordinate} from '@/lib/journey-places';
 import {loadJourneyCatalog} from '@/lib/journey-catalog';
 import {searchConnections} from '@/lib/journey-loader';
+import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
+import {stableJourneyResults} from '@/lib/journey-view-state';
 import {type Journey,type JourneyOptions} from '@/lib/journey-planner';
 import {warsawClock,warsawDateIso,warsawTimeMs} from '@/lib/transit-time';
 import {useDialogFocus} from '@/lib/use-dialog-focus';
@@ -26,6 +28,7 @@ function JourneyDelayBadge({seconds}:{seconds?:number}){
  return <span className={'connections-delay-badge '+(late?'is-late':'is-early')} aria-label={(late?'Opóźnienie ':'Przyspieszenie ')+minutes+' min'} title="Godziny uwzględniają dane na żywo">{late?'+':'−'}{minutes} min</span>;
 }
 type Recent={from:Stop;to:Stop};
+type LiveQuery={from:Stop;to:Stop;date:string;now:boolean;options:JourneyOptions};
 function readRecents():Recent[]{try{const saved=JSON.parse(localStorage.getItem('pks-live:journey-recents')||'[]');return Array.isArray(saved)?saved.filter(x=>x?.from?.id&&x?.to?.id&&typeof x.from.name==='string'&&typeof x.to.name==='string').slice(0,6):[];}catch{return [];}}
 const privatePlace=(stop:Stop)=>stop.id===LOCATION_ID?{...stop,lat:undefined,lon:undefined}:stop;
 function saveRecents(items:Recent[]){try{localStorage.setItem('pks-live:journey-recents',JSON.stringify(items.map(item=>({...item,from:privatePlace(item.from),to:privatePlace(item.to)}))));}catch{}}
@@ -41,9 +44,10 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
  const [options,setOptions]=useState<Omit<JourneyOptions,'at'|'arriveBy'>>({maxTransfers:1,walkMeters:500,transferMinutes:5,providers:['pks','mpk','marcel'],sort:'fastest'});
  const [results,setResults]=useState<Journey[]|null>(null),[selected,setSelected]=useState<string|null>(null),[map,setMap]=useState(false),[busy,setBusy]=useState(false),[progress,setProgress]=useState(''),[error,setError]=useState(''),[warnings,setWarnings]=useState<string[]>([]),[recents,setRecents]=useState<Recent[]>(readRecents),[locating,setLocating]=useState(false);
  const pickerRef=useRef<HTMLDivElement>(null),controller=useRef<AbortController|null>(null),generation=useRef(0);
+ const liveQuery=useRef<LiveQuery|null>(null),liveController=useRef<AbortController|null>(null);
  useDialogFocus(pickerRef,Boolean(picker)&&active,()=>{if(mapPicker)setMapPicker(false);else setPicker(null);});
- useEffect(()=>()=>controller.current?.abort(),[]);
- useEffect(()=>{if(!active){generation.current++;controller.current?.abort();queueMicrotask(()=>{setBusy(false);setMap(false);setPicker(null);setMapPicker(false);});}},[active]);
+ useEffect(()=>()=>{controller.current?.abort();liveController.current?.abort();},[]);
+ useEffect(()=>{if(!active){generation.current++;controller.current?.abort();liveController.current?.abort();queueMicrotask(()=>{setBusy(false);setMap(false);setPicker(null);setMapPicker(false);});}},[active]);
  useEffect(()=>{if(!active||!now)return;let alive=true;const update=()=>{if(alive){setDate(warsawDateIso());setTime(warsawClock(Date.now()));}};queueMicrotask(update);const timer=setInterval(update,30000);return()=>{alive=false;clearInterval(timer);};},[active,now]);
  const includeMarcel=options.providers.includes('marcel');
  useEffect(()=>{let alive=true;
@@ -54,7 +58,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
  useAppBack(active,()=>{onClose();return true;},10);
  const places=useMemo(()=>journeyPickerStops(catalog),[catalog]);
  const pickerStops=useMemo(()=>places.map(s=>({...s,isFavorite:false})),[places]);
- function invalidate(){setResultLimit(12);generation.current++;controller.current?.abort();setBusy(false);setResults(null);setSelected(null);setMap(false);setError('');setWarnings([]);}
+ function invalidate(){setResultLimit(12);generation.current++;controller.current?.abort();liveController.current?.abort();liveQuery.current=null;setBusy(false);setResults(null);setSelected(null);setMap(false);setError('');setWarnings([]);}
  function openPicker(kind:'from'|'to'){setPickerHost(viewRef.current?.closest<HTMLElement>('.pks-theme-root')||document.body);setError('');setMapPicker(false);setPicker(kind);}
  function choosePlace(stop:Stop){invalidate();if(picker==='from')setFrom(stop);else setTo(stop);setPicker(null);setMapPicker(false);}
  async function locate(){
@@ -70,10 +74,24 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
   try{const location=from.id===LOCATION_ID||to.id===LOCATION_ID?await currentJourneyLocation():null;const origin=from.id===LOCATION_ID?location!:from,destination=to.id===LOCATION_ID?location!:to;if(c.signal.aborted||token!==generation.current)return;if(origin.id===LOCATION_ID)setFrom(origin);if(destination.id===LOCATION_ID)setTo(destination);
    const next=[{from:origin,to:destination},...recents.filter(r=>r.from.id!==origin.id||r.to.id!==to.id)].slice(0,6);setRecents(next);saveRecents(next);
    const result=await searchConnections(origin,destination,catalog,searchDate,{...options,at,arriveBy,day:searchDate},c.signal,(n,total)=>{if(token===generation.current)setProgress(n===total?'Wyznaczam trasę…':'Wczytuję rozkłady '+n+' / '+total);});
-   if(c.signal.aborted||token!==generation.current)return;setResults(result.journeys);setWarnings(result.warnings);
+   if(c.signal.aborted||token!==generation.current)return;
+   liveQuery.current={from:origin,to:destination,date:searchDate,now,options:{...options,at,arriveBy,day:searchDate}};
+   setResults(stableJourneyResults(result.journeys));setWarnings(result.warnings);
   }catch(e){if(!c.signal.aborted&&token===generation.current)setError(e instanceof Error?e.message:'Nie udało się wyszukać połączeń. Spróbuj ponownie.');}
   finally{if(token===generation.current)setBusy(false);}
  }
+ useForegroundRefresh('connections-live',async()=>{
+  const query=liveQuery.current;
+  if(!query||busy||picker||query.date!==warsawDateIso())return;
+  const token=generation.current,c=new AbortController();liveController.current?.abort();liveController.current=c;
+  try{
+   const result=await searchConnections(query.from,query.to,catalog,query.date,{...query.options,at:query.now?Date.now():query.options.at},c.signal,()=>{});
+   if(c.signal.aborted||token!==generation.current)return;
+   setResults(stableJourneyResults(result.journeys));setWarnings(result.warnings);
+  }catch{
+   if(!c.signal.aborted&&token===generation.current)setWarnings(current=>[...current.filter(w=>!w.startsWith('Aktualizacja opóźnień:')),'Aktualizacja opóźnień: nie udało się pobrać nowych danych. Ponowię automatycznie.']);
+  }
+ },30000,active&&results!==null&&!busy,30000);
  const changeOption=(patch:Partial<typeof options>)=>{invalidate();setOptions(value=>({...value,...patch}));};
  return <section ref={viewRef} className="connections-view" data-panel-theme={dark?'dark':'light'} data-cosmic-canvas aria-label="Połączenia">
   <div className="connections-content" inert={Boolean(picker)}>
@@ -98,7 +116,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
     {error&&<p role="alert" className="connections-error"><AlertCircle size={17}/>{error}</p>}
     {catalogError&&<p className="connections-error">{catalogError}<button onClick={()=>setAttempt(n=>n+1)}>Ponów</button></p>}
    </div>
-   {recents.length>0&&<div data-cosmic-panel className="connections-card connections-recents"><h2><History size={17}/>Ostatnie wyszukiwania</h2>{recents.map(r=><div className="connections-recent" key={r.from.id+':'+r.to.id}><button onClick={()=>{invalidate();setFrom(places.find(s=>s.id===r.from.id)||r.from);setTo(places.find(s=>s.id===r.to.id)||r.to);}}><History size={17}/><span>{label(r.from)}<small><ArrowRight size={12}/>{label(r.to)}</small></span></button><button aria-label="Usuń ostatnie wyszukiwanie" onClick={()=>{const next=recents.filter(x=>x!==r);setRecents(next);saveRecents(next);}}><X size={17}/></button></div>)}</div>}
+   {recents.length>0&&<div data-cosmic-panel className="connections-card connections-recents"><h2><History size={17}/>Ostatnie wyszukiwania</h2>{recents.map(r=><div className="connections-recent" key={r.from.id+':'+r.to.id}><button onClick={()=>{invalidate();setFrom(places.find(s=>s.id===r.from.id)||r.from);setTo(places.find(s=>s.id===r.to.id)||r.to);}}><History size={17}/><span>{label(r.from)}<small><ArrowRight size={12}/>{label(r.to)}</small></span></button><button className="connections-recent-delete" aria-label="Usuń ostatnie wyszukiwanie" onClick={()=>{const next=recents.filter(x=>x!==r);setRecents(next);saveRecents(next);}}><Trash2 size={17}/></button></div>)}</div>}
   </aside><main className="connections-answer-column">
    {results===null&&!busy&&<div className="connections-intro"><span className="connections-intro-icon"><Bus size={23}/></span><h2>Dokąd dzisiaj?</h2><p>Wybierz przystanki lub rozpocznij podróż ze swojej lokalizacji.</p><span><Check size={14}/> Pełne rozkłady PKS i MPK, również offline</span></div>}
    {results!==null&&!busy&&<div className="connections-results" aria-live="polite"><div className="connections-results-heading"><h2>{results.length?'Proponowane połączenia':'Brak połączeń w tym terminie'}</h2>{results.length>0&&<span>{results.length} propozycji</span>}</div>
@@ -127,7 +145,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
        </div>
        {l.stops&&l.stops.length>2&&<details className="connections-stop-details"><summary><span>{l.stops.length} przystanków · godziny przyjazdu</span><ChevronDown size={15}/></summary><ol>{l.stops.map((call,index)=><li key={index}><div><time>{warsawClock(index===0?call.departure:call.arrival)}</time>{call.scheduledArrival!==undefined&&call.scheduledArrival!==call.arrival&&<del>{warsawClock(call.scheduledArrival)}</del>}</div><span>{label(call.stop)}</span></li>)}</ol></details>}
       </div>)}
-      <p className="connections-hint">Godziny z uwzględnieniem dostępnych danych na żywo dla konkretnego kursu. Pozostałe godziny według rozkładu. Czasy dojść i prognozy są szacunkowe.</p><button className="connections-map-button" onClick={search}><Clock size={16}/>Odśwież połączenia i opóźnienia</button>
+
       {allowMap&&<button className="connections-map-button" onClick={()=>setMap(!map)}><MapPin size={16}/>{map?'Ukryj mapę':'Pokaż podróż na mapie'}</button>}{allowMap&&map&&<JourneyMap journey={j} dark={dark}/>}</div>}
     </article>)}
     {results.length>resultLimit&&<button className="connections-load-more" onClick={()=>setResultLimit(n=>n+12)}>Pokaż kolejne połączenia <span>+{results.length-resultLimit}</span><ChevronDown size={16}/></button>}

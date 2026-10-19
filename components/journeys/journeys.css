@@ -123,7 +123,7 @@
 .connections-use-location strong{display:block;font-size:14px}
 .connections-use-location small{display:block;font-size:11px;line-height:1.5;color:var(--cn-muted);margin-top:4px}
 .connections-leaflet{height:360px;width:100%;isolation:isolate}
-.connections-walk-marker{display:grid!important;place-items:center;background:#fff;color:var(--cn-accent,var(--pks-accent,#00a3a2));border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 11px color-mix(in srgb,currentColor 15%,transparent),0 3px 9px #0003}
+.connections-walk-marker{display:grid!important;place-items:center;background:#fff;color:var(--cn-accent,var(--pks-accent,#00a3a2));border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 12%,transparent),0 2px 5px #0003}
 .connections-map-legend{display:flex;align-items:center;flex-wrap:wrap;gap:15px;padding:12px 4px 3px;font-size:10px;color:var(--cn-muted)}
 .connections-map-legend>span{display:flex;align-items:center;gap:6px}
 .connections-map-legend i{width:18px;height:4px;border-radius:3px;display:inline-block}
@@ -317,3 +317,9 @@
 :is(.connections-leaflet,.connections-place-leaflet) .leaflet-layer{filter:none!important}
 :is(.connections-view,.journey-map,.connections-map-modal)[data-panel-theme=dark] :is(.connections-leaflet,.connections-place-leaflet) .leaflet-tile-pane{filter:invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)}
 :is(.connections-leaflet,.connections-place-leaflet) :is(.leaflet-control-zoom-in,.leaflet-control-zoom-out,.leaflet-control-attribution){filter:none!important}
+
+.connections-walk-marker svg{display:block;width:68%;height:68%;margin:0;overflow:visible}
+.connections-recent .connections-recent-delete{width:36px;height:36px;min-width:36px;align-self:center;justify-content:center;padding:8px;border:1px solid #f43f5e33;border-radius:11px;background:#f43f5e14;color:#e11d48;transition:background .15s,border-color .15s}
+.connections-recent .connections-recent-delete svg{color:inherit}
+.connections-recent .connections-recent-delete:hover{background:#f43f5e26;border-color:#f43f5e66}
+[data-panel-theme=dark] .connections-recent .connections-recent-delete{color:#fb7185}
