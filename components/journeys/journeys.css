@@ -275,6 +275,28 @@
 .connections-walk-option>small{display:flex;justify-content:space-between;font-size:9px;color:var(--cn-muted)}
 .connections-load-more{display:flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:10px;border:1px solid var(--cn-edge);border-radius:13px;background:var(--cn-surface);color:var(--cn-text);font-size:12px}
 .connections-load-more span{color:var(--cn-accent)}
+.connections-detail{background:color-mix(in srgb,var(--cn-surface) 94%,#0b1220);padding:16px 14px}
+.connections-ride+.connections-ride{margin-top:14px}
+.connections-leg-card{--leg-color:var(--cn-accent);padding:14px;border:1px solid var(--cn-edge);border-radius:16px;background:var(--cn-surface)}
+.connections-leg-card[data-provider=mpk]{--leg-color:#f97316}
+.connections-leg-card[data-provider=walk]{--leg-color:var(--cn-muted)}
+.connections-leg-card[data-provider=marcel]{--leg-color:#68c44a}
+.connections-leg-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;font-size:11px;color:var(--cn-muted);font-variant-numeric:tabular-nums}
+.connections-leg-mode{display:flex;align-items:center;gap:7px;color:var(--leg-color);padding:6px 9px;border-radius:9px;background:color-mix(in srgb,var(--leg-color) 10%,transparent)}
+.connections-leg-mode strong{font-size:12px}
+.connections-timeline{position:relative}
+.connections-timeline:before{content:'';position:absolute;left:58px;top:10px;bottom:10px;width:2px;background:var(--leg-color);opacity:.6}
+[data-provider=walk]>.connections-timeline:before{background:none;border-left:2px dashed var(--leg-color)}
+.connections-timeline-row{display:grid;grid-template-columns:44px 10px minmax(0,1fr);gap:10px;align-items:start}
+.connections-timeline-row time{font-size:12px;line-height:1.6;font-weight:700;font-variant-numeric:tabular-nums}
+.connections-timeline-dot{width:10px;height:10px;border:2px solid var(--leg-color);border-radius:50%;background:var(--cn-surface);margin-top:5px;z-index:1}
+.connections-timeline-row h3,.connections-timeline-row>strong{margin:0;font-size:13px;font-weight:650;line-height:1.6;overflow-wrap:anywhere}
+.connections-timeline-provider{padding:8px 0 12px 74px;color:var(--cn-muted);font-size:11px;line-height:1.5}
+.connections-wait{display:flex;align-items:center;gap:7px;margin:0 4px 12px;color:var(--cn-muted);font-size:11px;line-height:1.5}
+.connections-stop-details{margin:8px 0 0;border-radius:12px}
+.connections-detail>.connections-hint{margin:18px 3px 12px;font-size:11px;line-height:1.7}
+.connections-detail>.connections-map-button{min-height:46px;margin-top:9px;font-size:12px;border-radius:13px;justify-content:center}
+.connections-detail>.connections-map-button:last-of-type{color:var(--cn-accent);background:color-mix(in srgb,var(--cn-accent) 9%,var(--cn-surface));border-color:color-mix(in srgb,var(--cn-accent) 30%,var(--cn-edge))}
 /* Filter only base tiles, with identical rules inside and outside the portal. */
 :is(.connections-leaflet,.connections-place-leaflet) .leaflet-layer{filter:none!important}
 :is(.connections-view,.journey-map,.connections-map-modal)[data-panel-theme=dark] :is(.connections-leaflet,.connections-place-leaflet) .leaflet-tile-pane{filter:invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)}

@@ -112,7 +112,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[data-journey-to]');await page.type('[data-journey-picker] input[placeholder*="Babica"]','Gwoźnica Górna, Skr 13');await page.waitForSelector('[data-stop-card-id="10672"]');await page.screenshot({path:'test/ui-previews/journeys-crossing-picker.png'});await page.click('[data-stop-card-id="10672"]');
   await page.$eval('[aria-label="Godzina podróży"]',e=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'12:11');e.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.click('.connections-primary');await page.waitForSelector('[data-journey-result]',{timeout:30000});await page.click('[data-journey-result] .connections-result');await page.waitForSelector('.connections-detail');
-  assert.equal(await page.$$eval('.connections-detail .connections-leg[data-provider="pks"]',nodes=>nodes.length),1,'Gwoznica uses one outward bus instead of a trip to the terminus and back');
+  assert.equal(await page.$$eval('.connections-detail .connections-leg-card[data-provider="pks"]',nodes=>nodes.length),1,'Gwoznica uses one outward bus instead of a trip to the terminus and back');
   assert.match(await page.$eval('.connections-detail',e=>e.textContent),/Dojście pieszo/);await page.screenshot({path:'test/ui-previews/journeys-gwoznica-crossing.png'});
   }
   // Mobile map controls, true viewport fitting and error recovery use deterministic geometry.

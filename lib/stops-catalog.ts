@@ -1,4 +1,5 @@
 import {mpkPassengerStop} from './mpk-passenger-lines';
+import {completeRzeszowTerminalPlatforms} from './rzeszow-terminal-platforms';
 import {sanitizeBusStop,readBusCoordinates} from './bus-coordinates';
 import {correctPksStop} from './pks-stop-corrections';
 import {mergePhysicalStopAliases} from './physical-stop-aliases';
@@ -6,6 +7,7 @@ import type { Carrier, Stop } from '@/Panel/src/types';
 import { getSimilarity } from '@/lib/rzeszow-stop-consolidation';
 import { RawStop, PKS_CARRIER, MARCEL_CARRIER, MPK_CARRIER, MarcelIndexedStop, InternalStop, MERGED_STOPS_RUNTIME_CACHE, MERGED_STOPS_RUNTIME_CACHE_LIMIT, stopDisplayName, ensureMpkCityPrefix, preferredStopDisplayName, stopBaseNameKey, mergeTokens, numericTokens, nameSimilarityScore, sharedStopTokenCount, hasConflictingCityToken, mergeCsvValues, mergeDebugNames, distanceMeters, geoBucketKeys, normalizeStopMergeName, hasConflictingStopNumbers, mergeStopsByGpsAndName, mergeMpkStopsForList, canExposeStandaloneMarcelStop, isWeakMarcelName, sortedLines } from '@/components/stops-panel/stop-domain';
 const stopOrderCollator = new Intl.Collator('en', {numeric:true});
+const stopNameCollator = new Intl.Collator('pl', {numeric:true});
 export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;name:string;lat?:number;lon?:number;lines:string[]}>,marcelStops:MarcelIndexedStop[],mergedStopsCacheKey:string,physicalPoints=false): Stop[] {
     // Callers already key the cache by all effective catalog inputs.
     const cacheKey = (physicalPoints ? 'physical:' : 'list:') + mergedStopsCacheKey;
@@ -413,7 +415,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       });
 
     const mergedMpkStops = mergeMpkStopsForList(mergePhysicalStopAliases(normalizedStops));
-    const mergedStops = mergeStopsByGpsAndName(mergedMpkStops).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
+    const mergedStops = completeRzeszowTerminalPlatforms(mergeStopsByGpsAndName(mergedMpkStops)).sort((left, right) => stopNameCollator.compare(left.name,right.name));
 
     MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, mergedStops);
     if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {

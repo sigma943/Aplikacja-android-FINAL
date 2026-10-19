@@ -5,6 +5,7 @@ import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,Che
 import type {Stop} from '@/Panel/src/types';
 import StopList from '@/Panel/src/components/StopList';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
+import {journeyDepartureLabel} from '@/lib/journey-label';
 import {journeyPickerStops,currentJourneyLocation,LOCATION_ID,isJourneyCoordinate} from '@/lib/journey-places';
 import {loadJourneyCatalog} from '@/lib/journey-catalog';
 import {searchConnections} from '@/lib/journey-loader';
@@ -102,14 +103,23 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
      <button className="connections-result" aria-expanded={selected===j.id} onClick={()=>{setSelected(selected===j.id?null:j.id);setMap(false);}}>
       <div className="connections-result-times"><strong>{warsawClock(j.departure)}<ArrowRight size={17}/>{warsawClock(j.arrival)}</strong><span>{Math.ceil((j.arrival-j.departure)/60000)} min</span></div>
       <div className="connections-leg-badges">{j.legs.map((l,i)=><span key={i} data-provider={l.provider}>{l.walking!==undefined?<Footprints size={13}/>:<Bus size={13}/>} {l.walking!==undefined?l.walking+' m':l.line}</span>)}</div>
-      <div className="connections-endpoints"><span>{label(j.legs[0].from)}</span><ArrowRight size={16}/><span>{label(j.legs.at(-1)!.to)}</span></div>
+      <div className="connections-endpoints"><span>{journeyDepartureLabel(j.legs[0])}</span><ArrowRight size={16}/><span>{label(j.legs.at(-1)!.to)}</span></div>
       <div className="connections-stops-summary"><span><Bus size={14}/> Przystanki i godziny</span><span>{selected===j.id?'Zwiń':'Rozwiń'} {selected===j.id?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</span></div>
       {j.legs.some(l=>(l.delaySeconds||0)>0)&&<span className="connections-delay">Uwzględniono opóźnienie · +{Math.ceil(Math.max(...j.legs.map(l=>l.delaySeconds||0))/60)} min</span>}
       <div className="connections-result-meta"><span>{j.legs.every(l=>l.walking!==undefined)?'Całą trasę pieszo':j.transfers===0?'Bez przesiadek':j.transfers===1?'1 przesiadka':j.transfers+' przesiadki'}{j.walking>0?' · '+j.walking+' m pieszo':''}</span></div>
      </button>
      {selected===j.id&&<div className="connections-detail">
       {j.legs.map((l,i)=><div key={i} className="connections-ride">
-       <div className="connections-leg" data-provider={l.provider}><div className="connections-leg-time">{warsawClock(l.departure)}<small>{warsawClock(l.arrival)}</small></div><span className="connections-leg-track"/><div><h3>{label(l.from)}</h3><p>{l.walking!==undefined?'Dojście pieszo · ok. '+l.walking+' m':'Linia '+l.line+' · '+(providers.find(p=>p[0]===l.provider)?.[1]||l.provider)}</p>{l.delaySeconds!==undefined&&<p className="connections-delay">{l.delaySeconds>0?'Opóźnienie +'+Math.ceil(l.delaySeconds/60)+' min':l.delaySeconds<0?'Przyspieszenie '+Math.ceil(-l.delaySeconds/60)+' min':'Dane na żywo · punktualnie'}</p>}<strong>{label(l.to)}</strong></div></div>
+       {i>0&&l.departure>j.legs[i-1].arrival&&<div className="connections-wait"><Clock size={14}/><span>Czas na przesiadkę · {Math.ceil((l.departure-j.legs[i-1].arrival)/60000)} min</span></div>}
+       <div className="connections-leg-card" data-provider={l.provider}>
+        <div className="connections-leg-heading"><span className="connections-leg-mode">{l.walking!==undefined?<Footprints size={16}/>:<Bus size={16}/>}<strong>{l.walking!==undefined?'Pieszo':'Linia '+l.line}</strong></span><span>{Math.ceil((l.arrival-l.departure)/60000)} min{l.walking!==undefined?' · '+l.walking+' m':''}</span></div>
+        <div className="connections-timeline">
+         <div className="connections-timeline-row"><time>{warsawClock(l.departure)}</time><span className="connections-timeline-dot"/><h3>{journeyDepartureLabel(l,i)}</h3></div>
+         <div className="connections-timeline-provider">{l.walking!==undefined?'Dojście pieszo':providers.find(p=>p[0]===l.provider)?.[1]||l.provider}</div>
+         <div className="connections-timeline-row"><time>{warsawClock(l.arrival)}</time><span className="connections-timeline-dot"/><strong>{label(l.to)}</strong></div>
+        </div>
+        {l.delaySeconds!==undefined&&<p className="connections-delay">{l.delaySeconds>0?'Opóźnienie +'+Math.ceil(l.delaySeconds/60)+' min':l.delaySeconds<0?'Przyspieszenie '+Math.ceil(-l.delaySeconds/60)+' min':'Dane na żywo · punktualnie'}</p>}
+       </div>
        {l.stops&&l.stops.length>2&&<details className="connections-stop-details"><summary><span>{l.stops.length} przystanków · godziny przyjazdu</span><ChevronDown size={15}/></summary><ol>{l.stops.map((call,index)=><li key={index}><div><time>{warsawClock(index===0?call.departure:call.arrival)}</time>{call.scheduledArrival!==undefined&&call.scheduledArrival!==call.arrival&&<del>{warsawClock(call.scheduledArrival)}</del>}</div><span>{label(call.stop)}</span></li>)}</ol></details>}
       </div>)}
       <p className="connections-hint">Godziny z uwzględnieniem dostępnych danych na żywo dla konkretnego kursu. Pozostałe godziny według rozkładu. Czasy dojść i prognozy są szacunkowe.</p><button className="connections-map-button" onClick={search}><Clock size={16}/>Odśwież połączenia i opóźnienia</button>

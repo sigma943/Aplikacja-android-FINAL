@@ -105,7 +105,7 @@ export function fetchPksTimetableClient(areaId: string, day: string) {
 export async function fetchDeparturesClient(stopId: string, areaId?: string, code?: string, dateIso?: string) {
   const today = warsawDateIso();
   const days = dateIso ? [dateIso] : [today, warsawDateIso(1)];
-  const wantsBoard = days.includes(today);
+  const wantsBoard = days.includes(today) && !stopId.startsWith('terminal:');
   const hasTimetable = Boolean(areaId && code);
   const [board, ...tables] = await Promise.allSettled([
     wantsBoard ? requestEinfoJson<any>('its/infoboard/nearest-departures/' + encodeURIComponent(stopId), {headers:{Accept:'application/json'}})
