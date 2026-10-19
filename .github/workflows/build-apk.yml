@@ -77,6 +77,9 @@ jobs:
           node --test test/journey-*.test.cjs test/journeys-access.test.cjs test/interface-appearance.test.cjs test/personalization-profiles.test.cjs
           npx firebase emulators:exec --only firestore --project demo-pks-live --config firebase.test.json "node --test --test-name-pattern='journeys access' test/firestore.rules.cjs"
 
+      - name: Verify journey map presentation
+        run: JOURNEY_MAP_ONLY=1 node test/journeys-browser.cjs
+
       - name: Verify route stroke transition
         run: node test/route-style-browser.cjs
 

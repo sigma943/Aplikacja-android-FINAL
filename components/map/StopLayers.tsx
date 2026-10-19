@@ -10,14 +10,14 @@ import {Marker, useMap, CircleMarker, useMapEvents} from 'react-leaflet';
 import L from 'leaflet';
 
 import type {Stop} from '@/Panel/src/types';
-import {mapStopColor, mapStopIconHtml, visibleMapStops, marcelMapStopPoint} from '@/lib/map-stop-markers';
+import {mapStopPinHtml,mapStopColor, mapStopIconHtml, visibleMapStops, marcelMapStopPoint} from '@/lib/map-stop-markers';
 
 import {type Vehicle, type StopData} from '@/lib/transport/vehicle';
 
 function SelectedStopPin({id,catalogId,point,stops,color,rail=false,alignToCatalog=false}:{id?:string|null;catalogId?:string|null;point?:StopData;stops:Stop[];color:string;rail?:boolean;alignToCatalog?:boolean}) {
   const map=useMap();const [revision,setRevision]=useState(0);
   useMapEvents({zoomend:()=>setRevision(v=>v+1),moveend:()=>setRevision(v=>v+1)});
-  const icon=useMemo(()=>L.divIcon({className:'stop-highlight-pin',html:`<svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" style="color:${color};filter:drop-shadow(0 3px 4px #0005)"><path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/><circle cx="19" cy="18" r="6.5" fill="white"/></svg>`,iconSize:[38,48],iconAnchor:[19,46]}),[color]);
+  const icon=useMemo(()=>L.divIcon({className:'stop-highlight-pin',html:mapStopPinHtml(color),iconSize:[38,48],iconAnchor:[19,46]}),[color]);
   const platformRevision=stopPlatformRevision();
   const catalogVisible=useMemo(()=>{
     if(!id)return false;
@@ -78,7 +78,7 @@ function RouteStopsLayer({
     const aligned={...stopsData};
     for(const id of stopIds){const raw=stopsData[String(id)];if(raw)aligned[String(id)]=marcelMapStopPoint(catalogStops,String(id),raw);}
     return aligned;
-  },[selectedVehicle?.provider,catalogStops,stopsData,stopIds.join(','),platformRevision]);
+  },[selectedVehicle?.provider,catalogStops,stopsData,stopIds,platformRevision]);
   const visibleStopIds = selectedVehicle ? stopIds : [];
 
   if (!selectedVehicle) return null;

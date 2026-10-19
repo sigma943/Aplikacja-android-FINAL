@@ -84,3 +84,11 @@ Loader próbuje teraz zwykłego JSON, a następnie gzip dla wersji webowej. Odrz
 Usunięto blok „Dokąd dzisiaj?” i jego podpisy, opis pod przewoźnikami oraz instrukcję pod nagłówkiem listy przystanków. Otwarcie listy czyści komunikat walidacji formularza; błąd lokalizacji nadal może pojawić się w miejscu użycia lokalizacji.
 
 Suwak zachowuje wartości 0–2000 m, a jego ostatnia pozycja to „Bez limitu”. Wartość nieskończona jest obsługiwana przez silnik bez nieskończonego przeszukiwania siatki; obowiązuje czasowe okno wyszukiwania 6 godzin. Zastosowano kompaktową pamięć odległości i odrzucanie zdominowanych dojść przed tworzeniem ścieżek.
+
+## Kafelki połączeń i przystanki na mapie
+
+- Kafelki pokazują początkowy i końcowy przystanek połączone trzema punktami oraz liczbę przystanków pośrednich. Wspólny przystanek przesiadkowy liczy się raz; późniejszy powrót pozostaje osobną pozycją.
+- Silnik zachowuje nazwane przystanki pośrednie przy łączeniu odcinków jednego kursu. Mapa pokazuje je jako małe punkty; początek ma większy okrągły znacznik, koniec większy znacznik kwadratowy.
+- Dotknięcie punktu pokazuje tę samą pinezkę SVG co na głównej mapie oraz plakietkę z nazwą i rolą przystanku. Zaznaczenie jest zachowane po przełączeniu pełnego ekranu. Dotknięcie tła usuwa zaznaczenie.
+- Portal pełnego ekranu ma jawne, nieprzezroczyste tło, nagłówek i legendę. Styl kafelków zależy od motywu także poza rodzicem `dark-mode-map`.
+- Testy danych sprawdzają nazwy i kolejność przystanków, przesiadki i polskie etykiety liczby przystanków. Test przeglądarkowy obejmuje kropki, wyróżnione końce, wspólną pinezkę, nazwę, zachowanie zaznaczenia oraz identyczny filtr kafelków i nieprzezroczyste tło w obu motywach. Jest uruchamiany również w szybkim buildzie.

@@ -223,3 +223,30 @@
 .connections-walking-label>strong{color:var(--cn-accent);font-size:12px;border-radius:8px;padding:5px 8px;background:color-mix(in srgb,var(--cn-accent) 10%,transparent)}
 .connections-walking-label input[type=range]{grid-column:1/-1;margin:0;min-height:32px}
 .connections-range-scale{display:flex;justify-content:space-between;color:var(--cn-muted);font-size:10px;margin-top:3px}
+/* Keep the same tile treatment inside and outside the application portal. */
+.journey-map[data-panel-theme=dark] .leaflet-layer,.connections-map-modal[data-panel-theme=dark] .leaflet-layer,
+.journey-map[data-panel-theme=dark] .leaflet-control-zoom a,.connections-map-modal[data-panel-theme=dark] .leaflet-control-zoom a,
+.journey-map[data-panel-theme=dark] .leaflet-control-attribution,.connections-map-modal[data-panel-theme=dark] .leaflet-control-attribution{filter:invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)}
+.connections-map-modal{--cn-map-surface:#101a26;isolation:isolate;background:var(--cn-map-surface);overflow:hidden}
+.connections-map-modal[data-panel-theme=light]{--cn-map-surface:#fff}
+.connections-map-modal>.connections-map-toolbar,.connections-map-modal>.connections-map-footer{position:relative;z-index:1000;background:var(--cn-map-surface)}
+.connections-map-modal .connections-map-toolbar button{background:var(--cn-map-surface)}
+.connections-map-modal::before{content:'';position:absolute;inset:0;background:var(--cn-map-surface);z-index:-1}
+.connections-route-summary{display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr);align-items:center;gap:8px;margin:14px 0;padding:12px 0;border-block:1px solid var(--cn-edge)}
+.connections-route-summary-name{font-size:12px;font-weight:650;line-height:1.5;overflow-wrap:anywhere}
+.connections-route-summary-name:nth-of-type(3){text-align:right}
+.connections-route-summary-link{display:flex;align-items:center;justify-content:center;gap:4px}
+.connections-route-summary-link i{width:4px;height:4px;border-radius:50%;background:var(--cn-accent)}
+.connections-route-summary small{grid-column:1/-1;justify-self:center;padding:4px 9px;border-radius:20px;font-size:10px;color:var(--cn-accent);background:color-mix(in srgb,var(--cn-accent) 10%,transparent)}
+.connections-endpoint-marker{display:grid!important;place-items:center;background:transparent;border:0}
+.connections-endpoint{display:grid;place-items:center;width:22px;height:22px;border:3px solid white;border-radius:50%;background:var(--stop-color);box-shadow:0 0 0 2px var(--stop-color),0 2px 7px #0006}
+.connections-endpoint i{width:6px;height:6px;background:white;border-radius:50%}
+.connections-endpoint[data-kind=end]{border-radius:7px}
+.connections-endpoint[data-kind=end] i{border-radius:1px}
+.connections-stop-hit{cursor:pointer}
+.connections-stop-label.leaflet-tooltip{max-width:min(280px,70vw);white-space:normal;background:var(--cn-map-surface,var(--cn-surface));border:1px solid var(--cn-edge);border-radius:14px;padding:10px 14px;color:var(--cn-text);box-shadow:0 5px 22px #0004;font:inherit;text-align:center}
+.connections-stop-label strong{display:block;font-size:12px;line-height:1.5;font-weight:700}
+.connections-stop-label span{display:block;margin-top:3px;font-size:10px;color:var(--cn-muted)}
+.connections-stop-label.leaflet-tooltip-top:before{border-top-color:var(--cn-map-surface,var(--cn-surface))}
+.journey-map{--cn-map-surface:#101a26}
+.journey-map[data-panel-theme=light]{--cn-map-surface:#fff}

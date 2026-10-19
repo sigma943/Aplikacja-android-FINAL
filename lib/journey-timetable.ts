@@ -141,7 +141,7 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
    const same=continuing.includes(label);let path=label.legs;
    if(!label.rides&&path.length){const old=path[0];path=[{...old,departure:c.departure-(old.arrival-old.departure),arrival:c.departure}];}
    const point=(stop:Stop):Array<[number,number]>=>Number.isFinite(stop.lat)&&Number.isFinite(stop.lon)?[[stop.lat!,stop.lon!]]:[];
-   const ride:JourneyLeg=same?{...path.at(-1)!,to:c.to,arrival:c.arrival,via:[...(path.at(-1)!.via||point(c.from)),...point(c.to)]}:{from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,provider:c.provider,course:c.course,via:[...point(c.from),...point(c.to)]};
+   const ride:JourneyLeg=same?{...path.at(-1)!,to:c.to,arrival:c.arrival,stops:[...(path.at(-1)!.stops||[c.from]),c.to],via:[...(path.at(-1)!.via||point(c.from)),...point(c.to)]}:{from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,provider:c.provider,course:c.course,stops:[c.from,c.to],via:[...point(c.from),...point(c.to)]};
    const result:Label={stop:c.to,time:c.arrival,legs:same?[...path.slice(0,-1),ride]:[...path,ride],rides:label.rides+(same?0:1),walking:label.walking};
    if(next.some(n=>n.rides<=result.rides&&n.walking<=result.walking&&(!o.arriveBy||departure(n)>=departure(result))))continue;
    next.push(result);if(c.dropoff!==false){add(result);walk(result);}

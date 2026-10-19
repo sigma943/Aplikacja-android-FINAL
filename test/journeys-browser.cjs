@@ -82,6 +82,24 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.equal(await page.$$eval('.connections-detail .connections-leg[data-provider="pks"]',nodes=>nodes.length),1,'Gwoznica uses one outward bus instead of a trip to the terminus and back');
   assert.match(await page.$eval('.connections-detail',e=>e.textContent),/Dojście pieszo/);await page.screenshot({path:'test/ui-previews/journeys-gwoznica-crossing.png'});
   }
+  // A fullscreen portal keeps the map palette and opaque surfaces over navigation.
+  for(const theme of ['dark','light']){
+   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+   await page.goto(origin+'/?map-case=stops&theme='+theme,{waitUntil:'domcontentloaded'});
+   await page.waitForSelector('.connections-bus-path');
+   assert.equal(await page.$$eval('.connections-stop-point',nodes=>nodes.length),3);
+   assert.equal(await page.$$eval('.connections-endpoint',nodes=>nodes.length),2);
+   const tileFilter=await page.$eval('.journey-map .leaflet-layer',e=>getComputedStyle(e).filter);
+   await page.click('.connections-stop-hit');await page.waitForSelector('.stop-highlight-pin .map-stop-pin');
+   assert.match(await page.$eval('.connections-stop-label',e=>e.textContent),/Przystanek pośredni/);
+   await page.click('[aria-label="Powiększ mapę"]');
+   await page.waitForSelector('.connections-map-modal .connections-stop-label');
+   assert.equal(await page.$eval('.connections-map-modal .leaflet-layer',e=>getComputedStyle(e).filter),tileFilter);
+   assert.equal(await page.$eval('.connections-map-modal .connections-map-footer',e=>getComputedStyle(e).backgroundColor.includes('rgba')),false,'legend surface is opaque');
+   assert.equal(await page.$eval('.connections-map-modal',e=>getComputedStyle(e).backgroundColor.includes('rgba')),false,'modal surface is opaque');
+   await page.screenshot({path:'test/ui-previews/journeys-stops-'+theme+'.png'});
+   await page.keyboard.press('Escape');
+  }
   // Mobile map controls, true viewport fitting and error recovery use deterministic geometry.
   await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await page.goto(origin+'/?map-case=curve',{waitUntil:'domcontentloaded'});await page.waitForSelector('.connections-walking-path');
