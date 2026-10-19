@@ -12,7 +12,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   fs.mkdirSync('test/ui-previews',{recursive:true});
   for(const canvas of [false,true]){
    await page.goto(`http://127.0.0.1:${server.address().port}/?canvas=${canvas?1:0}`);
-   await page.waitForFunction(()=>window.routeTestMap&&Object.values(window.routeTestMap._layers).some(l=>l.options?.className==='mks-route-line'));
+   await page.waitForFunction(()=>window.routeTestMap);
    for(let round=0;round<3;round++){
     await page.click('button:first-child');await page.waitForSelector('[data-mode="road"]');
     await page.waitForFunction(()=>Object.values(window.routeTestMap._layers).filter(l=>l.options?.pane==='routeLinePane'&&l.getLatLngs).length===3);
@@ -23,15 +23,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
      else{data.last=front._path===renderer._rootGroup.lastChild;data.stroke=front._path.getAttribute('stroke-dasharray');}
      return data;
     });
-    assert.deepEqual(result.dash,[],'road stroke explicitly clears schematic dashes');assert.equal(result.last,true,'foreground must paint above both halo layers');
+    assert.deepEqual(result.dash,[],'road stroke is always solid');assert.equal(result.last,true,'foreground must paint above both halo layers');
     if(!canvas)assert.ok(!result.stroke,'SVG road is solid');
     if(canvas){await new Promise(r=>setTimeout(r,70));const pixel=await page.evaluate(()=>{const map=window.routeTestMap,layer=Object.values(map._layers).find(l=>l.options?.className==='mks-route-line'),r=layer._renderer,p=map.latLngToLayerPoint([50,22]).subtract(r._bounds.min);return Array.from(r._ctx.getImageData(Math.round(p.x),Math.round(p.y),1,1).data);});assert.ok(pixel[0]>240&&pixel[1]>100&&pixel[1]<145&&pixel[2]<30,'Canvas paints orange foreground, not grey halo: '+pixel);}
     await page.click('button:nth-child(2)');await new Promise(r=>setTimeout(r,60));
     assert.equal(await page.evaluate(()=>Object.values(window.routeTestMap._layers).filter(l=>l.options?.pane==='routeLinePane'&&l.getLatLngs).length),3,'changing vehicles leaves no old route layers');
     if(round===2)await page.screenshot({path:`test/ui-previews/route-solid-${canvas?'canvas':'svg'}.png`});
-    await page.click('button:first-child');await page.waitForSelector('[data-mode="schematic"]');await page.waitForFunction(()=>Object.values(window.routeTestMap._layers).filter(l=>l.options?.pane==='routeLinePane'&&l.getLatLngs).length===1);
+    await page.click('button:first-child');await page.waitForSelector('[data-mode="loading"]');await page.waitForFunction(()=>Object.values(window.routeTestMap._layers).filter(l=>l.options?.pane==='routeLinePane'&&l.getLatLngs).length===0);
    }
   }
-  assert.deepEqual(errors,[]);console.log('Route transition passed: Canvas/SVG, solid foreground above halos, repeated mode and vehicle changes.');
+  assert.deepEqual(errors,[]);console.log('Route transition passed: Canvas/SVG, solid foreground above halos, repeated loading and vehicle changes.');
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

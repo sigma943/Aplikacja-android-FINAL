@@ -161,8 +161,6 @@ function BusMap({
     }
     return next;
   }, [routeStopIds, routeStopsData]);
-  // A distinctly marked stop schematic remains visible until road geometry is available.
-  const schematicRoute=useMemo(()=>routeGeometryStops.map(stop=>[stop.lat,stop.lon] as [number,number]),[routeGeometryStops]);
   // Selected details contain punctuality before the background fleet cache warms.
   const markerVehicles = useMemo(() => vehicles.map(vehicle =>
     selectedVehicle?.provider === vehicle.provider && selectedVehicle?.id === vehicle.id &&
@@ -190,8 +188,6 @@ function BusMap({
     : '';
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}`:'';
   const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
-  const isSchematic=selectedVehicle?.type!=='train'&&selectedVehicle?.provider!=='pkp_intercity'&&currentGeometry.length<2&&schematicRoute.length>1;
-  const paintedRoute=isSchematic?schematicRoute:currentGeometry;
 
   useEffect(() => {
     activeRouteRequestIdRef.current += 1;
@@ -398,7 +394,6 @@ function BusMap({
           filter: drop-shadow(0 0 7px rgba(255,255,255,0.62)) drop-shadow(0 2px 6px rgba(0,0,0,0.5));
         }
       `}</style>
-      {isSchematic&&<div data-route-schematic role="status" className="absolute left-3 top-[132px] md:top-[120px] z-[600] max-w-[calc(100%-24px)] rounded-xl bg-slate-950/90 px-3 py-2 text-xs text-white shadow-lg pointer-events-none">Schemat między przystankami · pobieranie przebiegu po drogach</div>}
       <MapContainer
         center={initMapState.center}
         zoom={initMapState.zoom}
@@ -422,7 +417,7 @@ function BusMap({
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
-          <RouteLines positions={paintedRoute} schematic={isSchematic} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
+          <RouteLines positions={currentGeometry} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
         </Pane>
 
         {/* Draw Route Stops */}

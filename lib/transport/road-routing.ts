@@ -3,6 +3,7 @@ import {readBusCoordinates} from '../bus-coordinates';
 import {decodePolyline, routeChunks, joinRouteChunks, roadRouteMatchesStops, roadRoutingLocations, hasLocalRoadExcursion, preferRoadCorridor} from '../bus-road-geometry';
 
 import {withRequestDeadline} from '../request-deadline';
+import {roadRouteWithFallback} from './road-route-fallback';
 
 import {type ShapePoint} from '../transport/types';
 import {requestJson} from '../transport/http';
@@ -10,6 +11,9 @@ import {requestJson} from '../transport/http';
 const roadRouteCache = new Map<string, ShapePoint[]>();
 
 const roadRoutePending = new Map<string, Promise<ShapePoint[]>>();
+
+// Keep completed chunks when another part of a long route needs a retry.
+const roadChunkCache = new Map<string, ShapePoint[]>();
 
 async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,options?: {strictShortSegments?:boolean;signal?:AbortSignal;stopWaypoints?:boolean;onResolved?:(points:ShapePoint[])=>void}) {
   const points=coords.filter(([lat,lon])=>readBusCoordinates(lat,lon));
@@ -27,8 +31,8 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       if (secondary[index]) return secondary[index];
       const chunk = chunks[index];
       const coordinates=chunk.map(([lat,lon])=>lon+','+lat).join(';');
-      const data=await requestJson<{code?:string;routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
-        'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false');
+      const data=await withRequestDeadline(signal => requestJson<{code?:string;routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
+        'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false', {signal}), undefined, 8000);
       const route: ShapePoint[] = (data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
       if (!roadRouteMatchesStops(route,chunk,150)) throw new Error('Incomplete secondary road route');
       secondary[index] = route;
@@ -39,18 +43,18 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       while(cursor<chunks.length) {
         const index=cursor++,chunk=chunks[index];
         const boundaries={start:index===0,end:index===chunks.length-1};
-        let route: ShapePoint[]=[];
-        try {
+        const chunkKey=JSON.stringify([Boolean(options?.stopWaypoints),chunk]);
+        const cachedChunk=roadChunkCache.get(chunkKey);
+        if(cachedChunk){results[index]=cachedChunk;continue;}
+        let route = await roadRouteWithFallback(async () => {
           // Stop coordinates can sit in a bay or side road. A through point
           // forbids turning there and can force a loop around nearby streets.
           const query={locations:roadRoutingLocations(chunk,Boolean(options?.stopWaypoints),boundaries),costing:'bus',directions_options:{units:'kilometers'}};
           const data=await withRequestDeadline(signal => requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal}), undefined, 8000);
-          route=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
-          if (!roadRouteMatchesStops(route,chunk,150)) route=[];
-        }catch {}
-        if(route.length<2) {
-          route = await fetchSecondary(index);
-        }
+          const primary=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
+          if (!roadRouteMatchesStops(primary,chunk,150)) throw new Error('Incomplete primary road route');
+          return primary;
+        }, () => fetchSecondary(index));
         if(options?.stopWaypoints&&chunk.length>2&&hasLocalRoadExcursion(route)) {
           try {
             const query={locations:roadRoutingLocations([chunk[0],chunk.at(-1)!],true,boundaries),costing:'bus',directions_options:{units:'kilometers'}};
@@ -60,6 +64,8 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
           }catch { /* Keep the complete original road route if no safe alternative exists. */ }
         }
         if(!roadRouteMatchesStops(route,chunk,150))throw new Error('Incomplete road route: missing or unordered stops');
+        roadChunkCache.set(chunkKey,route);
+        if(roadChunkCache.size>500)roadChunkCache.delete(roadChunkCache.keys().next().value!);
         results[index]=route;
       }
     }));
