@@ -72,20 +72,21 @@ const server=http.createServer((req,res)=>{
     await page.goto(origin+'/startup-home/',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('.pks-navigation [data-nav-item="journeys"]');
     await page.click('.pks-navigation [data-nav-item="journeys"]');
-    await page.waitForSelector('.journey-form');
+    await page.waitForSelector('.connections-form');
     for(const width of [320,393]){
       await page.setViewport({width,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});
-      const bounds=await page.$eval('.journey-view',el=>({width:el.clientWidth,scroll:el.scrollWidth}));
+      const bounds=await page.$eval('.connections-view',el=>({width:el.clientWidth,scroll:el.scrollWidth}));
       assert.ok(bounds.scroll<=bounds.width+1,'journey planner fits '+width+'px');
       await page.screenshot({path:`test/ui-previews/journeys-${width}.png`});
     }
-    await button('Szukaj połączeń');
-    assert.ok(await page.$eval('.journey-error',el=>el.textContent.includes('Wybierz przystanek')),'missing stops have a readable error');
-    await button('Preferencje podróży');await page.waitForSelector('.journey-preference-body');
+    await page.waitForFunction(()=>!document.querySelector('.connections-primary')?.disabled);
+    await page.click('.connections-primary');
+    assert.ok(await page.$eval('.connections-error',el=>el.textContent.includes('Wybierz przystanek')),'missing stops have a readable error');
+    await page.click('.connections-preferences[aria-expanded="false"]');await page.waitForSelector('.connections-preference-body');
     await page.screenshot({path:'test/ui-previews/journeys-preferences.png'});
-    await page.$eval('.journey-location',el=>el.click());await page.waitForSelector('.journey-picker');
+    await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker]');
     await page.screenshot({path:'test/ui-previews/journeys-stops.png'});
-    await page.keyboard.press('Escape');await page.waitForSelector('.journey-picker',{hidden:true});
+    await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker]',{hidden:true});
     await page.waitForSelector('.pks-navigation [data-nav-item="admin"]');
     await page.click('.pks-navigation [data-nav-item="admin"]');
     await page.waitForSelector('[data-admin-viewport] .admin-topbar');
