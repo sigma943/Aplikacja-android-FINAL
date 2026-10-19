@@ -4,11 +4,10 @@ import {createPortal} from 'react-dom';
 import {MapContainer,TileLayer,CircleMarker,Popup,Tooltip,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle} from 'lucide-react';
 import L from 'leaflet';
-import {officialBusRoute} from '@/lib/official-bus-routes';
-import {fetchRoadRouteForStops} from '@/lib/transport/road-routing';
-import {journeyWalkingRoute} from '@/lib/journey-walking';
+import {journeyLegPath,journeyLegStops} from '@/lib/journey-leg-path';
+import {projectJourneyStops} from '@/lib/journey-route-geometry';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
-import {stopDistance,type Journey,type JourneyLeg} from '@/lib/journey-planner';
+import {type Journey,type JourneyLeg} from '@/lib/journey-planner';
 import {useDialogFocus} from '@/lib/use-dialog-focus';
 import {useAppBack} from '@/lib/use-app-back';
 import type {Stop} from '@/Panel/src/types';
@@ -52,19 +51,6 @@ function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boole
  return null;
 }
 
-async function legPath(leg:JourneyLeg):Promise<Point[]>{
- if(!hasCoordinates(leg.from)||!hasCoordinates(leg.to))throw Error('Brak współrzędnych odcinka.');
- if(leg.path)return leg.path;
- if(leg.walking!==undefined)return (await journeyWalkingRoute(leg.from,leg.to)).points;
- const full=await officialBusRoute(leg.provider==='mpk'?'mpk_rzeszow':leg.provider,leg.course.split(':')[1],[]).catch(()=>[] as Point[]);
- const distance=(point:Point,stop:Stop)=>stopDistance({lat:point[0],lon:point[1]} as Stop,stop);
- let start=-1,end=-1,startDistance=Infinity,endDistance=Infinity;
- full.forEach((point,index)=>{const d=distance(point,leg.from);if(d<startDistance){startDistance=d;start=index;}});
- full.forEach((point,index)=>{if(index<=start)return;const d=distance(point,leg.to);if(d<endDistance){endDistance=d;end=index;}});
- if(start>=0&&end>start&&startDistance<200&&endDistance<200)return full.slice(start,end+1);
- return fetchRoadRouteForStops([[leg.from.lat!,leg.from.lon!],[leg.to.lat!,leg.to.lon!]],'journey:'+leg.course+':'+leg.from.id+':'+leg.to.id);
-}
-
 function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
  const [geometry,setGeometry]=useState<Geometry>({key:'',paths:{},failed:[]});
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
@@ -85,7 +71,7 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
  useEffect(()=>{
   let alive=true;
   journey.legs.forEach((leg,index)=>{
-   void legPath(leg).then(path=>{
+   void journeyLegPath(leg).then(path=>{
     if(path.length<2||path.some(point=>!point.every(Number.isFinite)))throw Error('Brak kompletnej trasy.');
     if(alive)setGeometry(old=>({key:requestKey,paths:{...(old.key===requestKey?old.paths:{}),[index]:path},failed:old.key===requestKey?old.failed:[]}));
    }).catch(()=>{
@@ -99,15 +85,17 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
   ...endpoints.map(stop=>[stop.lat!,stop.lon!] as Point),
   ...(geometry.key===requestKey?Object.values(geometry.paths).flat():[]),
  ],[endpoints,geometry,requestKey]);
- const markers=useMemo(()=>{
-  const unique=new Map<string,{stop:Stop;color:string}>();
-  journey.legs.forEach(leg=>[leg.from,leg.to].filter(hasCoordinates).forEach(stop=>{
-   const key=`${stop.id}:${stop.lat}:${stop.lon}`;
-   if(!unique.has(key)||leg.walking===undefined)unique.set(key,{stop,color:leg.walking===undefined?color(leg):'#475569'});
-  }));
-  return [...unique.values()];
- },[journey]);
  const paths=geometry.key===requestKey?geometry.paths:{};
+ const markers=useMemo(()=>{
+  const unique=new Map<string,{stop:Stop;point:Point}>();
+  journey.legs.forEach((leg,index)=>{
+   const path=geometry.key===requestKey?geometry.paths[index]:undefined;if(!path)return;
+   const stops=journeyLegStops(leg).filter(hasCoordinates);
+   const points=projectJourneyStops(path,stops.map(s=>[s.lat!,s.lon!] as Point),leg.walking!==undefined?35:150);
+   points.forEach((p,i)=>{const key=p.point.map(v=>v.toFixed(6)).join(':');unique.set(key,{stop:stops[i],point:p.point});});
+  });
+  return [...unique.values()];
+ },[journey,geometry,requestKey]);
  const failed=geometry.key===requestKey?geometry.failed:[];
  const pending=Object.keys(paths).length+failed.length<journey.legs.length;
  function openMap(){
@@ -135,7 +123,7 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
     </Fragment>;
    })}
    </Pane><Pane name="journey-stop-points" style={{zIndex:450}}>
-   {markers.map(({stop,color})=><CircleMarker className="connections-stop-point" key={stop.id+':'+stop.lat+':'+stop.lon} center={[stop.lat!,stop.lon!]} radius={7} pathOptions={{color:'#fff',weight:2.5,fillColor:color,fillOpacity:1}}><Popup pane="popupPane" closeButton maxWidth={240}>{stop.name}</Popup></CircleMarker>)}
+   {markers.map(({stop,point})=><CircleMarker className="connections-stop-point" key={stop.id+':'+point.join(':')} center={point} radius={4.5} pathOptions={{color:'#334155',weight:1.5,fillColor:'#fff',fillOpacity:1}}><Popup pane="popupPane" closeButton maxWidth={240}>{stop.name}</Popup></CircleMarker>)}
    </Pane>
   </MapContainer>
   <div className="connections-map-footer">

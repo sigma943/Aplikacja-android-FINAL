@@ -323,3 +323,11 @@
 .connections-recent .connections-recent-delete svg{color:inherit}
 .connections-recent .connections-recent-delete:hover{background:#f43f5e26;border-color:#f43f5e66}
 [data-panel-theme=dark] .connections-recent .connections-recent-delete{color:#fb7185}
+
+.connections-leg-badges .connections-delay-badge{padding:2px 5px;margin-left:3px;font-size:9px}
+.connections-timeline{--cn-time-width:52px}
+.connections-timeline-row{grid-template-columns:var(--cn-time-width) 10px minmax(0,1fr)}
+.connections-timeline:before{left:calc(var(--cn-time-width) + 14px)}
+.connections-timeline-provider{padding-left:calc(var(--cn-time-width) + 30px)}
+.connections-departure-clock{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.connections-departure-clock .connections-delay-badge{padding:2px 4px;font-size:9px}

@@ -124,8 +124,8 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
     {warnings.map(w=><p className="connections-warning" key={w}><AlertCircle size={16}/>{w}</p>)}
     {results.slice(0,resultLimit).map(j=><article data-cosmic-panel data-journey-result className={'connections-card connections-result-card'+(selected===j.id?' is-expanded':'')} key={j.id}>
      <button className="connections-result" aria-expanded={selected===j.id} onClick={()=>{setSelected(selected===j.id?null:j.id);setMap(false);}}>
-      <div className="connections-result-times"><strong>{warsawClock(j.departure)}<ArrowRight size={17}/>{warsawClock(j.arrival)}</strong><span className="connections-duration">{Math.ceil((j.arrival-j.departure)/60000)} min{j.legs.some(l=>(l.delaySeconds||0)>0)&&<JourneyDelayBadge seconds={Math.max(...j.legs.map(l=>l.delaySeconds||0))}/>}</span></div>
-      <div className="connections-leg-badges">{j.legs.map((l,i)=><span key={i} data-provider={l.provider}>{l.walking!==undefined?<Footprints size={13}/>:<Bus size={13}/>} {l.walking!==undefined?l.walking+' m':l.line}</span>)}</div>
+      <div className="connections-result-times"><strong>{warsawClock(j.departure)}<ArrowRight size={17}/>{warsawClock(j.arrival)}</strong><span className="connections-duration">{Math.ceil((j.arrival-j.departure)/60000)} min</span></div>
+      <div className="connections-leg-badges">{j.legs.map((l,i)=><span key={i} data-provider={l.provider}>{l.walking!==undefined?<Footprints size={13}/>:<Bus size={13}/>} {l.walking!==undefined?l.walking+' m':l.line}{l.walking===undefined&&<JourneyDelayBadge seconds={l.delaySeconds}/>}</span>)}</div>
       <div className="connections-endpoints"><span>{journeyDepartureLabel(j.legs[0])}</span><ArrowRight size={16}/><span>{label(j.legs.at(-1)!.to)}</span></div>
       <div className="connections-stops-summary"><span><Bus size={14}/> Przystanki i godziny</span><span>{selected===j.id?'Zwiń':'Rozwiń'} {selected===j.id?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</span></div>
 
@@ -135,9 +135,9 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
       {j.legs.map((l,i)=><div key={i} className="connections-ride">
        {i>0&&l.departure>j.legs[i-1].arrival&&<div className="connections-wait"><Clock size={14}/><span>Czas na przesiadkę · {Math.ceil((l.departure-j.legs[i-1].arrival)/60000)} min</span></div>}
        <div className="connections-leg-card" data-provider={l.provider}>
-        <div className="connections-leg-heading"><span className="connections-leg-mode">{l.walking!==undefined?<Footprints size={16}/>:<Bus size={16}/>}<strong>{l.walking!==undefined?'Pieszo':'Linia '+l.line}</strong></span><span className="connections-duration">{Math.ceil((l.arrival-l.departure)/60000)} min{l.walking!==undefined?' · '+l.walking+' m':''}{l.walking===undefined&&<JourneyDelayBadge seconds={l.delaySeconds}/>}</span></div>
+        <div className="connections-leg-heading"><span className="connections-leg-mode">{l.walking!==undefined?<Footprints size={16}/>:<Bus size={16}/>}<strong>{l.walking!==undefined?'Pieszo':'Linia '+l.line}</strong></span><span className="connections-duration">{Math.ceil((l.arrival-l.departure)/60000)} min{l.walking!==undefined?' · '+l.walking+' m':''}</span></div>
         <div className="connections-timeline">
-         <div className="connections-timeline-row"><time>{warsawClock(l.departure)}</time><span className="connections-timeline-dot"/><h3>{journeyDepartureLabel(l,i)}</h3></div>
+         <div className="connections-timeline-row"><div className="connections-departure-clock"><time>{warsawClock(l.departure)}</time>{l.walking===undefined&&<JourneyDelayBadge seconds={l.delaySeconds}/>}</div><span className="connections-timeline-dot"/><h3>{journeyDepartureLabel(l,i)}</h3></div>
          <div className="connections-timeline-provider">{l.walking!==undefined?'Dojście pieszo':providers.find(p=>p[0]===l.provider)?.[1]||l.provider}</div>
          <div className="connections-timeline-row"><time>{warsawClock(l.arrival)}</time><span className="connections-timeline-dot"/><strong>{label(l.to)}</strong></div>
         </div>

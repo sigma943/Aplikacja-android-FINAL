@@ -39,7 +39,7 @@ test('PKS and MPK stops in side roads can turn back instead of routing around an
       const result=await client.fetchRouteGeometryClient({carrier,line:'108',direction:'Rzeszów',mode:'road',stops:[start,stop,end].map(([lat,lon],id)=>({id,lat,lon}))});
       assert.deepEqual(result.geometry.coordinates,road.map(([lat,lon])=>[lon,lat]));
     }
-    assert.equal(calls,2);
+    assert.equal(calls,1,'PKS and MPK reuse the same validated bus corridor for identical stop coordinates');
   }finally{global.fetch=previous;}
 });
 

@@ -19,6 +19,19 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.evaluate(()=>{window.__testMap=document.querySelector('.journey-map .leaflet-container');window.__testCalls=window.__liveCalls;});
   await page.waitForFunction(()=>window.__liveCalls>=window.__testCalls+2);
   assert.ok(await page.$('.connections-detail'),'automatic refresh preserves expanded details');
+  assert.equal(await page.$('.connections-duration .connections-delay-badge'),null,'duration is not labelled with a course delay');
+  assert.ok(await page.$('.connections-leg-badges [data-provider=pks] .connections-delay-badge'));
+  assert.ok(await page.$('.connections-departure-clock .connections-delay-badge'));
+  assert.equal(await page.$$eval('.connections-stop-point',nodes=>nodes.length),4,'all intermediate stops have a dot');
+  assert.ok(await page.$$eval('.connections-stop-point',nodes=>nodes.every(n=>n.getAttribute('fill')==='#fff')),'bus stops use white dots');
+  assert.ok(await page.evaluate(()=>{
+   const routes=[...document.querySelectorAll('.connections-bus-path,.connections-walking-path')];
+   return [...document.querySelectorAll('.connections-stop-point')].every(dot=>{
+    const rect=dot.getBoundingClientRect(),x=(rect.left+rect.right)/2,y=(rect.top+rect.bottom)/2;
+    return routes.some(route=>{const length=route.getTotalLength(),matrix=route.getScreenCTM();for(let i=0;i<=Math.ceil(length);i++){const p=route.getPointAtLength(Math.min(length,i)),screen=new DOMPoint(p.x,p.y).matrixTransform(matrix);if(Math.hypot(screen.x-x,screen.y-y)<1.5)return true;}return false;});
+   });
+  }),'all white dots lie on the route, including the offset intermediate platform');
+  fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/journeys-geometry.png'});
   assert.equal(await page.evaluate(()=>window.__testMap===document.querySelector('.journey-map .leaflet-container')),true,'automatic refresh retains the same map');
   assert.doesNotMatch(await page.$eval('.leaflet-control-attribution',e=>e.textContent),/Leaflet/);assert.match(await page.$eval('.leaflet-control-attribution',e=>e.textContent),/Google.*OpenStreetMap/);
   const sizes=[];

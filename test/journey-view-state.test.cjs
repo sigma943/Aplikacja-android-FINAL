@@ -8,4 +8,5 @@ test('updated delays preserve journey selection and map geometry without mutatin
  assert.equal(journey.id,'old:100');
  for(const leg of [{...journey.legs[0],course:'pks:456:2026-10-19'},{...journey.legs[0],to:{id:'other',lat:50.1,lon:22.1}}])assert.notEqual(stableJourneyResults([journey])[0].id,stableJourneyResults([{...journey,legs:[leg]}])[0].id);
  for(const leg of [{...journey.legs[0],to:{...journey.legs[0].to,lat:51}},{...journey.legs[0],path:[[50,22],[50.2,22.2]]}])assert.notEqual(journeyMapKey(journey),journeyMapKey({...journey,legs:[leg]}));
+ assert.notEqual(journeyMapKey(journey),journeyMapKey({...journey,legs:[{...journey.legs[0],stops:[{stop:{id:'middle',lat:50.05,lon:22.05},arrival:150,departure:150}]}]}),'a changed intermediate stop updates route dots and geometry');
 });

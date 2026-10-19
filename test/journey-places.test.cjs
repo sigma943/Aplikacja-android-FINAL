@@ -17,8 +17,8 @@ test('a geographic origin can walk to a nearby bus but cannot teleport to a dist
  assert.equal(scanJourneys(location,other,[c(stop('far','far',50.1),other)],{...o,walkMeters:500}).length,0);
 });
 test('a foot route rejects missing geometry instead of returning a straight connector',async()=>{
- const old=global.fetch;try{global.fetch=async()=>({ok:true,json:async()=>({code:'Ok',routes:[{distance:200,geometry:{coordinates:[[22.003,50.042],[22.003,50.04205],[22.003,50.0421]]}}]})});
- const {journeyWalkingRoute}=load('lib/journey-walking.ts');const r=await journeyWalkingRoute(p2,p10);assert.equal(r.points.length,3);assert.equal(r.meters,200);
+ const old=global.fetch;try{global.fetch=async()=>({ok:true,json:async()=>({code:'Ok',routes:[{distance:12,geometry:{coordinates:[[22.003,50.042],[22.003,50.04205],[22.003,50.0421]]}}]})});
+ const {journeyWalkingRoute}=load('lib/journey-walking.ts');const r=await journeyWalkingRoute(p2,p10);assert.equal(r.points.length,3);assert.equal(r.meters,12);
  global.fetch=async()=>({ok:true,json:async()=>({code:'NoRoute'})});await assert.rejects(journeyWalkingRoute(other,p10));
  }finally{global.fetch=old;}
 });
