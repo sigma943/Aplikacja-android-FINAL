@@ -97,6 +97,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    assert.equal(await page.$eval('.connections-map-modal .leaflet-layer',e=>getComputedStyle(e).filter),tileFilter);
    assert.equal(await page.$eval('.connections-map-modal .connections-map-footer',e=>getComputedStyle(e).backgroundColor.includes('rgba')),false,'legend surface is opaque');
    assert.equal(await page.$eval('.connections-map-modal',e=>getComputedStyle(e).backgroundColor.includes('rgba')),false,'modal surface is opaque');
+   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-map-modal .leaflet-tile')].some(tile=>tile.complete&&tile.naturalWidth>0&&getComputedStyle(tile).opacity==='1'),{timeout:20000});
    await page.screenshot({path:'test/ui-previews/journeys-stops-'+theme+'.png'});
    await page.keyboard.press('Escape');
   }
@@ -113,6 +114,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.click('[aria-label="Powiększ mapę"]');await page.waitForSelector('.connections-map-modal .connections-walk-marker');assert.equal(await page.$eval('.connections-map-modal .connections-walk-marker',e=>getComputedStyle(e).color),color,'accent is preserved in the full-screen portal');await page.keyboard.press('Escape');
   }
   await page.evaluate(()=>document.documentElement.style.setProperty('--pks-accent','#00a3a2'));
+  await page.waitForSelector('.journey-map .connections-stop-point');await page.waitForSelector('.journey-map .connections-walking-path');
   assert.ok(await page.evaluate(()=>{const dot=document.querySelector('.connections-stop-point').closest('.leaflet-pane'),route=document.querySelector('.connections-walking-path').closest('.leaflet-pane');return Number(getComputedStyle(dot).zIndex)>Number(getComputedStyle(route).zIndex); }),'stop points stay above asynchronously loaded route strokes');
   for(const [width,height] of [[320,568],[393,851],[430,932]]){
    await page.setViewport({width,height,deviceScaleFactor:1,isMobile:true,hasTouch:true});await assertFitted();
