@@ -1,12 +1,16 @@
 'use client';
 import {Fragment,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {createPortal} from 'react-dom';
-import {MapContainer,TileLayer,CircleMarker,Popup,Tooltip,Polyline,Marker,ZoomControl,useMap,Pane} from 'react-leaflet';
+import {MapContainer,TileLayer,CircleMarker,Tooltip,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle} from 'lucide-react';
 import L from 'leaflet';
 import {officialBusRoute} from '@/lib/official-bus-routes';
+import {roadRouteMatchesStops} from '@/lib/bus-road-geometry';
 import {fetchRoadRouteForStops} from '@/lib/transport/road-routing';
 import {journeyWalkingRoute} from '@/lib/journey-walking';
+import {journeyStops,legStops} from '@/lib/journey-stops';
+import {mapStopPinHtml} from '@/lib/map-stop-markers';
+import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
 import {stopDistance,type Journey,type JourneyLeg} from '@/lib/journey-planner';
 import {useDialogFocus} from '@/lib/use-dialog-focus';
@@ -45,19 +49,30 @@ async function legPath(leg:JourneyLeg):Promise<Point[]>{
  if(!hasCoordinates(leg.from)||!hasCoordinates(leg.to))throw Error('Brak współrzędnych odcinka.');
  if(leg.path)return leg.path;
  if(leg.walking!==undefined)return (await journeyWalkingRoute(leg.from,leg.to)).points;
+ const waypoints=leg.via?.length?leg.via:[[leg.from.lat!,leg.from.lon!],[leg.to.lat!,leg.to.lon!]] as Point[];
  const full=await officialBusRoute(leg.provider==='mpk'?'mpk_rzeszow':leg.provider,leg.course.split(':')[1],[]).catch(()=>[] as Point[]);
  const distance=(point:Point,stop:Stop)=>stopDistance({lat:point[0],lon:point[1]} as Stop,stop);
  let start=-1,end=-1,startDistance=Infinity,endDistance=Infinity;
  full.forEach((point,index)=>{const d=distance(point,leg.from);if(d<startDistance){startDistance=d;start=index;}});
  full.forEach((point,index)=>{if(index<=start)return;const d=distance(point,leg.to);if(d<endDistance){endDistance=d;end=index;}});
- if(start>=0&&end>start&&startDistance<200&&endDistance<200)return full.slice(start,end+1);
- return fetchRoadRouteForStops([[leg.from.lat!,leg.from.lon!],[leg.to.lat!,leg.to.lon!]],'journey:'+leg.course+':'+leg.from.id+':'+leg.to.id);
+ if(start>=0&&end>start&&startDistance<200&&endDistance<200){const route=full.slice(start,end+1);if(roadRouteMatchesStops(route,waypoints,150))return route;}
+ return fetchRoadRouteForStops(waypoints,'journey:'+leg.course+':'+leg.from.id+':'+leg.to.id,{stopWaypoints:true});
+}
+
+function MapStopSelection({onClear}:{onClear:()=>void}){useMapEvents({click:onClear});return null;}
+function JourneyStopPoint({stop,tint,kind,onSelect}:{stop:Stop;tint:string;kind:'start'|'end'|'intermediate';onSelect:()=>void}){
+ const icon=useMemo(()=>L.divIcon({className:'connections-endpoint-marker connections-stop-point',html:`<span class="connections-endpoint" data-kind="${kind}" style="--stop-color:${tint}"><i/></span>`,iconSize:[40,40],iconAnchor:[20,20]}),[tint,kind]);
+ const click=(event:L.LeafletMouseEvent)=>{L.DomEvent.stopPropagation(event.originalEvent);onSelect();};
+ const name=displayStopCatalogLabel(stop.name,stop.code);
+ if(kind!=='intermediate')return <Marker position={[stop.lat!,stop.lon!]} icon={icon} title={name} alt={name} eventHandlers={{click}}/>;
+ return <><CircleMarker className="connections-stop-hit" center={[stop.lat!,stop.lon!]} radius={14} pathOptions={{stroke:false,fillOpacity:0,bubblingMouseEvents:false}} eventHandlers={{click}}/><CircleMarker className="connections-stop-point" center={[stop.lat!,stop.lon!]} radius={4.5} pathOptions={{color:'#fff',weight:1.5,fillColor:tint,fillOpacity:1,bubblingMouseEvents:false}} eventHandlers={{click}}/></>;
 }
 
 export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
  const [geometry,setGeometry]=useState<Geometry>({key:'',paths:{},failed:[]});
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
  const [placeholderHeight,setPlaceholderHeight]=useState(0);
+ const [selectedStop,setSelectedStop]=useState<string|null>(null);
  const [dialogTheme,setDialogTheme]=useState<CSSProperties>({});
  const host=useRef<HTMLDivElement>(null),dialog=useRef<HTMLElement>(null);
  const requestKey=journey.id+':'+attempt;
@@ -89,13 +104,17 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
   ...(geometry.key===requestKey?Object.values(geometry.paths).flat():[]),
  ],[endpoints,geometry,requestKey]);
  const markers=useMemo(()=>{
-  const unique=new Map<string,{stop:Stop;color:string}>();
-  journey.legs.forEach(leg=>[leg.from,leg.to].filter(hasCoordinates).forEach(stop=>{
-   const key=`${stop.id}:${stop.lat}:${stop.lon}`;
-   if(!unique.has(key)||leg.walking===undefined)unique.set(key,{stop,color:leg.walking===undefined?color(leg):'#475569'});
+  const sequence=journeyStops(journey),first=sequence[0],last=sequence.at(-1);
+  const unique=new Map<string,{key:string;stop:Stop;tint:string;kind:'start'|'end'|'intermediate'}>();
+  journey.legs.forEach(leg=>legStops(leg).filter(hasCoordinates).forEach(stop=>{
+   const key=`${journey.id}:${stop.id}:${stop.lat}:${stop.lon}`;
+   const kind=stop.id===first?.id?'start':stop.id===last?.id?'end':'intermediate';
+   if(!unique.has(key)||leg.walking===undefined)unique.set(key,{key,stop,tint:leg.walking===undefined?color(leg):'#475569',kind});
   }));
   return [...unique.values()];
  },[journey]);
+ const highlighted=markers.find(marker=>marker.key===selectedStop);
+ const selectedIcon=useMemo(()=>L.divIcon({className:'stop-highlight-pin',html:mapStopPinHtml(highlighted?.tint||'#00a3a2'),iconSize:[38,48],iconAnchor:[19,46]}),[highlighted?.tint]);
  const walkingIcon=useMemo(()=>L.divIcon({className:'connections-walk-marker',html:walkSvg,iconSize:[46,46],iconAnchor:[23,23]}),[]);
  const paths=geometry.key===requestKey?geometry.paths:{};
  const failed=geometry.key===requestKey?geometry.failed:[];
@@ -106,6 +125,7 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
    setPlaceholderHeight(host.current.clientHeight-(toolbar?.offsetHeight||0));
    const computed=getComputedStyle(host.current),values:Record<string,string>={};
    for(const name of ['--cn-surface','--cn-text','--cn-muted','--cn-edge','--cn-accent'])values[name]=computed.getPropertyValue(name);
+   values.fontFamily=computed.fontFamily;
    setDialogTheme(values as CSSProperties);
   }
   setExpanded(true);
@@ -113,7 +133,7 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
  if(endpoints.length<2)return <p className="connections-hint">Brak współrzędnych do wyświetlenia planu.</p>;
  const mapContent=<>
   <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
-   <MapViewport points={bounds} expanded={expanded} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
+   <MapStopSelection onClear={()=>setSelectedStop(null)}/><MapViewport points={bounds} expanded={expanded} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
    <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" attribution='Map tiles by Google · &copy; OpenStreetMap contributors' maxZoom={19}/>
    <Pane name="journey-route-strokes" style={{zIndex:410}}>
    {journey.legs.map((leg,index)=>{
@@ -125,8 +145,9 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
     </Fragment>;
    })}
    </Pane><Pane name="journey-stop-points" style={{zIndex:450}}>
-   {markers.map(({stop,color})=><CircleMarker className="connections-stop-point" key={stop.id+':'+stop.lat+':'+stop.lon} center={[stop.lat!,stop.lon!]} radius={7} pathOptions={{color:'#fff',weight:2.5,fillColor:color,fillOpacity:1}}><Popup pane="popupPane" closeButton maxWidth={240}>{stop.name}</Popup></CircleMarker>)}
+   {markers.map(({key,stop,tint,kind})=><JourneyStopPoint key={key} stop={stop} tint={tint} kind={kind} onSelect={()=>setSelectedStop(key)}/>)}
    </Pane>
+   {highlighted&&<Marker position={[highlighted.stop.lat!,highlighted.stop.lon!]} icon={selectedIcon} zIndexOffset={5000} title={highlighted.stop.name} eventHandlers={{click:event=>L.DomEvent.stopPropagation(event.originalEvent)}}><Tooltip permanent direction="top" offset={[0,-46]} className="connections-stop-label"><strong>{displayStopCatalogLabel(highlighted.stop.name,highlighted.stop.code)}</strong><span>{highlighted.kind==='start'?'Początek podróży':highlighted.kind==='end'?'Koniec podróży':'Przystanek na trasie'}</span></Tooltip></Marker>}
   </MapContainer>
   <div className="connections-map-footer">
    <div className="connections-map-legend"><span><i style={{background:'#14b8a6'}}/>PKS</span><span><i style={{background:'#ff7a00'}}/>MPK</span><span><i style={{background:'#68c44a'}}/>Marcel</span><span><i className="is-walk"/>Pieszo</span></div>
@@ -135,7 +156,7 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
    {failed.length>0&&<div className="connections-map-error" role="status"><span>Nie udało się wczytać {failed.length===1?'jednego odcinka':'części trasy'}. Sprawdź połączenie z internetem.</span><button onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={16}/>Ponów</button></div>}
   </div>
  </>;
- return <div className="journey-map" ref={host}>
+ return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
   <div className="connections-map-toolbar"><strong>Mapa podróży</strong><button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
   {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">

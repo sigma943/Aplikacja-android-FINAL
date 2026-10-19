@@ -48,3 +48,11 @@ test('blur switch survives serialization, keeps its radius, and defaults on for 
  assert.equal(interfaceAppearanceVariables(disabled,true,'#00a3a2',false)['--personal-blur'],'0px');
  assert.equal(interfaceAppearanceVariables({...disabled,glassBlurEnabled:true},true,'#00a3a2',false)['--personal-blur'],'24px');
 });
+
+test('journeys can be reordered and selected as the start screen, including older preferences',()=>{
+ const saved=normalizeInterfaceAppearance({startScreen:'journeys',navOrder:['options','journeys','map','stops','admin']});
+ assert.equal(saved.startScreen,'journeys');assert.deepEqual(saved.navOrder,['options','journeys','map','stops','admin']);
+ const old=normalizeInterfaceAppearance({navOrder:['stops','map','options','admin']});
+ assert.deepEqual(old.navOrder,['stops','map','journeys','options','admin']);
+ assert.equal(interfaceAppearanceVariables(saved,true,'#00a3a2',false)['--personal-nav-journeys'],'1');
+});

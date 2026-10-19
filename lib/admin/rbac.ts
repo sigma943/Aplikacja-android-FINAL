@@ -10,6 +10,7 @@ export interface AdminPermissions {
   canChangeRoles: boolean;
   disableMap: boolean;
   disableStops: boolean;
+  disableJourneys: boolean;
   /** Widoczność sekcji ustawień globalnych (operatorzy). */
   globalSettings: boolean;
   /** Zapis ustawień globalnych (Firestore admin_settings). */
@@ -34,6 +35,7 @@ export const OWNER_PERMISSIONS: AdminPermissions = {
   canChangeRoles: true,
   disableMap: false,
   disableStops: false,
+  disableJourneys: false,
   globalSettings: true,
   globalSettingsEdit: true,
 };
@@ -48,6 +50,7 @@ export const USER_PERMISSIONS: AdminPermissions = {
   canChangeRoles: false,
   disableMap: false,
   disableStops: false,
+  disableJourneys: false,
   globalSettings: false,
   globalSettingsEdit: false,
 };
@@ -62,6 +65,7 @@ export const ADMIN_DEFAULT_PERMISSIONS: AdminPermissions = {
   canChangeRoles: false,
   disableMap: false,
   disableStops: false,
+  disableJourneys: false,
   globalSettings: false,
   globalSettingsEdit: false,
 };
@@ -98,6 +102,7 @@ export const normalizeAdminPermissions = (
     canChangeRoles: role === 'owner' ? true : Boolean(permissions.canChangeRoles ?? base.canChangeRoles),
     disableMap: Boolean(permissions.disableMap ?? base.disableMap),
     disableStops: !permissions.disableMap ? Boolean(permissions.disableStops ?? base.disableStops) : false,
+    disableJourneys: Boolean(permissions.disableJourneys ?? base.disableJourneys),
     globalSettings: role === 'owner' ? true : Boolean(permissions.globalSettings ?? base.globalSettings),
     globalSettingsEdit: role === 'owner' ? true : Boolean(permissions.globalSettingsEdit ?? base.globalSettingsEdit),
   };

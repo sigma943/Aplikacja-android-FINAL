@@ -56,3 +56,39 @@ Weryfikacja obejmuje 33 testy najwyższego poziomu:
 - Osobna integracja adaptera Marcel z zapisanym kursem i pełnym rozkładem MPK: scalanie indeksu przystanków, pomijanie duplikatów kursów, zachowanie innych przewoźników przy błędzie serwisu, ostrzeżenie o brakującym indeksie, wyłączenie przewoźnika i anulowanie trwającego żądania.
 
 Testy wykryły i zabezpieczyły regresjami dwa przypadki graniczne: kolejność jednoczesnych połączeń oraz odrzucanie przez adapter Marcel odcinków z tą samą minutą przyjazdu i odjazdu. Silnik rozwiązuje teraz grupę takich połączeń przed przejściem do następnej godziny, zachowując pozycję pasażera w autobusie także na przystanku bez wysiadania. Adapter zachowuje odcinki o zerowym czasie. Cykl takich odcinków kończy obliczenia bez nieskończonej pętli.
+
+## Android: lokalne rozkłady i preferencje (19.10.2026)
+
+- Pobieranie skompresowanych rozkładów odbywa się w głównym kontekście WebView, który ma dostęp do lokalnego serwera zasobów Capacitor. Bajty są przekazywane do Workera przez structured clone; dekompresja, odczyt JSON i obliczenia pozostają w Workerze. Worker nie wykonuje już żądań do wirtualnego adresu `https://localhost`. Jest to obejście możliwego pominięcia obsługi lokalnych zasobów przez żądania dedicated Workera.
+- Pobieranie ma limit czasu, obsługuje anulowanie i ponowienie po błędzie. Awaria jednego przewoźnika nie blokuje drugiego. Pobrane bajty pozostają w pamięci między wyszukiwaniami; nie są odłączane przez transfer do Workera.
+- Sortowanie, liczba przesiadek i zapas czasu używają własnych menu aplikacji. Menu obsługują dotyk, strzałki, Home/End, Escape, kliknięcie poza menu oraz wspólny przycisk Wstecz. Panel ma oddzielne karty preferencji, przewoźników i dojść pieszych.
+- Dodano test pracy silnika bez dostępu do fetch w Workerze, na rzeczywistych lokalnych rozkładach, oraz testy ponowienia i anulowania pobierania. Rozszerzono scenariusz przeglądarkowy o wybór sortowania i powrót fokusu po Escape.
+- Usunięto również `connections.push(...feedConnections(...))`: pełny rozkład generuje kilkanaście lub kilkadziesiąt tysięcy argumentów w jednym wywołaniu (dla 19.10, 13:13: PKS 13 229, MPK 26 042). To może przekroczyć mniejszy stos argumentów mobilnego WebView i zostać błędnie zgłoszone jako błąd odczytu rozkładu. Segmenty są teraz dopisywane pojedynczo. Test na rzeczywistych danych dodatkowo wymusza limit 8000 argumentów.
+
+## Domyślni przewoźnicy, trasy i nawigacja
+
+- Domyślnie zaznaczeni są PKS, MPK i Marcel. Podstawowy katalog pojawia się przed zakończeniem internetowego indeksowania Marcela, aby otwarcie zakładki nie blokowało wyszukiwania.
+- Trasy piesze używają natywnego HTTP na Androidzie oraz zapasowego routera Valhalla z profilem `pedestrian`. Niepowodzenie nie tworzy prostego łącznika. Pełny przebieg jest zachowany na mapie.
+- Skompresowane odcinki autobusowe zachowują współrzędne wszystkich przystanków pośrednich. Geometria oficjalna musi je obejmować; zapasowy router prowadzi przez cały wzorzec przystanków zamiast tylko przez dwa końce.
+- Połączenia mają osobną flagę `disableJourneys` w uprawnieniach, edytowaną przez właściciela tak jak dotychczasowe ograniczenia zakładek. Reguły Firestore uniemożliwiają użytkownikowi usunięcie blokady. Przed użyciem nowych uprawnień trzeba wdrożyć zaktualizowane `firestore.rules` (aplikacja używa zapisów Firestore na planie Spark).
+- Połączenia są dostępne w kolejności zakładek, podglądzie wyglądu i wyborze ekranu startowego. Starsze ustawienia otrzymują nową zakładkę obok Mapy; jawnie ustawiona kolejność jest zachowana.
+- Animacja otwarcia odpowiada panelowi admina i uwzględnia ograniczenie ruchu.
+- Szybki build pomija pełny zestaw regresji; zachowuje ukierunkowane testy planera i test emulatora reguł dla nowego uprawnienia.
+
+## Potwierdzona przyczyna błędu w APK i dojścia bez limitu
+
+Zbadano rzeczywisty debug APK z buildu 426 (4909acf). Archiwum zawiera `assets/public/data/journeys/pks.json` (1 004 566 B, 2155 kursów) i `mpk.json` (1 903 729 B, 7892 kursy). Plików `.json.gz` nie ma: aapt rozpakował gzip i usunął rozszerzenie. Dotychczasowy adres żądania nie odpowiadał nazwie wewnątrz APK.
+
+Loader próbuje teraz zwykłego JSON, a następnie gzip dla wersji webowej. Odrzuca HTML zwracany przez fallback strony. Przygotowanie paczki Androida jawnie generuje JSON i usuwa gzip; dodatkowy krok buildu weryfikuje pliki i treść rozkładów w gotowych debug/release APK. Testy obejmują oba formaty i wyszukiwanie na ich rzeczywistych danych.
+
+Usunięto blok „Dokąd dzisiaj?” i jego podpisy, opis pod przewoźnikami oraz instrukcję pod nagłówkiem listy przystanków. Otwarcie listy czyści komunikat walidacji formularza; błąd lokalizacji nadal może pojawić się w miejscu użycia lokalizacji.
+
+Suwak zachowuje wartości 0–2000 m, a jego ostatnia pozycja to „Bez limitu”. Wartość nieskończona jest obsługiwana przez silnik bez nieskończonego przeszukiwania siatki; obowiązuje czasowe okno wyszukiwania 6 godzin. Zastosowano kompaktową pamięć odległości i odrzucanie zdominowanych dojść przed tworzeniem ścieżek.
+
+## Kafelki połączeń i przystanki na mapie
+
+- Kafelki pokazują początkowy i końcowy przystanek połączone trzema punktami oraz liczbę przystanków pośrednich. Wspólny przystanek przesiadkowy liczy się raz; późniejszy powrót pozostaje osobną pozycją.
+- Silnik zachowuje nazwane przystanki pośrednie przy łączeniu odcinków jednego kursu. Mapa pokazuje je jako małe punkty; początek ma większy okrągły znacznik, koniec większy znacznik kwadratowy.
+- Dotknięcie punktu pokazuje tę samą pinezkę SVG co na głównej mapie oraz plakietkę z nazwą i rolą przystanku. Zaznaczenie jest zachowane po przełączeniu pełnego ekranu. Dotknięcie tła usuwa zaznaczenie.
+- Portal pełnego ekranu ma jawne, nieprzezroczyste tło, nagłówek i legendę. Styl kafelków zależy od motywu także poza rodzicem `dark-mode-map`.
+- Testy danych sprawdzają nazwy i kolejność przystanków, przesiadki i polskie etykiety liczby przystanków. Test przeglądarkowy obejmuje kropki, wyróżnione końce, wspólną pinezkę, nazwę, zachowanie zaznaczenia oraz identyczny filtr kafelków i nieprzezroczyste tło w obu motywach. Jest uruchamiany również w szybkim buildzie.

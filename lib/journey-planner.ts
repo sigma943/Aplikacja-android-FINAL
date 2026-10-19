@@ -1,5 +1,5 @@
 import type {Departure,Stop} from '@/Panel/src/types';
-export type JourneyLeg={from:Stop;to:Stop;departure:number;arrival:number;line:string;provider:string;course:string;walking?:number;path?:Array<[number,number]>};
+export type JourneyLeg={from:Stop;to:Stop;departure:number;arrival:number;line:string;provider:string;course:string;walking?:number;stops?:Stop[];via?:Array<[number,number]>;path?:Array<[number,number]>};
 export type Journey={id:string;legs:JourneyLeg[];departure:number;arrival:number;walking:number;transfers:number};
 export type JourneyOptions={at:number;arriveBy:boolean;maxTransfers:number;walkMeters:number;transferMinutes:number;providers:string[];sort:'fastest'|'transfers'|'walking'};
 export function stopDistance(a:Stop,b:Stop){
@@ -56,7 +56,7 @@ export function findJourneys(from:Stop,to:Stop,legs:JourneyLeg[],o:JourneyOption
   }
   if(rides>0&&current.id!==to.id){const end=walkLeg(current,to,time);if(end&&walked+end.walking!<=o.walkMeters)search(to,end.arrival,[...path,end],rides,walked+end.walking!);}
   if(rides>=o.maxTransfers+1)return;
-  if(!neighbors.has(current.id))neighbors.set(current.id,stops.filter(s=>s.id!==current.id&&stopDistance(current,s)*1.35<=o.walkMeters));
+  if(!neighbors.has(current.id))neighbors.set(current.id,stops.filter(s=>s.id!==current.id&&Number.isFinite(stopDistance(current,s))&&stopDistance(current,s)*1.35<=o.walkMeters));
   const points=[current,...neighbors.get(current.id)!];
   for(const point of points){
    const walking=walkLeg(current,point,time);

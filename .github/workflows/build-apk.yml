@@ -71,6 +71,15 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify journeys in quick builds
+        if: env.FULL_VERIFICATION != 'true'
+        run: |
+          node --test test/journey-*.test.cjs test/journeys-access.test.cjs test/interface-appearance.test.cjs test/personalization-profiles.test.cjs
+          npx firebase emulators:exec --only firestore --project demo-pks-live --config firebase.test.json "node --test --test-name-pattern='journeys access' test/firestore.rules.cjs"
+
+      - name: Verify journey map presentation
+        run: JOURNEY_MAP_ONLY=1 JOURNEY_PRESENTATION_ONLY=1 node test/journeys-browser.cjs
+
       - name: Verify route stroke transition
         run: node test/route-style-browser.cjs
 
@@ -125,6 +134,9 @@ jobs:
           else
             ./gradlew assembleDebug assembleRelease
           fi
+
+      - name: Verify actual APK timetable assets
+        run: python3 scripts/verify-journey-apk.py android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/release/app-release.apk
 
       - name: Verify signed release matches debug application
         run: |

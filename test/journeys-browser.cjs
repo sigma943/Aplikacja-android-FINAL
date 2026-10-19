@@ -14,6 +14,25 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const screenshot=name=>page.screenshot({path:'test/ui-previews/journeys-'+name+'.png'});
   if(!process.env.JOURNEY_MAP_ONLY){
   await page.goto(origin,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForFunction(()=>document.querySelector('.connections-primary')&&!document.querySelector('.connections-primary').disabled,{timeout:20000}).catch(async error=>{console.log('Initial screen',await page.$eval('body',e=>e.innerText),'errors',errors,'external',external);await screenshot('failure');throw error;});
+  await page.click('.connections-preferences');
+  assert.equal(await page.$$eval('.connections-provider-options input:checked',items=>items.length),3,'all carriers are selected by default');
+  await page.click('.connections-provider-options [data-provider=marcel]');
+  assert.equal(await page.$('.connections-preference-body select'),null,'preferences never open Android native selects');
+  await page.click('.connections-choice-trigger');await page.waitForSelector('[role=menu]');
+  await screenshot('preferences-menu');
+  await page.click('[role=menuitemradio]:nth-child(2)');
+  assert.match(await page.$eval('.connections-choice-trigger',e=>e.textContent),/Najmniej przesiadek/);
+  assert.equal(await page.$('[role=menu]'),null);
+  await page.click('.connections-choice-trigger');await page.keyboard.press('Home');await page.keyboard.press('Enter');
+  assert.match(await page.$eval('.connections-choice-trigger',e=>e.textContent),/Najwcześniejszy/);
+  await page.click('.connections-choice-trigger');await page.keyboard.press('Escape');
+  assert.equal(await page.$('[role=menu]'),null);
+  assert.equal(await page.$eval('.connections-choice-trigger',e=>e===document.activeElement),true);
+  await page.focus('[aria-label="Maksymalny dystans pieszo"]');await page.keyboard.press('End');
+  assert.equal(await page.$eval('[aria-label="Maksymalny dystans pieszo"]',e=>e.getAttribute('aria-valuetext')),'Bez limitu');
+  await page.$eval('[aria-label="Maksymalny dystans pieszo"]',e=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'500');e.dispatchEvent(new Event('input',{bubbles:true}));});
+  assert.equal(await page.$('.connections-intro'),null,'empty-state slogans are removed');
+  await screenshot('preferences');await page.click('.connections-preferences');
   await screenshot('dark');await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker] input[placeholder*="Babica"]');
   await page.type('[data-journey-picker] input[placeholder*="Babica"]','sloneczne');await page.waitForSelector('[data-journey-picker] [data-stop-card-id="5419"]');
   assert.ok(await page.$('[data-stop-line-badges]'),'the actual Stops tab cards include line badges');
@@ -29,7 +48,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.goto(origin+'/?theme=light',{waitUntil:'domcontentloaded',timeout:60000});await page.waitForFunction(()=>!document.querySelector('.connections-primary').disabled);await screenshot('light');assert.ok(await page.$('.connections-recents'),'recent searches survive reload');
   await page.click('.connections-primary');assert.match(await page.$eval('[role="alert"]',e=>e.textContent),/Wybierz przystanek/);
   assert.deepEqual(errors,[]);assert.deepEqual(external,[],'PKS/MPK planning works using local timetable assets without external APIs');await network.send('Network.setBlockedURLs',{urls:[]});
-  await page.click('[data-journey-from]');await page.type('[data-journey-picker] input[placeholder*="Babica"]','Dworzec Główny');await page.waitForSelector('[data-stop-card-id="mpk_rzeszow:127"]');await page.click('[data-stop-card-id="mpk_rzeszow:127"]');
+  await page.click('[data-journey-from]');assert.equal(await page.$('[data-journey-picker] [role=alert]'),null,'opening the picker clears the form validation');await page.type('[data-journey-picker] input[placeholder*="Babica"]','Dworzec Główny');await page.waitForSelector('[data-stop-card-id="mpk_rzeszow:127"]');await page.click('[data-stop-card-id="mpk_rzeszow:127"]');
   await page.click('[data-journey-to]');await page.type('[data-journey-picker] input[placeholder*="Babica"]','Matuszczaka');await page.waitForSelector('[data-stop-card-id="3795"]');await page.click('[data-stop-card-id="3795"]');
   await page.$eval('[aria-label="Data podróży"]',e=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'2026-10-20');e.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.$eval('[aria-label="Godzina podróży"]',e=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'09:30');e.dispatchEvent(new Event('input',{bubbles:true}));});
@@ -63,6 +82,26 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.equal(await page.$$eval('.connections-detail .connections-leg[data-provider="pks"]',nodes=>nodes.length),1,'Gwoznica uses one outward bus instead of a trip to the terminus and back');
   assert.match(await page.$eval('.connections-detail',e=>e.textContent),/Dojście pieszo/);await page.screenshot({path:'test/ui-previews/journeys-gwoznica-crossing.png'});
   }
+  // A fullscreen portal keeps the map palette and opaque surfaces over navigation.
+  for(const theme of ['dark','light']){
+   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+   await page.goto(origin+'/?map-case=stops&theme='+theme,{waitUntil:'domcontentloaded'});
+   await page.waitForSelector('.connections-bus-path');
+   assert.equal(await page.$$eval('.connections-stop-point',nodes=>nodes.length),3);
+   assert.equal(await page.$$eval('.connections-endpoint',nodes=>nodes.length),2);
+   const tileFilter=await page.$eval('.journey-map .leaflet-layer',e=>getComputedStyle(e).filter);
+   await page.click('.connections-stop-hit');await page.waitForSelector('.stop-highlight-pin .map-stop-pin');
+   assert.match(await page.$eval('.connections-stop-label',e=>e.textContent),/Przystanek pośredni/);
+   await page.click('[aria-label="Powiększ mapę"]');
+   await page.waitForSelector('.connections-map-modal .connections-stop-label');
+   assert.equal(await page.$eval('.connections-map-modal .leaflet-layer',e=>getComputedStyle(e).filter),tileFilter);
+   assert.equal(await page.$eval('.connections-map-modal .connections-map-footer',e=>getComputedStyle(e).backgroundColor.includes('rgba')),false,'legend surface is opaque');
+   assert.equal(await page.$eval('.connections-map-modal',e=>getComputedStyle(e).backgroundColor.includes('rgba')),false,'modal surface is opaque');
+   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-map-modal .leaflet-tile')].some(tile=>tile.complete&&tile.naturalWidth>0&&getComputedStyle(tile).opacity==='1'),{timeout:20000});
+   await page.screenshot({path:'test/ui-previews/journeys-stops-'+theme+'.png'});
+   await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('.connections-map-modal'));await page.waitForSelector('.journey-map .connections-stop-point');
+  }
+  if(process.env.JOURNEY_PRESENTATION_ONLY){assert.deepEqual(errors,[]);console.log('PASS: named intermediate stops, shared selected-stop pin, labels, distinct endpoints, dark/light fullscreen parity and opaque legend.');return;}
   // Mobile map controls, true viewport fitting and error recovery use deterministic geometry.
   await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await page.goto(origin+'/?map-case=curve',{waitUntil:'domcontentloaded'});await page.waitForSelector('.connections-walking-path');
@@ -70,12 +109,14 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const assertFitted=async()=>{await page.waitForFunction(()=>{const root=document.querySelector('.connections-map-modal')||document.querySelector('.journey-map'),map=root.querySelector('.leaflet-container').getBoundingClientRect(),path=root.querySelector('.connections-walking-path').getBoundingClientRect();return path.left>=map.left+15&&path.right<=map.right-15&&path.top>=map.top+15&&path.bottom<=map.bottom-15;});};
   await assertFitted();
   for(const [accent,color] of [['#8b5cf6','rgb(139, 92, 246)'],['#ff7a00','rgb(255, 122, 0)']]){
+   await page.waitForSelector('.journey-map .connections-walk-marker');
    await page.evaluate(value=>document.documentElement.style.setProperty('--pks-accent',value),accent);
    assert.equal(await page.$eval('.connections-walk-marker',e=>getComputedStyle(e).color),color,'pedestrian uses the selected accent');
    assert.equal(await page.$eval('.connections-walk-marker',e=>getComputedStyle(e).backgroundColor),'rgb(255, 255, 255)');
    await page.click('[aria-label="Powiększ mapę"]');await page.waitForSelector('.connections-map-modal .connections-walk-marker');assert.equal(await page.$eval('.connections-map-modal .connections-walk-marker',e=>getComputedStyle(e).color),color,'accent is preserved in the full-screen portal');await page.keyboard.press('Escape');
   }
   await page.evaluate(()=>document.documentElement.style.setProperty('--pks-accent','#00a3a2'));
+  await page.waitForSelector('.journey-map .connections-stop-point');await page.waitForSelector('.journey-map .connections-walking-path');
   assert.ok(await page.evaluate(()=>{const dot=document.querySelector('.connections-stop-point').closest('.leaflet-pane'),route=document.querySelector('.connections-walking-path').closest('.leaflet-pane');return Number(getComputedStyle(dot).zIndex)>Number(getComputedStyle(route).zIndex); }),'stop points stay above asynchronously loaded route strokes');
   for(const [width,height] of [[320,568],[393,851],[430,932]]){
    await page.setViewport({width,height,deviceScaleFactor:1,isMobile:true,hasTouch:true});await assertFitted();

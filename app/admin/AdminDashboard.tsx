@@ -752,13 +752,11 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         : selectedDeviceForRole.permissions;
       const tabAccessChanged =
         Boolean(previousPermissions?.disableMap) !== Boolean(normalized.disableMap) ||
-        Boolean(previousPermissions?.disableStops) !== Boolean(normalized.disableStops);
+        Boolean(previousPermissions?.disableStops) !== Boolean(normalized.disableStops) ||
+        Boolean(previousPermissions?.disableJourneys) !== Boolean(normalized.disableJourneys);
       const roleChanged = targetRow?.role !== fbRole;
-      const tabAccessDescription = normalized.disableMap
-        ? `${whoLabel} → wyłączono mapę`
-        : normalized.disableStops
-          ? `${whoLabel} → wyłączono przystanki`
-          : `${whoLabel} → przywrócono dostęp do zakładek`;
+      const disabledTabs = [normalized.disableMap && 'mapę',normalized.disableStops && 'przystanki',normalized.disableJourneys && 'połączenia'].filter(Boolean);
+      const tabAccessDescription = disabledTabs.length ? `${whoLabel} → wyłączono: ${disabledTabs.join(', ')}` : `${whoLabel} → przywrócono dostęp do zakładek`;
       await writeAuditLog({
         title: tabAccessChanged && !roleChanged ? 'Zmieniono dostęp do zakładek' : 'Zmieniono rolę operatora',
         description: tabAccessChanged && !roleChanged ? tabAccessDescription : `${whoLabel} → ${role}`,
