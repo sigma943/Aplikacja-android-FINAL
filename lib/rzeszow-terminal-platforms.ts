@@ -17,6 +17,7 @@ export function completeRzeszowTerminalPlatforms(stops:Stop[]):Stop[]{
   return [...stops,...missingPlatforms.filter(p=>!codes.has(p.code)).map<Stop>(p=>({
     ...p,name:'Rzeszów D.A. st. '+p.code,type:'bus' as const,areaId:'1937',
     carriers:carrier?[carrier]:[],lines:[],isFavorite:false,sourceProviderIds:['pks'],
+    timetableNotice:'Stanowisko fizyczne bez przypisanych odjazdów w rozkładzie PKS.'+(p.code==='4'?' Kursy wskazywane wcześniej przez GTFS jako stanowisko 4 odjeżdżają ze stanowiska 1.':''),
     // Local identities are not invented provider stop-point IDs. Departures
     // use the real terminal area and exact platform code, including empty boards.
     providerStopIds:Object.fromEntries([['pksAreaIds','1937'],['pksCodes',p.code],...(p.id==='3720'?[['pks',p.id]]:[])]),

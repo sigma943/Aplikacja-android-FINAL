@@ -275,6 +275,22 @@
 .connections-walk-option>small{display:flex;justify-content:space-between;font-size:9px;color:var(--cn-muted)}
 .connections-load-more{display:flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:10px;border:1px solid var(--cn-edge);border-radius:13px;background:var(--cn-surface);color:var(--cn-text);font-size:12px}
 .connections-load-more span{color:var(--cn-accent)}
+.connections-time-mode>.connections-segment{width:100%}
+.connections-time-mode>.connections-segment button{flex:1;min-height:42px}
+.connections-option-row{grid-template-columns:minmax(0,1fr);gap:18px}
+.connections-option-row legend{display:flex;align-items:center;gap:7px;color:var(--cn-muted)}
+.connections-option-row .connections-option-chips{gap:8px;margin-top:10px;padding:5px;border:1px solid var(--cn-edge);border-radius:16px;background:color-mix(in srgb,var(--cn-text) 3%,var(--cn-surface))}
+.connections-option-row .connections-option-chips button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:58px;padding:9px 4px;border-color:transparent;border-radius:11px;color:var(--cn-muted);transition:background .15s,border-color .15s,color .15s}
+.connections-option-row .connections-option-chips button strong{font-size:15px;line-height:1.2;font-weight:700}
+.connections-option-row .connections-option-chips button small{font-size:10px;line-height:1.2;font-weight:500}
+.connections-option-row .connections-option-chips button[aria-pressed=true]{background:color-mix(in srgb,var(--cn-accent) 17%,var(--cn-surface));border-color:color-mix(in srgb,var(--cn-accent) 55%,var(--cn-edge));color:var(--cn-text);box-shadow:0 2px 8px #0000000a}
+.connections-option-row .connections-option-chips button[aria-pressed=true] strong{color:var(--cn-accent)}
+.connections-duration{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;white-space:nowrap}
+.connections-delay-badge{display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:3px 8px;border:1px solid;border-radius:999px;font-size:10px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:0}
+.connections-delay-badge.is-late{background:#f43f5e24;border-color:#fb718559;color:#be123c}
+.connections-delay-badge.is-early{background:#10b98124;border-color:#34d39959;color:#047857}
+[data-panel-theme=dark] .connections-delay-badge.is-late{color:#fda4af}
+[data-panel-theme=dark] .connections-delay-badge.is-early{color:#6ee7b7}
 .connections-detail{background:color-mix(in srgb,var(--cn-surface) 94%,#0b1220);padding:16px 14px}
 .connections-ride+.connections-ride{margin-top:14px}
 .connections-leg-card{--leg-color:var(--cn-accent);padding:14px;border:1px solid var(--cn-edge);border-radius:16px;background:var(--cn-surface)}

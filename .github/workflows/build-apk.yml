@@ -70,7 +70,7 @@ jobs:
 
       - name: Verify journey timetable loading and history contrast
         run: |
-          node --test test/journey-schedules.test.cjs test/journey-realtime.test.cjs test/journey-places.test.cjs test/journey-native-assets.test.cjs test/journey-day.test.cjs
+          node --test test/journey-schedules.test.cjs test/journey-realtime.test.cjs test/journey-places.test.cjs test/journey-native-assets.test.cjs test/journey-day.test.cjs test/terminal-platforms-journey-label.test.cjs
           node test/journey-recents-browser.cjs
 
       - name: Build Android Web Assets

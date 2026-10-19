@@ -15,7 +15,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   if(process.env.JOURNEY_PICKER_ONLY){
    await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>!document.querySelector('.connections-primary').disabled);
    await page.focus('[aria-label="Data podróży"]');assert.equal(await page.$eval('[aria-label="Data podróży"]',e=>getComputedStyle(e).outlineStyle),'none');
-   await page.click('.connections-preferences');await page.click('[data-journey-to]');
+   assert.equal(await page.$('.connections-now'),null,'Now button is removed');
+   await page.click('.connections-preferences');
+   assert.equal(await page.$eval('.connections-provider-options [data-provider="marcel"]',e=>e.getAttribute('aria-pressed')),'true','Marcel is selected by default');
+   for(const width of [320,393,430]){
+    await page.setViewport({width,height:851,deviceScaleFactor:1});
+    assert.equal(await page.$eval('.connections-option-row',e=>e.scrollWidth>e.clientWidth+1),false,'preference controls fit '+width+'px');
+   }
+   await screenshot('preferences');await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+   await page.click('[data-journey-to]');
    await page.waitForSelector('[data-journey-picker] .connections-picker-actions');
    assert.doesNotMatch(await page.$eval('[data-journey-picker] .connections-picker-actions',e=>e.textContent),/Twoja lokalizacja/);
    for(const width of [320,393,430]){
@@ -66,6 +74,14 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   }
   if(!process.env.JOURNEY_MAP_ONLY){
   await page.goto(origin,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForFunction(()=>document.querySelector('.connections-primary')&&!document.querySelector('.connections-primary').disabled,{timeout:20000}).catch(async error=>{console.log('Initial screen',await page.$eval('body',e=>e.innerText),'errors',errors,'external',external);await screenshot('failure');throw error;});
+  assert.equal(await page.$('.connections-now'),null,'Now button is removed');
+  await page.click('.connections-preferences');
+  assert.equal(await page.$eval('.connections-provider-options [data-provider="marcel"]',e=>e.getAttribute('aria-pressed')),'true','Marcel is selected by default');
+  for(const width of [320,393]){
+   await page.setViewport({width,height:851,deviceScaleFactor:1});
+   assert.equal(await page.$eval('.connections-option-row',e=>e.scrollWidth>e.clientWidth+1),false,'preference controls fit '+width+'px');
+  }
+  await screenshot('preferences');await page.click('.connections-preferences');
   await screenshot('dark');await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker] input[placeholder*="Babica"]');
   await page.type('[data-journey-picker] input[placeholder*="Babica"]','sloneczne');await page.waitForSelector('[data-journey-picker] [data-stop-card-id="5419"]');
   assert.ok(await page.$('[data-stop-line-badges]'),'the actual Stops tab cards include line badges');

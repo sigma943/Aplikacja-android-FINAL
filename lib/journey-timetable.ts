@@ -2,6 +2,7 @@ import type {Stop} from '@/Panel/src/types';
 import {journeyWindow,stopDistance,type Journey,type JourneyLeg,type JourneyOptions} from './journey-planner';
 import {isRzeszowStation,matchesJourneyPlace} from './journey-places';
 import {warsawTimeMs} from './transit-time';
+import {pksTerminalStop} from './pks-terminal-identity';
 
 export type TimetableFeed={version:number;provider:string;validFrom:string;validUntil:string;stops:Record<string,{name:string;lat:number;lon:number}>;
  calendars:Record<string,{start:string;end:string;days:string}>;exceptions:Record<string,Record<string,number>>;
@@ -24,6 +25,8 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
  const named=new Map<string,Stop[]>();for(const stop of providerStops){const key=nameKey(stop.name,stop.code),list=named.get(key)||[];list.push(stop);named.set(key,list);}
  const mapped=new Map<string,Stop>();
  for(const [id,point] of Object.entries(feed.stops)){
+  const terminal=provider==='pks'?pksTerminalStop(id,point,catalog):null;
+  if(terminal){mapped.set(id,terminal);continue;}
   if(isRzeszowStation(point)){mapped.set(id,{...point,id:`journey:${provider}:${id}`,name:point.name.replace(/(D\.?A\.?)\s+(\d+)$/i,'$1 st. $2'),type:'bus',carriers:[carrier(provider)],lines:[],isFavorite:false,sourceProviderIds:[namespace],providerStopIds:{[namespace]:id}});continue;}
   const known=exact.get(id);if(known){mapped.set(id,known);continue;}
   const names=named.get(nameKey(point.name))||[];

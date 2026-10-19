@@ -291,6 +291,7 @@ export default function StopList({
               </span>
             </div>
             {isBus && stop.lines.length > 0 && <StopLineBadges lines={stop.lines} providerId={singleProviderId} pksLineSet={pksLineSet} providers={stop.lineProviders} />}
+            {isBus && stop.timetableNotice && stop.lines.length===0 && <span className={`text-[11px] leading-relaxed ${secondaryTextClass}`}>Brak przypisanych linii PKS</span>}
           </div>
         </div>
 
