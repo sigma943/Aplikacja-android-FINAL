@@ -229,3 +229,24 @@
 .connections-stop-details li>span{overflow-wrap:anywhere}
 .connections-stop-details time{font-weight:700}
 .connections-stop-details del{display:block;color:var(--cn-muted);font-size:10px}
+/* A separate opaque viewport covers the form all the way behind the navigation. */
+.connections-picker-host{position:fixed;inset:0;z-index:3000;padding:0;overflow:hidden;background:var(--ui-canvas,#101a26);isolation:isolate}
+.connections-picker-host .connections-picker{bottom:calc(64px + env(safe-area-inset-bottom));background:var(--ui-canvas,#101a26)}
+.connections-picker-actions{display:flex;gap:8px;padding:10px 12px 0;flex-shrink:0}
+.connections-picker-actions .connections-use-location{flex:1;min-width:0;margin:0;padding:8px;gap:7px;min-height:48px;border-radius:13px}
+.connections-picker-actions .connections-use-location strong{font-size:11px;line-height:1.4}
+.connections-picker-actions .connections-use-location>span{width:28px;height:28px;flex-shrink:0}
+.connections-picker-actions .connections-use-location[aria-pressed=true]{border-color:var(--cn-accent)}
+.connections-place-map{display:flex;flex-direction:column;flex:1;min-height:0;padding:10px 12px 12px;gap:10px}
+.connections-place-map-hint{display:flex;align-items:center;gap:7px;flex-shrink:0;font-size:11px;line-height:1.5;color:var(--cn-muted);margin:0}
+.connections-place-map-hint svg{flex-shrink:0}
+.connections-place-leaflet{flex:1;min-height:140px;width:100%;border:1px solid var(--cn-edge);border-radius:15px;overflow:hidden;isolation:isolate}
+.connections-place-confirm{display:flex;align-items:center;gap:10px;flex-shrink:0;padding:10px;border:1px solid var(--cn-edge);border-radius:13px;background:var(--cn-surface)}
+.connections-place-confirm>div{flex:1;min-width:0}
+.connections-place-confirm strong{display:block;font-size:12px;overflow-wrap:anywhere;line-height:1.5}
+.connections-place-confirm small{display:block;color:var(--cn-muted);font-size:10px;margin-top:3px}
+.connections-place-confirm button{flex:0 0 auto;padding:9px 12px;min-height:44px;font-size:12px}
+.connections-place-confirm button>svg{margin:0}
+.connections-place-map .leaflet-control-attribution{font-size:8px;max-width:100%;white-space:normal}
+.connections-place-map .leaflet-control-zoom a{width:36px;height:36px;line-height:36px}
+@media(min-width:768px){.connections-picker-host .connections-picker{bottom:calc(64px + env(safe-area-inset-bottom))}}

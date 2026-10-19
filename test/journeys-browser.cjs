@@ -12,6 +12,32 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   page.on('request',r=>{if(!r.url().startsWith(origin)&&!r.url().startsWith('blob:')&&!r.url().startsWith('data:')&&!r.url().startsWith('https://mt1.google.com/')&&!r.url().startsWith('https://routing.openstreetmap.de/routed-foot/'))external.push(r.url());});
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});fs.mkdirSync('test/ui-previews',{recursive:true});
   const screenshot=name=>page.screenshot({path:'test/ui-previews/journeys-'+name+'.png'});
+  if(process.env.JOURNEY_PICKER_ONLY){
+   await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>!document.querySelector('.connections-primary').disabled);
+   await page.click('.connections-preferences');await page.click('[data-journey-to]');
+   await page.waitForSelector('[data-journey-picker] .connections-picker-actions');
+   assert.match(await page.$eval('[data-journey-picker] .connections-picker-actions',e=>e.textContent),/Twoja lokalizacja/);
+   for(const width of [320,393,430]){
+    await page.setViewport({width,height:851,deviceScaleFactor:1});
+    const covered=await page.evaluate(()=>{const host=document.querySelector('.connections-picker-host'),rect=host.getBoundingClientRect(),picker=document.querySelector('[data-journey-picker]').getBoundingClientRect();return {bottom:rect.bottom,pickerBottom:picker.bottom,hit:Boolean(document.elementFromPoint(innerWidth/2,innerHeight-70)?.closest('.connections-picker-host')),overflow:host.scrollWidth>innerWidth};});
+    assert.equal(covered.bottom,851);assert.equal(covered.pickerBottom,787);assert.equal(covered.hit,true);assert.equal(covered.overflow,false);
+   }
+   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+   await page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(success){success({coords:{latitude:50.0412,longitude:21.9991}});}}}));
+   await page.click('[data-journey-picker] .connections-use-location');await page.waitForFunction(()=>document.querySelector('[data-journey-to]').textContent.includes('Twoja lokalizacja'));
+   await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location:nth-child(2)');
+   await page.waitForSelector('.connections-place-leaflet canvas');
+   assert.equal(await page.$('.connections-place-map .leaflet-marker-icon'),null,'map picker has no vehicle or stop bus icons');
+   const mapRect=await page.$eval('.connections-place-leaflet',e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};});
+   await page.mouse.click(mapRect.x+mapRect.w*.2,mapRect.y+mapRect.h*.35);
+   await page.waitForFunction(()=>document.querySelector('.connections-place-confirm strong').textContent==='Punkt na mapie');
+   await screenshot('map-picker-point');await page.click('.connections-place-confirm button');
+   await page.waitForFunction(()=>document.querySelector('[data-journey-to]').textContent.includes('Punkt na mapie'));
+   await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location:nth-child(2)');await page.waitForSelector('.connections-place-leaflet');
+   await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker] input');assert.equal(await page.$('.connections-place-leaflet'),null);
+   await page.keyboard.press('Escape');assert.equal(await page.$('[data-journey-picker]'),null);assert.deepEqual(errors,[]);
+   console.log('PASS: destination location, full picker coverage at 320/393/430px, map point selection, no bus icons and back navigation');return;
+  }
   if(!process.env.JOURNEY_MAP_ONLY){
   await page.goto(origin,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForFunction(()=>document.querySelector('.connections-primary')&&!document.querySelector('.connections-primary').disabled,{timeout:20000}).catch(async error=>{console.log('Initial screen',await page.$eval('body',e=>e.innerText),'errors',errors,'external',external);await screenshot('failure');throw error;});
   await screenshot('dark');await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker] input[placeholder*="Babica"]');

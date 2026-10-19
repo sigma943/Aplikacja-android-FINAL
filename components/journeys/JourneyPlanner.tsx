@@ -1,10 +1,11 @@
 'use client';
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,X,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft} from 'lucide-react';
+import {createPortal} from 'react-dom';
+import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,X,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft,Map as MapIcon} from 'lucide-react';
 import type {Stop} from '@/Panel/src/types';
 import StopList from '@/Panel/src/components/StopList';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
-import {journeyPickerStops,currentJourneyLocation,LOCATION_ID} from '@/lib/journey-places';
+import {journeyPickerStops,currentJourneyLocation,LOCATION_ID,isJourneyCoordinate} from '@/lib/journey-places';
 import {loadJourneyCatalog} from '@/lib/journey-catalog';
 import {searchConnections} from '@/lib/journey-loader';
 import {type Journey,type JourneyOptions} from '@/lib/journey-planner';
@@ -15,60 +16,66 @@ import dynamic from 'next/dynamic';
 import JourneyIcon from './JourneyIcon';
 import './journeys.css';
 const JourneyMap=dynamic(()=>import('./JourneyMap'),{ssr:false,loading:()=> <p className="connections-hint">Ładowanie mapy…</p>});
+const JourneyPlaceMap=dynamic(()=>import('./JourneyPlaceMap'),{ssr:false,loading:()=> <p className="connections-hint">Ładowanie mapy…</p>});
 const providers=[['pks','PKS Rzeszów'],['mpk','MPK Rzeszów'],['marcel','Marcel']];
 const label=(stop:Stop)=>displayStopCatalogLabel(stop.name,stop.code);
 type Recent={from:Stop;to:Stop};
 function readRecents():Recent[]{try{const saved=JSON.parse(localStorage.getItem('pks-live:journey-recents')||'[]');return Array.isArray(saved)?saved.filter(x=>x?.from?.id&&x?.to?.id&&typeof x.from.name==='string'&&typeof x.to.name==='string').slice(0,6):[];}catch{return [];}}
-function saveRecents(items:Recent[]){try{localStorage.setItem('pks-live:journey-recents',JSON.stringify(items.map(item=>({...item,from:item.from.id===LOCATION_ID?{...item.from,lat:undefined,lon:undefined}:item.from}))));}catch{}}
+const privatePlace=(stop:Stop)=>stop.id===LOCATION_ID?{...stop,lat:undefined,lon:undefined}:stop;
+function saveRecents(items:Recent[]){try{localStorage.setItem('pks-live:journey-recents',JSON.stringify(items.map(item=>({...item,from:privatePlace(item.from),to:privatePlace(item.to)}))));}catch{}}
 
 type Props={stops:Array<{id:string;name:string;lat?:number;lon?:number;areaId?:string;code?:string}>;dark:boolean;active:boolean;allowMap?:boolean;onClose:()=>void};
 export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}:Props){
  const [catalog,setCatalog]=useState<Stop[]>([]),[catalogError,setCatalogError]=useState(''),[catalogLoading,setCatalogLoading]=useState(true),[attempt,setAttempt]=useState(0);
  const [from,setFrom]=useState<Stop|null>(null),[to,setTo]=useState<Stop|null>(null),[picker,setPicker]=useState<'from'|'to'|null>(null);
+ const [mapPicker,setMapPicker]=useState(false),[pickerHost,setPickerHost]=useState<HTMLElement|null>(null);
+ const viewRef=useRef<HTMLElement>(null);
  const [preferences,setPreferences]=useState(false),[date,setDate]=useState(()=>warsawDateIso()),[time,setTime]=useState(()=>warsawClock(Date.now())),[now,setNow]=useState(true),[arriveBy,setArriveBy]=useState(false);
  const [options,setOptions]=useState<Omit<JourneyOptions,'at'|'arriveBy'>>({maxTransfers:1,walkMeters:500,transferMinutes:5,providers:['pks','mpk'],sort:'fastest'});
  const [results,setResults]=useState<Journey[]|null>(null),[selected,setSelected]=useState<string|null>(null),[map,setMap]=useState(false),[busy,setBusy]=useState(false),[progress,setProgress]=useState(''),[error,setError]=useState(''),[warnings,setWarnings]=useState<string[]>([]),[recents,setRecents]=useState<Recent[]>(readRecents),[locating,setLocating]=useState(false);
  const pickerRef=useRef<HTMLDivElement>(null),controller=useRef<AbortController|null>(null),generation=useRef(0);
- useDialogFocus(pickerRef,Boolean(picker)&&active,()=>setPicker(null));
+ useDialogFocus(pickerRef,Boolean(picker)&&active,()=>{if(mapPicker)setMapPicker(false);else setPicker(null);});
  useEffect(()=>()=>controller.current?.abort(),[]);
- useEffect(()=>{if(!active){generation.current++;controller.current?.abort();queueMicrotask(()=>{setBusy(false);setMap(false);});}},[active]);
+ useEffect(()=>{if(!active){generation.current++;controller.current?.abort();queueMicrotask(()=>{setBusy(false);setMap(false);setPicker(null);setMapPicker(false);});}},[active]);
  useEffect(()=>{if(!active||!now)return;let alive=true;const update=()=>{if(alive){setDate(warsawDateIso());setTime(warsawClock(Date.now()));}};queueMicrotask(update);const timer=setInterval(update,30000);return()=>{alive=false;clearInterval(timer);};},[active,now]);
  const includeMarcel=options.providers.includes('marcel');
  useEffect(()=>{let alive=true;
   void Promise.resolve().then(async()=>{if(!alive)return;setCatalogLoading(true);setCatalogError('');try{const list=await loadJourneyCatalog(stops,includeMarcel);if(alive)setCatalog(list);}catch{if(alive)setCatalogError('Nie udało się wczytać listy przystanków. Spróbuj ponownie.');}finally{if(alive)setCatalogLoading(false);}});
   return()=>{alive=false;};
  },[stops,attempt,includeMarcel]);
- useAppBack(active&&Boolean(picker||preferences||map||selected),()=>{if(picker)setPicker(null);else if(map)setMap(false);else if(selected)setSelected(null);else setPreferences(false);return true;},60);
+ useAppBack(active&&Boolean(picker||preferences||map||selected),()=>{if(picker){if(mapPicker)setMapPicker(false);else setPicker(null);}else if(map)setMap(false);else if(selected)setSelected(null);else setPreferences(false);return true;},60);
  useAppBack(active,()=>{onClose();return true;},10);
  const places=useMemo(()=>journeyPickerStops(catalog),[catalog]);
  const pickerStops=useMemo(()=>places.map(s=>({...s,isFavorite:false})),[places]);
  function invalidate(){generation.current++;controller.current?.abort();setBusy(false);setResults(null);setSelected(null);setMap(false);setError('');setWarnings([]);}
+ function openPicker(kind:'from'|'to'){setPickerHost(viewRef.current?.closest<HTMLElement>('.pks-theme-root')||document.body);setError('');setMapPicker(false);setPicker(kind);}
+ function choosePlace(stop:Stop){invalidate();if(picker==='from')setFrom(stop);else setTo(stop);setPicker(null);setMapPicker(false);}
  async function locate(){
-  setLocating(true);setError('');try{const place=await currentJourneyLocation();invalidate();setFrom(place);setPicker(null);}catch(e){setError((e as Error).message);}finally{setLocating(false);}
+  setLocating(true);setError('');try{const place=await currentJourneyLocation();choosePlace(place);}catch(e){setError((e as Error).message);}finally{setLocating(false);}
  }
  async function search(){
   if(!from||!to){setError('Wybierz przystanek początkowy i końcowy.');return;}
   if(from.id===to.id){setError('Wybierz dwa różne przystanki.');return;}
   const at=now?Date.now():warsawTimeMs(date,time),searchDate=now?warsawDateIso():date;
-  if(!Number.isFinite(at)||(!options.providers.length&&from.id!==LOCATION_ID)){setError('Sprawdź datę, godzinę i wybierz przynajmniej jednego przewoźnika.');return;}
+  if(!Number.isFinite(at)||(!options.providers.length&&!isJourneyCoordinate(from)&&!isJourneyCoordinate(to))){setError('Sprawdź datę, godzinę i wybierz przynajmniej jednego przewoźnika.');return;}
   if(at<Date.now()-60000){setError('Wybrana godzina już minęła. Wybierz „Teraz” lub przyszły termin.');return;}
   invalidate();const token=generation.current,c=new AbortController();controller.current=c;setBusy(true);setProgress('Wczytuję pełne rozkłady…');
-  try{const origin=from.id===LOCATION_ID?await currentJourneyLocation():from;if(c.signal.aborted||token!==generation.current)return;if(origin.id===LOCATION_ID)setFrom(origin);
-   const next=[{from:origin,to},...recents.filter(r=>r.from.id!==origin.id||r.to.id!==to.id)].slice(0,6);setRecents(next);saveRecents(next);
-   const result=await searchConnections(origin,to,catalog,searchDate,{...options,at,arriveBy},c.signal,(n,total)=>{if(token===generation.current)setProgress(n===total?'Wyznaczam trasę…':'Wczytuję rozkłady '+n+' / '+total);});
+  try{const location=from.id===LOCATION_ID||to.id===LOCATION_ID?await currentJourneyLocation():null;const origin=from.id===LOCATION_ID?location!:from,destination=to.id===LOCATION_ID?location!:to;if(c.signal.aborted||token!==generation.current)return;if(origin.id===LOCATION_ID)setFrom(origin);if(destination.id===LOCATION_ID)setTo(destination);
+   const next=[{from:origin,to:destination},...recents.filter(r=>r.from.id!==origin.id||r.to.id!==to.id)].slice(0,6);setRecents(next);saveRecents(next);
+   const result=await searchConnections(origin,destination,catalog,searchDate,{...options,at,arriveBy},c.signal,(n,total)=>{if(token===generation.current)setProgress(n===total?'Wyznaczam trasę…':'Wczytuję rozkłady '+n+' / '+total);});
    if(c.signal.aborted||token!==generation.current)return;setResults(result.journeys);setWarnings(result.warnings);
   }catch(e){if(!c.signal.aborted&&token===generation.current)setError(e instanceof Error?e.message:'Nie udało się wyszukać połączeń. Spróbuj ponownie.');}
   finally{if(token===generation.current)setBusy(false);}
  }
  const changeOption=(patch:Partial<typeof options>)=>{invalidate();setOptions(value=>({...value,...patch}));};
- return <section className="connections-view" data-panel-theme={dark?'dark':'light'} data-cosmic-canvas aria-label="Połączenia">
-  <div className="connections-content">
+ return <section ref={viewRef} className="connections-view" data-panel-theme={dark?'dark':'light'} data-cosmic-canvas aria-label="Połączenia">
+  <div className="connections-content" inert={Boolean(picker)}>
    <header className="connections-heading"><span className="connections-emblem"><JourneyIcon size={28}/></span><div><h1>Połączenia</h1><p>Twoja droga, krok po kroku</p></div></header>
    <div className="connections-workspace"><aside className="connections-search-column"><div data-cosmic-panel className="connections-card connections-form">
     <div className="connections-route-fields">
-     <button data-journey-from className="connections-location" onClick={()=>setPicker('from')}><span className="connections-origin-dot"/><span><small>SKĄD JEDZIESZ?</small><strong>{from?label(from):'Wybierz przystanek początkowy'}</strong></span><ChevronDown size={18}/></button>
+     <button data-journey-from className="connections-location" onClick={()=>openPicker('from')}><span className="connections-origin-dot"/><span><small>SKĄD JEDZIESZ?</small><strong>{from?label(from):'Wybierz przystanek początkowy'}</strong></span><ChevronDown size={18}/></button>
      <button className="connections-swap" aria-label="Zamień przystanki" onClick={()=>{invalidate();setFrom(to);setTo(from);}}><ArrowDownUp size={17}/></button>
-     <button data-journey-to className="connections-location" onClick={()=>setPicker('to')}><MapPin size={20}/><span><small>DOKĄD?</small><strong>{to?label(to):'Wybierz przystanek docelowy'}</strong></span><ChevronDown size={18}/></button>
+     <button data-journey-to className="connections-location" onClick={()=>openPicker('to')}><MapPin size={20}/><span><small>DOKĄD?</small><strong>{to?label(to):'Wybierz przystanek docelowy'}</strong></span><ChevronDown size={18}/></button>
     </div>
     <div className="connections-time-mode"><div className="connections-segment"><button aria-pressed={!arriveBy} onClick={()=>{invalidate();setArriveBy(false);}}>Odjazd</button><button aria-pressed={arriveBy} onClick={()=>{invalidate();setArriveBy(true);}}>Przyjazd</button></div><button className="connections-now" aria-pressed={now} onClick={()=>{invalidate();setNow(true);setDate(warsawDateIso());setTime(warsawClock(Date.now()));}}><Clock size={15}/>Teraz</button></div>
     <div className="connections-datetime"><label><CalendarDays size={18}/><span><small>Data podróży</small><input aria-label="Data podróży" type="date" min={warsawDateIso()} max={warsawDateIso(30)} value={date} onChange={e=>{invalidate();setNow(false);setDate(e.target.value);}}/></span></label><label><Clock size={18}/><span><small>Godzina</small><input aria-label="Godzina podróży" type="time" value={time} onChange={e=>{invalidate();setNow(false);setTime(e.target.value);}}/></span></label></div>
@@ -109,7 +116,8 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
     </article>)}
    </div>}
   </main></div></div>
-  {picker&&<div ref={pickerRef} data-journey-picker className="connections-picker" role="dialog" aria-modal="true" aria-label={picker==='from'?'Wybierz przystanek początkowy':'Wybierz przystanek docelowy'}><header><button aria-label="Zamknij wybór przystanku" onClick={()=>setPicker(null)}><ArrowLeft size={20}/></button><div><h2>{picker==='from'?'Skąd jedziesz?':'Dokąd jedziesz?'}</h2><p>Wybierz przystanek z listy</p></div></header>{picker==='from'&&<button className="connections-use-location" onClick={locate} disabled={locating}><span><LocateFixed size={23}/></span><div><strong>{locating?'Ustalam lokalizację…':'Twoja lokalizacja'}</strong><small>Znajdź pobliskie przystanki lub idź pieszo</small></div>{locating?<LoaderCircle size={20} className="animate-spin"/>:<ArrowRight size={20}/>}</button>}
-   {error&&<p role="alert" className="connections-error">{error}</p>}<div className="connections-picker-list"><StopList stops={pickerStops} isLoading={catalogLoading&&!catalog.length} isDarkTheme={dark} backEnabled={false} onClose={()=>setPicker(null)} notice={catalogError?<p role="alert">{catalogError}<button onClick={()=>setAttempt(n=>n+1)}>Ponów</button></p>:undefined} toggleFavorite={()=>{}} onStopSelect={stop=>{invalidate();if(picker==='from')setFrom(stop);else setTo(stop);setPicker(null);}}/></div></div>}
+  {active&&picker&&pickerHost&&createPortal(<div className="connections-view connections-picker-host" data-panel-theme={dark?'dark':'light'}><div ref={pickerRef} data-journey-picker className="connections-picker" role="dialog" aria-modal="true" aria-label={picker==='from'?'Wybierz przystanek początkowy':'Wybierz przystanek docelowy'}><header><button aria-label={mapPicker?'Wróć do listy przystanków':'Zamknij wybór przystanku'} onClick={()=>{if(mapPicker)setMapPicker(false);else setPicker(null);}}><ArrowLeft size={20}/></button><div><h2>{picker==='from'?'Skąd jedziesz?':'Dokąd jedziesz?'}</h2><p>{mapPicker?'Wybierz punkt lub przystanek na mapie':'Wybierz przystanek lub dowolne miejsce'}</p></div></header>
+   <div className="connections-picker-actions"><button className="connections-use-location" onClick={locate} disabled={locating}><span><LocateFixed size={20}/></span><strong>{locating?'Ustalam lokalizację…':'Twoja lokalizacja'}</strong>{locating&&<LoaderCircle size={17} className="animate-spin"/>}</button>{allowMap&&<button className="connections-use-location" aria-pressed={mapPicker} onClick={()=>setMapPicker(value=>!value)}><span><MapIcon size={20}/></span><strong>{mapPicker?'Lista przystanków':'Wybierz z mapy'}</strong></button>}</div>
+   {error&&<p role="alert" className="connections-error">{error}</p>}{mapPicker?<JourneyPlaceMap stops={catalog} initial={picker==='from'?from:to} onSelect={choosePlace}/>:<div className="connections-picker-list"><StopList stops={pickerStops} isLoading={catalogLoading&&!catalog.length} isDarkTheme={dark} backEnabled={false} onClose={()=>setPicker(null)} notice={catalogError?<p role="alert">{catalogError}<button onClick={()=>setAttempt(n=>n+1)}>Ponów</button></p>:undefined} toggleFavorite={()=>{}} onStopSelect={choosePlace}/></div>}</div></div>,pickerHost)}
  </section>;
 }

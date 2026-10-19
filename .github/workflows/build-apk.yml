@@ -70,11 +70,14 @@ jobs:
 
       - name: Verify journey timetable loading and history contrast
         run: |
-          node --test test/journey-schedules.test.cjs test/journey-realtime.test.cjs
+          node --test test/journey-schedules.test.cjs test/journey-realtime.test.cjs test/journey-places.test.cjs
           node test/journey-recents-browser.cjs
 
       - name: Build Android Web Assets
         run: npm run build:android:web
+
+      - name: Verify journey place picker
+        run: JOURNEY_PICKER_ONLY=1 node test/journeys-browser.cjs
 
       - name: Verify route stroke transition
         run: node test/route-style-browser.cjs
