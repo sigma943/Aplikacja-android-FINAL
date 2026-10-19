@@ -46,10 +46,10 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    // Shift-click requests 13 -> 16 in one action; wait for the actual tile zoom.
    await page.keyboard.down('Shift');
    try{await page.click('.connections-place-map .leaflet-control-zoom-in');}finally{await page.keyboard.up('Shift');}
-   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(tile=>new URL(tile.src).searchParams.get('z')==='16'));
+   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(tile=>/[?&]z=16(?:&|$)/.test(tile.src)));
    await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring').catch(async error=>{
     await screenshot('picker-markers-failure');
-    console.error('Picker diagnostics',await page.evaluate(()=>({tiles:[...new Set([...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].map(tile=>new URL(tile.src).searchParams.get('z')))],errors:document.querySelector('.connections-place-map')?.textContent})),errors);throw error;
+    console.error('Picker diagnostics',await page.evaluate(()=>({tiles:[...new Set([...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].map(tile=>(/[?&]z=(\d+)/.exec(tile.src)||[])[1]))],errors:document.querySelector('.connections-place-map')?.textContent})),errors);throw error;
    });
    const colors=await page.$$eval('.connections-place-map .map-stop-ring',nodes=>nodes.map(e=>e.style.getPropertyValue('--stop-color')));
    assert.ok(colors.every(c=>['#14b8a6','#ff7a00'].includes(c)));
