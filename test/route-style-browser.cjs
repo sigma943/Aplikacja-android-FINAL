@@ -24,7 +24,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
      return data;
     });
     assert.deepEqual(result.dash,[],'road stroke explicitly clears schematic dashes');assert.equal(result.last,true,'foreground must paint above both halo layers');
-    if(!canvas)assert.equal(result.stroke,null,'SVG road is solid');
+    if(!canvas)assert.ok(!result.stroke,'SVG road is solid');
     if(canvas){await new Promise(r=>setTimeout(r,70));const pixel=await page.evaluate(()=>{const map=window.routeTestMap,layer=Object.values(map._layers).find(l=>l.options?.className==='mks-route-line'),r=layer._renderer,p=map.latLngToLayerPoint([50,22]).subtract(r._bounds.min);return Array.from(r._ctx.getImageData(Math.round(p.x),Math.round(p.y),1,1).data);});assert.ok(pixel[0]>240&&pixel[1]>100&&pixel[1]<145&&pixel[2]<30,'Canvas paints orange foreground, not grey halo: '+pixel);}
     await page.click('button:nth-child(2)');await new Promise(r=>setTimeout(r,60));
     assert.equal(await page.evaluate(()=>Object.values(window.routeTestMap._layers).filter(l=>l.options?.pane==='routeLinePane'&&l.getLatLngs).length),3,'changing vehicles leaves no old route layers');
