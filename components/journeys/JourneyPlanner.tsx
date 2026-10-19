@@ -30,7 +30,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
  const pickerRef=useRef<HTMLDivElement>(null),controller=useRef<AbortController|null>(null),generation=useRef(0);
  useDialogFocus(pickerRef,Boolean(picker)&&active,()=>setPicker(null));
  useEffect(()=>()=>controller.current?.abort(),[]);
- useEffect(()=>{if(!active){generation.current++;controller.current?.abort();queueMicrotask(()=>setBusy(false));}},[active]);
+ useEffect(()=>{if(!active){generation.current++;controller.current?.abort();queueMicrotask(()=>{setBusy(false);setMap(false);});}},[active]);
  useEffect(()=>{if(!active||!now)return;let alive=true;const update=()=>{if(alive){setDate(warsawDateIso());setTime(warsawClock(Date.now()));}};queueMicrotask(update);const timer=setInterval(update,30000);return()=>{alive=false;clearInterval(timer);};},[active,now]);
  const includeMarcel=options.providers.includes('marcel');
  useEffect(()=>{let alive=true;

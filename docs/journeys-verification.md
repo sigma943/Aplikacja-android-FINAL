@@ -24,3 +24,13 @@ Test przeglądarkowy uruchamia samą zakładkę poza ekranem logowania; nie potw
 - Formularz i wyniki mają osobne kolumny na komputerze; wybór przystanków pozostaje modalny. Ulubione podróże zastąpiono ostatnimi wyszukiwaniami.
 
 Dodatkowe sprawdzenie: 14/14 testów planera, kalendarzy, stanowisk i położenia; test przeglądarkowy z prawdziwymi kafelkami oraz trasą pieszą, symulowanym GPS i odmową dostępu do lokalizacji; brak poziomego przewijania przy 320/393/430 px i układ dwóch kolumn przy 1440 px. Kompilacja produkcyjna odbyła się w osobnej kopii, aby nie kolidować z uruchomionym serwerem deweloperskim.
+
+## Widok mapy na telefonie
+
+- Pełny ekran mapy z obsługą zamknięcia, klawiatury i wspólnego stosu przycisku Wstecz. Fokus wraca do przycisku otwierającego, a przewijanie tła jest przywracane po zamknięciu.
+- Wysokość mapy reaguje na ekran i obrót telefonu. Kadr obejmuje rzeczywistą geometrię wszystkich wczytanych odcinków, także poza prostokątem punktu startowego i końcowego. Przycisk „Pokaż całą trasę” ponownie ustawia kadr.
+- Na ekranie dotykowym mapa osadzona w karcie pozwala przewijać stronę jednym palcem. Na pełnym ekranie działa przesuwanie mapy. Przyciski mają pola dotyku co najmniej 44 px; pełny ekran uwzględnia bezpieczne obszary urządzenia.
+- Brak współrzędnych odcinka kończy ładowanie komunikatem z możliwością ponowienia. Prawidłowe odcinki nadal są widoczne. Przełączenie zakładki zamyka podgląd mapy.
+- Testy komponentu obejmują 320×568, 393×851, 430×932 oraz obrót do 851×393, pełny ekran, kadr zakrzywionej trasy, powrót fokusu, przywrócenie przewijania i rzeczywisty gest przewijania. Sprawdzono również mapę rzeczywistej trasy pieszej po załadowaniu kafelków.
+
+Ten sam komponent mapy przeszedł dodatkowo powyższe testy mobilne w Android WebView na emulatorze: pełny ekran, obrót, gest przewijania, przywracanie fokusu i obsługa brakujących współrzędnych. Komponent uruchomiono w osobnym widoku testowym; test nie obejmuje logowania.
