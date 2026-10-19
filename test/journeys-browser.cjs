@@ -14,6 +14,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const screenshot=name=>page.screenshot({path:'test/ui-previews/journeys-'+name+'.png'});
   if(process.env.JOURNEY_PICKER_ONLY){
    await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>!document.querySelector('.connections-primary').disabled);
+   await page.focus('[aria-label="Data podróży"]');assert.equal(await page.$eval('[aria-label="Data podróży"]',e=>getComputedStyle(e).outlineStyle),'none');
    await page.click('.connections-preferences');await page.click('[data-journey-to]');
    await page.waitForSelector('[data-journey-picker] .connections-picker-actions');
    assert.doesNotMatch(await page.$eval('[data-journey-picker] .connections-picker-actions',e=>e.textContent),/Twoja lokalizacja/);
@@ -41,11 +42,19 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
     const selectedAccent=await page.$eval('.connections-picker-host',e=>getComputedStyle(e).getPropertyValue('--cn-accent').trim());
     assert.equal(pin,expectedColor);assert.equal(selectedAccent,accent);
    }
+   for(let i=0;i<3;i++){await page.click('.connections-place-map .leaflet-control-zoom-in');await page.waitForFunction(()=>!document.querySelector('.connections-place-leaflet').classList.contains('leaflet-zoom-anim'));}
+   await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring');
+   const colors=await page.$$eval('.connections-place-map .map-stop-ring',nodes=>nodes.map(e=>e.style.getPropertyValue('--stop-color')));
+   assert.ok(colors.every(c=>['#14b8a6','#ff7a00'].includes(c)));
    await screenshot('map-picker-point');await page.click('.connections-place-confirm button');
    await page.waitForFunction(()=>document.querySelector('[data-journey-to]').textContent.includes('Punkt na mapie'));
    await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location');await page.waitForSelector('.connections-place-leaflet');
    await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker] input');assert.equal(await page.$('.connections-place-leaflet'),null);
    await page.keyboard.press('Escape');assert.equal(await page.$('[data-journey-picker]'),null);assert.deepEqual(errors,[]);
+   await page.goto(origin+'/?map-case=curve',{waitUntil:'domcontentloaded'});await page.waitForSelector('.journey-map .leaflet-tile-pane');
+   const inlineFilter=await page.$eval('.journey-map .leaflet-tile-pane',e=>getComputedStyle(e).filter);assert.notEqual(inlineFilter,'none');
+   await page.click('[aria-label="Powiększ mapę"]');await page.waitForSelector('.connections-map-modal .leaflet-tile-pane');
+   assert.equal(await page.$eval('.connections-map-modal .leaflet-tile-pane',e=>getComputedStyle(e).filter),inlineFilter);
    console.log('PASS: origin-only location, full picker coverage at 320/393/430px, map point selection, no bus icons and back navigation');return;
   }
   if(!process.env.JOURNEY_MAP_ONLY){
@@ -71,7 +80,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.$eval('[aria-label="Godzina podróży"]',e=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'09:30');e.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.click('.connections-primary');await page.waitForSelector('[data-journey-result]');assert.ok(await page.$('.connections-leg-badges [data-provider="mpk"]'),'full MPK timetables also produce real connections');
   await page.click('[data-journey-result] .connections-result');await page.waitForSelector('.connections-detail');
-  await page.click('.connections-map-button');await page.waitForSelector('.journey-map .leaflet-container');await page.waitForFunction(()=>document.querySelectorAll('.journey-map path').length>=3);
+  await page.click('.connections-map-button:last-child');await page.waitForSelector('.journey-map .leaflet-container');await page.waitForFunction(()=>document.querySelectorAll('.journey-map path').length>=3);
   await screenshot('mpk-map');assert.deepEqual(errors,[]);
   await page.click('[data-journey-from]');await page.keyboard.press('Escape');assert.equal(await page.$('[data-journey-picker]'),null,'Escape closes the picker');
   for(const width of [320,430]){await page.setViewport({width,height:851,deviceScaleFactor:1});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no overflow at '+width+'px');}
@@ -85,7 +94,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[data-journey-from]');await page.click('.connections-use-location');await page.waitForFunction(()=>document.querySelector('[data-journey-from]').textContent.includes('Twoja lokalizacja'));
   await page.click('.connections-primary');await page.waitForFunction(()=>[...document.querySelectorAll('.connections-result-meta')].some(n=>n.textContent.includes('Całą trasę pieszo')),{timeout:30000});
   assert.ok(await page.$('.connections-leg-badges [data-provider="mpk"]'),'location also finds nearby bus departures');
-  await page.evaluate(()=>[...document.querySelectorAll('[data-journey-result]')].find(n=>n.textContent.includes('Całą trasę pieszo')).querySelector('button').click());await page.click('.connections-map-button');
+  await page.evaluate(()=>[...document.querySelectorAll('[data-journey-result]')].find(n=>n.textContent.includes('Całą trasę pieszo')).querySelector('button').click());await page.click('.connections-map-button:last-child');
   await page.waitForSelector('.connections-walking-path',{timeout:20000});assert.equal(await page.$eval('.connections-walking-path',e=>e.getAttribute('stroke')),'#fff');assert.equal(await page.$eval('.connections-walking-path',e=>e.getAttribute('stroke-dasharray')),'5 10');assert.ok(await page.$('.connections-walk-marker'));
   assert.ok(await page.$eval('.connections-walking-path',e=>e.getAttribute('d').split('L').length>3),'walking route follows real streets and paths');
   const history=await page.evaluate(()=>JSON.parse(localStorage.getItem('pks-live:journey-recents')));assert.equal(history[0].from.lat,undefined,'location coordinates are not persisted');

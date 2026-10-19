@@ -1,5 +1,5 @@
 import type {Stop} from '@/Panel/src/types';
-import {stopDistance,type Journey,type JourneyLeg,type JourneyOptions} from './journey-planner';
+import {journeyWindow,stopDistance,type Journey,type JourneyLeg,type JourneyOptions} from './journey-planner';
 import {isRzeszowStation,matchesJourneyPlace} from './journey-places';
 import {warsawTimeMs} from './transit-time';
 
@@ -35,7 +35,7 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
   const match=closest&&(!candidates[1]||candidates[1].distance-closest.distance>5)?closest.stop:undefined;
   mapped.set(id,match||{...point,id:`journey:${provider}:${id}`,type:'bus',carriers:[carrier(provider)],lines:[],isFavorite:false,sourceProviderIds:[namespace],providerStopIds:{[namespace]:id}});
  }
- const earliest=(options.arriveBy?options.at-6*3600_000:options.at)-delayWindow,latest=(options.arriveBy?options.at:options.at+6*3600_000)+delayWindow;
+ const window=journeyWindow(options),earliest=window.earliest-delayWindow,latest=window.latest+delayWindow;
  const connections:Connection[]=[];
  for(const delta of [-1,0,1]){
   const day=new Date(date+'T12:00:00Z');day.setUTCDate(day.getUTCDate()+delta);const serviceDate=day.toISOString().slice(0,10);
@@ -57,7 +57,7 @@ type Label={stop:Stop;time:number;legs:JourneyLeg[];rides:number;walking:number}
 /** Chronological connection scan. Staying on one bus never consumes a transfer. */
 export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:JourneyOptions):Journey[]{
  if(from.id===to.id)return [];
- const earliest=o.arriveBy?o.at-6*3600_000:o.at,latest=o.arriveBy?o.at:o.at+6*3600_000;
+ const {earliest,latest}=journeyWindow(o);
  const stops=[...new Map([from,to,...connections.flatMap(c=>[c.from,c.to])].map(s=>[s.id,s])).values()];
  const buckets=new Map<string,Stop[]>(),cell=(s:Stop)=>[Math.floor((s.lat||0)*100),Math.floor((s.lon||0)*100)];
  for(const stop of stops){if(!Number.isFinite(stop.lat)||!Number.isFinite(stop.lon))continue;const key=cell(stop).join(':');const list=buckets.get(key)||[];list.push(stop);buckets.set(key,list);}
@@ -139,5 +139,5 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   const walkingOkay=better.walking<=candidate.walking||(o.sort!=='walking'&&better.walking<=Math.max(100,candidate.walking)&&candidate.arrival-better.arrival>=5*60000);
   return walkingOkay&&(better.arrival<candidate.arrival||better.transfers<candidate.transfers||better.walking<candidate.walking);
  }));
- const seen=new Set<string>();return useful.sort((a,b)=>score(a)-score(b)||a.transfers-b.transfers).filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|')||'walk:'+from.id+':'+to.id;if(seen.has(key))return false;seen.add(key);return true;}).slice(0,12);
+ const seen=new Set<string>();return useful.sort((a,b)=>score(a)-score(b)||a.transfers-b.transfers).filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|')||'walk:'+from.id+':'+to.id;if(seen.has(key))return false;seen.add(key);return true;}).slice(0,o.day?undefined:12);
 }

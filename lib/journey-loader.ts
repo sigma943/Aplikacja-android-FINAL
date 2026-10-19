@@ -2,7 +2,7 @@ import {isJourneyCoordinate} from './journey-places';
 import {journeyWalkingRoute} from './journey-walking';
 import type {Stop} from '@/Panel/src/types';
 import {runTimetableSearch} from './journey-worker-client';
-import {stopDistance,type JourneyOptions} from './journey-planner';
+import {journeyWindow,stopDistance,type JourneyOptions} from './journey-planner';
 import type {Connection} from './journey-timetable';
 import {fetchMarcelCoursesClient,fetchMarcelPublicCourseStopsClient} from './pks-client';
 import {fetchVehiclesClient} from './pks-client';
@@ -18,7 +18,7 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
  const nearby=known.filter(s=>o.maxTransfers===2||s.id===from.id||s.id===to.id||stopDistance(s,from)*1.35<=o.walkMeters||stopDistance(s,to)*1.35<=o.walkMeters);
  for(const s of [from,to,...nearby])for(const id of String(s.providerStopIds?.marcelRouteIds||'').split(',').filter(Boolean))ids.add(id);
  const result:Connection[]=[];if(!ids.size)return result;
- const earliest=o.at-(o.arriveBy?6*3600_000:0),latest=o.at+(o.arriveBy?0:6*3600_000);
+ const {earliest,latest}=journeyWindow(o);
  const courses=[...new Map((await Promise.all([...ids].map(id=>fetchMarcelCoursesClient(id,date)))).flat().map(c=>[c.idKu,c])).values()]
   .filter(c=>{const time=warsawTimeMs(date,c.godz||c.godzPr);return !Number.isFinite(time)||(time>=earliest-3*3600_000&&time<=latest);});
  let cursor=0;

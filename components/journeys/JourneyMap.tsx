@@ -135,7 +135,7 @@ export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}
    {failed.length>0&&<div className="connections-map-error" role="status"><span>Nie udało się wczytać {failed.length===1?'jednego odcinka':'części trasy'}. Sprawdź połączenie z internetem.</span><button onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={16}/>Ponów</button></div>}
   </div>
  </>;
- return <div className="journey-map" ref={host}>
+ return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
   <div className="connections-map-toolbar"><strong>Mapa podróży</strong><button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
   {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
