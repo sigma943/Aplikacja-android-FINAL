@@ -3,11 +3,12 @@ import {useEffect,useState} from 'react';
 import {officialBusRoute} from '@/lib/official-bus-routes';
 import {MapContainer,TileLayer,CircleMarker,Tooltip,Polyline} from 'react-leaflet';
 import type {Journey} from '@/lib/journey-planner';
+import 'leaflet/dist/leaflet.css';
 export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
  const [paths,setPaths]=useState<Record<number,Array<[number,number]>>>({});
  useEffect(()=>{let alive=true;setPaths({});void Promise.all(journey.legs.map(async(l,i)=>{
   if(l.walking!==undefined||!['pks','mpk'].includes(l.provider))return;
-  try{const full=await officialBusRoute(l.provider==='mpk'?'mpk_rzeszow':'pks',l.course.slice(l.provider.length+1),[]);
+  try{const full=await officialBusRoute(l.provider==='mpk'?'mpk_rzeszow':'pks',l.course.split(':')[1],[]);
    const distance=(p:[number,number],s:typeof l.from)=>Math.hypot((p[0]-s.lat!)*111000,(p[1]-s.lon!)*71000);
    let start=-1,end=-1,sd=Infinity,ed=Infinity;
    full.forEach((p,n)=>{const d=distance(p,l.from);if(d<sd){sd=d;start=n;}});

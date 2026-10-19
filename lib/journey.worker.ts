@@ -1,2 +1,5 @@
-import {findJourneys} from './journey-planner';
-self.onmessage=event=>{const {from,to,legs,options}=event.data;try{self.postMessage({journeys:findJourneys(from,to,legs,options)});}catch{self.postMessage({error:true});}};
+import {executeTimetableSearch,type TimetableSearch} from './journey-schedules';
+self.onmessage=async({data}:{data:TimetableSearch})=>{
+ try{self.postMessage({result:await executeTimetableSearch(data,(n,total)=>self.postMessage({progress:[n,total]}))});}
+ catch(error){self.postMessage({error:error instanceof Error?error.message:'Nie udało się obliczyć połączeń.'});}
+};

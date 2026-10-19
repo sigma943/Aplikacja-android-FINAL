@@ -1,61 +1,37 @@
-import type {Stop,Departure} from '@/Panel/src/types';
-import {loadStopDepartures} from './stop-departures';
-import {runJourneySearch} from './journey-worker-client';
-import {buildJourneyLegs,stopDistance,departureCourse,type JourneyOptions} from './journey-planner';
-import {fetchMpkTripStops} from './providers/mpk-vehicles';
-import {fetchMarcelPublicCourseStopsClient} from './pks-client';
-import {warsawDateIso,warsawTimeMs} from './transit-time';
-/** Reuse timetable clients and their shared six-request limit; never poll from this tab. */
+import type {Stop} from '@/Panel/src/types';
+import {runTimetableSearch} from './journey-worker-client';
+import {stopDistance,type JourneyOptions} from './journey-planner';
+import type {Connection} from './journey-timetable';
+import {fetchMarcelCoursesClient,fetchMarcelPublicCourseStopsClient} from './pks-client';
+import {warsawTimeMs} from './transit-time';
+import {withRequestDeadline} from './request-deadline';
+import {readBusCoordinates} from './bus-coordinates';
+import {marcelCourseStopIndexKey} from '@/components/stops-panel/stop-domain';
+
+async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:JourneyOptions,signal:AbortSignal){
+ const ids=new Set<string>();
+ const known=catalog.filter(s=>s.sourceProviderIds?.includes('marcel'));
+ const nearby=known.filter(s=>o.maxTransfers===2||s.id===from.id||s.id===to.id||stopDistance(s,from)*1.35<=o.walkMeters||stopDistance(s,to)*1.35<=o.walkMeters);
+ for(const s of [from,to,...nearby])for(const id of String(s.providerStopIds?.marcelRouteIds||'').split(',').filter(Boolean))ids.add(id);
+ const result:Connection[]=[];if(!ids.size)return result;
+ const earliest=o.at-(o.arriveBy?6*3600_000:0),latest=o.at+(o.arriveBy?0:6*3600_000);
+ const courses=[...new Map((await Promise.all([...ids].map(id=>fetchMarcelCoursesClient(id,date)))).flat().map(c=>[c.idKu,c])).values()]
+  .filter(c=>{const time=warsawTimeMs(date,c.godz||c.godzPr);return !Number.isFinite(time)||(time>=earliest-3*3600_000&&time<=latest);});
+ let cursor=0;
+ await Promise.all(Array.from({length:4},async()=>{while(cursor<courses.length){signal.throwIfAborted();const course=courses[cursor++],raw=await fetchMarcelPublicCourseStopsClient(course.idKu);let previous=0;
+  const points=raw.map((p,index)=>{let time=warsawTimeMs(date,p.godz);if(time<previous&&previous-time>12*3600_000)time+=86400_000;previous=time;
+   const coordinate=readBusCoordinates(p.szGps,p.dlGps),identity=marcelCourseStopIndexKey(p);
+   const named=known.filter(s=>String(s.providerStopIds?.marcelCityMatchKeys||'').split(',').includes(identity));
+   const candidates=known.map(s=>({stop:s,d:stopDistance(s,{lat:coordinate?.lat,lon:coordinate?.lon} as Stop)})).filter(x=>x.d<35).sort((a,b)=>a.d-b.d);
+   const stop=named.length===1?named[0]:candidates.length&&(!candidates[1]||candidates[1].d-candidates[0].d>5)?candidates[0].stop:{id:'journey:marcel:'+course.idKu+':'+index,name:[p.nazMi,p.nazPr].filter(Boolean).join(' '),type:'bus' as const,lat:coordinate?.lat,lon:coordinate?.lon,carriers:[{id:'marcel',name:'Marcel',colorClass:''}],lines:['M'],isFavorite:false};return {stop,time};});
+  for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel'});}
+ }}));return result;
+}
 export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:string,options:JourneyOptions,signal:AbortSignal,progress:(n:number,total:number)=>void){
- const check=()=>{if(signal.aborted)throw new DOMException('Anulowano','AbortError');};
- const offset=Math.round((Date.parse(date+'T12:00:00Z')-Date.parse(warsawDateIso()+'T12:00:00Z'))/86400_000);
- const fromLines=new Set(from.lines),toLines=new Set(to.lines);
- const candidates=catalog.filter(s=>s.type==='bus'&&s.id!==from.id&&s.id!==to.id).map(stop=>({stop,score:
-  (stop.lines.some(l=>fromLines.has(l))&&stop.lines.some(l=>toLines.has(l))?1000:0)+
-  (stopDistance(stop,from)<=options.walkMeters||stopDistance(stop,to)<=options.walkMeters?500:0)+Math.min(stop.lines.length,50)}))
-  .sort((a,b)=>b.score-a.score).slice(0,options.maxTransfers?48:8).map(x=>x.stop);
- const points=[...new Map([from,to,...candidates].map(s=>[s.id,s])).values()];
- const boards:Array<{stop:Stop;departures:Departure[]}>=[],warnings=new Set<string>();let done=0,index=0;
- await Promise.all(Array.from({length:4},async()=>{
-  while(index<points.length){check();const stop=points[index++];
-   try{const scoped={...stop,sourceProviderIds:(stop.sourceProviderIds||['pks']).filter(p=>options.providers.includes(p==='mpk_rzeszow'?'mpk':p)),providerStopIds:{...stop.providerStopIds,mpk_rzeszow:options.providers.includes('mpk')?stop.providerStopIds?.mpk_rzeszow||'':''}};
-   if(!scoped.sourceProviderIds.length&&!scoped.providerStopIds.mpk_rzeszow){progress(++done,points.length);continue;}
-   const result=await loadStopDepartures(scoped,offset);check();boards.push({stop,departures:result.departures});result.warnings.forEach(w=>warnings.add(w));}
-   catch(error){check();warnings.add('Część rozkładów jest niedostępna.');}
-   progress(++done,points.length);
-  }
- }));check();
- // Resolve complete trip timetables where the connected API exposes them.
- // This includes terminal stops that departure boards intentionally hide.
- const originCourses=new Set(boards.filter(b=>b.stop.id===from.id).flatMap(b=>b.departures.map(departureCourse)));
- const courses=[...new Map(boards.flatMap(b=>b.departures.filter(d=>options.providers.includes(d.carrier?.id||'')&&
-  d.plannedAtMs!>=options.at-(options.arriveBy?6*3600_000:0)&&d.plannedAtMs!<=options.at+(options.arriveBy?0:6*3600_000))
-  .map(d=>[departureCourse(d),d] as const))).entries()].filter(([key,row])=>key&&['mpk','marcel'].includes(row.carrier?.id||'')).sort((a,b)=>{return Number(originCourses.has(b[0]))-Number(originCourses.has(a[0]))||Math.abs(a[1].plannedAtMs!-options.at)-Math.abs(b[1].plannedAtMs!-options.at);});
- const mpkStops=new Map<string,Stop>();for(const stop of catalog)for(const id of String(stop.providerStopIds?.mpk_rzeszow||'').split(','))if(id)mpkStops.set(id.trim(),stop);
- const marcelStops=catalog.filter(s=>s.sourceProviderIds?.includes('marcel'));
- let tripIndex=0;
- await Promise.all(Array.from({length:4},async()=>{
-  while(tripIndex<Math.min(courses.length,100)){
-   check();progress(done+tripIndex+1,points.length+Math.min(courses.length,100));const [key,row]=courses[tripIndex++],provider=row.carrier!.id,id=key.slice(provider.length+1);
-   try{
-    let points:Array<{id?:string;name?:string;lat?:number;lon?:number;time?:string}>=[];
-    if(provider==='mpk')points=(await fetchMpkTripStops(id)).map(p=>({id:String(p.stop_id),lat:Number(p.lat??p.stop_lat),lon:Number(p.lon??p.stop_lon),time:p.departure_time||p.arrival_time}));
-    else if(provider==='marcel')points=(await fetchMarcelPublicCourseStopsClient(id)).map(p=>({name:[p.nazMi,p.nazPr].filter(Boolean).join(' '),lat:p.szGps,lon:p.dlGps,time:p.godz}));
-    else continue;
-    check();let previous=0;
-    for(const point of points){
-     let time=warsawTimeMs(date,point.time);if(!Number.isFinite(time))continue;
-     if(time<previous&&previous-time>12*3600_000)time+=86400_000;previous=time;
-     const matches=provider==='mpk'?[mpkStops.get(point.id!)].filter((s):s is Stop=>Boolean(s)):
-      marcelStops.filter(s=>stopDistance(s,{lat:point.lat,lon:point.lon} as Stop)<60);
-     const match=matches.length===1?matches[0]:undefined;
-     if(!match)continue;
-     boards.push({stop:match,departures:[{...row,id:`planner:${key}:${match.id}:${time}`,courseId:id,plannedAtMs:time,realAtMs:undefined}]});
-    }
-   }catch{check();warnings.add('Nie wszystkie pełne rozkłady kursów są dostępne.');}
-  }
- }));check();
- const earliest=options.arriveBy?options.at-6*3600_000:options.at,latest=options.arriveBy?options.at:options.at+6*3600_000;
- const windowed=boards.map(b=>({...b,departures:b.departures.filter(d=>d.plannedAtMs!>=earliest&&d.plannedAtMs!<=latest)}));
- return {journeys:await runJourneySearch(from,to,buildJourneyLegs(windowed,options.providers),options,signal),warnings:[...warnings],limited:candidates.length<catalog.length-2};
+ const warnings:string[]=[];let extra:Connection[]=[];
+ if(options.providers.includes('marcel')){
+  try{extra=await withRequestDeadline(()=>marcelConnections(from,to,catalog,date,options,signal),signal,12000);}
+  catch{signal.throwIfAborted();warnings.push('Marcel: rozkład internetowy jest teraz niedostępny. Wyniki obejmują pozostałych wybranych przewoźników.');}
+ }
+ return runTimetableSearch({from,to,catalog,date,options,extra,warnings},signal,progress);
 }

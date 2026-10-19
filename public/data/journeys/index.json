@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-19T08:40:35.049Z",
+  "feeds": {
+    "pks": {
+      "source": "https://www.mpkrzeszow.pl/gtfs-pks/latest.zip",
+      "validFrom": "20260901",
+      "validUntil": "20261231",
+      "trips": 2155,
+      "stops": 1825
+    },
+    "mpk": {
+      "source": "https://otwartedane.erzeszow.pl/media/resources/gtfs-01-10-2026-31-12-2026-25-09-2026-09-14-02.zip",
+      "validFrom": "20261001",
+      "validUntil": "20261231",
+      "trips": 7892,
+      "stops": 955
+    }
+  }
+}
