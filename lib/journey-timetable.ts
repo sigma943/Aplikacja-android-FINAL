@@ -1,5 +1,6 @@
 import type {Stop} from '@/Panel/src/types';
 import {stopDistance,type Journey,type JourneyLeg,type JourneyOptions} from './journey-planner';
+import {isRzeszowStation,matchesJourneyPlace} from './journey-places';
 import {warsawTimeMs} from './transit-time';
 
 export type TimetableFeed={version:number;provider:string;validFrom:string;validUntil:string;stops:Record<string,{name:string;lat:number;lon:number}>;
@@ -20,6 +21,7 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
  }
  const mapped=new Map<string,Stop>();
  for(const [id,point] of Object.entries(feed.stops)){
+  if(isRzeszowStation(point)){mapped.set(id,{...point,id:`journey:${provider}:${id}`,name:point.name.replace(/(D\.?A\.?)\s+(\d+)$/i,'$1 st. $2'),type:'bus',carriers:[carrier(provider)],lines:[],isFavorite:false,sourceProviderIds:[namespace],providerStopIds:{[namespace]:id}});continue;}
   const known=exact.get(id);if(known){mapped.set(id,known);continue;}
   const candidates=catalog.filter(s=>s.sourceProviderIds?.includes(namespace)||s.carriers.some(c=>c.id===provider))
    .map(stop=>({stop,distance:stopDistance(stop,point as Stop)})).filter(x=>x.distance<45).sort((a,b)=>a.distance-b.distance);
@@ -66,7 +68,7 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
  const labels=new Map<string,Label[]>(),onboard=new Map<string,Label[]>(),answers:Journey[]=[];
  const departure=(l:Label)=>l.legs[0]?.departure??earliest;
  const add=(label:Label)=>{
-  if(label.stop.id===to.id&&label.rides){const legs=label.legs,id=legs.map(l=>`${l.course}:${l.from.id}:${l.to.id}:${l.departure}`).join('|');answers.push({id,legs,departure:departure(label),arrival:label.time,walking:label.walking,transfers:label.rides-1});}
+  if(matchesJourneyPlace(to,label.stop)&&label.rides){const legs=label.legs,id=legs.map(l=>`${l.course}:${l.from.id}:${l.to.id}:${l.departure}`).join('|');answers.push({id,legs,departure:departure(label),arrival:label.time,walking:label.walking,transfers:label.rides-1});}
   const key=label.stop.id,list=labels.get(key)||[];
   if(list.some(l=>l.time<=label.time&&l.walking<=label.walking&&l.rides<=label.rides&&(!o.arriveBy||departure(l)>=departure(label))))return;
   const next=list.filter(l=>!(label.time<=l.time&&label.walking<=l.walking&&label.rides<=l.rides&&(!o.arriveBy||departure(label)>=departure(l))));next.push(label);
@@ -77,7 +79,8 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   const leg:JourneyLeg={from:label.stop,to:stop,departure:label.time,arrival:label.time+minutes*60000,walking:meters,course:'walk',provider:'walk',line:'Pieszo'};
   add({...label,stop,time:leg.arrival,legs:[...label.legs,leg],walking:label.walking+meters});
  }};
- const initial:Label={stop:from,time:earliest,legs:[],rides:0,walking:0};add(initial);walk(initial);
+ const origins=stops.filter(s=>matchesJourneyPlace(from,s)&&s.id!==from.id);
+ for(const origin of origins.length?origins:[from]){const initial:Label={stop:origin,time:earliest,legs:[],rides:0,walking:0};add(initial);walk(initial);}
  for(const c of [...connections].sort((a,b)=>a.departure-b.departure||a.arrival-b.arrival)){
   if(c.departure<earliest||c.arrival>latest||!o.providers.includes(c.provider))continue;
   const continuing=(onboard.get(c.course)||[]).filter(l=>l.stop.id===c.from.id&&l.time<=c.departure);

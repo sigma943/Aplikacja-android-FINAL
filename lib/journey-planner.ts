@@ -1,5 +1,5 @@
 import type {Departure,Stop} from '@/Panel/src/types';
-export type JourneyLeg={from:Stop;to:Stop;departure:number;arrival:number;line:string;provider:string;course:string;walking?:number};
+export type JourneyLeg={from:Stop;to:Stop;departure:number;arrival:number;line:string;provider:string;course:string;walking?:number;path?:Array<[number,number]>};
 export type Journey={id:string;legs:JourneyLeg[];departure:number;arrival:number;walking:number;transfers:number};
 export type JourneyOptions={at:number;arriveBy:boolean;maxTransfers:number;walkMeters:number;transferMinutes:number;providers:string[];sort:'fastest'|'transfers'|'walking'};
 export function stopDistance(a:Stop,b:Stop){

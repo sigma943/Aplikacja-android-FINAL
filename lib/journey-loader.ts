@@ -1,3 +1,5 @@
+import {LOCATION_ID} from './journey-places';
+import {journeyWalkingRoute} from './journey-walking';
 import type {Stop} from '@/Panel/src/types';
 import {runTimetableSearch} from './journey-worker-client';
 import {stopDistance,type JourneyOptions} from './journey-planner';
@@ -33,5 +35,12 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
   try{extra=await withRequestDeadline(()=>marcelConnections(from,to,catalog,date,options,signal),signal,12000);}
   catch{signal.throwIfAborted();warnings.push('Marcel: rozkład internetowy jest teraz niedostępny. Wyniki obejmują pozostałych wybranych przewoźników.');}
  }
- return runTimetableSearch({from,to,catalog,date,options,extra,warnings},signal,progress);
+ const walking=from.id===LOCATION_ID?journeyWalkingRoute(from,to).catch(()=>null):Promise.resolve(null);
+ const result=await runTimetableSearch({from,to,catalog,date,options,extra,warnings},signal,progress);
+ const foot=await walking;signal.throwIfAborted();
+ if(foot&&foot.meters<=30000){
+  const duration=foot.minutes*60000,departure=options.arriveBy?options.at-duration:options.at;
+  result.journeys.push({id:'walk-only',departure,arrival:departure+duration,walking:foot.meters,transfers:0,legs:[{from,to,departure,arrival:departure+duration,line:'Pieszo',provider:'walk',course:'walk',walking:foot.meters,path:foot.points}]});
+ }else if(from.id===LOCATION_ID&&!foot)result.warnings.push('Nie udało się wczytać trasy w całości pieszo. Połączenia autobusowe nadal uwzględniają szacowane dojście do przystanków.');
+ return result;
 }
