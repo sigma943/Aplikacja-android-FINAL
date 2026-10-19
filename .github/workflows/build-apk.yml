@@ -68,6 +68,9 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify route stroke transition
+        run: node test/route-style-browser.cjs
+
       - name: Verify vertical panel layout
         if: ${{ !contains(github.event.pull_request.title, '[quick-build]') }}
         run: node test/ui-horizontal-browser.cjs
