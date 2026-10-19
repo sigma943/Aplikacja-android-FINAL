@@ -402,6 +402,7 @@ function EditRoleModal({
         canChangeRoles: true,
 disableMap: false,
 disableStops: false,
+disableJourneys: false,
         globalSettings: true,
         globalSettingsEdit: true,
       });
@@ -417,6 +418,7 @@ disableStops: false,
         canChangeRoles: false,
 disableMap: false,
 disableStops: false,
+disableJourneys: false,
         globalSettings: false,
         globalSettingsEdit: false,
       });
@@ -433,6 +435,7 @@ disableStops: false,
         canChangeRoles: false,
 disableMap: false,
 disableStops: false,
+disableJourneys: false,
         globalSettings: false,
         globalSettingsEdit: false,
       });

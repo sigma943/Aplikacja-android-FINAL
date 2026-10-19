@@ -1,4 +1,4 @@
-﻿import { initializeApp } from 'firebase-admin/app';
+import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { fetchVehicleDetails, fetchVehiclesForProviders, getProvidersHealth } from './transport/service';
@@ -20,6 +20,7 @@ type DevicePermissions = {
   canChangeRoles: boolean;
   disableMap: boolean;
   disableStops: boolean;
+  disableJourneys: boolean;
   globalSettings: boolean;
   globalSettingsEdit: boolean;
   canBan: boolean;
@@ -109,6 +110,7 @@ const PERMISSION_KEYS = [
   'canChangeRoles',
   'disableMap',
   'disableStops',
+  'disableJourneys',
   'globalSettings',
   'globalSettingsEdit',
   'canBan',
@@ -166,6 +168,7 @@ const sanitizePermissionsForRole = (
         ...base,
         disableMap: req.disableMap === true,
         disableStops: req.disableMap === true ? false : req.disableStops === true,
+        disableJourneys: req.disableJourneys === true,
       };
     }
     for (const key of Object.keys(req)) {
@@ -182,10 +185,11 @@ const sanitizePermissionsForRole = (
     canViewList: true,
     disableMap: false,
     disableStops: false,
+    disableJourneys: false,
   };
 
   for (const key of PERMISSION_KEYS) {
-    if (key === 'monitor' || key === 'canViewList' || key === 'disableMap' || key === 'disableStops') continue;
+    if (key === 'monitor' || key === 'canViewList' || key === 'disableMap' || key === 'disableStops' || key === 'disableJourneys') continue;
     if (typeof req[key] !== 'boolean') continue;
     if (caller?.role !== 'owner' && req[key] === true && !callerHasPermission(caller, key)) {
       throw new HttpsError('permission-denied', `Cannot grant permission above caller rights: ${key}`);
@@ -239,6 +243,7 @@ const permissionsForRole = (role: DeviceRole): DevicePermissions => {
       canChangeRoles: true,
       disableMap: false,
       disableStops: false,
+      disableJourneys: false,
       globalSettings: true,
       globalSettingsEdit: true,
       canBan: true,
@@ -256,6 +261,7 @@ const permissionsForRole = (role: DeviceRole): DevicePermissions => {
       canChangeRoles: false,
       disableMap: false,
       disableStops: false,
+      disableJourneys: false,
       globalSettings: false,
       globalSettingsEdit: false,
       canBan: true,
@@ -272,6 +278,7 @@ const permissionsForRole = (role: DeviceRole): DevicePermissions => {
     canChangeRoles: false,
     disableMap: false,
     disableStops: false,
+    disableJourneys: false,
     globalSettings: false,
     globalSettingsEdit: false,
     canBan: false,

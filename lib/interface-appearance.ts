@@ -11,10 +11,17 @@ export function vehicleHeaderStyle(color:string,glass:boolean,isDark=true){
   return {background:glass?`linear-gradient(135deg, ${withAlpha(color,0.48)}, ${withAlpha(color,0.28)})`:color};
 }
 
-export const NAV_ITEMS=['map','stops','admin','options'] as const;
+export const NAV_ITEMS=['map','journeys','stops','admin','options'] as const;
 export type NavItem=typeof NAV_ITEMS[number];
+function normalizeNavOrder(value:unknown):NavItem[]{
+ const saved=Array.isArray(value)?value.filter((item):item is NavItem=>NAV_ITEMS.includes(item as NavItem)):[];
+ // Existing users keep their chosen order, with the new tab beside Map.
+ if(saved.length&&!saved.includes('journeys'))saved.splice(saved.includes('map')?saved.indexOf('map')+1:0,0,'journeys');
+ return [...new Set([...saved,...NAV_ITEMS])];
+}
+
 export interface InterfaceAppearance {
-  startScreen:'map'|'stops'|'admin';navOrder:NavItem[];departureView:'simple'|'detailed';
+  startScreen:'map'|'stops'|'admin'|'journeys';navOrder:NavItem[];departureView:'simple'|'detailed';
   markerSize:number;markerLabel:'line'|'carrier'|'icon';
   panelRadius:number; cardRadius:number; controlRadius:number;
   borderStrength:number; shadowStrength:number;
@@ -49,8 +56,8 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   const choice=<K extends keyof InterfaceAppearance>(key:K,values:readonly InterfaceAppearance[K][])=>values.includes(v[key] as InterfaceAppearance[K])?v[key] as InterfaceAppearance[K]:d[key];
   const flag=(key:keyof InterfaceAppearance)=>typeof v[key]==='boolean'?v[key] as boolean:d[key] as boolean;
   return {
-    startScreen:choice('startScreen',['map','stops','admin']),
-    navOrder:[...new Set(Array.isArray(v.navOrder)?v.navOrder.filter((item):item is NavItem=>NAV_ITEMS.includes(item as NavItem)):[]),...NAV_ITEMS].filter((item,index,items)=>items.indexOf(item)===index),
+    startScreen:choice('startScreen',['map','stops','admin','journeys']),
+    navOrder:normalizeNavOrder(v.navOrder),
     departureView:choice('departureView',['simple','detailed']),markerSize:n('markerSize',80,140),markerLabel:choice('markerLabel',['line','carrier','icon']),
     panelRadius:n('panelRadius',0,36),cardRadius:n('cardRadius',0,30),controlRadius:n('controlRadius',0,24),
     borderStrength:n('borderStrength',0,40),shadowStrength:n('shadowStrength',0,100),
@@ -91,7 +98,7 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
     '--personal-font':interfaceFontStack(v),
     '--personal-icon-size':`${v.iconSize}px`,'--personal-icon-stroke':`${v.iconStroke}`,'--personal-inactive-opacity':`${v.inactiveOpacity/100}`,
     '--personal-marker-scale':String(v.markerSize/100),
-    '--personal-nav-map':String(v.navOrder.indexOf('map')),'--personal-nav-stops':String(v.navOrder.indexOf('stops')),'--personal-nav-admin':String(v.navOrder.indexOf('admin')),'--personal-nav-options':String(v.navOrder.indexOf('options')),
+    '--personal-nav-map':String(v.navOrder.indexOf('map')),'--personal-nav-journeys':String(v.navOrder.indexOf('journeys')),'--personal-nav-stops':String(v.navOrder.indexOf('stops')),'--personal-nav-admin':String(v.navOrder.indexOf('admin')),'--personal-nav-options':String(v.navOrder.indexOf('options')),
     '--personal-muted':dark?'#dbe5ef':'#334155',
     '--personal-pattern-image':interfacePanelPattern(v,dark),
     '--personal-row-padding':v.density==='compact'?'8px':v.density==='spacious'?'18px':'12px',

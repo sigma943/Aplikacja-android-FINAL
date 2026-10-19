@@ -15,6 +15,8 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   if(!process.env.JOURNEY_MAP_ONLY){
   await page.goto(origin,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForFunction(()=>document.querySelector('.connections-primary')&&!document.querySelector('.connections-primary').disabled,{timeout:20000}).catch(async error=>{console.log('Initial screen',await page.$eval('body',e=>e.innerText),'errors',errors,'external',external);await screenshot('failure');throw error;});
   await page.click('.connections-preferences');
+  assert.equal(await page.$$eval('.connections-provider-options input:checked',items=>items.length),3,'all carriers are selected by default');
+  await page.click('.connections-provider-options [data-provider=marcel]');
   assert.equal(await page.$('.connections-preference-body select'),null,'preferences never open Android native selects');
   await page.click('.connections-choice-trigger');await page.waitForSelector('[role=menu]');
   await screenshot('preferences-menu');

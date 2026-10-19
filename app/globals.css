@@ -576,6 +576,7 @@ html[data-personal-control-radius='true'] .personal-preset { clip-path:inset(0 r
 .personal-tools :is(input[type='text'],input:not([type]),input[type='time'],select) { min-width:0; max-width:100%; padding:10px; border-radius:10px; border:1px solid var(--ui-edge); background:var(--ui-surface); color:var(--ui-text); }
 .personal-profile-save input { padding:10px; border-radius:10px; border:1px solid var(--ui-edge); background:var(--ui-surface); color:var(--ui-text); }
 .pks-navigation [data-nav-item='map'] { order:var(--personal-nav-map,0); }
+.pks-navigation [data-nav-item='journeys'] { order:var(--personal-nav-journeys,1); }
 .pks-navigation [data-nav-item='stops'] { order:var(--personal-nav-stops,1); }
 .pks-navigation [data-nav-item='admin'] { order:var(--personal-nav-admin,2); }
 .pks-navigation [data-nav-item='options'] { order:var(--personal-nav-options,3); }

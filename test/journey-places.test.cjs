@@ -17,8 +17,21 @@ test('a geographic origin can walk to a nearby bus but cannot teleport to a dist
  assert.equal(scanJourneys(location,other,[c(stop('far','far',50.1),other)],{...o,walkMeters:500}).length,0);
 });
 test('a foot route rejects missing geometry instead of returning a straight connector',async()=>{
- const old=global.fetch;try{global.fetch=async()=>({ok:true,json:async()=>({code:'Ok',routes:[{distance:200,geometry:{coordinates:[[22.003,50.042],[22.003,50.04205],[22.003,50.0421]]}}]})});
- const {journeyWalkingRoute}=load('lib/journey-walking.ts');const r=await journeyWalkingRoute(p2,p10);assert.equal(r.points.length,3);assert.equal(r.meters,200);
- global.fetch=async()=>({ok:true,json:async()=>({code:'NoRoute'})});await assert.rejects(journeyWalkingRoute(other,p10));
- }finally{global.fetch=old;}
+ let available=true;
+ const {journeyWalkingRoute}=load('lib/journey-walking.ts',{'./transport/http':{requestJson:async()=>available?({code:'Ok',routes:[{distance:200,geometry:{coordinates:[[22.003,50.042],[22.003,50.04205],[22.003,50.0421]]}}]}):({code:'NoRoute'})}});
+ const r=await journeyWalkingRoute(p2,p10);assert.equal(r.points.length,3);assert.equal(r.meters,200);
+ available=false;await assert.rejects(journeyWalkingRoute(other,p10));
+});
+
+test('walking geometry retries with a pedestrian router and preserves a bend instead of a straight line',async()=>{
+ const requests=[],points=[[50.042,22.003],[50.043,22.004],[50.0421,22.003]];
+ const {journeyWalkingRoute}=load('lib/journey-walking.ts',{'./transport/http':{requestJson:async url=>{
+  requests.push(url);if(url.includes('routed-foot'))throw Error('Unavailable');
+  return {trip:{status:0,legs:[{shape:require('./encode-polyline.cjs')(points)}],summary:{length:.35}}};
+ }}});
+ const result=await journeyWalkingRoute(p2,p10);
+ assert.deepEqual(result.points,points);assert.equal(result.meters,350);
+ const query=JSON.parse(new URL(requests[1]).searchParams.get('json'));
+ assert.equal(query.costing,'pedestrian');assert.equal(requests.length,2);
+ await journeyWalkingRoute(p2,p10);assert.equal(requests.length,2,'reuse confirmed route geometry');
 });

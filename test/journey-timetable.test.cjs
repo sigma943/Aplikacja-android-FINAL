@@ -51,3 +51,9 @@ test('real PKS 301 finds its complete direct course to Rzeszow D.A. without any 
  const result=scanJourneys(from,to,feedConnections(feed,[],'2026-10-19',o),o);
  const course=result.find(j=>j.legs[0].course==='pks:7807:2026-10-19');assert.ok(course);assert.equal(course.departure,warsawTimeMs('2026-10-19','09:40'));assert.equal(course.transfers,0);assert.equal(course.legs[0].line,'301');assert.equal(course.legs[0].to.id,to.id);
 });
+
+test('a compressed bus leg retains all intermediate stop coordinates for road routing',()=>{
+ const journey=scanJourneys(a,d,[leg(a,b,60,70),leg(b,c,70,80),leg(c,d,80,90)],{...options,maxTransfers:0})[0];
+ assert.equal(journey.legs.length,1);
+ assert.deepEqual(journey.legs[0].via,[a,b,c,d].map(s=>[s.lat,s.lon]));
+});

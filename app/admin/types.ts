@@ -1,4 +1,4 @@
-﻿export type Role = 'Właściciel' | 'Administrator' | 'Użytkownik';
+export type Role = 'Właściciel' | 'Administrator' | 'Użytkownik';
 export type Status = 'Aktywny' | 'Zablokowany';
 export type IconType = 'mobile' | 'desktop' | 'tablet';
 
@@ -39,6 +39,7 @@ export interface AdminPermissions {
   canChangeRoles: boolean;
   disableMap: boolean;
   disableStops: boolean;
+  disableJourneys: boolean;
   globalSettings: boolean;
   globalSettingsEdit: boolean;
 }

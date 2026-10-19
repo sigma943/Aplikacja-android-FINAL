@@ -504,3 +504,13 @@ test('API reports survive device deduplication and a reinstall cannot overwrite 
   await assertFails(setDoc(doc(other,'api_statistics',id),apiReport('user','user-install',report.stream,100)));
   await env.withSecurityRulesDisabled(async context=>assert.equal((await getDoc(doc(context.firestore(),'devices','prior-api-user'))).exists(),false));
 });
+
+test('only owner can change journeys access and a restricted user cannot remove the restriction',async()=>{
+ const owner=env.authenticatedContext('owner').firestore(),admin=env.authenticatedContext('admin').firestore();
+ const permissions=buildDevicePermissions('user',{disableJourneys:true});
+ await assertFails(updateDoc(doc(admin,'devices','user'),{permissions}));
+ await assertSucceeds(updateDoc(doc(owner,'devices','user'),{permissions}));
+ const user=env.authenticatedContext('user').firestore();
+ await assertFails(updateDoc(doc(user,'devices','user'),{permissions:buildDevicePermissions('user')}));
+ await assertSucceeds(updateDoc(doc(owner,'devices','user'),{permissions:buildDevicePermissions('user')}));
+});

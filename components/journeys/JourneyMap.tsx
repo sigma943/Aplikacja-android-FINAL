@@ -5,6 +5,7 @@ import {MapContainer,TileLayer,CircleMarker,Popup,Tooltip,Polyline,Marker,ZoomCo
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle} from 'lucide-react';
 import L from 'leaflet';
 import {officialBusRoute} from '@/lib/official-bus-routes';
+import {roadRouteMatchesStops} from '@/lib/bus-road-geometry';
 import {fetchRoadRouteForStops} from '@/lib/transport/road-routing';
 import {journeyWalkingRoute} from '@/lib/journey-walking';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
@@ -45,13 +46,14 @@ async function legPath(leg:JourneyLeg):Promise<Point[]>{
  if(!hasCoordinates(leg.from)||!hasCoordinates(leg.to))throw Error('Brak współrzędnych odcinka.');
  if(leg.path)return leg.path;
  if(leg.walking!==undefined)return (await journeyWalkingRoute(leg.from,leg.to)).points;
+ const waypoints=leg.via?.length?leg.via:[[leg.from.lat!,leg.from.lon!],[leg.to.lat!,leg.to.lon!]] as Point[];
  const full=await officialBusRoute(leg.provider==='mpk'?'mpk_rzeszow':leg.provider,leg.course.split(':')[1],[]).catch(()=>[] as Point[]);
  const distance=(point:Point,stop:Stop)=>stopDistance({lat:point[0],lon:point[1]} as Stop,stop);
  let start=-1,end=-1,startDistance=Infinity,endDistance=Infinity;
  full.forEach((point,index)=>{const d=distance(point,leg.from);if(d<startDistance){startDistance=d;start=index;}});
  full.forEach((point,index)=>{if(index<=start)return;const d=distance(point,leg.to);if(d<endDistance){endDistance=d;end=index;}});
- if(start>=0&&end>start&&startDistance<200&&endDistance<200)return full.slice(start,end+1);
- return fetchRoadRouteForStops([[leg.from.lat!,leg.from.lon!],[leg.to.lat!,leg.to.lon!]],'journey:'+leg.course+':'+leg.from.id+':'+leg.to.id);
+ if(start>=0&&end>start&&startDistance<200&&endDistance<200){const route=full.slice(start,end+1);if(roadRouteMatchesStops(route,waypoints,150))return route;}
+ return fetchRoadRouteForStops(waypoints,'journey:'+leg.course+':'+leg.from.id+':'+leg.to.id,{stopWaypoints:true});
 }
 
 export default function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){

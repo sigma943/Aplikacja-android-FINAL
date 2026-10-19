@@ -7,7 +7,7 @@ import {type InterfaceAppearance,type NavItem} from '@/lib/interface-appearance'
 import {PROFILES_KEY,SCHEDULE_KEY,DEFAULT_SCHEDULE,readProfiles,readSchedule,normalizeSchedule,activateProfile,type VisualProfile,type VisualSchedule} from '@/lib/personalization-profiles';
 
 type Props={canOpenAdminEmbed?:boolean;value:InterfaceAppearance;onChange:(value:InterfaceAppearance)=>void;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number};
-const labels:Record<NavItem,string>={map:'Mapa',stops:'Przystanki',admin:'Admin',options:'Opcje'};
+const labels:Record<NavItem,string>={map:'Mapa',journeys:'Połączenia',stops:'Przystanki',admin:'Admin',options:'Opcje'};
 export default function PersonalizationTools(p:Props){
  const [profiles,setProfiles]=useState<VisualProfile[]>([]),[schedule,setSchedule]=useState<VisualSchedule>({...DEFAULT_SCHEDULE}),[name,setName]=useState(''),[message,setMessage]=useState('');
  useEffect(()=>{const read=()=>{setProfiles(readProfiles());setSchedule(readSchedule());};read();window.addEventListener('storage',read);window.addEventListener('pks-profiles-changed',read);return()=>{window.removeEventListener('storage',read);window.removeEventListener('pks-profiles-changed',read);};},[]);
@@ -25,7 +25,7 @@ export default function PersonalizationTools(p:Props){
  const move=(index:number,direction:number)=>{const target=visibleOrder[index+direction];if(!target)return;const order=[...p.value.navOrder],from=order.indexOf(visibleOrder[index]),to=order.indexOf(target);[order[from],order[to]]=[order[to],order[from]];set('navOrder',order);};
  const valid=profiles.some(p=>p.id===schedule.dayProfile)&&profiles.some(p=>p.id===schedule.nightProfile)&&schedule.dayAt!==schedule.nightAt;
  return <div className="personal-tools">
-  {choice('startScreen','Ekran startowy',[['map','Mapa'],['stops','Przystanki'],...(p.canOpenAdminEmbed?[['admin','Admin'] as ['admin',string]]:[])])}
+  {choice('startScreen','Ekran startowy',[['map','Mapa'],['journeys','Połączenia'],['stops','Przystanki'],...(p.canOpenAdminEmbed?[['admin','Admin'] as ['admin',string]]:[])])}
   <p className="personal-note">Zmiana przy następnym uruchomieniu.</p>
   <fieldset className="personal-field"><legend>Kolejność zakładek</legend><div className="personal-order">{visibleOrder.map((id,index)=><div key={id}><span>{labels[id]}</span><button type="button" disabled={index===0} onClick={()=>move(index,-1)} aria-label={`Przesuń ${labels[id]} wcześniej`} className="ui-accent-focus"><ArrowUp size={16}/></button><button type="button" disabled={index===visibleOrder.length-1} onClick={()=>move(index,1)} aria-label={`Przesuń ${labels[id]} później`} className="ui-accent-focus"><ArrowDown size={16}/></button></div>)}</div></fieldset>
   {choice('departureView','Widok odjazdów',[['detailed','Szczegółowy'],['simple','Prosty']])}

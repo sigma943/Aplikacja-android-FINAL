@@ -64,3 +64,13 @@ Testy wykryły i zabezpieczyły regresjami dwa przypadki graniczne: kolejność 
 - Sortowanie, liczba przesiadek i zapas czasu używają własnych menu aplikacji. Menu obsługują dotyk, strzałki, Home/End, Escape, kliknięcie poza menu oraz wspólny przycisk Wstecz. Panel ma oddzielne karty preferencji, przewoźników i dojść pieszych.
 - Dodano test pracy silnika bez dostępu do fetch w Workerze, na rzeczywistych lokalnych rozkładach, oraz testy ponowienia i anulowania pobierania. Rozszerzono scenariusz przeglądarkowy o wybór sortowania i powrót fokusu po Escape.
 - Usunięto również `connections.push(...feedConnections(...))`: pełny rozkład generuje kilkanaście lub kilkadziesiąt tysięcy argumentów w jednym wywołaniu (dla 19.10, 13:13: PKS 13 229, MPK 26 042). To może przekroczyć mniejszy stos argumentów mobilnego WebView i zostać błędnie zgłoszone jako błąd odczytu rozkładu. Segmenty są teraz dopisywane pojedynczo. Test na rzeczywistych danych dodatkowo wymusza limit 8000 argumentów.
+
+## Domyślni przewoźnicy, trasy i nawigacja
+
+- Domyślnie zaznaczeni są PKS, MPK i Marcel. Podstawowy katalog pojawia się przed zakończeniem internetowego indeksowania Marcela, aby otwarcie zakładki nie blokowało wyszukiwania.
+- Trasy piesze używają natywnego HTTP na Androidzie oraz zapasowego routera Valhalla z profilem `pedestrian`. Niepowodzenie nie tworzy prostego łącznika. Pełny przebieg jest zachowany na mapie.
+- Skompresowane odcinki autobusowe zachowują współrzędne wszystkich przystanków pośrednich. Geometria oficjalna musi je obejmować; zapasowy router prowadzi przez cały wzorzec przystanków zamiast tylko przez dwa końce.
+- Połączenia mają osobną flagę `disableJourneys` w uprawnieniach, edytowaną przez właściciela tak jak dotychczasowe ograniczenia zakładek. Reguły Firestore uniemożliwiają użytkownikowi usunięcie blokady. Przed użyciem nowych uprawnień trzeba wdrożyć zaktualizowane `firestore.rules` (aplikacja używa zapisów Firestore na planie Spark).
+- Połączenia są dostępne w kolejności zakładek, podglądzie wyglądu i wyborze ekranu startowego. Starsze ustawienia otrzymują nową zakładkę obok Mapy; jawnie ustawiona kolejność jest zachowana.
+- Animacja otwarcia odpowiada panelowi admina i uwzględnia ograniczenie ruchu.
+- Szybki build pomija pełny zestaw regresji; zachowuje ukierunkowane testy planera i test emulatora reguł dla nowego uprawnienia.
