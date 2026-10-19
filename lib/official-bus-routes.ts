@@ -35,14 +35,18 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
   // PKS live stop IDs and GTFS stop IDs belong to different namespaces. An
   // exact trip can still be checked against its complete, ordered live stops.
   // Never accept a trip prefix, a partial route, or geometry in reverse order.
-  const completeCoordinates=!!pattern && !!stopCoordinates &&
-    stopCoordinates.length===expected.length && pattern.length===expected.length;
+  // GTFS and live data can list a different number of stops for the same
+  // course (PKS 314 / 4253: 41 versus 42). The complete live stop sequence
+  // must match the actual geometry; equal metadata counts prove nothing.
+  const completeCoordinates=!!stopCoordinates && expected.length>=2 &&
+    stopCoordinates.length===expected.length;
   const tripMatches=!expected.length || (pattern && pattern.join('-')===expected.join('-')) || completeCoordinates;
-  let shape=(tripMatches ? index.tripShapes[trip] : '')||index.stopShapes[expected.join('-')];
+  const shape=(tripMatches ? index.tripShapes[trip] : '')||index.stopShapes[expected.join('-')];
   // Live course IDs change independently of GTFS, whose internal stop IDs
   // also differ from PKS IDs. Validate actual geometry, not ID prefixes or
   // approximate interior GTFS pins (which can be hundreds of metres away).
-  if (!shape && !pattern && stopCoordinates?.length === expected.length && expected.length >= 2) {
+  const findByCoordinates = async (): Promise<Array<[number,number]>> => {
+    if (!stopCoordinates || stopCoordinates.length !== expected.length || expected.length < 2) return [];
     const candidates = new Set<string>();
     const patternShapes = new Map<number, Set<string>>();
     for (const [id, patternId] of Object.entries(index.tripPatterns)) {
@@ -52,7 +56,7 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
       patternShapes.get(patternId)!.add(candidate);
     }
     index.patterns.forEach((ids, patternId) => {
-      if (ids.length !== stopCoordinates.length) return;
+      if (ids.length < 2) return;
       const first = index.stops[ids[0]], last = index.stops[ids.at(-1)!];
       if (!first || !last || roadDistance([first.lat, first.lon], stopCoordinates[0]) > 180 ||
           roadDistance([last.lat, last.lon], stopCoordinates.at(-1)!) > 180) return;
@@ -68,8 +72,8 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
     }));
     const complete = matches.filter((points): points is Array<[number, number]> => points !== null);
     return complete.length === 1 ? complete[0] : [];
-  }
-  if(!shape || !/^[\w.+-]+$/.test(shape))return [];
+  };
+  if(!shape || !/^[\w.+-]+$/.test(shape))return findByCoordinates();
   const points=await loadShape(provider, shape);
   const stops=stopCoordinates || expected.flatMap(id=>index.stops[id] ? [[index.stops[id].lat,index.stops[id].lon] as [number,number]] : []);
   if (roadRouteMatchesStops(points,stops,180)) return points;
@@ -77,7 +81,7 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
   // example, PKS 202 / trip 9078 starts ~685 m after shape 370's first point.
   // Remove only the unused prefix of this exact trip; never move stop pins,
   // invent a connector, accept a partial stop list or relax route validation.
-  if (completeCoordinates && shape === index.tripShapes[trip] && stops.length > 1 && points.length > 1
+  if (completeCoordinates && pattern?.length === expected.length && shape === index.tripShapes[trip] && stops.length > 1 && points.length > 1
       && roadDistance(points[0],stops[0]) <= 1000) {
     let nearest = 0;
     for (let i = 1; i < points.length - 1; i++) {
@@ -86,5 +90,5 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
     const trimmed = points.slice(nearest);
     if (roadRouteMatchesStops(trimmed,stops,180)) return trimmed;
   }
-  return [];
+  return findByCoordinates();
 }
