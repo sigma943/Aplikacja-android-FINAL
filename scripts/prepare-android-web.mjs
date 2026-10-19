@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {gunzipSync} from 'node:zlib';
 import {execFileSync} from 'node:child_process';
 
 const root = process.cwd();
@@ -50,6 +51,17 @@ copyIfExists(path.join(appDir, 'apple-icon.png.body'), path.join(outDir, 'apple-
 
 copyDir(staticDir, path.join(outDir, '_next', 'static'));
 copyDir(publicDir, outDir);
+
+// Ship the exact filenames read by the WebView. Do not rely on aapt's implicit
+// gunzip/rename of assets ending in .gz.
+for (const provider of ['pks', 'mpk']) {
+  const compressed = path.join(outDir, 'data', 'journeys', provider + '.json.gz');
+  const payload = gunzipSync(fs.readFileSync(compressed));
+  const feed = JSON.parse(payload.toString('utf8'));
+  if (feed.version !== 1 || feed.provider !== provider || !feed.trips?.length) throw new Error('Invalid timetable: ' + provider);
+  fs.writeFileSync(compressed.slice(0, -3), payload);
+  fs.rmSync(compressed);
+}
 
 if (!fs.existsSync(path.join(outDir, 'index.html'))) {
   throw new Error('Failed to assemble Android web assets: out/index.html is missing.');

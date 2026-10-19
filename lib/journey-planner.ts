@@ -56,7 +56,7 @@ export function findJourneys(from:Stop,to:Stop,legs:JourneyLeg[],o:JourneyOption
   }
   if(rides>0&&current.id!==to.id){const end=walkLeg(current,to,time);if(end&&walked+end.walking!<=o.walkMeters)search(to,end.arrival,[...path,end],rides,walked+end.walking!);}
   if(rides>=o.maxTransfers+1)return;
-  if(!neighbors.has(current.id))neighbors.set(current.id,stops.filter(s=>s.id!==current.id&&stopDistance(current,s)*1.35<=o.walkMeters));
+  if(!neighbors.has(current.id))neighbors.set(current.id,stops.filter(s=>s.id!==current.id&&Number.isFinite(stopDistance(current,s))&&stopDistance(current,s)*1.35<=o.walkMeters));
   const points=[current,...neighbors.get(current.id)!];
   for(const point of points){
    const walking=walkLeg(current,point,time);

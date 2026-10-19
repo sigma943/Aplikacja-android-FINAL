@@ -13,7 +13,7 @@ export async function runTimetableSearch(request:Omit<TimetableSearch,'assets'>,
   let finished=false;
   const finish=(error?:Error,result?:Result)=>{if(finished)return;finished=true;clearTimeout(timer);signal.removeEventListener('abort',abort);worker.terminate();if(error)reject(error);else resolve(result!);};
   const abort=()=>finish(new DOMException('Anulowano','AbortError'));
-  const timer=setTimeout(()=>finish(new Error('Wczytywanie rozkładów trwa zbyt długo. Spróbuj ponownie.')),30000);
+  const timer=setTimeout(()=>finish(new Error('Wczytywanie rozkładów trwa zbyt długo. Spróbuj ponownie.')),Number.isFinite(request.options.walkMeters)?30000:90000);
   signal.addEventListener('abort',abort,{once:true});
   worker.onerror=()=>{if(finished)return;finished=true;clearTimeout(timer);signal.removeEventListener('abort',abort);worker.terminate();direct().then(resolve,reject);};
   worker.onmessage=({data})=>{if(data.progress){progress(data.progress[0],data.progress[1]);return;}if(data.error)finish(new Error(data.error));else finish(undefined,data.result);};

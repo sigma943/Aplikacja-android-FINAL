@@ -43,3 +43,10 @@ test('a confirmed short footpath replaces long loops, but a footpath over budget
   assert.equal(result.journeys.length,1);assert.equal(result.journeys[0].id,meters===25?'walk-only':'loop');
  }
 });
+
+test('unlimited walking requests a real route over 2 km even without an estimated walk-only result',async()=>{
+ const from=stop('start',50),to=stop('finish',50.04);
+ const {searchConnections}=load('lib/journey-loader.ts',{'./journey-worker-client':{runTimetableSearch:async()=>({journeys:[],warnings:[],limited:false})},'./journey-walking':{journeyWalkingRoute:async()=>({points:[[50,22],[50.04,22]],meters:4500,minutes:65})}});
+ const result=await searchConnections(from,to,[],'2026-10-19',{at:0,arriveBy:false,maxTransfers:0,walkMeters:Infinity,transferMinutes:5,providers:['pks'],sort:'fastest'},new AbortController().signal,()=>{});
+ assert.equal(result.journeys[0].walking,4500);assert.equal(result.journeys[0].id,'walk-only');
+});

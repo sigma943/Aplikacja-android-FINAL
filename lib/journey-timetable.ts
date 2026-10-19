@@ -62,7 +62,28 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
  const buckets=new Map<string,Stop[]>(),cell=(s:Stop)=>[Math.floor((s.lat||0)*100),Math.floor((s.lon||0)*100)];
  for(const stop of stops){if(!Number.isFinite(stop.lat)||!Number.isFinite(stop.lon))continue;const key=cell(stop).join(':');const list=buckets.get(key)||[];list.push(stop);buckets.set(key,list);}
  const neighbors=new Map<string,Array<{stop:Stop;meters:number;minutes:number}>>();
- const near=(stop:Stop)=>{
+ const unlimitedDistances=new Map<string,Uint32Array>();
+ const near=(stop:Stop):Iterable<{stop:Stop;meters:number;minutes:number}>=>{
+  if(!Number.isFinite(o.walkMeters)){
+   // Unlimited distance still respects the six-hour search window. Compact
+   // distance arrays avoid an object graph and repeated trigonometry per label.
+   return (function*(){
+    if(!Number.isFinite(stop.lat)||!Number.isFinite(stop.lon))return;
+    let distances=unlimitedDistances.get(stop.id);
+    if(!distances){
+     distances=new Uint32Array(stops.length);
+     for(let i=0;i<stops.length;i++){
+      if(stops[i].id===stop.id)continue;
+      const meters=Math.ceil(stopDistance(stop,stops[i])*1.35);
+      if(Number.isFinite(meters)&&meters<=6*60*70)distances[i]=meters+1;
+     }
+     unlimitedDistances.set(stop.id,distances);
+    }
+    for(let i=0;i<distances.length;i++)if(distances[i]){
+     const meters=distances[i]-1;yield {stop:stops[i],meters,minutes:Math.max(1,Math.ceil(meters/70))};
+    }
+   })();
+  }
   if(neighbors.has(stop.id))return neighbors.get(stop.id)!;const result:Array<{stop:Stop;meters:number;minutes:number}>=[];
   if(o.walkMeters>0&&Number.isFinite(stop.lat)&&Number.isFinite(stop.lon)){
    const [y,x]=cell(stop),radius=Math.ceil(o.walkMeters/600);
@@ -72,7 +93,11 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   }
   neighbors.set(stop.id,result);return result;
  };
- const labels=new Map<string,Label[]>(),onboard=new Map<string,Label[]>(),answers:Journey[]=[];
+ const destinationStops=stops.filter(stop=>matchesJourneyPlace(to,stop));
+ const labels=new Map<string,Label[]>(),onboard=new Map<string,Label[]>(),answerGroups=new Map<string,Journey[]>();
+ const firstRide=(j:Journey)=>j.legs.find(l=>l.walking===undefined);
+ const boardingKey=(j:Journey)=>{const ride=firstRide(j);return ride?JSON.stringify([ride.course,ride.from.id,ride.departure]):'walking';};
+ const dominates=(a:Journey,b:Journey)=>a.arrival<=b.arrival&&a.transfers<=b.transfers&&a.walking<=b.walking&&(a.arrival<b.arrival||a.transfers<b.transfers||a.walking<b.walking);
  let revision=0;const answerIds=new Set<string>();
  const departure=(l:Label)=>l.legs[0]?.departure??earliest;
  const add=(label:Label)=>{
@@ -80,7 +105,11 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
    const shift=o.arriveBy&&!label.rides?latest-label.time:0;
    const legs=shift?label.legs.map(leg=>({...leg,departure:leg.departure+shift,arrival:leg.arrival+shift})):label.legs;
    const id=legs.map(l=>`${l.course}:${l.from.id}:${l.to.id}:${l.departure}`).join('|');
-   if(!answerIds.has(id)){answerIds.add(id);answers.push({id,legs,departure:legs[0].departure,arrival:label.time+shift,walking:label.walking,transfers:Math.max(0,label.rides-1)});}
+   if(!answerIds.has(id)){
+    answerIds.add(id);const answer:Journey={id,legs,departure:legs[0].departure,arrival:label.time+shift,walking:label.walking,transfers:Math.max(0,label.rides-1)};
+    const key=boardingKey(answer),group=answerGroups.get(key)||[];
+    if(!group.some(old=>dominates(old,answer)))answerGroups.set(key,[...group.filter(old=>!dominates(answer,old)),answer]);
+   }
    return;
   }
   const key=label.stop.id,list=labels.get(key)||[];
@@ -88,8 +117,16 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   const next=list.filter(l=>!(label.time<=l.time&&label.walking<=l.walking&&label.rides<=l.rides&&(!o.arriveBy||departure(label)>=departure(l))));next.push(label);
   labels.set(key,next);revision++;
  };
- const walk=(label:Label)=>{for(const {stop,meters,minutes} of near(label.stop)){
+ const walk=(label:Label)=>{
+  // After the last allowed boarding, walking only to a destination can help.
+  const targets=label.rides>o.maxTransfers?destinationStops.flatMap(stop=>{
+   const meters=Math.ceil(stopDistance(label.stop,stop)*1.35);
+   return Number.isFinite(meters)&&stop.id!==label.stop.id&&meters<=o.walkMeters?[{stop,meters,minutes:Math.max(1,Math.ceil(meters/70))}]:[];
+  }):near(label.stop);
+  for(const {stop,meters,minutes} of targets){
   if(label.walking+meters>o.walkMeters||label.time+minutes*60000>latest)continue;
+  const arrival=label.time+minutes*60000,totalWalk=label.walking+meters;
+  if(!matchesJourneyPlace(to,stop)&&(labels.get(stop.id)||[]).some(old=>old.time<=arrival&&old.walking<=totalWalk&&old.rides<=label.rides&&(!o.arriveBy||departure(old)>=departure(label))))continue;
   const leg:JourneyLeg={from:label.stop,to:stop,departure:label.time,arrival:label.time+minutes*60000,walking:meters,course:'walk',provider:'walk',line:'Pieszo'};
   add({...label,stop,time:leg.arrival,legs:[...label.legs,leg],walking:label.walking+meters});
  }};
@@ -127,10 +164,9 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   if(zeroEnd>first){let previous;do{previous=revision;for(let i=first;i<zeroEnd;i++)process(ordered[i]);}while(revision!==previous);}
   for(let i=zeroEnd;i<end;i++)process(ordered[i]);first=end;
  }
+ const answers=[...answerGroups.values()].flat();
  const score=(j:Journey)=>o.sort==='transfers'?j.transfers*86400_000+(o.arriveBy?-j.departure:j.arrival):o.sort==='walking'?j.walking*86400_000+(o.arriveBy?-j.departure:j.arrival):o.arriveBy?-j.departure:j.arrival;
  // Keep later departures, but remove worse detours for the very same boarding.
- const firstRide=(j:Journey)=>j.legs.find(l=>l.walking===undefined);
- const boardingKey=(j:Journey)=>{const ride=firstRide(j);return ride?JSON.stringify([ride.course,ride.from.id,ride.departure]):'walking';};
  const groups=new Map<string,Journey[]>();for(const journey of answers){const key=boardingKey(journey),list=groups.get(key)||[];list.push(journey);groups.set(key,list);}
  const useful=answers.filter(candidate=>!(groups.get(boardingKey(candidate))||[]).some(better=>{
   if(better===candidate||better.arrival>candidate.arrival||better.transfers>candidate.transfers)return false;

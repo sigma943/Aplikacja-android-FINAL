@@ -9,8 +9,17 @@ export async function loadTimetableAssets(providers:string[],signal:AbortSignal)
    signal.throwIfAborted();let bytes=cached.get(provider);
    if(!bytes){
     bytes=await withRequestDeadline(async requestSignal=>{
-     const response=await fetch(`/data/journeys/${provider}.json.gz`,{cache:'force-cache',signal:requestSignal});
-     if(!response.ok)throw Error('Brak rozkładu');return new Uint8Array(await response.arrayBuffer());
+     // aapt unpacks *.gz assets and strips the suffix inside the APK.
+     // Try the packaged JSON name first; the web source keeps gzip files.
+     for(const suffix of ['.json','.json.gz']){
+      const response=await fetch(`/data/journeys/${provider}${suffix}`,{cache:'force-cache',signal:requestSignal});
+      if(!response.ok)continue;
+      const data=new Uint8Array(await response.arrayBuffer());
+      // A SPA fallback can return index.html with status 200 for a missing file.
+      const first=data.find(byte=>byte!==32&&byte!==10&&byte!==13&&byte!==9);
+      if(first===123||(data[0]===31&&data[1]===139))return data;
+     }
+     throw Error('Brak pliku rozkładu w aplikacji.');
     },signal);
     if(!bytes.length)throw Error('Pusty rozkład');cached.set(provider,bytes);
    }

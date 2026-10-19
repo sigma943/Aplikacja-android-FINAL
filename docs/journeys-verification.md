@@ -74,3 +74,13 @@ Testy wykryły i zabezpieczyły regresjami dwa przypadki graniczne: kolejność 
 - Połączenia są dostępne w kolejności zakładek, podglądzie wyglądu i wyborze ekranu startowego. Starsze ustawienia otrzymują nową zakładkę obok Mapy; jawnie ustawiona kolejność jest zachowana.
 - Animacja otwarcia odpowiada panelowi admina i uwzględnia ograniczenie ruchu.
 - Szybki build pomija pełny zestaw regresji; zachowuje ukierunkowane testy planera i test emulatora reguł dla nowego uprawnienia.
+
+## Potwierdzona przyczyna błędu w APK i dojścia bez limitu
+
+Zbadano rzeczywisty debug APK z buildu 426 (4909acf). Archiwum zawiera `assets/public/data/journeys/pks.json` (1 004 566 B, 2155 kursów) i `mpk.json` (1 903 729 B, 7892 kursy). Plików `.json.gz` nie ma: aapt rozpakował gzip i usunął rozszerzenie. Dotychczasowy adres żądania nie odpowiadał nazwie wewnątrz APK.
+
+Loader próbuje teraz zwykłego JSON, a następnie gzip dla wersji webowej. Odrzuca HTML zwracany przez fallback strony. Przygotowanie paczki Androida jawnie generuje JSON i usuwa gzip; dodatkowy krok buildu weryfikuje pliki i treść rozkładów w gotowych debug/release APK. Testy obejmują oba formaty i wyszukiwanie na ich rzeczywistych danych.
+
+Usunięto blok „Dokąd dzisiaj?” i jego podpisy, opis pod przewoźnikami oraz instrukcję pod nagłówkiem listy przystanków. Otwarcie listy czyści komunikat walidacji formularza; błąd lokalizacji nadal może pojawić się w miejscu użycia lokalizacji.
+
+Suwak zachowuje wartości 0–2000 m, a jego ostatnia pozycja to „Bez limitu”. Wartość nieskończona jest obsługiwana przez silnik bez nieskończonego przeszukiwania siatki; obowiązuje czasowe okno wyszukiwania 6 godzin. Zastosowano kompaktową pamięć odległości i odrzucanie zdominowanych dojść przed tworzeniem ścieżek.
