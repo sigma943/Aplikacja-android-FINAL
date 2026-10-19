@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
+import {prepareAndroidJourneyAssets} from './lib/journey-android-assets.mjs';
 
 const root = process.cwd();
 const outDir = path.join(root, 'out');
@@ -55,10 +56,7 @@ if (!fs.existsSync(path.join(outDir, 'index.html'))) {
   throw new Error('Failed to assemble Android web assets: out/index.html is missing.');
 }
 
-for(const provider of ['pks','mpk']){
-  const file=path.join(outDir,'data','journeys',provider+'.json');
-  if(!fs.existsSync(file)||!JSON.parse(fs.readFileSync(file,'utf8')).trips?.length)throw new Error(`Missing Android timetable: ${provider}`);
-}
+prepareAndroidJourneyAssets(outDir);
 
 execFileSync(process.execPath, ['scripts/build-platform-index.cjs'], {stdio:'inherit'});
 

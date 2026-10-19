@@ -31,3 +31,32 @@ test('compressed files remain a fallback for web servers without expanded JSON',
   const {loadJourneyFeed}=load('lib/journey-feed.ts');assert.equal((await loadJourneyFeed('mpk')).provider,'mpk');
  }finally{global.fetch=oldFetch;}
 });
+
+test('Android staging removes gzip aliases that collide with plain JSON',async()=>{
+ const path=require('node:path'),{prepareAndroidJourneyAssets}=await import('../scripts/lib/journey-android-assets.mjs');
+ const temp=fs.mkdtempSync(path.join(process.cwd(),'test/journey-assets.tmp-'));
+ try{
+  const directory=path.join(temp,'data','journeys');fs.mkdirSync(directory,{recursive:true});
+  for(const provider of ['pks','mpk']){
+   fs.copyFileSync(`public/data/journeys/${provider}.json`,path.join(directory,provider+'.json'));
+   fs.copyFileSync(`public/data/journeys/${provider}.json.gz`,path.join(directory,provider+'.json.gz'));
+  }
+  prepareAndroidJourneyAssets(temp);
+  for(const provider of ['pks','mpk']){
+   assert.equal(fs.existsSync(path.join(directory,provider+'.json.gz')),false);
+   assert.deepEqual(fs.readFileSync(path.join(directory,provider+'.json')),fs.readFileSync(`public/data/journeys/${provider}.json`));
+   assert.equal(fs.existsSync(`public/data/journeys/${provider}.json.gz`),true,'web source remains available');
+  }
+ }finally{fs.rmSync(temp,{recursive:true,force:true});}
+});
+test('Android staging rejects missing expanded feeds before removing fallback assets',async()=>{
+ const path=require('node:path'),{prepareAndroidJourneyAssets}=await import('../scripts/lib/journey-android-assets.mjs');
+ const temp=fs.mkdtempSync(path.join(process.cwd(),'test/journey-assets.tmp-'));
+ try{
+  const directory=path.join(temp,'data','journeys');fs.mkdirSync(directory,{recursive:true});
+  fs.copyFileSync('public/data/journeys/pks.json',path.join(directory,'pks.json'));
+  fs.copyFileSync('public/data/journeys/pks.json.gz',path.join(directory,'pks.json.gz'));
+  assert.throws(()=>prepareAndroidJourneyAssets(temp),/Missing Android timetable: mpk/);
+  assert.equal(fs.existsSync(path.join(directory,'pks.json.gz')),true);
+ }finally{fs.rmSync(temp,{recursive:true,force:true});}
+});
