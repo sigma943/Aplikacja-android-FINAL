@@ -68,6 +68,11 @@ jobs:
           npm --prefix functions ci
           npm --prefix functions test
 
+      - name: Verify journey timetable loading and history contrast
+        run: |
+          node --test test/journey-schedules.test.cjs test/journey-realtime.test.cjs
+          node test/journey-recents-browser.cjs
+
       - name: Build Android Web Assets
         run: npm run build:android:web
 

@@ -107,8 +107,9 @@
 .connections-workspace,.connections-search-column,.connections-answer-column{min-width:0}
 .connections-swap{right:18px;top:57px;width:40px;height:40px;border-radius:50%;border:3px solid var(--cn-surface);background:color-mix(in srgb,var(--cn-accent) 17%,var(--cn-surface));box-shadow:0 0 0 1px var(--cn-edge),0 3px 10px #0002;transition:transform .2s,background .2s}
 .connections-swap:hover{transform:rotate(180deg);background:color-mix(in srgb,var(--cn-accent) 28%,var(--cn-surface))}
-.connections-recents{margin-top:23px;padding:0 4px}
+.connections-recents{margin-top:18px;padding:14px 16px;border-radius:20px;overflow:hidden}
 .connections-recents h2{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:650;color:var(--cn-muted);margin:0 0 7px}
+.connections-recent:last-child{border-bottom:0}
 .connections-recent{display:flex;gap:8px;border-bottom:1px solid var(--cn-edge);padding:10px 0}
 .connections-recent button{display:flex;align-items:center;gap:11px;min-width:0;background:none;border:0;text-align:left;color:var(--cn-text);padding:5px;font-size:12px;line-height:1.7}
 .connections-recent button:first-child{flex:1}

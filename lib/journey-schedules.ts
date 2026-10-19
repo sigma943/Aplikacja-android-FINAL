@@ -19,7 +19,9 @@ export async function executeTimetableSearch(input:TimetableSearch,progress:(n:n
    })().catch(error=>{feeds.delete(provider);throw error;}));
    const feed=await feeds.get(provider)!,day=input.date.replaceAll('-','');
    if(day<feed.validFrom||day>feed.validUntil){warnings.push(`${provider==='mpk'?'MPK':'PKS'}: rozkład nie obejmuje wybranej daty. Wybierz wcześniejszy termin lub zaktualizuj dane aplikacji.`);failed++;return;}
-   connections.push(...feedConnections(feed,input.catalog,input.date,input.options,input.vehicles?.length?3*3600000:0));
+   // Avoid passing a complete feed as function arguments: Android workers have
+   // a smaller stack and the widened live-delay window can exceed its limit.
+   for(const connection of feedConnections(feed,input.catalog,input.date,input.options,input.vehicles?.length?3*3600000:0))connections.push(connection);
   }catch{failed++;warnings.push(`${provider==='mpk'?'MPK':'PKS'}: nie udało się wczytać pełnego rozkładu. Spróbuj ponownie.`);}
   finally{progress(++loaded,providers.length);}
  }));
