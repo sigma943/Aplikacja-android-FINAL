@@ -1,0 +1,253 @@
+{
+  "bearing": 173.75,
+  "delay": -24,
+  "journey": {
+    "departure_time": "09:40:00",
+    "journey_id": 23059,
+    "line": {
+      "line_id": 373,
+      "line_name": "301"
+    },
+    "route": {
+      "description": "Rzeszów D.A.",
+      "direction": "inbound",
+      "is_default": false,
+      "is_technical": false,
+      "name": "Głogów Młp., Os.Słoneczne - Rzeszów D.A.",
+      "route_id": 10389,
+      "route_links": [
+        {
+          "distance": 1200,
+          "from": 5419,
+          "index": 1,
+          "to": 3931
+        },
+        {
+          "distance": 600,
+          "from": 3931,
+          "index": 2,
+          "to": 7205
+        },
+        {
+          "distance": 1400,
+          "from": 7205,
+          "index": 3,
+          "to": 5504
+        },
+        {
+          "distance": 500,
+          "from": 5504,
+          "index": 4,
+          "to": 5507
+        },
+        {
+          "distance": 900,
+          "from": 5507,
+          "index": 5,
+          "to": 5514
+        },
+        {
+          "distance": 200,
+          "from": 5514,
+          "index": 6,
+          "to": 5518
+        },
+        {
+          "distance": 700,
+          "from": 5518,
+          "index": 7,
+          "to": 3936
+        },
+        {
+          "distance": 1600,
+          "from": 3936,
+          "index": 8,
+          "to": 8711
+        },
+        {
+          "distance": 1200,
+          "from": 8711,
+          "index": 9,
+          "to": 9372
+        },
+        {
+          "distance": 700,
+          "from": 9372,
+          "index": 10,
+          "to": 9327
+        },
+        {
+          "distance": 1000,
+          "from": 9327,
+          "index": 11,
+          "to": 8101
+        },
+        {
+          "distance": 700,
+          "from": 8101,
+          "index": 12,
+          "to": 9328
+        },
+        {
+          "distance": 600,
+          "from": 9328,
+          "index": 13,
+          "to": 6985
+        },
+        {
+          "distance": 1000,
+          "from": 6985,
+          "index": 14,
+          "to": 5265
+        },
+        {
+          "distance": 800,
+          "from": 5265,
+          "index": 15,
+          "to": 5269
+        },
+        {
+          "distance": 700,
+          "from": 5269,
+          "index": 16,
+          "to": 3831
+        },
+        {
+          "distance": 400,
+          "from": 3831,
+          "index": 17,
+          "to": 5273
+        },
+        {
+          "distance": 500,
+          "from": 5273,
+          "index": 18,
+          "to": 11126
+        },
+        {
+          "distance": 1000,
+          "from": 11126,
+          "index": 19,
+          "to": 11449
+        },
+        {
+          "distance": 800,
+          "from": 11449,
+          "index": 20,
+          "to": 3731
+        }
+      ],
+      "route_variant": "4L",
+      "stop_points": [
+        5419,
+        3931,
+        7205,
+        5504,
+        5507,
+        5514,
+        5518,
+        3936,
+        8711,
+        9372,
+        9327,
+        8101,
+        9328,
+        6985,
+        5265,
+        5269,
+        3831,
+        5273,
+        11126,
+        11449,
+        3731
+      ]
+    },
+    "service": {
+      "day_type": "PS",
+      "service_code": "306/1",
+      "service_id": 29051,
+      "service_number": "1",
+      "start_time": "04:40:00",
+      "timetable_id": 112
+    },
+    "vehicle_journey_date": "2026-10-19"
+  },
+  "last_updated": "2026-10-19 09:58:48",
+  "next_stop_points": [
+    {
+      "index": 11,
+      "planned_departure_time": "2026-10-19 10:01:00",
+      "real_departure_time": "2026-10-19 10:01:00",
+      "stop_point_id": 8101
+    },
+    {
+      "index": 12,
+      "planned_departure_time": "2026-10-19 10:02:00",
+      "real_departure_time": "2026-10-19 10:02:00",
+      "stop_point_id": 9328
+    },
+    {
+      "index": 13,
+      "planned_departure_time": "2026-10-19 10:03:00",
+      "real_departure_time": "2026-10-19 10:03:00",
+      "stop_point_id": 6985
+    },
+    {
+      "index": 14,
+      "planned_departure_time": "2026-10-19 10:05:00",
+      "real_departure_time": "2026-10-19 10:05:00",
+      "stop_point_id": 5265
+    },
+    {
+      "index": 15,
+      "planned_departure_time": "2026-10-19 10:06:00",
+      "real_departure_time": "2026-10-19 10:06:00",
+      "stop_point_id": 5269
+    },
+    {
+      "index": 16,
+      "planned_departure_time": "2026-10-19 10:07:00",
+      "real_departure_time": "2026-10-19 10:07:00",
+      "stop_point_id": 3831
+    },
+    {
+      "index": 17,
+      "planned_departure_time": "2026-10-19 10:08:00",
+      "real_departure_time": "2026-10-19 10:08:00",
+      "stop_point_id": 5273
+    },
+    {
+      "index": 18,
+      "planned_departure_time": "2026-10-19 10:09:00",
+      "real_departure_time": "2026-10-19 10:09:00",
+      "stop_point_id": 11126
+    },
+    {
+      "index": 19,
+      "planned_departure_time": "2026-10-19 10:12:00",
+      "real_departure_time": "2026-10-19 10:12:00",
+      "stop_point_id": 11449
+    },
+    {
+      "index": 20,
+      "planned_departure_time": "2026-10-19 10:15:00",
+      "real_departure_time": "2026-10-19 10:15:00",
+      "stop_point_id": 3731
+    }
+  ],
+  "position": {
+    "last_stop_point_distance": 78,
+    "last_stop_point_number": 11,
+    "lat": 50.09561,
+    "long": 21.97986,
+    "position_date": "2026-10-19 09:58:48",
+    "speed": 24
+  },
+  "vehicle_id": 37,
+  "model": "Iveco Crossway 10.8 LE City",
+  "trip_id": 7807,
+  "final_stop_id": 31,
+  "brigade_name": "306/1",
+  "day_type_code": "PS",
+  "brigade_type": "BIS"
+}

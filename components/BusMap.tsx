@@ -24,13 +24,14 @@ import {fetchRouteGeometryClient, type RouteGeometryStop} from '@/lib/pks-client
 
 import {type Vehicle, type StopData} from '@/lib/transport/vehicle';
 import {readPersistentRouteGeometry, writePersistentRouteGeometry} from '@/lib/map/route-cache';
+import {preferredLocalRoute} from '@/lib/map/preferred-route';
 import {simplifyRouteForPaint, dedupeStableStopIds, normalizeRouteCachePart, hashRouteGeometryStops} from '@/lib/map/route-presentation';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
 import {MapStateTracker, MapCenterer, MapClickListener} from '@/components/map/MapControls';
 import {VehicleMarkerLayer} from '@/components/map/VehicleMarkers';
 import {SelectedStopPin, CatalogStopsLayer, RouteStopsLayer} from '@/components/map/StopLayers';
 
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v13-station-junction';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v14-authoritative-shapes';
 
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 
@@ -186,7 +187,10 @@ function BusMap({
   const routeKey = selectedVehicle
     ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops)
     : '';
-  const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}`:'';
+  // The same stop pattern can have different official streets for another course.
+  // Keep the fallback cache shared, but resolve the official course again.
+  const routeCourse = String(selectedVehicle?.tripId || selectedVehicle?.journeyId || '');
+  const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
   const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
 
   useEffect(() => {
@@ -201,7 +205,7 @@ function BusMap({
       return;
     }
 
-    const currentIdentity = `${selectedVehicle.provider || 'pks'}:${selectedVehicle.id}:${routeKey}`;
+    const currentIdentity = routeIdentity;
     if (selectedVehicleIdentityRef.current && selectedVehicleIdentityRef.current !== currentIdentity) {
       startTransition(() => setSnappedRoute([]));
     }
@@ -218,41 +222,30 @@ function BusMap({
       return;
     }
 
-    const memoryRoute = refinedRouteCacheRef.current.get(routeKey);
-    if (memoryRoute && memoryRoute.length > 1) {
-      setSnappedRoute(memoryRoute);
-      refinedRouteByVehicleRef.current.set(currentIdentity, memoryRoute);
-      return;
-    }
-
     let cancelled = false;
     const controller = new AbortController();
     routeAbortRef.current = controller;
 
     const loadRoute = async () => {
-      const localRoute = await readPersistentRouteGeometry(routeKey, routeGeometryVersion);
-      if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
-      if (localRoute.length > 1 && (routeMode === 'rail' || roadRouteMatchesStops(localRoute, routeGeometryStops.map(stop => [stop.lat,stop.lon]), 180))) {
-        const refinedLocalRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(correctPksStationJunction(correctMarcelNiebylecRoute(localRoute,selectedVehicle.provider),selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : localRoute);
-        refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
-        refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
-        setSnappedRoute(refinedLocalRoute);
-        return;
-      }
-
       const loadBundledRoute = async()=>routeMode === 'road'
         ? selectedVehicle.provider==='marcel'
           ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon])).catch(()=>[])
           : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon])).catch(()=>[])
         : [];
-      const officialRoute=await loadBundledRoute();
+      const localRoute = await preferredLocalRoute({
+        mode: routeMode,
+        stops: routeGeometryStops.map(stop => [stop.lat, stop.lon]),
+        bundled: loadBundledRoute,
+        cached: async () => refinedRouteCacheRef.current.get(routeKey) ||
+          await readPersistentRouteGeometry(routeKey, routeGeometryVersion),
+      });
       if (cancelled || requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
-      if (officialRoute.length > 1) {
-        const refinedOfficialRoute = simplifyRouteForPaint(cleanRoadJunctionLoops(correctPksStationJunction(correctMarcelNiebylecRoute(officialRoute,selectedVehicle.provider),selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])));
-        refinedRouteCacheRef.current.set(routeKey, refinedOfficialRoute);
-        refinedRouteByVehicleRef.current.set(currentIdentity, refinedOfficialRoute);
-        writePersistentRouteGeometry(routeKey, refinedOfficialRoute, routeGeometryVersion);
-        startTransition(() => setSnappedRoute(refinedOfficialRoute));
+      if (localRoute.length > 1) {
+        const refinedLocalRoute = simplifyRouteForPaint(routeMode === 'road' ? cleanRoadJunctionLoops(correctPksStationJunction(correctMarcelNiebylecRoute(localRoute,selectedVehicle.provider),selectedVehicle.provider),routeGeometryStops.map(stop=>[stop.lat,stop.lon])) : localRoute);
+        refinedRouteCacheRef.current.set(routeKey, refinedLocalRoute);
+        refinedRouteByVehicleRef.current.set(currentIdentity, refinedLocalRoute);
+        writePersistentRouteGeometry(routeKey, refinedLocalRoute, routeGeometryVersion);
+        startTransition(() => setSnappedRoute(refinedLocalRoute));
         return;
       }
 
@@ -316,7 +309,7 @@ function BusMap({
       cancelled = true;
       controller.abort();
     };
-  }, [routeKey, routeStopsHash, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.routeGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeKey, routeStopsHash, routeCourse, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.routeGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 

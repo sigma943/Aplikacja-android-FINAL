@@ -5,7 +5,7 @@ const server=http.createServer((req,res)=>{const pathname=decodeURIComponent(new
 try{
  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
  await page.evaluateOnNewDocument(()=>{const arc=CanvasRenderingContext2D.prototype.arc;CanvasRenderingContext2D.prototype.arc=function(...args){this.canvas.dataset.testCircleCount=String(Number(this.canvas.dataset.testCircleCount||0)+1);return arc.apply(this,args);};
-  const stroke=CanvasRenderingContext2D.prototype.stroke;CanvasRenderingContext2D.prototype.stroke=function(...args){if(this.canvas.closest('.leaflet-routeLine-pane'))this.canvas.dataset.testRouteStrokes=String(Number(this.canvas.dataset.testRouteStrokes||0)+1);return stroke.apply(this,args);};
+  const setAttribute=Element.prototype.setAttribute;Element.prototype.setAttribute=function(name,value){if(name==='d'&&this.classList.contains('mks-route-line'))this.dataset.testRouteStrokes=String(Number(this.dataset.testRouteStrokes||0)+1);return setAttribute.call(this,name,value);};
   localStorage.setItem('mks_transport_providers',JSON.stringify(['mpk_rzeszow']));if(!localStorage.getItem('mks_map_state'))localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.025,lng:21.995},zoom:14}));});
  await page.setRequestInterception(true);page.on('request',request=>{const url=request.url(),reply=(body,type='application/json',status=200)=>request.respond({status,contentType:type,headers:{'access-control-allow-origin':'*'},body});
  if(url.includes('GetVehicles?')&&waiting)return reply('<Vehicles><V nb="770" nr="   " nnr="51   " op=" " nop="Bardowskiego p. Dworzec Lokalny" x="22.02432" y="50.11553" px="22.02432" py="50.11553" ik="0" nk="3293" s="6" is="1572" o="1572"/></Vehicles>','application/xml');
@@ -39,8 +39,8 @@ try{
  await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.mks-bus-marker');
  await page.evaluate(()=>[...document.querySelectorAll('.mks-bus-marker')].find(el=>el.textContent.includes('0A'))?.click());
  await page.waitForSelector('[data-map-bus-sheet]');
- // Leaflet uses Canvas for performance: SVG CSS selectors cannot inspect its paths.
- await page.waitForFunction(()=>{const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>0)painted++;return painted>200;},{timeout:30000});
+ // The route uses SVG while numerous stop circles retain their Canvas renderer.
+ await page.waitForFunction(()=>document.querySelector('.leaflet-routeLine-pane .mks-route-line')?.getAttribute('d')?.length>20,{timeout:30000});
  await page.waitForFunction(()=>Number(document.querySelector('.leaflet-routeStops-pane canvas')?.dataset.testCircleCount)>=10);
  assert.ok(await page.$eval('.leaflet-routeStops-pane canvas',el=>Number(el.dataset.testCircleCount)>=10),'upcoming stop circles are drawn by the Canvas renderer');
  await page.focus('[aria-label="Rozwiń panel autobusu"]');await page.keyboard.press('Enter');
@@ -63,23 +63,23 @@ try{
  await page.waitForFunction(previous=>{const match=document.querySelector('[data-map-bus-sheet]')?.textContent.match(/Odjazd za:\s*(\d+):(\d{2})/);return match&&Number(match[1])*60+Number(match[2])<previous;},{timeout:5000},before[0]*60+before[1]);
  await page.focus('[aria-label="Rozwiń panel autobusu"]');await page.keyboard.press('Enter');
  await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]')?.textContent.includes('Jasionka - Port Lotniczy'));
- await page.waitForFunction(()=>{const canvas=document.querySelector('.leaflet-routeLine-pane canvas');if(!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>0)painted++;return painted>200;});
+ await page.waitForFunction(()=>document.querySelector('.leaflet-routeLine-pane .mks-route-line')?.getAttribute('d')?.length>20);
  await page.waitForFunction(()=>Number(document.querySelector('.leaflet-routeStops-pane canvas')?.dataset.testCircleCount)>=2);
  assert.equal(geometryRequests,2);assert.deepEqual(errors,[]);
  await page.screenshot({path:'test/ui-previews/mpk-mybus-51-break.png'});
  // The second clock must keep advancing without repainting unchanged route styles.
  await new Promise(resolve=>setTimeout(resolve,500));
  const idleRoute=await page.evaluate(()=>{
-  const canvas=document.querySelector('.leaflet-routeLine-pane canvas');
+  const path=document.querySelector('.leaflet-routeLine-pane .mks-route-line');
   const match=document.querySelector('[data-map-bus-sheet]').textContent.match(/Odjazd za:\s*(\d+):(\d{2})/);
-  return {strokes:Number(canvas.dataset.testRouteStrokes),seconds:Number(match[1])*60+Number(match[2])};
+  return {strokes:Number(path.dataset.testRouteStrokes),seconds:Number(match[1])*60+Number(match[2])};
  });
  assert.ok(idleRoute.strokes>0,'route instrumentation observed actual drawing');
  await page.waitForFunction(previous=>{
   const match=document.querySelector('[data-map-bus-sheet]')?.textContent.match(/Odjazd za:\s*(\d+):(\d{2})/);
   return match&&Number(match[1])*60+Number(match[2])<=previous-2;
  },{timeout:5000},idleRoute.seconds);
- assert.equal(await page.$eval('.leaflet-routeLine-pane canvas',el=>Number(el.dataset.testRouteStrokes)),idleRoute.strokes,
+ assert.equal(await page.$eval('.leaflet-routeLine-pane .mks-route-line',el=>Number(el.dataset.testRouteStrokes)),idleRoute.strokes,
   'unchanged route must not repaint on clock ticks');
  // An HTTP-200 primary with scheduled rows must recover actual MPK stop predictions.
  const seconds=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date()).split(':').reduce((sum,value)=>sum*60+Number(value),0));
