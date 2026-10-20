@@ -26,7 +26,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   }
   await page.click('[data-tab="bans"]');await page.click('[aria-label="Edytuj blokadę: Testowy telefon"]');await page.waitForSelector('[aria-label="Edytuj blokadę"]');
   assert.equal(await page.$eval('[aria-label="Powód blokady"]',e=>e.value),'Zapisany powód');assert.ok(await page.$('[data-ban-custom-date]'));
-  await page.$eval('[aria-label="Powód blokady"]',e=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Nowy powód');e.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.click('[aria-label="Powód blokady"]');await page.keyboard.down('Control');await page.keyboard.press('KeyA');await page.keyboard.up('Control');await page.keyboard.type('Nowy powód');
   await page.evaluate(()=>[...document.querySelectorAll('button')].find(e=>e.textContent.includes('Ban permanentny')).click());
   await page.click('[data-ban-submit]');await page.waitForSelector('[aria-label="Edytuj blokadę"]',{hidden:true});
   assert.deepEqual(await page.evaluate(()=>({reason:window.__savedBan.reason,expiry:window.__savedBan.expiryDate,silent:window.__savedBan.silent})),{reason:'Nowy powód',expiry:'',silent:true});
