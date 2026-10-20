@@ -419,3 +419,13 @@
 .connections-place-confirm{position:relative;isolation:isolate;overflow:hidden}
 .connections-place-confirm>:not([data-filter-cosmos]){position:relative;z-index:1}
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) .connections-place-confirm{background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}
+
+/* Explicit header anchoring accompanies animated changes above the viewport. */
+.connections-view{overflow-anchor:none}
+.connections-disclosure,.connections-stop-content{overflow:hidden;min-height:0}
+.connections-disclosure-chevron svg{transition:transform .26s cubic-bezier(.22,1,.36,1)}
+.connections-result{transition:background .2s,color .2s}
+.connections-result:active{background:color-mix(in srgb,var(--cn-accent) 10%,transparent)}
+.connections-map-status{padding:10px 13px;color:var(--cn-muted);font-size:12px;line-height:1.5}
+.connections-map-status button{margin-left:8px;color:var(--cn-accent);text-decoration:underline}
+@media(prefers-reduced-motion:reduce){.connections-disclosure-chevron svg,.connections-result{transition:none}}

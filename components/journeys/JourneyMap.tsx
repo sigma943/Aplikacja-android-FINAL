@@ -4,7 +4,7 @@ import {createPortal} from 'react-dom';
 import {MapContainer,TileLayer,CircleMarker,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle,X} from 'lucide-react';
 import L from 'leaflet';
-import {journeyLegPath,journeyLegStops} from '@/lib/journey-leg-path';
+import {journeyLegPath,journeyLegStops,journeyLegRoutePoints} from '@/lib/journey-leg-path';
 import {journeyPathMidpoint,journeyPointRole,journeyPointSize,journeyPointPriority,spacedJourneyPoints,type JourneyPointRole} from '@/lib/journey-map-markers';
 import {projectJourneyStops} from '@/lib/journey-route-geometry';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
@@ -58,10 +58,10 @@ function JourneyStopMarkers({markers,selected,onSelect,showAll=false}:{markers:J
 
 /** A compact, arrow-free callout anchored to the displayed stop, including while panning. */
 function SelectedStopBadge({marker,onClose}:{marker:JourneyMapPoint;onClose:()=>void}){
- const map=useMap(),ref=useRef<HTMLDivElement>(null),[,setRevision]=useState(0);
+ const map=useMap(),ref=useRef<HTMLDivElement>(null),[,setRevision]=useState(0),[badgeHeight,setBadgeHeight]=useState(76);
  useMapEvents({move:()=>setRevision(v=>v+1),zoom:()=>setRevision(v=>v+1),resize:()=>setRevision(v=>v+1)});
- useEffect(()=>{const node=ref.current;if(!node)return;L.DomEvent.disableClickPropagation(node);L.DomEvent.disableScrollPropagation(node);const observer=new ResizeObserver(()=>setRevision(v=>v+1));observer.observe(node);return()=>observer.disconnect();},[map]);
- const point=map.latLngToContainerPoint(marker.point),size=map.getSize(),width=Math.min(250,size.x-24),height=ref.current?.offsetHeight||76;
+ useEffect(()=>{const node=ref.current;if(!node)return;L.DomEvent.disableClickPropagation(node);L.DomEvent.disableScrollPropagation(node);const observer=new ResizeObserver(()=>{setBadgeHeight(node.offsetHeight||76);setRevision(v=>v+1);});observer.observe(node);return()=>observer.disconnect();},[map]);
+ const point=map.latLngToContainerPoint(marker.point),size=map.getSize(),width=Math.min(250,size.x-24),height=badgeHeight;
  const fitsRight=point.x+14+width<=size.x-12,fitsLeft=point.x-width-14>=12,horizontal=fitsRight||fitsLeft;
  const left=Math.max(12,Math.min(size.x-width-12,fitsRight?point.x+14:fitsLeft?point.x-width-14:point.x-width/2));
  const top=Math.max(12,Math.min(size.y-height-12,horizontal?point.y-height/2:point.y-height-14>=12?point.y-height-14:point.y+14));
@@ -90,13 +90,14 @@ function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boole
 type JourneyMapProps={journey:Journey;dark:boolean;focusLeg?:number|null;focusVersion?:number;onFocusLeg?:(index:number|null)=>void};
 function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:JourneyMapProps){
  const [activeLeg,setActiveLeg]=useState<number|null>(focusLeg);
- useEffect(()=>{setActiveLeg(focusLeg);setSelectedStop(null);setFitVersion(v=>v+1);},[focusLeg,focusVersion]);
+
  function focusStage(index:number|null){setActiveLeg(index);setSelectedStop(null);setFitVersion(v=>v+1);onFocusLeg?.(index);}
  const geometryKey=journeyMapKey(journey);
  const [selectedStop,setSelectedStop]=useState<Stop|null>(null);
  const [geometry,setGeometry]=useState<Geometry>({key:'',paths:{},failed:[]});
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
- const [placeholderHeight,setPlaceholderHeight]=useState(0);
+ const [placeholderHeight,setPlaceholderHeight]=useState(0),[portalHost,setPortalHost]=useState<Element|null>(null);
+ useEffect(()=>{let alive=true;queueMicrotask(()=>{if(alive){setActiveLeg(focusLeg);setSelectedStop(null);setFitVersion(v=>v+1);}});return()=>{alive=false;};},[focusLeg,focusVersion]);
  const [dialogTheme,setDialogTheme]=useState<CSSProperties>({});
  const host=useRef<HTMLDivElement>(null),dialog=useRef<HTMLElement>(null);
  const requestKey=geometryKey+':'+attempt;
@@ -114,7 +115,8 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  useEffect(()=>{
   let alive=true;
   journey.legs.forEach((leg,index)=>{
-   void journeyLegPath(leg).then(path=>{
+   const load=async()=>{try{return await journeyLegPath(leg);}catch(error){if(!alive)throw error;await new Promise<void>(resolve=>{setTimeout(resolve,900);});if(!alive)throw error;return journeyLegPath(leg);}};
+   void load().then(path=>{
     if(path.length<2||path.some(point=>!point.every(Number.isFinite)))throw Error('Brak kompletnej trasy.');
     if(alive)setGeometry(old=>({key:requestKey,paths:{...(old.key===requestKey?old.paths:{}),[index]:path},failed:old.key===requestKey?old.failed:[]}));
    }).catch(()=>{
@@ -134,7 +136,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
   journey.legs.forEach((leg,index)=>{
    const path=geometry.key===requestKey?geometry.paths[index]:undefined;if(!path)return;
    const stops=journeyLegStops(leg).filter(hasCoordinates);
-   const points=projectJourneyStops(path,stops.map(s=>[s.lat!,s.lon!] as Point),leg.walking!==undefined?35:150);
+   const points=projectJourneyStops(path,journeyLegRoutePoints(leg).filter(p=>p.every(Number.isFinite)),leg.walking!==undefined?35:150);
    points.forEach((p,i)=>{
     const key=p.point.map(v=>v.toFixed(6)).join(':'),role=journeyPointRole(journey,stops[i]),previous=unique.get(key);
     if(!previous||journeyPointPriority[role]>journeyPointPriority[previous.role])unique.set(key,{stop:stops[i],point:p.point,role});
@@ -148,6 +150,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  const selectedMarker=visibleMarkers.find(marker=>marker.stop.id===selectedStop?.id);
  const failed=geometry.key===requestKey?geometry.failed:[];
  const pending=Object.keys(paths).length+failed.length<journey.legs.length;
+ useEffect(()=>{if(!failed.length)return;const retry=()=>setAttempt(v=>v+1);window.addEventListener('online',retry);return()=>window.removeEventListener('online',retry);},[failed.length]);
  function openMap(){
   if(host.current){
    const toolbar=host.current.querySelector<HTMLElement>('.connections-map-toolbar');
@@ -156,7 +159,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
    for(const name of ['--cn-surface','--cn-text','--cn-muted','--cn-edge','--cn-accent'])values[name]=computed.getPropertyValue(name);
    setDialogTheme(values as CSSProperties);
   }
-  setExpanded(true);
+  setPortalHost(host.current?.closest('.pks-theme-root')||document.body);setExpanded(true);
  }
  if(endpoints.length<2)return <p className="connections-hint">Brak współrzędnych do wyświetlenia planu.</p>;
  const status=pending?<span role="status" aria-label="Wczytywanie trasy"><LoaderCircle size={17} className="animate-spin"/></span>:failed.length>0?<button aria-label="Niepełna trasa. Ponów wczytywanie" title="Niepełna trasa. Ponów wczytywanie" onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={17}/></button>:null;
@@ -182,12 +185,13 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  </>;
  return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
   <div className="connections-map-toolbar"><strong>Mapa podróży</strong>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
+  {failed.length>0&&<div className="connections-map-status" role="status">Nie udało się wczytać przebiegu: {failed.map(i=>journey.legs[i].walking!==undefined?'dojście piesze':(journey.legs[i].provider==='marcel'?'Marcel':'Linia '+journey.legs[i].line)).join(', ')}. Pozostałe odcinki są widoczne.<button onClick={()=>setAttempt(v=>v+1)}>Ponów wczytywanie</button></div>}
   {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
    <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journeyDestinationLabel(journey.legs.at(-1)!.to)}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
    {mapContent}
    <JourneyMapSheet journey={journey} activeLeg={activeLeg} onFocusLeg={index=>{focusStage(index);requestAnimationFrame(()=>dialog.current?.querySelector<HTMLElement>('.leaflet-container')?.focus({preventScroll:true}));}}/>
-  </section>,host.current?.closest('.pks-theme-root')||document.body)}
+  </section>,portalHost||document.body)}
  </div>;
 }
 

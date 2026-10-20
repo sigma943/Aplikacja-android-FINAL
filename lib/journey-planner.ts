@@ -1,7 +1,7 @@
 import {warsawTimeMs} from './transit-time';
 import type {Departure,Stop} from '@/Panel/src/types';
-export type JourneyCall={stop:Stop;arrival:number;departure:number;scheduledArrival?:number;scheduledDeparture?:number;pickup?:boolean;dropoff?:boolean};
-export type JourneyLeg={from:Stop;to:Stop;departure:number;arrival:number;line:string;provider:string;course:string;walking?:number;walkingQuality?:'estimated'|'verified';walkingCheckedAt?:number;path?:Array<[number,number]>;stops?:JourneyCall[];delaySeconds?:number;scheduledDeparture?:number;scheduledArrival?:number;transferSlackSeconds?:number};
+export type JourneyCall={stop:Stop;routePoint?:[number,number];arrival:number;departure:number;scheduledArrival?:number;scheduledDeparture?:number;pickup?:boolean;dropoff?:boolean};
+export type JourneyLeg={from:Stop;routePattern?:Array<[number,number]>;to:Stop;departure:number;arrival:number;line:string;provider:string;course:string;walking?:number;walkingQuality?:'estimated'|'verified';walkingCheckedAt?:number;path?:Array<[number,number]>;stops?:JourneyCall[];delaySeconds?:number;scheduledDeparture?:number;scheduledArrival?:number;transferSlackSeconds?:number};
 export type Journey={id:string;legs:JourneyLeg[];departure:number;arrival:number;walking:number;transfers:number};
 /** -1 transfers means no count limit; transferMinutes is a minimum safety buffer. */
 export type JourneyOptions={at:number;arriveBy:boolean;maxTransfers:number;walkMeters:number;transferMinutes:number;providers:string[];sort:'fastest'|'transfers'|'walking';day?:string};
