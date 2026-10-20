@@ -70,7 +70,9 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const sizes=[];
   await page.keyboard.down('Shift');try{await page.click('.leaflet-control-zoom-out');}finally{await page.keyboard.up('Shift');}
   await new Promise(r=>setTimeout(r,500));
-  const distantDot=await page.$eval('.connections-stop-point.is-stop',e=>e.getBoundingClientRect().width);assert.ok(distantDot<originalDot,'stop dots shrink when zoomed out');
+  const distantDots=await page.$$eval('.connections-stop-point.is-stop',nodes=>nodes.map(e=>e.getBoundingClientRect().width));
+  assert.ok(distantDots.every(width=>width<originalDot&&width>=4.4),'visible distant dots stay compact with a readable white centre');
+  for(const role of ['start','end','transfer'])assert.ok(await page.$('.connections-route-point.is-'+role),'important points stay visible when ordinary stops are thinned');
   sizes.push(await page.$eval('.connections-walk-marker',e=>parseFloat(e.style.width)));
   const centered=await page.$eval('.connections-walk-marker',e=>{const r=e.getBoundingClientRect(),s=e.querySelector('svg').getBoundingClientRect();return Math.abs((r.left+r.right-s.left-s.right)/2)<1&&Math.abs((r.top+r.bottom-s.top-s.bottom)/2)<1;});assert.equal(centered,true);assert.ok(sizes[0]<=24,'distant pedestrian marker stays compact');
   // Fullscreen keeps its own accessible, draggable journey details.
@@ -105,7 +107,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   for(let i=0;i<5;i++)await page.click('.connections-recent-delete');assert.equal(await page.$('.connections-recents'),null);assert.deepEqual(errors,[]);
   fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/journeys-live-refresh.png'});console.log('PASS: 30-second refresh, stable details/map, inactive cancellation, trash icon, centered compact walker and map attribution');
  }catch(error){
-  const pages=await browser?.pages().catch(()=>[]);const page=pages?.[0];
+  const pages=await browser?.pages().catch(()=>[]);const page=pages?.find(page=>page.url().startsWith('http://127.0.0.1:'));
   if(page){fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/journeys-interaction-failure.png'}).catch(()=>{});console.error('Journey UI state:',await page.evaluate(()=>({focus:[...document.querySelectorAll('.connections-leg-focus')].map(e=>({label:e.getAttribute('aria-label'),pressed:e.getAttribute('aria-pressed')})),sheet:document.querySelector('.connections-map-sheet')?.outerHTML.slice(0,1800),routes:[...document.querySelectorAll('.connections-walking-path,.connections-bus-path')].map(e=>({class:e.getAttribute('class'),stroke:e.getAttribute('stroke'),opacity:e.getAttribute('stroke-opacity')}))})).catch(()=>null));}
   throw error;
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
