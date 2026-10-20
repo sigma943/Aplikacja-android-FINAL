@@ -48,8 +48,9 @@ function SelectedStopBadge({marker,onClose}:{marker:JourneyMapPoint;onClose:()=>
  useMapEvents({move:()=>setRevision(v=>v+1),zoom:()=>setRevision(v=>v+1),resize:()=>setRevision(v=>v+1)});
  useEffect(()=>{const node=ref.current;if(!node)return;L.DomEvent.disableClickPropagation(node);L.DomEvent.disableScrollPropagation(node);const observer=new ResizeObserver(()=>setRevision(v=>v+1));observer.observe(node);return()=>observer.disconnect();},[map]);
  const point=map.latLngToContainerPoint(marker.point),size=map.getSize(),width=Math.min(250,size.x-24),height=ref.current?.offsetHeight||76;
- const left=Math.max(12,Math.min(size.x-width-12,point.x+14+width<=size.x-12?point.x+14:point.x-width-14));
- const top=Math.max(12,Math.min(size.y-height-12,point.y-height/2));
+ const fitsRight=point.x+14+width<=size.x-12,fitsLeft=point.x-width-14>=12,horizontal=fitsRight||fitsLeft;
+ const left=Math.max(12,Math.min(size.x-width-12,fitsRight?point.x+14:fitsLeft?point.x-width-14:point.x-width/2));
+ const top=Math.max(12,Math.min(size.y-height-12,horizontal?point.y-height/2:point.y-height-14>=12?point.y-height-14:point.y+14));
  const visible=point.x>=0&&point.x<=size.x&&point.y>=0&&point.y<=size.y;
  return createPortal(<div ref={ref} className="connections-stop-badge" role="status" style={{left,top,width,visibility:visible?'visible':'hidden'}} data-anchor-x={point.x} data-anchor-y={point.y}>
   <div><small>{({start:'Początek podróży',end:'Cel podróży',transfer:'Przesiadka',stop:'Przystanek'})[marker.role]}</small><strong>{marker.stop.name}</strong></div>
