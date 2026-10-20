@@ -73,10 +73,10 @@ test('official routes never borrow an ambiguous trip prefix or a shape for the o
   }finally{global.fetch=previous;}
 });
 
-test('nearby offset stop pins do not force a driveway excursion; routing stays on real roads',async()=>{
+test('a stop in a side road retains its access even when the shorter corridor is nearby',async()=>{
  const previous=global.fetch;const start=[50,22],junction=[50,22.001],pin=[50.00045,22.001],end=[50,22.004];const spur=[start,junction,pin,junction,end],corridor=[start,junction,end];const calls=[];
- global.fetch=async url=>{const q=JSON.parse(new URL(url).searchParams.get('json'));calls.push(q);if(q.locations.length===3){assert.equal(q.locations[1].radius,150);assert.equal(q.locations[1].rank_candidates,false);}return new Response(JSON.stringify({trip:{legs:[{shape:encode(q.locations.length===3?spur:corridor)}]}}));};
- try{const client=loadTs('lib/pks-client.ts',native);const result=await client.fetchRouteGeometryClient({carrier:'pks',line:'108',direction:'Konieczkowa',mode:'road',stops:[start,pin,end].map(([lat,lon],id)=>({id,lat,lon}))});assert.deepEqual(result.geometry.coordinates,corridor.map(([lat,lon])=>[lon,lat]));assert.equal(calls.length,2);}finally{global.fetch=previous;}
+ global.fetch=async url=>{const q=JSON.parse(new URL(url).searchParams.get('json'));calls.push(q);if(q.locations.length===3){assert.equal(q.locations[1].radius,60);assert.equal(q.locations[1].rank_candidates,false);}return new Response(JSON.stringify({trip:{legs:[{shape:encode(q.locations.length===3?spur:corridor)}]}}));};
+ try{const client=loadTs('lib/pks-client.ts',native);const result=await client.fetchRouteGeometryClient({carrier:'pks',line:'108',direction:'Konieczkowa',mode:'road',stops:[start,pin,end].map(([lat,lon],id)=>({id,lat,lon}))});assert.deepEqual(result.geometry.coordinates,spur.map(([lat,lon])=>[lon,lat]));assert.equal(calls.length,2);}finally{global.fetch=previous;}
 });
 test('corridor selection preserves distant stop visits, reverse legs and endpoints',()=>{
  const {preferRoadCorridor,roadRoutingLocations}=loadTs('lib/bus-road-geometry.ts');const start=[50,22],middle=[50,22.004],far=[50.003,22.004],end=[50,22.008];const detour=[start,middle,far,middle,end],direct=[start,middle,end];

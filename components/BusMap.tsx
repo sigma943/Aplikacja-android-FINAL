@@ -31,7 +31,7 @@ import {MapStateTracker, MapCenterer, MapClickListener} from '@/components/map/M
 import {VehicleMarkerLayer} from '@/components/map/VehicleMarkers';
 import {SelectedStopPin, CatalogStopsLayer, RouteStopsLayer} from '@/components/map/StopLayers';
 
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v14-authoritative-shapes';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v15-course-validated-roads';
 
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 
@@ -185,10 +185,9 @@ function BusMap({
   const routeMode = selectedVehicle?.provider === 'pkp_intercity' ? 'rail' : 'road';
   const routeGeometryVersion = routeMode === 'rail' ? RAIL_ROUTE_GEOMETRY_CACHE_VERSION : ROAD_ROUTE_GEOMETRY_CACHE_VERSION;
   const routeKey = selectedVehicle
-    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops)
+    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops, String(selectedVehicle.tripId || selectedVehicle.journeyId || selectedVehicle.serviceId || selectedVehicle.brigadeName || selectedVehicle.routeId || 'default'))
     : '';
-  // The same stop pattern can have different official streets for another course.
-  // Keep the fallback cache shared, but resolve the official course again.
+  // Both the rendered identity and persisted geometry distinguish courses.
   const routeCourse = String(selectedVehicle?.tripId || selectedVehicle?.journeyId || '');
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
   const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];

@@ -1,6 +1,6 @@
 import {readBusCoordinates} from '../bus-coordinates';
 
-import {decodePolyline, routeChunks, joinRouteChunks, roadRouteMatchesStops, roadRoutingLocations, hasLocalRoadExcursion, preferRoadCorridor} from '../bus-road-geometry';
+import {decodePolyline, routeChunks, joinRouteChunks, routedRoadRouteMatchesStops, roadRoutingLocations, hasLocalRoadExcursion, preferRoadCorridor} from '../bus-road-geometry';
 
 import {withRequestDeadline} from '../request-deadline';
 import {roadRouteWithFallback} from './road-route-fallback';
@@ -34,7 +34,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       const data=await withRequestDeadline(signal => requestJson<{code?:string;routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
         'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false', {signal}), undefined, 8000);
       const route: ShapePoint[] = (data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
-      if (!roadRouteMatchesStops(route,chunk,150)) throw new Error('Incomplete secondary road route');
+      if (!routedRoadRouteMatchesStops(route,chunk)) throw new Error('Incomplete secondary road route');
       secondary[index] = route;
       return route;
     };
@@ -52,9 +52,9 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
           const query={locations:roadRoutingLocations(chunk,Boolean(options?.stopWaypoints),boundaries),costing:'bus',directions_options:{units:'kilometers'}};
           const data=await withRequestDeadline(signal => requestJson<{trip?:{legs?:Array<{shape?:string}>}}>('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(query)),{signal}), undefined, 8000);
           const primary=joinRouteChunks((data.trip?.legs||[]).map(leg=>leg.shape?decodePolyline(leg.shape):[]));
-          if (!roadRouteMatchesStops(primary,chunk,150)) throw new Error('Incomplete primary road route');
+          if (!routedRoadRouteMatchesStops(primary,chunk)) throw new Error('Incomplete primary road route');
           return primary;
-        }, () => fetchSecondary(index));
+        }, () => fetchSecondary(index), 1000, 8000);
         if(options?.stopWaypoints&&chunk.length>2&&hasLocalRoadExcursion(route)) {
           try {
             const query={locations:roadRoutingLocations([chunk[0],chunk.at(-1)!],true,boundaries),costing:'bus',directions_options:{units:'kilometers'}};
@@ -63,7 +63,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
             route=preferRoadCorridor(route,candidate,chunk);
           }catch { /* Keep the complete original road route if no safe alternative exists. */ }
         }
-        if(!roadRouteMatchesStops(route,chunk,150))throw new Error('Incomplete road route: missing or unordered stops');
+        if(!routedRoadRouteMatchesStops(route,chunk))throw new Error('Incomplete road route: missing or unordered stops');
         roadChunkCache.set(chunkKey,route);
         if(roadChunkCache.size>500)roadChunkCache.delete(roadChunkCache.keys().next().value!);
         results[index]=route;
@@ -71,7 +71,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
     }));
     try {
       const route = joinRouteChunks(results);
-      if (!roadRouteMatchesStops(route,points,150)) throw new Error('Incomplete joined road route');
+      if (!routedRoadRouteMatchesStops(route,points)) throw new Error('Incomplete joined road route');
       return route;
     } catch {
       // Routers may snap a shared stop onto different roads or opposite ends of
@@ -85,7 +85,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
         }
       }));
       const route = joinRouteChunks(results);
-      if (!roadRouteMatchesStops(route,points,150)) throw new Error('Incomplete joined road route');
+      if (!routedRoadRouteMatchesStops(route,points)) throw new Error('Incomplete joined road route');
       return route;
     }
   })();
