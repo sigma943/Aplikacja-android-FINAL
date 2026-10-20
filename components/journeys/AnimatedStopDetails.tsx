@@ -1,4 +1,5 @@
 'use client';
+import {journeyReducedMotion} from '@/lib/journey-motion';
 import {useEffect,useRef,type ReactNode} from 'react';
 
 export default function AnimatedStopDetails({summary,children}:{summary:ReactNode;children:ReactNode}){
@@ -9,7 +10,7 @@ export default function AnimatedStopDetails({summary,children}:{summary:ReactNod
   const height=node.open?body.getBoundingClientRect().height:0;
   desired.current=!desired.current;animation.current?.cancel();
   const open=desired.current;
-  if(matchMedia('(prefers-reduced-motion: reduce)').matches){node.open=open;return;}
+  if(journeyReducedMotion()){node.open=open;return;}
   node.open=true;
   const next=body.animate([{height:height+'px',opacity:height?1:0},{height:(open?body.scrollHeight:0)+'px',opacity:open?1:0}],{duration:260,easing:'cubic-bezier(.22,1,.36,1)'});
   animation.current=next;

@@ -1,7 +1,8 @@
+import {journeyReducedMotion} from '@/lib/journey-motion';
 /** Follow the tapped header while the preceding card collapses. Native scroll
  * anchoring cannot handle two simultaneous height changes reliably on Android. */
 export function anchorJourneyHeader(view:HTMLElement,header:HTMLElement,initial=header.getBoundingClientRect().top-view.getBoundingClientRect().top){
- const target=Math.min(Math.max(12,initial),24),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const target=Math.min(Math.max(12,initial),24),reduced=journeyReducedMotion();
  const start=performance.now();let frame=0,stopped=false;
  const stop=()=>{stopped=true;cancelAnimationFrame(frame);view.removeEventListener('wheel',stop);view.removeEventListener('touchstart',stop);view.removeEventListener('keydown',stop);};
  const follow=()=>{

@@ -42,6 +42,10 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await open(0);await page.click('.connections-stop-details summary');assert.ok(await page.$('.connections-stop-details[open]'));
   await open(2);await checkHeader(2);
   await page.$eval('.connections-result[aria-expanded="true"]',e=>e.click());await wait(60);assert.equal(await page.$('.connections-detail'),null,'reduced motion removes details without animation');
+  await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+  await page.evaluate(()=>{document.documentElement.dataset.personalMotion='reduced';});
+  await open(1);await page.$eval('.connections-result[aria-expanded="true"]',e=>e.click());await wait(60);
+  assert.equal(await page.$('.connections-detail'),null,'the app motion preference is respected too');
   assert.deepEqual(errors,[]);console.log('PASS: mobile card anchoring including last card, expanding/collapsing animation, reduced motion, and offline 27-stop Marcel map');
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});
