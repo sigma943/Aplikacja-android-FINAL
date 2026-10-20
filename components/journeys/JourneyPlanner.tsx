@@ -27,9 +27,9 @@ function JourneyDelayBadge({seconds}:{seconds?:number}){
  const minutes=Math.ceil(Math.abs(seconds)/60),late=seconds>0;
  return <span className={'connections-delay-badge '+(late?'is-late':'is-early')} aria-label={(late?'Opóźnienie ':'Przyspieszenie ')+minutes+' min'} title="Godziny uwzględniają dane na żywo">{late?'+':'−'}{minutes} min</span>;
 }
-type Recent={from:Stop;to:Stop};
+type Recent={from:Stop;to:Stop;searchedAt?:number};
 type LiveQuery={from:Stop;to:Stop;date:string;now:boolean;options:JourneyOptions};
-function readRecents():Recent[]{try{const saved=JSON.parse(localStorage.getItem('pks-live:journey-recents')||'[]');return Array.isArray(saved)?saved.filter(x=>x?.from?.id&&x?.to?.id&&typeof x.from.name==='string'&&typeof x.to.name==='string').slice(0,6):[];}catch{return [];}}
+function readRecents():Recent[]{try{const saved=JSON.parse(localStorage.getItem('pks-live:journey-recents')||'[]');return Array.isArray(saved)?saved.filter(x=>x?.from?.id&&x?.to?.id&&typeof x.from.name==='string'&&typeof x.to.name==='string').slice(0,5):[];}catch{return [];}}
 const privatePlace=(stop:Stop)=>stop.id===LOCATION_ID?{...stop,lat:undefined,lon:undefined}:stop;
 function saveRecents(items:Recent[]){try{localStorage.setItem('pks-live:journey-recents',JSON.stringify(items.map(item=>({...item,from:privatePlace(item.from),to:privatePlace(item.to)}))));}catch{}}
 
@@ -72,7 +72,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
   if(at<Date.now()-60000){setError('Wybrana godzina już minęła. Wybierz przyszłą datę i godzinę.');return;}
   invalidate();const token=generation.current,c=new AbortController();controller.current=c;setBusy(true);setProgress('Wczytuję pełne rozkłady…');
   try{const location=from.id===LOCATION_ID||to.id===LOCATION_ID?await currentJourneyLocation():null;const origin=from.id===LOCATION_ID?location!:from,destination=to.id===LOCATION_ID?location!:to;if(c.signal.aborted||token!==generation.current)return;if(origin.id===LOCATION_ID)setFrom(origin);if(destination.id===LOCATION_ID)setTo(destination);
-   const next=[{from:origin,to:destination},...recents.filter(r=>r.from.id!==origin.id||r.to.id!==to.id)].slice(0,6);setRecents(next);saveRecents(next);
+   const next=[{from:origin,to:destination,searchedAt:Date.now()},...recents].slice(0,5);setRecents(next);saveRecents(next);
    const result=await searchConnections(origin,destination,catalog,searchDate,{...options,at,arriveBy,day:searchDate},c.signal,(n,total)=>{if(token===generation.current)setProgress(n===total?'Wyznaczam trasę…':'Wczytuję rozkłady '+n+' / '+total);});
    if(c.signal.aborted||token!==generation.current)return;
    liveQuery.current={from:origin,to:destination,date:searchDate,now,options:{...options,at,arriveBy,day:searchDate}};
@@ -116,9 +116,8 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
     {error&&<p role="alert" className="connections-error"><AlertCircle size={17}/>{error}</p>}
     {catalogError&&<p className="connections-error">{catalogError}<button onClick={()=>setAttempt(n=>n+1)}>Ponów</button></p>}
    </div>
-   {recents.length>0&&<div data-cosmic-panel className="connections-card connections-recents"><h2><History size={17}/>Ostatnie wyszukiwania</h2>{recents.map(r=><div className="connections-recent" key={r.from.id+':'+r.to.id}><button onClick={()=>{invalidate();setFrom(places.find(s=>s.id===r.from.id)||r.from);setTo(places.find(s=>s.id===r.to.id)||r.to);}}><History size={17}/><span>{label(r.from)}<small><ArrowRight size={12}/>{label(r.to)}</small></span></button><button className="connections-recent-delete" aria-label="Usuń ostatnie wyszukiwanie" onClick={()=>{const next=recents.filter(x=>x!==r);setRecents(next);saveRecents(next);}}><Trash2 size={17}/></button></div>)}</div>}
+   {recents.length>0&&<div data-cosmic-panel className="connections-card connections-recents"><h2><History size={17}/>Ostatnie wyszukiwania</h2>{recents.map((r,index)=><div className="connections-recent" key={r.searchedAt+':'+index}><button onClick={()=>{invalidate();setFrom(places.find(s=>s.id===r.from.id)||r.from);setTo(places.find(s=>s.id===r.to.id)||r.to);}}><History size={17}/><span>{label(r.from)}<small><ArrowRight size={12}/>{label(r.to)}</small></span></button><button className="connections-recent-delete" aria-label="Usuń ostatnie wyszukiwanie" onClick={()=>{const next=recents.filter(x=>x!==r);setRecents(next);saveRecents(next);}}><Trash2 size={17}/></button></div>)}</div>}
   </aside><main className="connections-answer-column">
-   {results===null&&!busy&&<div className="connections-intro"><span className="connections-intro-icon"><Bus size={23}/></span><h2>Dokąd dzisiaj?</h2><p>Wybierz przystanki lub rozpocznij podróż ze swojej lokalizacji.</p><span><Check size={14}/> Pełne rozkłady PKS i MPK, również offline</span></div>}
    {results!==null&&!busy&&<div className="connections-results" aria-live="polite"><div className="connections-results-heading"><h2>{results.length?'Proponowane połączenia':'Brak połączeń w tym terminie'}</h2>{results.length>0&&<span>{results.length} propozycji</span>}</div>
     {!results.length&&<div className="connections-card connections-empty"><Search size={28}/><h3>Spróbuj innej godziny</h3><p>{arriveBy?'Od początku dnia do wybranej godziny':'Od wybranej godziny do końca dnia'} nie ma połączenia spełniającego preferencje. Możesz też zwiększyć dystans pieszo lub liczbę przesiadek.</p></div>}
     {warnings.map(w=><p className="connections-warning" key={w}><AlertCircle size={16}/>{w}</p>)}

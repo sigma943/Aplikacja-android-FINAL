@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),load=require('./load-ts.cjs');
-const {projectJourneyStops,sliceJourneyRoute,journeyRoadAnchors}=load('lib/journey-route-geometry.ts');
+const {projectJourneyStops,sliceJourneyRoute}=load('lib/journey-route-geometry.ts');
 const {roadDistance}=load('lib/bus-road-geometry.ts');
 const stop=(id,p)=>({id,name:id,lat:p[0],lon:p[1],type:'bus',carriers:[],lines:[],isFavorite:false});
 test('stops project onto road segments without moving catalog pins or drawing spurs',()=>{
@@ -8,8 +8,6 @@ test('stops project onto road segments without moving catalog pins or drawing sp
  dots.forEach((p,i)=>{assert.equal(p.point[0],50);assert.ok(Math.abs(p.point[1]-stops[i][1])<1e-9);});
  const clipped=sliceJourneyRoute(road,stops);assert.deepEqual(clipped,[[50,22.002],[50,22.008]]);
  assert.equal(JSON.stringify(stops),before);
- const context=sliceJourneyRoute(road,stops,120),anchors=journeyRoadAnchors(context,stops);
- assert.ok(anchors[0][1]<stops[0][1]&&anchors.at(-1)[1]>stops.at(-1)[1],'router endpoints extend beyond the stop pins');
  assert.deepEqual(projectJourneyStops(road,[[51,22]],35),[]);
 });
 test('ordered projections preserve circular routes and never trim to a later return visit',()=>{
@@ -50,4 +48,29 @@ test('both failed foot profiles reject the route instead of inventing a straight
   global.fetch=async()=>({ok:true,json:async()=>({code:'Ok',routes:[{distance:72,geometry:{coordinates:[[22,50],[22.001,50]]}}]})});
   assert.equal((await journeyWalkingRoute(a,b)).points.length,2);
  }finally{global.fetch=original;}
+});
+test('Niebylec PKS courses preserve every bundled road vertex; moving dots cannot reroute the bus',async()=>{
+ const fs=require('node:fs'),index=require('../public/data/bus-routes/pks.json');let routed=0;
+ const shapes=['343','344','358','359','360','361','362','363','534'];
+ for(const shape of shapes){
+  const trip=Object.keys(index.tripShapes).find(id=>index.tripShapes[id]===shape),ids=index.patterns[index.tripPatterns[trip]];
+  const calls=ids.map(id=>stop(id,[index.stops[id].lat,index.stops[id].lon]));
+  const original=JSON.parse(fs.readFileSync('public/data/bus-routes/pks/'+shape+'.json')),before=JSON.stringify(original);
+  const {journeyLegPath}=load('lib/journey-leg-path.ts',{'./official-bus-routes':{officialBusRoute:async()=>original},'./transport/road-routing':{fetchRoadRouteForStops:async()=>{routed++;throw Error('must use the course road');}}});
+  const route=await journeyLegPath({provider:'pks',course:'pks:'+trip,from:calls[0],to:calls.at(-1),stops:calls.map(stop=>({stop}))});
+  assert.deepEqual(route,sliceJourneyRoute(load('lib/pks-station-junction.ts').correctPksStationJunction(original,'pks'),calls.map(s=>[s.lat,s.lon])),shape);
+  assert.ok(route.length>100,shape+' keeps actual road bends');
+  const dots=projectJourneyStops(route,calls.map(s=>[s.lat,s.lon]));
+  assert.equal(dots.length,calls.length);assert.equal(JSON.stringify(original),before);
+  for(const p of route.slice(1,-1))assert.ok(original.some(q=>q[0]===p[0]&&q[1]===p[1]),'no synthetic road points');
+ }
+ assert.equal(routed,0,'stop pins never trigger reconstruction of a known course');
+});
+test('a sideways stop projects perpendicularly onto a curved road without moving any road vertex',()=>{
+ const road=[[49.855,21.902],[49.8555,21.9028],[49.856,21.9038],[49.8565,21.9042]],before=JSON.stringify(road);
+ const a=road[1],b=road[2],scale=Math.cos(49.85575*Math.PI/180),dx=(b[1]-a[1])*scale,dy=b[0]-a[0];
+ const actual=[(a[0]+b[0])/2-dx*.12,(a[1]+b[1])/2+dy*.12/scale];
+ const [dot]=projectJourneyStops(road,[actual],35);assert.ok(dot);
+ assert.ok(roadDistance(dot.point,[(a[0]+b[0])/2,(a[1]+b[1])/2])<.01);
+ assert.equal(JSON.stringify(road),before);assert.ok(roadDistance(actual,dot.point)>5);
 });

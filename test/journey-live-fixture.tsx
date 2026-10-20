@@ -15,6 +15,6 @@ export async function searchConnections(){
  ]};
  return {journeys:[journey],warnings:[]};
 }
-localStorage.setItem('pks-live:journey-recents',JSON.stringify([{from:a,to:c}]));
+localStorage.setItem('pks-live:journey-recents',JSON.stringify(Array.from({length:7},(_,i)=>({from:a,to:c,searchedAt:Date.now()-i*60000}))));
 function Fixture(){const [active,setActive]=useState(true);return <div className="pks-theme-root" data-ui-theme="dark" style={{position:'relative',height:'100dvh'}}><button data-fixture-toggle style={{position:'fixed',right:0,top:0,zIndex:9999}} onClick={()=>setActive(!active)}>Toggle</button><JourneyPlanner stops={[a,b,c]} active={active} dark onClose={()=>{}}/></div>;}
 createRoot(document.getElementById('root')!).render(<Fixture/>);

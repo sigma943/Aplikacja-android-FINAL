@@ -43,12 +43,3 @@ export function sliceJourneyRoute(route:Point[],stops:Point[],padding=0):Point[]
  while(end<route.length-1&&remaining>0){const next=Math.min(route.length-1,Math.floor(end)+1),distance=roadDistance(pointAt(route,end),pointAt(route,next));if(distance>remaining){end+=remaining/distance*(next-end);break;}remaining-=distance;end=next;}
  return [pointAt(route,start),...route.slice(Math.floor(start)+1,Math.ceil(end)),pointAt(route,end)].filter((p,i,all)=>!i||roadDistance(p,all[i-1])>.05);
 }
-/** Route through the corridor and all stops; raw stop pins are interior hints,
- * never the endpoints that force a bus into a parking bay or side street. */
-export function journeyRoadAnchors(corridor:Point[],stops:Point[]):Point[]{
- const projected=projectJourneyStops(corridor,stops);if(projected.length!==stops.length)return [];
- const anchors=projected.map((p,i)=>({position:p.position,point:stops[i]}));
- let length=0;
- for(let i=1;i<corridor.length-1;i++){length+=roadDistance(corridor[i-1],corridor[i]);if(length>=300){anchors.push({position:i,point:corridor[i]});length=0;}}
- return [corridor[0],...anchors.sort((a,b)=>a.position-b.position).map(p=>p.point),corridor.at(-1)!].filter((p,i,all)=>!i||roadDistance(p,all[i-1])>3);
-}

@@ -31,7 +31,6 @@ function WalkingMarker({position,meters}:{position:Point;meters?:number}){
 
 function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boolean;fitVersion:number}){
  const map=useMap();
- useEffect(()=>{map.attributionControl.setPrefix(false);},[map]);
  useEffect(()=>{
   let frame=0;
   const fit=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
@@ -109,10 +108,11 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
   setExpanded(true);
  }
  if(endpoints.length<2)return <p className="connections-hint">Brak współrzędnych do wyświetlenia planu.</p>;
+ const status=pending?<span role="status" aria-label="Wczytywanie trasy"><LoaderCircle size={17} className="animate-spin"/></span>:failed.length>0?<button aria-label="Niepełna trasa. Ponów wczytywanie" title="Niepełna trasa. Ponów wczytywanie" onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={17}/></button>:null;
  const mapContent=<>
-  <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
+  <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomControl={false} attributionControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
    <MapViewport points={bounds} expanded={expanded} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
-   <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" attribution='Map tiles by Google · &copy; OpenStreetMap contributors' maxZoom={19}/>
+   <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" maxZoom={19}/>
    <Pane name="journey-route-strokes" style={{zIndex:410}}>
    {journey.legs.map((leg,index)=>{
     const path=paths[index];if(!path)return null;const walking=leg.walking!==undefined;
@@ -126,18 +126,13 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
    {markers.map(({stop,point})=><CircleMarker className="connections-stop-point" key={stop.id+':'+point.join(':')} center={point} radius={4.5} pathOptions={{color:'#334155',weight:1.5,fillColor:'#fff',fillOpacity:1}}><Popup pane="popupPane" closeButton maxWidth={240}>{stop.name}</Popup></CircleMarker>)}
    </Pane>
   </MapContainer>
-  <div className="connections-map-footer">
-   <div className="connections-map-legend"><span><i style={{background:'#14b8a6'}}/>PKS</span><span><i style={{background:'#ff7a00'}}/>MPK</span><span><i style={{background:'#68c44a'}}/>Marcel</span><span><i className="is-walk"/>Pieszo</span></div>
-   {!expanded&&<p className="connections-map-touch-hint">Przesuwaj stronę jednym palcem. Powiększ mapę, aby ją przesuwać.</p>}
-   {pending&&<p className="connections-map-status" role="status"><LoaderCircle size={15} className="animate-spin"/>Wczytuję przebieg trasy…</p>}
-   {failed.length>0&&<div className="connections-map-error" role="status"><span>Nie udało się wczytać {failed.length===1?'jednego odcinka':'części trasy'}. Sprawdź połączenie z internetem.</span><button onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={16}/>Ponów</button></div>}
-  </div>
+
  </>;
  return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
-  <div className="connections-map-toolbar"><strong>Mapa podróży</strong><button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
+  <div className="connections-map-toolbar"><strong>Mapa podróży</strong>{status}<button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
   {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
-   <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journey.legs.at(-1)!.to.name}</small></div><button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
+   <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journey.legs.at(-1)!.to.name}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
    {mapContent}
   </section>,document.body)}
  </div>;

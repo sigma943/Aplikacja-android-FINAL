@@ -26,8 +26,8 @@ export default function JourneyPlaceMap({stops,initial,onSelect}:Props){
  const center:[number,number]=selected?[selected.lat!,selected.lon!]:[50.0412,21.9991];
  return <div className="connections-place-map">
   <p className="connections-place-map-hint"><MapPin size={16}/>Dotknij kropki przystanku albo dowolnego miejsca na mapie.</p>
-  <MapContainer center={center} zoom={13} className="connections-place-leaflet" zoomControl={false}>
-   <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" attribution='Map tiles by Google · &copy; OpenStreetMap contributors' maxZoom={19}/>
+  <MapContainer attributionControl={false} center={center} zoom={13} className="connections-place-leaflet" zoomControl={false}>
+   <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" maxZoom={19}/>
    <ZoomControl position="bottomright"/><MapPoints stops={stops} selected={selected} onPick={setSelected}/>
   </MapContainer>
   <div className="connections-place-confirm"><div aria-live="polite"><strong>{selected?displayStopCatalogLabel(selected.name,selected.code):'Wybierz miejsce na mapie'}</strong><small>{selected?`${selected.lat!.toFixed(5)}, ${selected.lon!.toFixed(5)}`:'Przybliż mapę, aby zobaczyć kropki przystanków'}</small></div><button className="connections-primary" disabled={!selected} onClick={()=>selected&&onSelect(selected)}><Check size={17}/>Wybierz</button></div>

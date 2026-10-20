@@ -42,3 +42,16 @@ test('missing or corrupt Marcel assets fail safely and a later attempt can recov
     assert.deepEqual(await invalid.bundledMarcelRoute(points),[]);
   }finally{global.fetch=previous;}
 });
+test('journey subroutes use contiguous real stops and preserve the packaged road',async()=>{
+ const previous=global.fetch;
+ global.fetch=async url=>new Response(fs.readFileSync('public'+url));
+ try{
+  const api=load('lib/marcel-route-assets.ts');
+  const [key,shape]=Object.entries(catalog.patterns).find(([k])=>k.split('|').length===45),points=key.split('|').map(p=>p.split(',').map(Number));
+  const partial=points.slice(10,25),route=await api.bundledMarcelJourneyRoute(partial);
+  assert.ok(route.length>partial.length,'subroute retains road geometry');
+  const expected=load('lib/journey-route-geometry.ts').sliceJourneyRoute(JSON.parse(fs.readFileSync('public/data/marcel-routes/'+shape+'.json')),partial);
+  assert.deepEqual(route,expected);
+  assert.deepEqual(await api.bundledMarcelJourneyRoute([points[10],points[12],points[13]]),[],'must not guess a different course from endpoints');
+ }finally{global.fetch=previous;}
+});
