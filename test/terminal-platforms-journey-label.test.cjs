@@ -7,24 +7,24 @@ const {rzeszowTerminalPlatform}=load('lib/stop-label.ts');
 const {feedConnections,scanJourneys}=load('lib/journey-timetable.ts');
 const {warsawTimeMs}=load('lib/transit-time.ts');
 const {pksTerminalStop}=load('lib/pks-terminal-identity.ts');
-test('actual GTFS platform 4 departures use PKS platform 1 and match all 59 official API times',()=>{
+test('physical GTFS platform 4 is not renamed to API group 1',()=>{
  const feed=require('../public/data/journeys/pks.json'),official=require('./fixtures/pks-terminal-platform-1-2026-10-20.json');
  const options={at:warsawTimeMs(official.date,'00:00'),day:official.date,arriveBy:false,maxTransfers:0,walkMeters:0,transferMinutes:5,providers:['pks'],sort:'fastest'};
  const old=JSON.stringify(feed.stops['61']);
- const p1=pksTerminalStop('61',feed.stops['61'],[]);
- const physical4={...p1,id:'3720',name:'Rzeszów D.A. st. 4',code:'4'};
- const connections=feedConnections(feed,[p1,physical4],official.date,options);
+ const physical4=pksTerminalStop('61',feed.stops['61'],[]);
+ const physical1={...physical4,id:'3731',name:'Rzeszów D.A. st. 1',code:'1'};
+ const connections=feedConnections(feed,[physical1,physical4],official.date,options);
  const codes=new Set(['203','210','228','232','233','288']);
- const departures=connections.filter(c=>c.from.id===p1.id&&c.pickup!==false&&codes.has(c.line));
+ const departures=connections.filter(c=>c.from.id===physical4.id&&c.pickup!==false&&codes.has(c.line));
  assert.equal(departures.length,59);
- for(const c of departures){assert.ok(official.rows.some(r=>r.line===c.line&&Date.parse(r.time)===c.departure&&r.platform==='1'),c.line+' '+new Date(c.departure).toISOString());assert.equal(c.from.name,'Rzeszów D.A. st. 1');}
- assert.ok(!connections.some(c=>c.from.id===physical4.id&&c.pickup!==false));
+ for(const c of departures){assert.ok(official.rows.some(r=>r.line===c.line&&Date.parse(r.time)===c.departure),c.line+' '+new Date(c.departure).toISOString());assert.equal(c.from.name,'Rzeszów D.A. st. 4');}
+ assert.ok(!connections.some(c=>c.from.id===physical1.id&&c.pickup!==false));
  const first=departures.find(c=>c.line==='232');
- assert.ok(scanJourneys(p1,first.to,connections,options).length,'specific platform 1 can board without a walk');
- assert.equal(scanJourneys(physical4,first.to,connections,options).length,0,'physical platform 4 never inherits platform 1 departures');
+ assert.ok(scanJourneys(physical4,first.to,connections,options).length,'physical platform 4 can board without a walk');
+ assert.equal(scanJourneys(physical1,first.to,connections,options).length,0,'API group 1 must not create physical platform 1 departures');
  assert.equal(JSON.stringify(feed.stops['61']),old);
- assert.equal(pksTerminalStop('other',feed.stops['61'],[]).code,'4','only the verified GTFS ID is corrected');
- assert.equal(pksTerminalStop('61',{...feed.stops['61'],name:'Rzeszów D.A. 2'},[]).code,'2','a changed feed identity is not rewritten');
+ assert.equal(pksTerminalStop('other',feed.stops['61'],[]).code,'4');
+ assert.equal(pksTerminalStop('61',{...feed.stops['61'],name:'Rzeszów D.A. 2'},[]).code,'2');
 });
 test('a terminal departure on foot has no assigned platform; bus departures and later boarding keep it',()=>{
  const from={id:'3723',name:'Rzeszów D.A. st. 2',code:'2'};
@@ -49,6 +49,10 @@ test('the real PKS snapshot retains all terminal platforms in both list and map,
  assert.deepEqual(codes(map),codes(list));
  assert.equal(new Set(list.map(s=>s.id)).size,11);
  assert.equal(list.find(s=>s.code==='4').providerStopIds.pks,'3720');
+ assert.ok(list.find(s=>s.code==='4').lines.includes('210'));
+ assert.deepEqual(list.find(s=>s.code==='1').lines,[]);
+ assert.deepEqual(list.find(s=>s.code==='10').lines,['215']);
+ assert.equal(list.find(s=>s.code==='4').timetableNotice,undefined);
  for(const code of ['7','10'])assert.equal(list.find(s=>s.code===code).providerStopIds.pks,undefined);
  assert.equal(visibleMapStops(map,[22.002,50.041,22.005,50.043],18).length,11);
  assert.equal(JSON.stringify(raw),before);
@@ -59,6 +63,7 @@ test('surveyed platforms query the exact terminal timetable without sending a lo
  const requests=[],day=load('lib/transit-time.ts').warsawDateIso();
  const client=load('lib/providers/pks-departures.ts',{'../transport/http':{requestEinfoJson:async path=>{
   requests.push(path);
+  if(path==='its/infoboard/nearest-departures/3744')return {journeys:[]};
   assert.equal(path,'stop-point-timetable/1937?day='+day);
   return {items:[{line_name:'test',journeys:[{stop_point_code:'10',time:'12:00',journey_id:'ten'},{stop_point_code:'7',time:'12:00',journey_id:'seven'}]}]};
  }}});
@@ -67,5 +72,6 @@ test('surveyed platforms query the exact terminal timetable without sending a lo
  assert.equal(ten.warning,undefined);
  const seven=await client.fetchDeparturesClient('terminal:rzeszow-da:7','1937','7',day);
  assert.deepEqual(seven.journeys.map(j=>j.journey_id),['seven']);
- assert.equal(requests.length,1,'terminal platforms reuse the area timetable');
+ assert.equal(requests.filter(p=>p.startsWith('stop-point-timetable')).length,1,'terminal platforms reuse the area timetable');
+ assert.ok(!requests.some(p=>p.includes('nearest-departures/terminal:')));
 });

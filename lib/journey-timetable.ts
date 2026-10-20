@@ -105,7 +105,7 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
   const next:Label[]=[];
   for(const label of [...continuing,...boarding]){
    const same=continuing.includes(label);let path=label.legs;
-   if(!label.rides&&path.length){const old=path[0];path=[{...old,departure:c.departure-(old.arrival-old.departure),arrival:c.departure}];}
+   if(!label.rides&&path.length){const shift=c.departure-path.at(-1)!.arrival;path=path.map(leg=>({...leg,departure:leg.departure+shift,arrival:leg.arrival+shift}));}
    const startCall={stop:c.from,arrival:c.departure,departure:c.departure,scheduledArrival:c.scheduledDeparture,scheduledDeparture:c.scheduledDeparture};
    const endCall={stop:c.to,arrival:c.arrival,departure:c.arrival,scheduledArrival:c.scheduledArrival,scheduledDeparture:c.scheduledArrival};
    const calls=same?[...(path.at(-1)!.stops||[]).slice(0,-1),{...path.at(-1)!.stops!.at(-1)!,departure:c.departure,scheduledDeparture:c.scheduledDeparture},endCall]:[startCall,endCall];

@@ -1,4 +1,5 @@
 import {isJourneyCoordinate} from './journey-places';
+import {resolveJourneyAccess} from './journey-access-walk';
 import {journeyWalkingRoute} from './journey-walking';
 import type {Stop} from '@/Panel/src/types';
 import {runTimetableSearch} from './journey-worker-client';
@@ -46,6 +47,7 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
  const coordinateJourney=isJourneyCoordinate(from)||isJourneyCoordinate(to);
  const walking=coordinateJourney?journeyWalkingRoute(from,to).catch(()=>null):Promise.resolve(null);
  const result=await runTimetableSearch({from,to,catalog,date,options,extra,warnings,vehicles,observedAt:Date.now()},signal,progress);
+ if(isJourneyCoordinate(from)){const access=await resolveJourneyAccess(result.journeys,options,signal);result.journeys=access.journeys;if(access.failed)result.warnings.push('Nie udało się wyznaczyć dojścia od Twojej lokalizacji. Otwórz mapę podróży, aby ponowić wczytywanie.');}
  const estimatedWalking=result.journeys.some(j=>j.legs.every(l=>l.walking!==undefined));
  const foot=await (coordinateJourney?walking:estimatedWalking?journeyWalkingRoute(from,to).catch(()=>null):Promise.resolve(null));signal.throwIfAborted();
  if(foot){result.journeys=result.journeys.filter(j=>!j.legs.every(l=>l.walking!==undefined));}

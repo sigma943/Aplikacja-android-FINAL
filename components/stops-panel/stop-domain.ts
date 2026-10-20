@@ -1,5 +1,6 @@
 'use client';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
+import {pksTerminalLines} from '@/lib/pks-terminal-timetable';
 import {cachedStopText} from '@/lib/stop-text-cache';
 
 import type { Carrier, Departure, Stop } from '@/Panel/src/types';
@@ -857,9 +858,11 @@ function mergeMpkStopsForList(stops: Stop[]) {
 }
 
 function pksLinesForStop(
-  stop: Pick<Stop, 'id' | 'providerStopIds'>,
+  stop: Pick<Stop, 'id' | 'providerStopIds'> & Partial<Pick<Stop,'areaId'|'code'>>,
   pksLinesByStopId: Record<string, string[]>,
 ) {
+  const reviewed=pksTerminalLines(stop.areaId,stop.code);
+  if(reviewed!==null)return reviewed;
   const lineSet = new Set<string>();
   const ids = splitCsvValues(stop.providerStopIds?.pks || stop.id);
   ids.forEach((id) => {

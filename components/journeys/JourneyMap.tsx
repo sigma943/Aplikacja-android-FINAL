@@ -1,8 +1,8 @@
 'use client';
 import {Fragment,memo,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {createPortal} from 'react-dom';
-import {MapContainer,TileLayer,CircleMarker,Popup,Tooltip,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
-import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle} from 'lucide-react';
+import {MapContainer,TileLayer,CircleMarker,Tooltip,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
+import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle,X} from 'lucide-react';
 import L from 'leaflet';
 import {journeyLegPath,journeyLegStops} from '@/lib/journey-leg-path';
 import {journeyPointRole,journeyPointSize,journeyPointPriority,type JourneyPointRole} from '@/lib/journey-map-markers';
@@ -31,14 +31,14 @@ function WalkingMarker({position,meters}:{position:Point;meters?:number}){
 }
 
 type JourneyMapPoint={stop:Stop;point:Point;role:JourneyPointRole};
-function JourneyStopMarkers({markers}:{markers:JourneyMapPoint[]}){
+function JourneyStopMarkers({markers,selected,onSelect}:{markers:JourneyMapPoint[];selected:string|null;onSelect:(stop:Stop)=>void}){
  const map=useMap(),[zoom,setZoom]=useState(()=>map.getZoom());
  useMapEvents({zoomend:()=>setZoom(map.getZoom())});
  return <>{markers.map(({stop,point,role})=>{
   const size=journeyPointSize(zoom,role),name=({start:'Początek',end:'Cel',transfer:'Przesiadka',stop:'Przystanek'})[role]+': '+stop.name;
-  if(role==='stop')return <CircleMarker className="connections-stop-point is-stop" key={stop.id+point.join(':')} center={point} radius={size} pathOptions={{color:'#334155',weight:zoom<14?.8:1.2,fillColor:'#fff',fillOpacity:1}}><Popup pane="popupPane" maxWidth={240}>{name}</Popup></CircleMarker>;
-  const icon=L.divIcon({className:'connections-stop-point connections-route-point is-'+role,html:'<span aria-hidden="true"></span>',iconSize:[size,size],iconAnchor:[size/2,size/2]});
-  return <Marker key={stop.id+point.join(':')} position={point} icon={icon} title={name} zIndexOffset={role==='transfer'?100:200}><Tooltip>{name}</Tooltip><Popup pane="popupPane" maxWidth={240}>{name}</Popup></Marker>;
+  if(role==='stop')return <CircleMarker className={"connections-stop-point is-stop"+(selected===stop.id?" is-selected":"")} key={stop.id+point.join(':')+(selected===stop.id?':selected':'')} center={point} radius={selected===stop.id?size+2:size} eventHandlers={{click:()=>onSelect(stop)}} pathOptions={{color:'#334155',weight:zoom<14?.8:1.2,fillColor:'#fff',fillOpacity:1}}></CircleMarker>;
+  const icon=L.divIcon({className:'connections-stop-point connections-route-point is-'+role+(selected===stop.id?' is-selected':''),html:'<span aria-hidden="true"></span>',iconSize:[size,size],iconAnchor:[size/2,size/2]});
+  return <Marker key={stop.id+point.join(':')} position={point} icon={icon} title={name} eventHandlers={{click:()=>onSelect(stop)}} zIndexOffset={role==='transfer'?100:200}></Marker>;
  })}</>;
 }
 
@@ -58,6 +58,7 @@ function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boole
 }
 
 function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
+ const [selectedStop,setSelectedStop]=useState<Stop|null>(null);
  const [geometry,setGeometry]=useState<Geometry>({key:'',paths:{},failed:[]});
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
  const [placeholderHeight,setPlaceholderHeight]=useState(0);
@@ -133,9 +134,10 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
     </Fragment>;
    })}
    </Pane><Pane name="journey-stop-points" style={{zIndex:450}}>
-   <JourneyStopMarkers markers={markers}/>
+   <JourneyStopMarkers markers={markers} selected={selectedStop?.id||null} onSelect={stop=>setSelectedStop(old=>old?.id===stop.id?null:stop)}/>
    </Pane>
   </MapContainer>
+  {selectedStop&&<div className="connections-selected-stop" role="status"><span>{selectedStop.name}</span><button aria-label="Zamknij opis przystanku" onClick={()=>setSelectedStop(null)}><X size={16}/></button></div>}
 
  </>;
  return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>

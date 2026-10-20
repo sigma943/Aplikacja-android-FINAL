@@ -22,7 +22,7 @@ function remember(key:string, result:CatalogWorkerResult) {
   }
 }
 // Increment whenever catalog identity/matching rules change. Old offline inputs remain usable.
-export const CATALOG_RULES_VERSION=4;
+export const CATALOG_RULES_VERSION=5;
 export function restoreStopsCatalog(snapshot:CatalogSnapshot,key:string):Stop[]|null {
   if(snapshot.rulesVersion!==CATALOG_RULES_VERSION||snapshot.catalogKey!==key||!Array.isArray(snapshot.baseStops)||!snapshot.baseStops.length)return null;
   if(!snapshot.baseStops.every(stop=>stop&&typeof stop.id==='string'&&typeof stop.name==='string'&&Array.isArray(stop.lines)&&Array.isArray(stop.carriers)))return null;

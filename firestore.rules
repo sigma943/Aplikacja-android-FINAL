@@ -125,6 +125,7 @@ service cloud.firestore {
                'canChangeRoles',
                'disableMap',
                'disableStops',
+               'disableJourneys',
                'globalSettings',
                'globalSettingsEdit',
                'canBan',
@@ -145,6 +146,7 @@ service cloud.firestore {
                incoming().role != 'owner' &&
                !granted.get('disableMap', false) &&
                !granted.get('disableStops', false) &&
+               !granted.get('disableJourneys', false) &&
                (!granted.get('shield', false) || caller.get('shield', false)) &&
                (!granted.get('users', false) || caller.get('users', false)) &&
                (!granted.get('group', false) || caller.get('group', false)) &&
@@ -169,6 +171,7 @@ service cloud.firestore {
                'canChangeRoles',
                'disableMap',
                'disableStops',
+               'disableJourneys',
                'globalSettings',
                'globalSettingsEdit',
                'canBan',
@@ -217,7 +220,7 @@ service cloud.firestore {
              callerDeviceData().get('installationId', '') == data.installationId &&
              data.role == 'user' &&
              (!(data.verified is bool) || data.verified == false) &&
-             userPermissionsAreSafe(data) &&
+             userPermissionsAreSafe(data) && keepsTabAccessRestrictionsUnchanged() &&
              (
                (data.status == existing().status && data.get('banDetails', null) == existing().get('banDetails', null)) ||
                (data.status == 'banned' && autoBanUnverifiedEnabled() && hasAutoBanDetails(data))
@@ -228,7 +231,8 @@ service cloud.firestore {
       return !(incoming().permissions is map) ||
              (
                incomingPermEnabled('disableMap') == existingPermEnabled('disableMap') &&
-               incomingPermEnabled('disableStops') == existingPermEnabled('disableStops')
+               incomingPermEnabled('disableStops') == existingPermEnabled('disableStops') &&
+               incomingPermEnabled('disableJourneys') == existingPermEnabled('disableJourneys')
              );
     }
 

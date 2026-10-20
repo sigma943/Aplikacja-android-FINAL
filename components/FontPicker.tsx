@@ -25,7 +25,7 @@ export default function FontPicker({value,onChange}:{value:{fontFamily:string;cu
     return()=>{active=false;window.removeEventListener('online',load);};
   },[family]);
   useEffect(()=>{
-    if(!open)return;search.current?.focus();
+    if(!open)return;
     const outside=(event:PointerEvent)=>{if(!root.current?.contains(event.target as Node))setOpen(false);};
     document.addEventListener('pointerdown',outside);
     return()=>{document.removeEventListener('pointerdown',outside);};

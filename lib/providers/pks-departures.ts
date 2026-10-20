@@ -7,6 +7,7 @@ import {warsawDateIso, warsawTimeMs} from '../transit-time';
 import {mpkServicesOnDate} from '../mpk-departures';
 
 import {requestEinfoJson} from '../transport/http';
+import {pksPhysicalPlatform} from '../pks-terminal-timetable';
 
 function isJourneyRunning(legends: string[], dateIso: string) {
   if (!legends || legends.length === 0) return true;
@@ -54,14 +55,14 @@ function isJourneyRunning(legends: string[], dateIso: string) {
   return effectiveRuns;
 }
 
-function processTimetable(ttData: any, dayIso: string, codeToCompare: string) {
+function processTimetable(ttData: any, dayIso: string, codeToCompare: string,areaId?:string) {
   if (!ttData?.items) return [];
   const mapped: any[] = [];
   const normalizedCode = String(codeToCompare || '').trim();
   const normalizedCodeNumber = parseInt(normalizedCode, 10);
   ttData.items.forEach((item: any) => {
     item.journeys?.forEach((journey: any) => {
-      const journeyCode = String(journey.stop_point_code || '').trim();
+      const journeyCode = pksPhysicalPlatform(areaId,item.line_name,item.description,journey);
       const journeyCodeNumber = parseInt(journeyCode, 10);
       const isMatch =
         journeyCode === normalizedCode ||
@@ -105,23 +106,30 @@ export function fetchPksTimetableClient(areaId: string, day: string) {
 export async function fetchDeparturesClient(stopId: string, areaId?: string, code?: string, dateIso?: string) {
   const today = warsawDateIso();
   const days = dateIso ? [dateIso] : [today, warsawDateIso(1)];
-  const wantsBoard = days.includes(today) && !stopId.startsWith('terminal:');
+  const boardId=areaId==='1937'&&code==='4'?'3731':areaId==='1937'&&code==='10'?'3744':stopId;
+  const wantsBoard = days.includes(today) && !boardId.startsWith('terminal:');
   const hasTimetable = Boolean(areaId && code);
   const [board, ...tables] = await Promise.allSettled([
-    wantsBoard ? requestEinfoJson<any>('its/infoboard/nearest-departures/' + encodeURIComponent(stopId), {headers:{Accept:'application/json'}})
+    wantsBoard ? requestEinfoJson<any>('its/infoboard/nearest-departures/' + encodeURIComponent(boardId), {headers:{Accept:'application/json'}})
       .then(data => { if (!Array.isArray(data.journeys)) throw new Error('Nieprawidłowa tablica PKS'); return data; }) : Promise.resolve({journeys:[]}),
     ...(hasTimetable ? days.map(day => fetchPksTimetableClient(areaId!, day)) : []),
   ]);
   if (!hasTimetable && !wantsBoard) throw new Error('Brak identyfikatora rozkładu PKS dla tego dnia');
   const failedTables = tables.some(result => result.status === 'rejected');
   if ((board.status === 'rejected' || !wantsBoard) && (!hasTimetable || failedTables)) throw new Error('Nie udało się pobrać rozkładu PKS');
-  const live = board.status === 'fulfilled' ? board.value.journeys.map((journey: any) => {
+  let live = board.status === 'fulfilled' ? board.value.journeys.map((journey: any) => {
     const raw = String(journey.timetable_time || '');
     const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})$/.exec(raw);
     const ms = match ? warsawTimeMs(match[1], match[2]) : Date.parse(raw);
     return {...journey, provider_id:'pks', timetable_time: Number.isFinite(ms) ? new Date(ms).toISOString() : ''};
   }) : [];
-  const scheduled = tables.flatMap((result,index) => result.status === 'fulfilled' ? processTimetable(result.value, days[index], code!) : []);
+  const scheduled = tables.flatMap((result,index) => result.status === 'fulfilled' ? processTimetable(result.value, days[index], code!,areaId) : []);
+  // A technical infoboard can contain several physical bays. Keep live delays
+  // only for courses present in this bay's corrected, date-filtered timetable.
+  if(areaId==='1937'&&hasTimetable){
+    live=live.filter((row:any)=>scheduled.some(s=>String(s.line_name)===String(row.line_name)&&s.timetable_time===row.timetable_time
+      &&String(s.journey_id)===String(row.journey_id)));
+  }
   const journeys = [...live];
   for (const journey of scheduled) {
     const duplicate = live.some((row: any) => row.line_name === journey.line_name && row.route_description === journey.route_description && row.timetable_time === journey.timetable_time);

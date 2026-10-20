@@ -355,3 +355,23 @@
 .connections-route-point.is-transfer{border:0;background:none;box-shadow:none}
 .connections-route-point.is-transfer>span{width:80%;height:80%;background:#fff;border:3px solid #8b5cf6;box-sizing:border-box;transform:rotate(45deg);border-radius:2px;box-shadow:0 1px 5px #0006}
 @media(max-width:359px){.connections-disclosure-action{font-size:0;gap:0}.connections-disclosure-copy strong{font-size:11px}}
+
+.connections-journey-timeline{position:relative;padding-top:24px}
+.connections-journey-timeline .connections-ride{position:relative;margin:0;padding:0 0 22px 20px;border-left:2px solid var(--cn-edge)}
+.connections-journey-timeline .connections-ride:last-of-type{border-left-color:transparent;padding-bottom:0}
+.connections-journey-timeline .connections-leg-card{position:relative;border:0;background:none;padding:0 0 0 3px;border-radius:0;box-shadow:none}
+.connections-stage-number{position:absolute;left:-34px;top:1px;display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:var(--cn-surface);border:2px solid var(--cn-accent);color:var(--cn-accent);font-size:10px;font-weight:750}
+.connections-journey-timeline .connections-leg-heading{gap:8px;margin-bottom:14px}
+.connections-journey-timeline .connections-stop-details{margin-top:14px;border-radius:10px;background:color-mix(in srgb,var(--cn-text) 3%,transparent)}
+.connections-journey-timeline .connections-stop-details summary{min-height:44px;padding:8px 10px;border:0;background:none;box-shadow:none}
+.connections-journey-timeline .connections-stop-details .connections-disclosure-icon{width:26px;height:26px}
+.connections-journey-timeline .connections-stop-details ol{padding:0 10px 8px}
+.connections-journey-timeline .connections-wait{margin:0 0 14px}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) .connections-view{background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) :is(.connections-card,.connections-picker,.connections-map-toolbar,.connections-map-modal){background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}
+.connections-content{position:relative;z-index:1}
+.connections-stop-point.is-selected{filter:drop-shadow(0 0 5px var(--cn-accent)) drop-shadow(0 0 10px var(--cn-accent))}
+.connections-selected-stop{position:absolute;left:10px;right:10px;bottom:10px;z-index:700;display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--cn-accent);border-radius:13px;background:var(--cn-surface);box-shadow:0 3px 18px #0003;color:var(--cn-text);font-size:12px}
+.connections-selected-stop>span{flex:1;min-width:0}
+.connections-selected-stop button{display:grid;place-items:center;border:0;background:none;color:var(--cn-muted);min-width:32px;min-height:32px}
+.journey-map{position:relative}

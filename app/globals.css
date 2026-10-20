@@ -1050,6 +1050,9 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 :is(.pks-theme-root,.pks-panel-scope) input:is([type='date'],[type='datetime-local'])::-webkit-calendar-picker-indicator { opacity:1; filter:var(--date-control-icon-filter,none); cursor:pointer; }
 /* Keep the native picker and its click target at the trailing edge of range fields. */
 .admin-range-date { display:block; position:relative; min-width:0; padding-inline-end:3rem; }
+.admin-date-field > svg { color:var(--ui-muted,#b9c6dd); }
+.admin-date-field .admin-date-input { padding-inline-end:3rem; min-width:0; max-width:100%; }
+:is(.pks-theme-root,.pks-panel-scope) .admin-date-input:is([type='date'],[type='datetime-local'])::-webkit-calendar-picker-indicator { opacity:0 !important; width:24px; height:24px; }
 .admin-range-date::-webkit-calendar-picker-indicator { position:absolute; right:1rem; top:50%; transform:translateY(-50%); margin:0; }
 
 /* Shared application colour editor; never delegates to the Android picker. */

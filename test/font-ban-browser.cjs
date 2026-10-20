@@ -1,0 +1,37 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),puppeteer=require('puppeteer');
+const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
+(async()=>{
+ const root=process.cwd(),temp=fs.mkdtempSync(path.join(os.tmpdir(),'font-ban-'));let browser,server;
+ try{
+  await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'development',devtool:false,plugins:[new webpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],entry:path.join(root,'test/font-ban-fixture.tsx'),output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')},{test:/\.css$/,use:path.join(root,'test/journey-css-loader.cjs')}]},optimization:{minimize:false}});compiler.run((e,stats)=>compiler.close(()=>e||stats.hasErrors()?reject(e||Error(stats.toString({all:false,errors:true}))):resolve()));});
+  const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
+  server=http.createServer((req,res)=>{if(req.url==='/fixture.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(path.join(temp,'fixture.js')));}res.setHeader('Content-Type','text/html');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
+  browser=await puppeteer.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});await page.setRequestInterception(true);page.on('request',r=>r.url().startsWith(origin)?r.continue():r.abort());
+  await page.goto(origin,{waitUntil:'domcontentloaded'});
+  await page.click('[aria-label="Wybierz krój pisma"]');await page.waitForSelector('[aria-label="Szukaj czcionki"]');
+  assert.equal(await page.evaluate(()=>document.activeElement.matches('input,textarea')),false,'opening fonts does not focus a text field');
+  await page.click('[aria-label="Szukaj czcionki"]');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-label')),'Szukaj czcionki');
+  await page.type('[aria-label="Szukaj czcionki"]','System');assert.ok(await page.$('.personal-font-list button'));await page.keyboard.press('Escape');await page.waitForSelector('.personal-font-list',{hidden:true});
+  await page.click('[data-tab="only"]');await page.click('[data-only-toggle]');assert.equal(await page.evaluate(()=>document.activeElement.matches('input')),false,'input-only surfaces focus their container');await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-label')),'Pole testowe');await page.keyboard.press('Escape');
+  for(const duration of ['day','week','month','year']){
+   await page.click('[data-tab="ban"]');await page.waitForSelector('[aria-label="Zablokuj urządzenie"]');
+   assert.equal(await page.evaluate(()=>document.activeElement.matches('input,textarea')),false);
+   await page.click('[data-ban-duration-toggle]');assert.equal(await page.$$eval('[data-ban-duration]',n=>n.length),6);await page.click('[data-ban-duration="'+duration+'"]');
+   assert.equal(await page.$('[data-ban-custom-date]'),null);
+   await page.click('[data-ban-submit]');await page.waitForSelector('[aria-label="Zablokuj urządzenie"]',{hidden:true});
+   const payload=await page.evaluate(()=>window.__savedBan),hours=(Date.parse(payload.expiryDate)-Date.now())/3600000;
+   assert.ok(hours>({day:23,week:167,month:670,year:8758}[duration])&&hours<({day:25,week:169,month:747,year:8786}[duration]),duration+' deadline has the selected duration');
+  }
+  await page.click('[data-tab="bans"]');await page.click('[aria-label="Edytuj blokadę: Testowy telefon"]');await page.waitForSelector('[aria-label="Edytuj blokadę"]');
+  assert.equal(await page.$eval('[aria-label="Powód blokady"]',e=>e.value),'Zapisany powód');assert.ok(await page.$('[data-ban-custom-date]'));
+  await page.$eval('[aria-label="Powód blokady"]',e=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Nowy powód');e.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.evaluate(()=>[...document.querySelectorAll('button')].find(e=>e.textContent.includes('Ban permanentny')).click());
+  await page.click('[data-ban-submit]');await page.waitForSelector('[aria-label="Edytuj blokadę"]',{hidden:true});
+  assert.deepEqual(await page.evaluate(()=>({reason:window.__savedBan.reason,expiry:window.__savedBan.expiryDate,silent:window.__savedBan.silent})),{reason:'Nowy powód',expiry:'',silent:true});
+  await page.click('[data-tab="devices"]');await page.waitForSelector('input[placeholder="Szukaj..."]');assert.equal(await page.$eval('input[placeholder="Szukaj..."]',e=>getComputedStyle(e).paddingLeft),'32px');
+  await page.evaluate(()=>[...document.querySelectorAll('[title="Zmień nazwę urządzenia"]')].find(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden').click());await page.waitForSelector('input[placeholder="np. Telefon Tomka"]');assert.equal(await page.evaluate(()=>document.activeElement.matches('input,textarea')),false,'rename does not auto-open the keyboard');
+  assert.deepEqual(errors,[]);console.log('PASS: explicit search focus, keyboard navigation, restored ban periods, existing-ban editing, rename focus and device search inset');
+ }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
+})().catch(e=>{console.error(e);process.exitCode=1;});

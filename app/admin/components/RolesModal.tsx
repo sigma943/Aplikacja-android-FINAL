@@ -52,6 +52,7 @@ export function RolesModal({
         canChangeRoles: true,
         disableMap: false,
         disableStops: false,
+        disableJourneys:false,
         globalSettings: true,
         globalSettingsEdit: true,
       };
@@ -68,6 +69,7 @@ export function RolesModal({
         canChangeRoles: false,
         disableMap: false,
         disableStops: false,
+        disableJourneys:false,
         globalSettings: false,
         globalSettingsEdit: false,
       };
@@ -83,6 +85,7 @@ export function RolesModal({
       canChangeRoles: false,
       disableMap: false,
       disableStops: false,
+        disableJourneys:false,
       globalSettings: false,
       globalSettingsEdit: false,
     };
@@ -156,12 +159,13 @@ export function RolesModal({
 
   const ownerRoleDisabled = !canAssignOwner && !initialRole.includes('CICIEL');
 
-  const toggleUserTabRestriction = (key: 'disableMap' | 'disableStops') => {
+  const toggleUserTabRestriction = (key: 'disableMap' | 'disableStops' | 'disableJourneys') => {
     if (!canManageTabAccess || isSelfTarget) return;
     setPermissions((prev) => ({
       ...prev,
-      disableMap: key === 'disableMap' ? !prev.disableMap : false,
-      disableStops: key === 'disableStops' ? !prev.disableStops : false,
+      disableMap: key==='disableJourneys'?prev.disableMap:key === 'disableMap' ? !prev.disableMap : false,
+      disableStops: key==='disableJourneys'?prev.disableStops:key === 'disableStops' ? !prev.disableStops : false,
+      disableJourneys:key==='disableJourneys'?!prev.disableJourneys:prev.disableJourneys,
     }));
   };
 
@@ -294,6 +298,7 @@ export function RolesModal({
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 block px-1">Dostęp użytkownika</label>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {[
+                  { key:'disableJourneys' as const,title:'Wyłącz połączenia',desc:'Użytkownik nie zobaczy wyszukiwarki połączeń',active:Boolean(permissions.disableJourneys),blocked:false },
                   { key: 'disableMap' as const, title: 'Wyłącz mapę', desc: 'Użytkownik nie zobaczy zakładki mapy', active: permissions.disableMap, blocked: permissions.disableStops },
                   { key: 'disableStops' as const, title: 'Wyłącz przystanki', desc: 'Użytkownik nie zobaczy zakładki przystanków', active: permissions.disableStops, blocked: permissions.disableMap },
                 ].map((item) => (
