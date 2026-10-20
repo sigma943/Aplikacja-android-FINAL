@@ -228,11 +228,14 @@ service cloud.firestore {
     }
 
     function keepsTabAccessRestrictionsUnchanged() {
-      return !(incoming().permissions is map) ||
+      let next = incoming().get('permissions', {});
+      let previous = existing().get('permissions', {});
+      let before = previous is map ? previous : {};
+      return !(next is map) ||
              (
-               incomingPermEnabled('disableMap') == existingPermEnabled('disableMap') &&
-               incomingPermEnabled('disableStops') == existingPermEnabled('disableStops') &&
-               incomingPermEnabled('disableJourneys') == existingPermEnabled('disableJourneys')
+               (next.get('disableMap', false) == true) == (before.get('disableMap', false) == true) &&
+               (next.get('disableStops', false) == true) == (before.get('disableStops', false) == true) &&
+               (next.get('disableJourneys', false) == true) == (before.get('disableJourneys', false) == true)
              );
     }
 
