@@ -804,6 +804,7 @@ function isMpkOnlyStop(stop: Stop) {
 
 function shouldMergeMpkStops(left: Stop, right: Stop) {
   if (!isMpkOnlyStop(left) || !isMpkOnlyStop(right)) return false;
+  if (shouldKeepSameProviderStopsSeparate(left,right)) return false;
   if (hasConflictingStopNumbers(left.name, right.name)) return false;
   const distance = distanceMeters(left.lat, left.lon, right.lat, right.lon);
   const score = stopMergeNameScore(left.name, right.name);

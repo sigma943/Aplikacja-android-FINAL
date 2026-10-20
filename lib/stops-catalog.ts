@@ -185,7 +185,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     };
 
     const findSafeCrossProviderMatch = (
-      raw: { name: string; lat?: number; lon?: number },
+      raw: { name: string; lat?: number; lon?: number; provider?:string; id?:string },
       candidateProviders = new Set(['pks', 'mpk_rzeszow']),
       exactIdentity = false,
     ) => {
@@ -197,14 +197,14 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
           if (!(candidate.sourceProviderIds || []).some(provider => candidateProviders.has(provider))) continue;
           if (platformKey(candidate.name) !== platformKey(raw.name)) continue;
           const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
-          if (distance <= (sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8) && distance < bestDistance) {best = candidate; bestDistance = distance;}
+          if (distance <= (raw.provider==='mpk_rzeszow'&&candidateProviders.has('mpk_rzeszow')?90:sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8) && distance < bestDistance) {best = candidate; bestDistance = distance;}
         }
         return best;
       }
       const latKey = Number.isFinite(raw.lat) ? Number(raw.lat).toFixed(4) : 'x';
       const lonKey = Number.isFinite(raw.lon) ? Number(raw.lon).toFixed(4) : 'x';
       const providerKey = [...candidateProviders].sort().join('+');
-      const cacheKey = `${providerKey}|${exactIdentity}|${normalizeStopMergeName(raw.name)}|${latKey}|${lonKey}`;
+      const cacheKey = `${raw.provider||''}|${providerKey}|${exactIdentity}|${normalizeStopMergeName(raw.name)}|${latKey}|${lonKey}`;
       // A same-provider lookup runs while its catalog is still growing. A miss
       // cannot be reused after another physical stop has been registered.
       if (!exactIdentity && crossMatchCache.has(cacheKey)) return crossMatchCache.get(cacheKey) || null;
@@ -244,6 +244,10 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
 
       for (const candidate of pool) {
         if (exactIdentity && platformKey(raw.name) !== platformKey(candidate.name)) continue;
+        // A shared PKS alias must not bridge two different MPK platforms.
+        const mpkIds=String(candidate.providerStopIds?.mpk_rzeszow||'').split(',').filter(Boolean);
+        if(raw.provider==='mpk_rzeszow'&&mpkIds.length&&!mpkIds.includes(raw.id||'')&&
+          platformKey(raw.name)!==platformKey(candidate.displayNamesByProvider?.mpk_rzeszow||candidate.name))continue;
         const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
         const hasGeo = Number.isFinite(distance);
         // Reject a geographically impossible match before costly text scoring.
@@ -342,7 +346,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       };
       const matched =
         findSafeCrossProviderMatch(raw, new Set(['pks'])) ||
-        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']));
+        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']), true);
       const stop = matched ? matched : ensureTechnicalStop(raw);
       if (matched) {
         attachProvider(matched, raw);

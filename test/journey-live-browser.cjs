@@ -29,6 +29,8 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.equal(await page.$$eval('.connections-stop-point',nodes=>nodes.length),5,'all intermediate stops have a dot');
   assert.ok(await page.$$eval('.connections-stop-point.is-stop',nodes=>nodes.every(n=>n.getAttribute('fill')==='#fff')),'bus stops use white dots');
   for(const role of ['start','end','transfer'])assert.equal(await page.$$eval('.connections-route-point.is-'+role,n=>n.length),1,'one '+role+' marker');
+  assert.equal(await page.$eval('.connections-stop-details summary strong',e=>e.textContent),'3 przystanki');
+  assert.equal(await page.$eval('.connections-heading p',e=>e.textContent),'Rozkłady jazdy i planowanie podróży');
   await page.click('.connections-stop-details summary');assert.ok(await page.$('.connections-stop-details[open]'));await page.click('.connections-stop-details summary');
   assert.ok(await page.evaluate(()=>{
    const routes=[...document.querySelectorAll('.connections-bus-path,.connections-walking-path')];
