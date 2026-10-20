@@ -38,7 +38,7 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
    // An unmatched physical call has a stable course-independent identity, so
    // later Marcel courses can board there without merging nearby named poles.
    const stop=matched.get(key)||{id:coordinate?'journey:marcel:call:'+encodeURIComponent(key):'journey:marcel:'+courseId+':'+index,name:[p.nazMi,p.nazPr].filter(Boolean).join(' '),type:'bus' as const,lat:coordinate?.lat,lon:coordinate?.lon,carriers:[{id:'marcel',name:'Marcel',colorClass:''}],lines:['M'],isFavorite:false};
-   return {stop,time};
+   return {stop,time,sourceId:identity,sequence:index};
   });
  };
  const routeIds=[...ids],queue:Awaited<ReturnType<typeof fetchMarcelCoursesClient>>=[];
@@ -60,7 +60,7 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
    if(!course){if(!producers)return;await new Promise<void>(resolve=>waiters.add(resolve));continue;}
    try{
     const raw=await fetchMarcelPublicCourseStopsClient(course.idKu);signal.throwIfAborted();const points=pointsFor(String(course.idKu),raw);
-    for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>=a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel'});}
+    for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>=a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel',sourceFromStopId:a.sourceId,sourceToStopId:b.sourceId,fromSequence:a.sequence,toSequence:b.sequence});}
    }catch{signal.throwIfAborted();failed=true;}
   }});
   await Promise.all([...routes,...courses]);
@@ -96,6 +96,7 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
   const duration=foot.minutes*60000,departure=options.arriveBy?options.at-duration:options.at;
   result.journeys.push({id:'walk-only',departure,arrival:departure+duration,walking:foot.meters,transfers:0,legs:[{from,to,departure,arrival:departure+duration,line:'Pieszo',provider:'walk',course:'walk',walking:foot.meters,path:foot.points}]});
  }else if(coordinateJourney&&stopDistance(from,to)<=options.walkMeters&&!foot)result.warnings.push('Nie udało się wczytać trasy w całości pieszo. Połączenia autobusowe nadal uwzględniają szacowane dojście do przystanków.');
+ if(foot&&foot.meters<=options.walkMeters&&options.sort!=='walking')result.journeys=result.journeys.filter(j=>j.id==='walk-only'||j.transfers===0||(options.arriveBy?j.departure>options.at-foot.minutes*60000:j.arrival<options.at+foot.minutes*60000));
  if(estimatedWalking||coordinateJourney){const score=(j:typeof result.journeys[number])=>options.sort==='walking'?j.walking*86400000+(options.arriveBy?-j.departure:j.arrival):options.sort==='transfers'?j.transfers*86400000+(options.arriveBy?-j.departure:j.arrival):options.arriveBy?-j.departure:j.arrival;result.journeys.sort((a,b)=>score(a)-score(b));}
  return result;
  };
@@ -103,12 +104,13 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
  let preliminary:JourneySearchResult|undefined;
  if(onPartial&&options.providers.some(p=>p==='pks'||p==='mpk')){
   try{
-   preliminary=await finish(await runTimetableSearch({from,to,catalog,date,options,extra:[],warnings:[],vehicles:[],observedAt:Date.now()},signal,progress));
+   preliminary=await finish(await runTimetableSearch({from,to,catalog,date,options,extra:[],warnings:[],vehicles:[],observedAt:Date.now(),walkingRefinement:false},signal,progress));
    signal.throwIfAborted();if(preliminary.journeys.length)onPartial(preliminary);
   }catch{signal.throwIfAborted();}
  }
  await Promise.all([marcelLoading,realtimeLoading]);signal.throwIfAborted();
  // No need to repeat an expensive scan when the online sources added no data.
- if(preliminary&&!extra.length&&!vehicles.length)return {...preliminary,warnings:[...preliminary.warnings,...warnings]};
+ // Direct results can be reused; walking candidates need final verification.
+ if(preliminary&&!extra.length&&!vehicles.length&&!preliminary.journeys.some(j=>j.legs.some(l=>l.walking!==undefined&&l.walkingQuality!=='verified')))return {...preliminary,warnings:[...preliminary.warnings,...warnings]};
  return finish(await runTimetableSearch({from,to,catalog,date,options,extra,warnings,vehicles,observedAt:Date.now()},signal,progress));
 }
