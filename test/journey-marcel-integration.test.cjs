@@ -68,3 +68,15 @@ test('cancelling after local results never publishes a stale enrichment',async()
  const search=create({fetchMarcelCoursesClient:async()=>new Promise(()=>{})},async()=>{scans++;return {journeys:[{id:'local',legs:[{provider:'pks'}]}],warnings:[],limited:false};});
  const controller=new AbortController();const pending=search(catalog[0],to,catalog,date,options,controller.signal,()=>{},()=>published());await ready;controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(scans,1);
 });
+
+test('a hanging unrelated Marcel route cannot block completed courses before the deadline',async()=>{
+ const {withRequestDeadline}=load('lib/request-deadline.ts');
+ const search=load('lib/journey-loader.ts',{
+  './request-deadline':{withRequestDeadline:(run,signal,timeout)=>withRequestDeadline(run,signal,timeout===25000?100:timeout)},
+  './pks-client':{fetchVehiclesClient:async()=>[],fetchMarcelCoursesClient:async id=>id==='hanging'?new Promise(()=>{}):[{idKu:'1181798',godz:'04:30'}],fetchMarcelPublicCourseStopsClient:async()=>rows},
+  './journey-worker-client':{runTimetableSearch:async input=>{assert.equal(input.extra.length,rows.length-1);return {journeys:[],warnings:input.warnings,limited:false};}}
+ }).searchConnections;
+ const known=[...catalog,{...catalog[0],id:'hang',providerStopIds:{marcelRouteIds:'hanging'}}];
+ const result=await search(catalog[0],to,known,date,{...options,maxTransfers:2},new AbortController().signal,()=>{});
+ assert.match(result.warnings.join(' '),/przekroczyło limit czasu/);
+});

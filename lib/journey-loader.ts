@@ -22,14 +22,6 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
  if(!ids.size)return;
  const {latest}=journeyWindow(o);
  let failed=false;
- const routeIds=[...ids],courses=new Map<string,Awaited<ReturnType<typeof fetchMarcelCoursesClient>>[number]>();
- let routeCursor=0;
- // Bound requests and isolate failures: one unavailable route must not erase others.
- await Promise.all(Array.from({length:4},async()=>{while(routeCursor<routeIds.length){
-  signal.throwIfAborted();const id=routeIds[routeCursor++];
-  try{for(const course of await fetchMarcelCoursesClient(id,date)){signal.throwIfAborted();const time=warsawTimeMs(date,course.godz||course.godzPr);if(!Number.isFinite(time)||time<=latest)courses.set(String(course.idKu),course);}}
-  catch{signal.throwIfAborted();failed=true;}
- }}));
  const names=new Map<string,Stop[]>();
  for(const stop of known)for(const key of String(stop.providerStopIds?.marcelCityMatchKeys||'').split(',').filter(Boolean)){const list=names.get(key)||[];list.push(stop);names.set(key,list);}
  const matched=new Map<string,Stop|null>();
@@ -49,14 +41,30 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
    return {stop,time};
   });
  };
- let cursor=0;const list=[...courses.values()];
- await Promise.all(Array.from({length:4},async()=>{while(cursor<list.length){
-  signal.throwIfAborted();const course=list[cursor++];
-  try{
-   const raw=await fetchMarcelPublicCourseStopsClient(course.idKu);signal.throwIfAborted();const points=pointsFor(String(course.idKu),raw);
-   for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>=a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel'});}
-  }catch{signal.throwIfAborted();failed=true;}
- }}));
+ const routeIds=[...ids],queue:Awaited<ReturnType<typeof fetchMarcelCoursesClient>>=[];
+ const seen=new Set<string>(),waiters=new Set<()=>void>();let routeCursor=0,producers=4;
+ const wake=()=>{for(const resolve of waiters)resolve();waiters.clear();};
+ signal.addEventListener('abort',wake,{once:true});
+ try{
+  // Pipeline course loading as soon as any route responds. An unrelated slow
+  // route must not hold already available Marcel courses behind a global wait.
+  const routes=Array.from({length:4},async()=>{try{while(routeCursor<routeIds.length){
+   signal.throwIfAborted();const id=routeIds[routeCursor++];
+   try{for(const course of await fetchMarcelCoursesClient(id,date)){
+    signal.throwIfAborted();const time=warsawTimeMs(date,course.godz||course.godzPr),key=String(course.idKu);
+    if((!Number.isFinite(time)||time<=latest)&&!seen.has(key)){seen.add(key);queue.push(course);}
+   }}catch{signal.throwIfAborted();failed=true;}finally{wake();}
+  }}finally{producers--;wake();}});
+  const courses=Array.from({length:4},async()=>{while(true){
+   signal.throwIfAborted();const course=queue.shift();
+   if(!course){if(!producers)return;await new Promise<void>(resolve=>waiters.add(resolve));continue;}
+   try{
+    const raw=await fetchMarcelPublicCourseStopsClient(course.idKu);signal.throwIfAborted();const points=pointsFor(String(course.idKu),raw);
+    for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>=a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel'});}
+   }catch{signal.throwIfAborted();failed=true;}
+  }});
+  await Promise.all([...routes,...courses]);
+ }finally{signal.removeEventListener('abort',wake);wake();}
  if(failed)warnings.push(result.length?'Marcel: część kursów jest niedostępna. Pokazujemy połączenia z poprawnie wczytanych rozkładów.':'Marcel: rozkład internetowy jest teraz niedostępny. Wyniki obejmują pozostałych wybranych przewoźników.');
 }
 export type JourneySearchResult=Awaited<ReturnType<typeof runTimetableSearch>>;
