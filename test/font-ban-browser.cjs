@@ -7,7 +7,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
   server=http.createServer((req,res)=>{if(req.url==='/fixture.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(path.join(temp,'fixture.js')));}res.setHeader('Content-Type','text/html');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
-  browser=await puppeteer.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  browser=await puppeteer.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Font/ban page error:',e.message);});
   await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});await page.setRequestInterception(true);page.on('request',r=>r.url().startsWith(origin)?r.continue():r.abort());
   await page.goto(origin,{waitUntil:'domcontentloaded'});
   await page.click('[aria-label="Wybierz krój pisma"]');await page.waitForSelector('[aria-label="Szukaj czcionki"]');
@@ -16,7 +16,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.type('[aria-label="Szukaj czcionki"]','System');assert.ok(await page.$('.personal-font-list button'));await page.keyboard.press('Escape');await page.waitForSelector('.personal-font-list',{hidden:true});
   await page.click('[data-tab="only"]');await page.click('[data-only-toggle]');assert.equal(await page.evaluate(()=>document.activeElement.matches('input')),false,'input-only surfaces focus their container');await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-label')),'Pole testowe');await page.keyboard.press('Escape');
   for(const duration of ['day','week','month','year']){
-   await page.click('[data-tab="ban"]');await page.waitForSelector('[aria-label="Zablokuj urządzenie"]');
+   console.log('Opening duration',duration);await page.evaluate(()=>document.querySelector('[data-tab="ban"]').click());await page.waitForSelector('[aria-label="Zablokuj urządzenie"]');
    assert.equal(await page.evaluate(()=>document.activeElement.matches('input,textarea')),false);
    await page.click('[data-ban-duration-toggle]');assert.equal(await page.$$eval('[data-ban-duration]',n=>n.length),6);await page.click('[data-ban-duration="'+duration+'"]');
    assert.equal(await page.$('[data-ban-custom-date]'),null);
@@ -33,5 +33,5 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[data-tab="devices"]');await page.waitForSelector('input[placeholder="Szukaj..."]');assert.equal(await page.$eval('input[placeholder="Szukaj..."]',e=>getComputedStyle(e).paddingLeft),'32px');
   await page.evaluate(()=>[...document.querySelectorAll('[title="Zmień nazwę urządzenia"]')].find(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden').click());await page.waitForSelector('input[placeholder="np. Telefon Tomka"]');assert.equal(await page.evaluate(()=>document.activeElement.matches('input,textarea')),false,'rename does not auto-open the keyboard');
   assert.deepEqual(errors,[]);console.log('PASS: explicit search focus, keyboard navigation, restored ban periods, existing-ban editing, rename focus and device search inset');
- }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
+ }catch(error){if(browser){const page=(await browser.pages())[0];console.error('Font/ban UI failure:',await page.evaluate(()=>({text:document.body.innerText,dialogs:document.querySelectorAll('[role="dialog"]').length,focus:document.activeElement?.outerHTML})));fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/font-ban-failure.png'}).catch(()=>{});}throw error;}finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});
