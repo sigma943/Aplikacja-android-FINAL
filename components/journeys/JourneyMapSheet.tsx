@@ -5,6 +5,7 @@ import {ChevronUp,ChevronDown,Route} from 'lucide-react';
 import type {Journey} from '@/lib/journey-planner';
 import {warsawClock} from '@/lib/transit-time';
 import JourneyStages from './JourneyStages';
+import CosmicFilterEffects from '../CosmicFilterEffects';
 
 /** The handle supports dragging and the same action by click or keyboard. */
 export default function JourneyMapSheet({journey,activeLeg,onFocusLeg}:{journey:Journey;activeLeg:number|null;onFocusLeg:(index:number|null)=>void}){
@@ -14,6 +15,7 @@ export default function JourneyMapSheet({journey,activeLeg,onFocusLeg}:{journey:
  const description=[formatJourneyDuration(journey.arrival-journey.departure),lines.length?(lines.length===1?'Linia ':'Linie ')+lines.join(', '):'Pieszo',journey.walking>0?`${journey.walking} m pieszo`:null].filter(Boolean).join(' · ');
  const toggle=()=>{setDragHeight(null);setExpanded(value=>!value);};
  return <section ref={sheet} className={'connections-map-sheet'+(expanded?' is-expanded':'')} aria-label="Podróż na mapie" style={dragHeight===null?undefined:{height:dragHeight,transition:'none'}}>
+  <CosmicFilterEffects/>
   <button className="connections-sheet-handle" aria-controls={id} aria-expanded={expanded} aria-label={expanded?'Zwiń szczegóły podróży':'Rozwiń szczegóły podróży'}
    onPointerDown={event=>{start.current={y:event.clientY,height:sheet.current!.getBoundingClientRect().height};event.currentTarget.setPointerCapture(event.pointerId);}}
    onPointerMove={event=>{if(!start.current)return;const maximum=Math.max(112,Math.min(innerHeight*.58,innerHeight-220));setDragHeight(Math.max(112,Math.min(maximum,start.current.height+start.current.y-event.clientY)));}}

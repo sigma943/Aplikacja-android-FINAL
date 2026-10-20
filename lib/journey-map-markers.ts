@@ -12,7 +12,7 @@ export function journeyPointRole(journey:Journey,stop:Stop):JourneyPointRole {
 }
 export function journeyPointSize(zoom:number,role:JourneyPointRole){
  if(role==='stop')return zoom<12?2.4:zoom<14?2.7:zoom<16?3:3.4;
- return role==='transfer'?(zoom<14?10:14):(zoom<14?12:16);
+ return role==='transfer'?(zoom<12?18:zoom<15?20:24):(zoom<12?20:zoom<15?23:27);
 }
 
 /** Place the pedestrian halfway along the route, not at its middle vertex. */

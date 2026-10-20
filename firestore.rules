@@ -126,6 +126,7 @@ service cloud.firestore {
                'disableMap',
                'disableStops',
                'disableJourneys',
+               'journeys',
                'globalSettings',
                'globalSettingsEdit',
                'canBan',
@@ -147,6 +148,7 @@ service cloud.firestore {
                !granted.get('disableMap', false) &&
                !granted.get('disableStops', false) &&
                !granted.get('disableJourneys', false) &&
+               !granted.get('journeys', false) &&
                (!granted.get('shield', false) || caller.get('shield', false)) &&
                (!granted.get('users', false) || caller.get('users', false)) &&
                (!granted.get('group', false) || caller.get('group', false)) &&
@@ -172,6 +174,7 @@ service cloud.firestore {
                'disableMap',
                'disableStops',
                'disableJourneys',
+               'journeys',
                'globalSettings',
                'globalSettingsEdit',
                'canBan',
@@ -205,6 +208,7 @@ service cloud.firestore {
 
     function userInstallationCreateAllowed(data) {
       return newLoginApprovalValid(data) && data.role == 'user' &&
+             data.permissions.get('journeys', false) != true &&
              (!(data.verified is bool) || data.verified == false) &&
              userPermissionsAreSafe(data) &&
              (
@@ -235,7 +239,8 @@ service cloud.firestore {
              (
                (next.get('disableMap', false) == true) == (before.get('disableMap', false) == true) &&
                (next.get('disableStops', false) == true) == (before.get('disableStops', false) == true) &&
-               (next.get('disableJourneys', false) == true) == (before.get('disableJourneys', false) == true)
+               (next.get('disableJourneys', false) == true) == (before.get('disableJourneys', false) == true) &&
+               (next.get('journeys', false) == true) == (before.get('journeys', false) == true)
              );
     }
 
@@ -253,6 +258,7 @@ service cloud.firestore {
       let activeAllowed = data.status == 'active' && !autoBanUnverifiedEnabled();
       let autoBannedAllowed = data.status == 'banned' && data.verified == false && hasAutoBanDetails(data);
       return validKeys && validTypes && newLoginApprovalValid(data) &&
+             data.permissions.get('journeys', false) != true &&
              (!('installationId' in data) || !exists(/databases/$(database)/documents/installations/$(data.installationId))) &&
              (activeAllowed || autoBannedAllowed);
     }

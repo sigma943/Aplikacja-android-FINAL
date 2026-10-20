@@ -21,6 +21,11 @@ type Point=[number,number];
 type Geometry={key:string;paths:Record<number,Point[]>;failed:number[]};
 const color=(leg:JourneyLeg)=>getVehicleColor({provider:leg.provider==='mpk'?'mpk_rzeszow':leg.provider as 'pks'|'marcel'});
 const hasCoordinates=(stop:Stop)=>Number.isFinite(stop.lat)&&Number.isFinite(stop.lon);
+const pointSymbols={
+ start:'<path d="m9 6 9 6-9 6V6Z" fill="currentColor"/>',
+ end:'<path d="M7 20V5m0 0c3-3 6 3 10 0v9c-4 3-7-3-10 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+ transfer:'<path d="M5 8h14m-4-4 4 4-4 4M19 16H5m4-4-4 4 4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+};
 const walkSvg='<svg width="18" height="18" viewBox="3.5 0 32 32" aria-hidden="true"><circle cx="20" cy="5.5" r="3.3" fill="currentColor"/><path d="m13 28 3-9 3-8m5 17-5-10m-8 0 3-6 5-1 5 6 4 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** Leaflet updates stroke styles, but CSS classes require updating the path element. */
@@ -46,7 +51,7 @@ function JourneyStopMarkers({markers,selected,onSelect,showAll=false}:{markers:J
  return <>{visible.map(({stop,point,role})=>{
   const size=journeyPointSize(zoom,role),name=({start:'Początek',end:'Cel',transfer:'Przesiadka',stop:'Przystanek'})[role]+': '+(role==='end'?journeyDestinationLabel(stop):stop.name);
   if(role==='stop')return <CircleMarker className={"connections-stop-point is-stop"+(selected===stop.id?" is-selected":"")} key={stop.id+point.join(':')+(selected===stop.id?':selected':'')} center={point} radius={selected===stop.id?size+2:size} eventHandlers={{click:()=>onSelect(stop)}} pathOptions={{color:'#334155',weight:1.1,fillColor:'#fff',fillOpacity:1}}></CircleMarker>;
-  const icon=L.divIcon({className:'connections-stop-point connections-route-point is-'+role+(selected===stop.id?' is-selected':''),html:'<span aria-hidden="true"></span>',iconSize:[size,size],iconAnchor:[size/2,size/2]});
+  const icon=L.divIcon({className:'connections-stop-point connections-route-point is-'+role+(selected===stop.id?' is-selected':''),html:'<svg viewBox="0 0 24 24" aria-hidden="true">'+pointSymbols[role]+'</svg>',iconSize:[size,size],iconAnchor:[size/2,size/2]});
   return <Marker key={stop.id+point.join(':')} position={point} icon={icon} title={name} eventHandlers={{click:()=>onSelect(stop)}} zIndexOffset={role==='transfer'?100:200}></Marker>;
  })}</>;
 }
@@ -182,7 +187,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
    <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journeyDestinationLabel(journey.legs.at(-1)!.to)}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
    {mapContent}
    <JourneyMapSheet journey={journey} activeLeg={activeLeg} onFocusLeg={index=>{focusStage(index);requestAnimationFrame(()=>dialog.current?.querySelector<HTMLElement>('.leaflet-container')?.focus({preventScroll:true}));}}/>
-  </section>,document.body)}
+  </section>,host.current?.closest('.pks-theme-root')||document.body)}
  </div>;
 }
 

@@ -6,7 +6,7 @@ import {saveAppearanceBackupFile,loadNativeAppearanceBackup,nativeAppearanceBack
 import {type InterfaceAppearance,type NavItem} from '@/lib/interface-appearance';
 import {PROFILES_KEY,SCHEDULE_KEY,DEFAULT_SCHEDULE,readProfiles,readSchedule,normalizeSchedule,activateProfile,type VisualProfile,type VisualSchedule} from '@/lib/personalization-profiles';
 
-type Props={canOpenAdminEmbed?:boolean;value:InterfaceAppearance;onChange:(value:InterfaceAppearance)=>void;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number};
+type Props={journeysAllowed?:boolean;canOpenAdminEmbed?:boolean;value:InterfaceAppearance;onChange:(value:InterfaceAppearance)=>void;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number};
 const labels:Record<NavItem,string>={map:'Mapa',journeys:'Połączenia',stops:'Przystanki',admin:'Admin',options:'Opcje'};
 export default function PersonalizationTools(p:Props){
  const [profiles,setProfiles]=useState<VisualProfile[]>([]),[schedule,setSchedule]=useState<VisualSchedule>({...DEFAULT_SCHEDULE}),[name,setName]=useState(''),[message,setMessage]=useState('');
@@ -21,11 +21,11 @@ export default function PersonalizationTools(p:Props){
  const exportFile=async()=>{setBusy(true);try{const content=exportAppearanceBackup(capture('current','Bieżący wygląd'),profiles,schedule,localStorage.getItem('mks_light_effects')==='true');const result=await saveAppearanceBackupFile(content);setMessage(result.saved?'Wyeksportowano wygląd. Zachowaj plik poza aplikacją przed reinstalacją.':'Anulowano eksport.');}catch{setMessage('Nie udało się wyeksportować wyglądu.');}finally{setBusy(false);}};
  const restore=(content:string)=>{const restored=restoreAppearanceBackup(content);setProfiles(restored.profiles);setSchedule(restored.schedule);setMessage('Przywrócono bieżący wygląd, zestawy i harmonogram.');};
  const importFile=async()=>{if(!nativeAppearanceBackup()){upload.current?.click();return;}setBusy(true);try{const result=await loadNativeAppearanceBackup();if(result.content!==undefined)restore(result.content);else setMessage('Anulowano import.');}catch(error){setMessage(error instanceof Error?error.message:'Nie udało się zaimportować wyglądu.');}finally{setBusy(false);}};
- const visibleOrder=p.value.navOrder.filter(id=>id!=='admin'||p.canOpenAdminEmbed);
+ const visibleOrder=p.value.navOrder.filter(id=>(id!=='admin'||p.canOpenAdminEmbed)&&(id!=='journeys'||p.journeysAllowed!==false));
  const move=(index:number,direction:number)=>{const target=visibleOrder[index+direction];if(!target)return;const order=[...p.value.navOrder],from=order.indexOf(visibleOrder[index]),to=order.indexOf(target);[order[from],order[to]]=[order[to],order[from]];set('navOrder',order);};
  const valid=profiles.some(p=>p.id===schedule.dayProfile)&&profiles.some(p=>p.id===schedule.nightProfile)&&schedule.dayAt!==schedule.nightAt;
  return <div className="personal-tools">
-  {choice('startScreen','Ekran startowy',[['map','Mapa'],['journeys','Połączenia'],['stops','Przystanki'],...(p.canOpenAdminEmbed?[['admin','Admin'] as ['admin',string]]:[])])}
+  {choice('startScreen','Ekran startowy',[['map','Mapa'],...(p.journeysAllowed!==false?[['journeys','Połączenia'] as ['journeys',string]]:[]),['stops','Przystanki'],...(p.canOpenAdminEmbed?[['admin','Admin'] as ['admin',string]]:[])])}
   <p className="personal-note">Zmiana przy następnym uruchomieniu.</p>
   <fieldset className="personal-field"><legend>Kolejność zakładek</legend><div className="personal-order">{visibleOrder.map((id,index)=><div key={id}><span>{labels[id]}</span><button type="button" disabled={index===0} onClick={()=>move(index,-1)} aria-label={`Przesuń ${labels[id]} wcześniej`} className="ui-accent-focus"><ArrowUp size={16}/></button><button type="button" disabled={index===visibleOrder.length-1} onClick={()=>move(index,1)} aria-label={`Przesuń ${labels[id]} później`} className="ui-accent-focus"><ArrowDown size={16}/></button></div>)}</div></fieldset>
   {choice('departureView','Widok odjazdów',[['detailed','Szczegółowy'],['simple','Prosty']])}

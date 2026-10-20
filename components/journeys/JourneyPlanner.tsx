@@ -132,7 +132,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
       <div className="connections-result-meta"><span>{j.legs.every(l=>l.walking!==undefined)?'Całą trasę pieszo':j.transfers===0?'Bez przesiadek':transferCount(j.transfers)}{j.walking>0?' · '+j.walking+' m pieszo':''}</span></div>
      </button>
      {selected===j.id&&<div className="connections-detail connections-journey-timeline">
-      <JourneyStages journey={j} activeLeg={legFocus?.journeyId===j.id?legFocus.index:null} onSelectLeg={allowMap?index=>focusStage(j.id,index):undefined}/>
+      <JourneyStages journey={j}/>
 
       {allowMap&&<button className="connections-map-button" onClick={()=>setMap(!map)}><MapPin size={16}/>{map?'Ukryj mapę':'Pokaż podróż na mapie'}</button>}{allowMap&&map&&<JourneyMap journey={j} dark={dark} focusLeg={legFocus?.journeyId===j.id?legFocus.index:null} focusVersion={legFocus?.version||0} onFocusLeg={index=>focusStage(j.id,index)}/>}</div>}
     </article>)}

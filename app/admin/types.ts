@@ -41,6 +41,7 @@ export interface AdminPermissions {
   disableMap: boolean;
   disableStops: boolean;
   disableJourneys?:boolean;
+  journeys?:boolean;
   globalSettings: boolean;
   globalSettingsEdit: boolean;
 }

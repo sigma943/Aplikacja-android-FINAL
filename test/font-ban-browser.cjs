@@ -44,6 +44,23 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.reload({waitUntil:'domcontentloaded'});await page.click('[data-tab="navigation"]');await checkOrder(['map','stops','admin','journeys','options']);
   await page.click('[data-hide-admin]');await page.click('[aria-label="Przesuń Połączenia wcześniej"]');await checkOrder(['map','journeys','stops','options']);
   fs.mkdirSync('test/ui-previews',{recursive:true});await page.$eval('[data-test-navigation]',e=>e.scrollIntoView());await page.screenshot({path:'test/ui-previews/navigation-order.png'});
+  for(const role of ['user','admin']){
+   await page.click('[data-nav-role="'+role+'"]');
+   assert.equal(await page.$('[data-test-navigation] [data-nav-item="journeys"]'),null,'default denied for '+role);
+   assert.equal(await page.$('[data-navigation-preview] [data-nav-item="journeys"]'),null);
+   assert.equal(await page.$('[aria-label="Przesuń Połączenia wcześniej"]'),null,'restricted tab hidden in personalization');
+   await page.click('[data-toggle-journeys]');assert.ok(await page.$('[data-test-navigation] [data-nav-item="journeys"]'),'explicit grant shows journeys');
+   await page.click('[data-toggle-journeys]');assert.equal(await page.$('[data-test-navigation] [data-nav-item="journeys"]'),null,'revocation hides journeys');
+  }
+  await page.click('[data-nav-role="owner"]');assert.ok(await page.$('[data-test-navigation] [data-nav-item="journeys"]'));
+  await page.click('[data-tab="access"]');await page.waitForSelector('[aria-label="Edycja uprawnień"]');
+  const access='[aria-label="Edycja uprawnień"] button';
+  assert.equal(await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Włącz połączenia')).querySelector('[role="switch"]').getAttribute('aria-checked')),'false');
+  await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Włącz połączenia')).click());
+  assert.equal(await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Włącz połączenia')).querySelector('[role="switch"]').getAttribute('aria-checked')),'true');
+  await page.screenshot({path:'test/ui-previews/journeys-device-access.png'});
+  await page.$$eval(access,n=>n.find(e=>e.textContent.trim()==='Zapisz zmiany').click());
+  await page.waitForFunction(()=>Boolean(window.__savedAccess));assert.equal(await page.evaluate(()=>window.__savedAccess.journeys),true);assert.equal(await page.evaluate(()=>window.__savedAccess.disableJourneys),false);
   assert.deepEqual(errors,[]);console.log('PASS: explicit search focus, keyboard navigation, restored ban periods, existing-ban editing, rename focus and device search inset, navigation arrows, visual order, preview and persisted order');
  }catch(error){if(browser){const page=(await browser.pages()).at(-1);console.error('Font/ban UI failure:',await page.evaluate(()=>({url:location.href,html:document.body.innerHTML.slice(-5000),text:document.body.innerText,dialogs:document.querySelectorAll('[role="dialog"]').length,focus:document.activeElement?.outerHTML})));fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/font-ban-failure.png'}).catch(()=>{});}throw error;}finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -6,7 +6,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const entry=path.join(root,'test/journey-live-fixture.tsx');
   await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'development',devtool:false,plugins:[new webpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],entry,output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@/lib/journey-loader':entry,'@/lib/journey-catalog':entry,'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')},{test:/\.css$/,use:path.join(root,'test/journey-css-loader.cjs')}]},optimization:{minimize:false}});compiler.run((e,stats)=>compiler.close(()=>e||stats.hasErrors()?reject(e||Error(stats.toString({all:false,errors:true}))):resolve()));});
   const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
-  server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://localhost').pathname,file=path.resolve(temp,'.'+pathname);if(pathname.endsWith('.js')&&file.startsWith(temp+path.sep)&&fs.existsSync(file)){res.setHeader('Content-Type','text/javascript; charset=utf-8');return res.end(fs.readFileSync(file));}if(pathname!=='/'){res.statusCode=404;return res.end();}res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
+  server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://localhost').pathname,file=path.resolve(temp,'.'+pathname);if(pathname.endsWith('.js')&&file.startsWith(temp+path.sep)&&fs.existsSync(file)){res.setHeader('Content-Type','text/javascript; charset=utf-8');return res.end(fs.readFileSync(file));}if(pathname==='/themes/kosmos/nebula.jpg'){res.setHeader('Content-Type','image/jpeg');return res.end(fs.readFileSync(path.join(root,'public/themes/kosmos/nebula.jpg')));}if(pathname!=='/'){res.statusCode=404;return res.end();}res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Page error:',e.message);});
   await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});await page.setRequestInterception(true);page.on('request',r=>r.url().startsWith(origin)?r.continue():r.abort());
@@ -29,9 +29,13 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.equal(await page.$eval('.connections-result .connections-duration',e=>e.textContent),'1 godz 30 min');
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('pks-live:journey-recents')).length),5);
   await page.click('.connections-result');await page.waitForSelector('.connections-detail');await page.evaluate(()=>window.__finishEnrichment());await page.waitForSelector('[data-journey-refining]',{hidden:true});assert.ok(await page.$('.connections-detail'),'enrichment preserves the open journey');assert.doesNotMatch(await page.$eval('.connections-detail',e=>e.textContent),/Odśwież połączenia|Godziny z uwzględnieniem/);
-  await page.click('.connections-detail [data-journey-leg="0"]');await page.waitForSelector('.connections-walking-path.is-focused');
-  assert.ok(await page.$('.connections-bus-path.is-muted'),'choosing the walk highlights it and dims bus legs');
-  assert.equal(await page.$eval('.connections-detail [data-journey-leg="0"]',e=>e.getAttribute('aria-pressed')),'true');
+  await page.click('.connections-detail [data-journey-leg="0"]');
+  assert.equal(await page.$('.journey-map'),null,'ordinary stage headings do not open the map');
+  assert.equal(await page.$('.connections-detail button[data-journey-leg]'),null,'ordinary details have no accidental map controls');
+  await page.click('.connections-map-button');await page.waitForSelector('.connections-walking-path');
+  await page.$eval('.connections-walking-path',e=>e.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+  await page.waitForSelector('.connections-walking-path.is-focused');
+  assert.ok(await page.$('.connections-bus-path.is-muted'),'selecting a path on the map still highlights the leg');
   await page.click('[aria-label="Pokaż całą trasę"]');await page.waitForFunction(()=>!document.querySelector('.connections-walking-path.is-focused'));
   await page.waitForSelector('.connections-walk-marker');
   await page.evaluate(()=>{window.__testMap=document.querySelector('.journey-map .leaflet-container');window.__testCalls=window.__liveCalls;});
@@ -85,6 +89,19 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   // Fullscreen keeps its own accessible, draggable journey details.
   await page.click('[aria-label="Powiększ mapę"]');await page.waitForSelector('.connections-map-sheet');
   assert.equal(await page.$eval('.connections-sheet-handle',e=>e.getAttribute('aria-expanded')),'false');
+  assert.equal(await page.$eval('.connections-map-modal',e=>Boolean(e.closest('.pks-theme-root'))),true,'fullscreen keeps the active theme context');
+  assert.equal(await page.$eval('.connections-map-modal>.connections-map-toolbar',e=>getComputedStyle(e).backgroundColor),'rgb(11, 20, 34)','header is opaque');
+  for(const role of ['start','end','transfer'])assert.ok(await page.$eval('.connections-map-modal .connections-route-point.is-'+role,e=>Boolean(e.querySelector('svg path'))),'distinct symbol for '+role);
+  for(const theme of ['light-sky','dark-forest','light-pink']){
+   await page.evaluate(t=>{document.querySelector('.pks-theme-root').dataset.uiTheme=t;document.documentElement.style.setProperty('--theme-decoration',window.__journeyThemes[t]);},theme);
+   assert.match(await page.$eval('.connections-map-sheet',e=>getComputedStyle(e).backgroundImage),/data:image/);
+   await page.screenshot({path:'test/ui-previews/journeys-map-panel-'+theme+'.png'});
+  }
+  await page.evaluate(()=>{document.querySelector('.pks-theme-root').dataset.uiTheme='dark-cosmos';document.documentElement.dataset.cosmicTheme='on';document.documentElement.style.removeProperty('--theme-decoration');});
+  assert.equal(await page.$eval('.connections-map-sheet>[data-filter-cosmos]',e=>getComputedStyle(e).display),'block');
+  assert.equal(await page.$('.leaflet-container [data-filter-cosmos]'),null,'decorations stay out of streets');
+  await page.screenshot({path:'test/ui-previews/journeys-map-panel-cosmos.png'});
+
   assert.match(await page.$eval('.connections-sheet-summary',e=>e.textContent),/1 godz 30 min.*108.*11.*100 m pieszo/);
   const handle=await page.$eval('.connections-sheet-handle',e=>{const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+8};});
   const drag=await page.touchscreen.touchStart(handle.x,handle.y);await drag.move(handle.x,handle.y-180);await drag.end();

@@ -759,13 +759,14 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       const tabAccessChanged =
         Boolean(previousPermissions?.disableMap) !== Boolean(normalized.disableMap) ||
         Boolean(previousPermissions?.disableStops) !== Boolean(normalized.disableStops)||
-        Boolean(previousPermissions?.disableJourneys)!==Boolean(normalized.disableJourneys);
+        Boolean(previousPermissions?.disableJourneys)!==Boolean(normalized.disableJourneys)||
+        Boolean(previousPermissions?.journeys)!==Boolean(normalized.journeys);
       const roleChanged = targetRow?.role !== fbRole;
       const tabAccessDescription = normalized.disableMap
         ? `${whoLabel} → wyłączono mapę`
         : normalized.disableStops
           ? `${whoLabel} → wyłączono przystanki`
-          : normalized.disableJourneys
+          : !normalized.journeys
             ? `${whoLabel} → wyłączono połączenia`
           : `${whoLabel} → przywrócono dostęp do zakładek`;
       await writeAuditLog({

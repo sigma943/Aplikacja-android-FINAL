@@ -11,6 +11,8 @@ export interface AdminPermissions {
   disableMap: boolean;
   disableStops: boolean;
   disableJourneys?: boolean;
+  /** Explicit device opt-in; absence never grants the journeys tab. */
+  journeys?: boolean;
   /** Widoczność sekcji ustawień globalnych (operatorzy). */
   globalSettings: boolean;
   /** Zapis ustawień globalnych (Firestore admin_settings). */
@@ -80,6 +82,10 @@ export const toLegacyPermissions = (permissions: StoredPermissions): Required<Le
   canChangeRoles: Boolean(permissions?.canChangeRoles),
 });
 
+export function canUseJourneys(role:DeviceRole|undefined,permissions:StoredPermissions):boolean {
+ return role==='owner'||Boolean(role&&permissions?.journeys===true&&permissions.disableJourneys!==true);
+}
+
 export const normalizeAdminPermissions = (
   permissions: StoredPermissions,
   role: DeviceRole,
@@ -100,6 +106,7 @@ export const normalizeAdminPermissions = (
     disableMap: Boolean(permissions.disableMap ?? base.disableMap),
     disableStops: !permissions.disableMap ? Boolean(permissions.disableStops ?? base.disableStops) : false,
     ...(role!=='owner'&&permissions.disableJourneys?{disableJourneys:true}:{}),
+    ...(role!=='owner'&&permissions.journeys===true&&!permissions.disableJourneys?{journeys:true}:{}),
     globalSettings: role === 'owner' ? true : Boolean(permissions.globalSettings ?? base.globalSettings),
     globalSettingsEdit: role === 'owner' ? true : Boolean(permissions.globalSettingsEdit ?? base.globalSettingsEdit),
   };

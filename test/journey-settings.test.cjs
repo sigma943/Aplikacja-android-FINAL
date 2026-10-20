@@ -4,12 +4,19 @@ test('journeys can be the start screen and old navigation orders gain one movabl
  const old=normalizeInterfaceAppearance({navOrder:['options','map','stops','admin']});assert.deepEqual(old.navOrder,['options','map','stops','journeys','admin']);
  const saved=normalizeInterfaceAppearance({startScreen:'journeys',navOrder:['journeys','stops','map','options','admin','journeys']});assert.equal(saved.startScreen,'journeys');assert.equal(saved.navOrder[0],'journeys');assert.equal(saved.navOrder.filter(x=>x==='journeys').length,1);
 });
-test('journeys access is independent of map and stops, defaults to enabled and survives persisted permissions',()=>{
- const {normalizeAdminPermissions,buildDevicePermissions}=load('lib/admin/rbac.ts');
- assert.equal(Boolean(normalizeAdminPermissions({},'user').disableJourneys),false);
- const p=buildDevicePermissions('user',{disableJourneys:true});assert.equal(p.disableJourneys,true);assert.equal(p.disableMap,false);assert.equal(p.disableStops,false);
- assert.equal(normalizeAdminPermissions(p,'user').disableJourneys,true);assert.equal('disableJourneys' in buildDevicePermissions('user'),false);
- assert.equal(Boolean(normalizeAdminPermissions({disableJourneys:true},'owner').disableJourneys),false);
+test('journeys is opt-in for users and admins, with an automatic owner bypass',()=>{
+ const {canUseJourneys,buildDevicePermissions,normalizeAdminPermissions}=load('lib/admin/rbac.ts');
+ assert.equal(canUseJourneys(undefined,undefined),false);
+ for(const role of ['user','admin']){
+  for(const permissions of [undefined,{}, {disableJourneys:false},buildDevicePermissions(role)])assert.equal(canUseJourneys(role,permissions),false);
+  const granted=buildDevicePermissions(role,{journeys:true,disableMap:true});
+  assert.equal(granted.journeys,true);assert.equal(canUseJourneys(role,JSON.parse(JSON.stringify(granted))),true);
+  assert.equal(canUseJourneys(role,{journeys:true,disableJourneys:true}),false);
+  assert.equal(canUseJourneys(role,buildDevicePermissions(role,{journeys:false})),false);
+  assert.equal(normalizeAdminPermissions(granted,role).journeys,true);
+ }
+ assert.equal(canUseJourneys('owner',undefined),true);assert.equal(canUseJourneys('owner',{journeys:false,disableJourneys:true}),true);
+ assert.equal('journeys' in buildDevicePermissions('user'),false,'new installations never write an opt-in');
 });
 
 test('default navigation and every saved slot include journeys in CSS ordering',()=>{
