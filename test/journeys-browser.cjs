@@ -134,7 +134,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   // Mobile map controls, true viewport fitting and error recovery use deterministic geometry.
   await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await page.goto(origin+'/?map-case=curve',{waitUntil:'domcontentloaded'});await page.waitForSelector('.connections-walking-path');
-  await page.waitForFunction(()=>!document.querySelector('.journey-map .leaflet-container').classList.contains('leaflet-grab'));
+  await page.waitForFunction(()=>document.querySelector('.journey-map .leaflet-container').classList.contains('leaflet-grab'));
   const assertFitted=async()=>{await page.waitForFunction(()=>{const root=document.querySelector('.connections-map-modal')||document.querySelector('.journey-map'),map=root.querySelector('.leaflet-container').getBoundingClientRect(),path=root.querySelector('.connections-walking-path').getBoundingClientRect();return path.left>=map.left+15&&path.right<=map.right-15&&path.top>=map.top+15&&path.bottom<=map.bottom-15;});};
   await assertFitted();
   for(const [accent,color] of [['#8b5cf6','rgb(139, 92, 246)'],['#ff7a00','rgb(255, 122, 0)']]){
