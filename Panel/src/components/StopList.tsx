@@ -1,3 +1,4 @@
+import {createStopSearchIndex,searchStops} from '@/lib/stop-search';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
 import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef } from 'react';
@@ -50,33 +51,6 @@ const CARRIER_FILTERS: Array<{ id: CarrierFilterId; label: string; dotClass: str
   { id: 'mpk', label: 'MPK Rzeszów', dotClass: 'bg-orange-500' },
   { id: 'marcel', label: 'Marcel', dotClass: 'bg-lime-400' },
 ];
-
-type SearchableStop = {
-  stop: Stop;
-  normalizedName: string;
-  carrierIds: Set<string>;
-};
-
-function normalizeSearchText(value: unknown) {
-  return String(value || '')
-    .trim()
-    .toLowerCase().replace(/ł/g, 'l')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-}
-
-function filterStops(stops: SearchableStop[], query: string, carrierFilter: CarrierFilterId) {
-  const normalizedQuery = normalizeSearchText(query);
-  return stops
-    .filter((entry) => {
-      if (!ENABLE_TRAINS && entry.stop.type !== 'bus') return false;
-      if (carrierFilter !== 'all' && !entry.carrierIds.has(carrierFilter)) return false;
-      if (!normalizedQuery) return true;
-      return entry.normalizedName.includes(normalizedQuery);
-    })
-    .map((entry) => entry.stop);
-}
 
 function StopLineBadges({lines,providerId,pksLineSet,providers}:{lines:string[];providerId?:string;pksLineSet:Set<string>;providers?:Record<string,string[]>}) {
   const row=useRef<HTMLDivElement>(null);
@@ -165,25 +139,14 @@ export default function StopList({
     });
     return [...favorites, ...others];
   }, [stops]);
-  const searchableStops = useMemo<SearchableStop[]>(
-    () =>
-      sortedStops.map((stop) => ({
-        stop,
-        normalizedName: normalizeSearchText(stop.name + " " + displayStopCatalogLabel(stop.name,stop.code)),
-        carrierIds: new Set([
-          ...stop.carriers.map((carrier) => carrier.id),
-          ...((stop.sourceProviderIds || []).map((provider) => (provider === 'mpk_rzeszow' ? 'mpk' : provider))),
-        ]),
-      })),
-    [sortedStops],
-  );
+  const searchableStops = useMemo(() => createStopSearchIndex(sortedStops), [sortedStops]);
 
   const filteredStops = useMemo(
-    () => filterStops(searchableStops, deferredInputValue, carrierFilter).filter(stop=>!favoritesOnly||stop.isFavorite),
+    () => searchStops(searchableStops, deferredInputValue, {carrier:carrierFilter,favoritesOnly}),
     [searchableStops, deferredInputValue, carrierFilter,favoritesOnly],
   );
   const fullFilteredStops = useMemo(
-    () => (isFullListOpen ? filterStops(searchableStops, deferredFullInputValue, carrierFilter).filter(stop=>!favoritesOnly||stop.isFavorite) : []),
+    () => (isFullListOpen ? searchStops(searchableStops, deferredFullInputValue, {carrier:carrierFilter,favoritesOnly}) : []),
     [isFullListOpen, searchableStops, deferredFullInputValue, carrierFilter,favoritesOnly],
   );
   const displayStops = useMemo(() => filteredStops.slice(0, 30), [filteredStops]);

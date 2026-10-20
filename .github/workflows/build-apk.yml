@@ -70,7 +70,7 @@ jobs:
 
       - name: Verify journey timetable loading and history contrast
         run: |
-          node --test test/journey-schedules.test.cjs test/journey-realtime.test.cjs test/journey-places.test.cjs test/journey-native-assets.test.cjs test/journey-day.test.cjs test/journey-timetable.test.cjs test/terminal-platforms-journey-label.test.cjs test/pks-terminal-physical.test.cjs test/journey-view-state.test.cjs test/journey-geometry.test.cjs test/marcel-route-assets.test.cjs test/physical-stop-aliases.test.cjs test/journey-access.test.cjs test/journey-settings.test.cjs test/personalization-profiles.test.cjs test/ban-details.test.cjs test/dialog-focus.test.cjs
+          node --test test/stop-search.test.cjs test/journey-schedules.test.cjs test/journey-realtime.test.cjs test/journey-places.test.cjs test/journey-native-assets.test.cjs test/journey-day.test.cjs test/journey-timetable.test.cjs test/terminal-platforms-journey-label.test.cjs test/pks-terminal-physical.test.cjs test/journey-view-state.test.cjs test/journey-geometry.test.cjs test/marcel-route-assets.test.cjs test/physical-stop-aliases.test.cjs test/journey-access.test.cjs test/journey-settings.test.cjs test/personalization-profiles.test.cjs test/ban-details.test.cjs test/dialog-focus.test.cjs
           node test/journey-recents-browser.cjs
 
       - name: Build Android Web Assets
@@ -81,6 +81,7 @@ jobs:
           JOURNEY_PICKER_ONLY=1 node test/journeys-browser.cjs
           node test/journey-live-browser.cjs
           node test/font-ban-browser.cjs
+          node test/stop-search-browser.cjs
 
       - name: Verify route stroke transition
         run: node test/route-style-browser.cjs
