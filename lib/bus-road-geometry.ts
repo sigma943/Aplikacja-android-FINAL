@@ -32,6 +32,18 @@ export function roadRouteMatchesStops(route: Point[], stops: Point[], tolerance=
   return true;
 }
 
+/** Inferred roads have no operator shape to establish their identity. Do not
+ * apply the broad tolerance needed by older GTFS platform coordinates here. */
+export function routedRoadRouteMatchesStops(route: Point[], stops: Point[]) {
+  return roadRouteMatchesStops(route, stops, 60);
+}
+
+function distanceToRoute(stop: Point, route: Point[]) {
+  let distance=Infinity;
+  for(let i=1;i<route.length;i++)distance=Math.min(distance,segmentProjection(stop,route[i-1],route[i]).distance);
+  return distance;
+}
+
 /** Preserve road corners instead of dropping every Nth coordinate on long routes. */
 export function simplifyRoadRoute(route: Point[], tolerance=2): Point[] {
   if (route.length<3) return route;
@@ -70,7 +82,8 @@ export function joinRouteChunks(chunks:Point[][]):Point[] {
   for(const chunk of chunks) {
     if(chunk.length<2 || !chunk.every(validRoadPoint))throw new Error('Incomplete road route');
     const end=result.at(-1);
-    if(end && roadDistance(end,chunk[0])>80)throw new Error('Disconnected road route chunks');
+    // Allow only polyline rounding noise, never a connector across nearby roads.
+    if(end && roadDistance(end,chunk[0])>1)throw new Error('Disconnected road route chunks');
     for(const point of chunk){const last=result.at(-1);if(!last||last[0]!==point[0]||last[1]!==point[1])result.push(point);}
   }
   return result;
@@ -104,7 +117,7 @@ export function cleanRoadJunctionLoops(route:Point[],stops:Point[]):Point[] {
 /** Nearby candidates for interior pins; shared endpoints must snap consistently. */
 export function roadRoutingLocations(stops:Point[],stopWaypoints:boolean,boundaries={start:true,end:true}) {
   return stops.map(([lat,lon],index)=>({lat,lon,type:index===0||index===stops.length-1?'break':stopWaypoints?'via':'through',
-    ...(stopWaypoints?{radius:index===0||index===stops.length-1?35:150,rank_candidates:false}:{})}));
+    ...(stopWaypoints?{radius:index===0||index===stops.length-1?35:60,rank_candidates:false}:{})}));
 }
 /** Only request an alternative for a short out-and-back/closed junction excursion. */
 export function hasLocalRoadExcursion(route:Point[]) {
@@ -122,7 +135,10 @@ export function hasLocalRoadExcursion(route:Point[]) {
 export function preferRoadCorridor(route:Point[],candidate:Point[],stops:Point[]) {
   // Repeated stops describe a deliberate return leg; a shortcut must not erase it.
   if(stops.some((stop,index)=>stops.slice(0,Math.max(0,index-1)).some(previous=>roadDistance(stop,previous)<10)))return route;
-  if(!roadRouteMatchesStops(candidate,stops,150))return route;
+  if(!routedRoadRouteMatchesStops(candidate,stops))return route;
+  // Shorter is not evidence that an excursion is artificial. Preserve every
+  // stop's existing access, allowing only small coordinate/road-width noise.
+  if(stops.some(stop=>distanceToRoute(stop,candidate)>Math.min(15,distanceToRoute(stop,route)+5)))return route;
   const length=(points:Point[])=>points.slice(1).reduce((total,point,index)=>total+roadDistance(points[index],point),0);
   const oldLength=length(route),newLength=length(candidate);
   return oldLength-newLength>=30&&newLength<oldLength*.95?candidate:route;

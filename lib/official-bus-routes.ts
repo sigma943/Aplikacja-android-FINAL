@@ -90,6 +90,11 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
     const trimmed = points.slice(nearest);
     if (roadRouteMatchesStops(trimmed,stops,180)) return trimmed;
   }
+  // A known course with incompatible stops must not borrow the opposite
+  // direction's shape merely because its coordinates happen to fit. The
+  // caller can route this changed live course instead. Coordinate discovery
+  // is reserved for course IDs absent from this timetable snapshot.
+  if (index.tripShapes[trip]) return [];
   return findByCoordinates();
 }
 

@@ -56,7 +56,7 @@ jobs:
         run: npm ci
 
       - name: Verify automatic road routing fallback
-        run: node --test test/road-route-fallback.test.cjs test/official-route-live-pattern.test.cjs
+        run: node --test test/road-route-fallback.test.cjs test/official-route-live-pattern.test.cjs test/vehicle-route-validation.test.cjs test/road-route-quality.test.cjs test/preferred-route.test.cjs test/route-cache-performance.test.cjs test/bus-routes.test.cjs test/pks-202-route.test.cjs test/pks-312-route.test.cjs test/marcel-road-routing.test.cjs
 
       - name: Test Application
         if: env.FULL_VERIFICATION == 'true'

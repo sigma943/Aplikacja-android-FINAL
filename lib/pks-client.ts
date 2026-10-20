@@ -528,7 +528,7 @@ async function fetchRouteGeometryClientImpl(
       .map((stop) => [Number(stop.lat), Number(stop.lon)] as ShapePoint);
     const persist = (points: ShapePoint[]) => {
       void writePersistentRouteGeometry(routeGeometryKey(request.mode || 'road',request.carrier,
-        request.line,request.direction,request.stops),points,request.dataVersion||'');
+        request.line,request.direction,request.stops,request.variant||'default'),points,request.dataVersion||'');
     };
     const fallbackPoints = await fetchRoadRouteForStops(
       stopCoords,
