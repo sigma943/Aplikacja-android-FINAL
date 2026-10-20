@@ -11,7 +11,7 @@ export async function loadJourneyCatalog(){return [a,b,c,d];}
 export async function searchConnections(from?:Stop){
  const origin=from?.id==='journey:my-location'?from:a;
  const count=((window as any).__liveCalls||0)+1;(window as any).__liveCalls=count;
- const departure=Date.now()+3600000+count*60000,arrival=departure+900000;
+ const departure=Date.now()+3600000+count*60000,arrival=departure+5400000;
  const journey:Journey={id:'changing:'+count,departure,arrival,walking:100,transfers:1,legs:[
   {from:origin,to:b,departure,arrival:departure+120000,course:'walk',provider:'walk',line:'Pieszo',walking:100,path:[[origin.lat!,origin.lon!],[b.lat!,b.lon!]]},
   {from:b,to:c,departure:departure+120000,arrival:departure+600000,course:'pks:123:2026-10-19',provider:'pks',line:'108',delaySeconds:count*60,stops:[{stop:b,arrival:departure+120000,departure:departure+120000},{stop:middle,arrival:departure+360000,departure:departure+360000},{stop:c,arrival:departure+600000,departure:departure+600000}],path:[[b.lat!,b.lon!],[c.lat!,c.lon!]]},

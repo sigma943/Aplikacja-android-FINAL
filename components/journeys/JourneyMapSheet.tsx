@@ -1,4 +1,5 @@
 'use client';
+import {formatJourneyDuration} from '@/lib/journey-duration';
 import {useId,useRef,useState} from 'react';
 import {ChevronUp,ChevronDown,Route} from 'lucide-react';
 import type {Journey} from '@/lib/journey-planner';
@@ -10,7 +11,7 @@ export default function JourneyMapSheet({journey,activeLeg,onFocusLeg}:{journey:
  const [expanded,setExpanded]=useState(false),[dragHeight,setDragHeight]=useState<number|null>(null);
  const start=useRef<{y:number;height:number}|null>(null),lastDrag=useRef(0),sheet=useRef<HTMLElement>(null),id=useId();
  const lines=[...new Set(journey.legs.filter(l=>l.walking===undefined).map(l=>l.line))];
- const description=[`${Math.ceil((journey.arrival-journey.departure)/60000)} min`,lines.length?(lines.length===1?'Linia ':'Linie ')+lines.join(', '):'Pieszo',journey.walking>0?`${journey.walking} m pieszo`:null].filter(Boolean).join(' · ');
+ const description=[formatJourneyDuration(journey.arrival-journey.departure),lines.length?(lines.length===1?'Linia ':'Linie ')+lines.join(', '):'Pieszo',journey.walking>0?`${journey.walking} m pieszo`:null].filter(Boolean).join(' · ');
  const toggle=()=>{setDragHeight(null);setExpanded(value=>!value);};
  return <section ref={sheet} className={'connections-map-sheet'+(expanded?' is-expanded':'')} aria-label="Podróż na mapie" style={dragHeight===null?undefined:{height:dragHeight,transition:'none'}}>
   <button className="connections-sheet-handle" aria-controls={id} aria-expanded={expanded} aria-label={expanded?'Zwiń szczegóły podróży':'Rozwiń szczegóły podróży'}

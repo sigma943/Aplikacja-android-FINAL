@@ -577,8 +577,9 @@ html[data-personal-control-radius='true'] .personal-preset { clip-path:inset(0 r
 .personal-profile-save input { padding:10px; border-radius:10px; border:1px solid var(--ui-edge); background:var(--ui-surface); color:var(--ui-text); }
 .pks-navigation [data-nav-item='map'] { order:var(--personal-nav-map,0); }
 .pks-navigation [data-nav-item='stops'] { order:var(--personal-nav-stops,1); }
-.pks-navigation [data-nav-item='admin'] { order:var(--personal-nav-admin,2); }
-.pks-navigation [data-nav-item='options'] { order:var(--personal-nav-options,3); }
+.pks-navigation [data-nav-item='journeys'] { order:var(--personal-nav-journeys,2); }
+.pks-navigation [data-nav-item='admin'] { order:var(--personal-nav-admin,3); }
+.pks-navigation [data-nav-item='options'] { order:var(--personal-nav-options,4); }
 html[data-personal-departures='simple'] [data-departure-extra] { display:none; }
 html[data-personal-departures='simple'] [data-departure-row] { padding-block:6px !important; gap:8px; }
 html[data-personal-departures='simple'] [data-departure-row].map-detail-row { margin-bottom:4px; }

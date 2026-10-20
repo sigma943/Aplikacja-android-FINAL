@@ -32,7 +32,7 @@ test('missing scheduled profiles never activate a partial schedule',()=>{
 });
 test('activating a saved profile restores all appearance keys without mutating the snapshot',()=>{
  const entries=storage(),saved=profile('mine');saved.appearance=normalizeInterfaceAppearance({navOrder:['stops','map'],markerSize:130,startScreen:'admin'});
- activateProfile(saved,false);const restored=JSON.parse(entries.get(INTERFACE_APPEARANCE_KEY));assert.equal(restored.markerSize,130);assert.equal(restored.startScreen,'admin');assert.deepEqual(restored.navOrder,['stops','map','journeys','admin','options']);assert.equal(saved.appearance.markerSize,130);
+ activateProfile(saved,false);const restored=JSON.parse(entries.get(INTERFACE_APPEARANCE_KEY));assert.equal(restored.markerSize,130);assert.equal(restored.startScreen,'admin');assert.deepEqual(restored.navOrder,['stops','journeys','map','admin','options']);assert.equal(saved.appearance.markerSize,130);
 });
 
 test('removed start screen and one-hand mode are ignored in saved settings and profiles',()=>{

@@ -1,4 +1,5 @@
 'use client';
+import {formatJourneyDuration} from '@/lib/journey-duration';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,Trash2,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft,Map as MapIcon} from 'lucide-react';
@@ -122,7 +123,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
     {warnings.map(w=><p className="connections-warning" key={w}><AlertCircle size={16}/>{w}</p>)}
     {results.slice(0,resultLimit).map(j=><article data-cosmic-panel data-journey-result className={'connections-card connections-result-card'+(selected===j.id?' is-expanded':'')} key={j.id}>
      <button className="connections-result" aria-expanded={selected===j.id} onClick={()=>{setSelected(selected===j.id?null:j.id);setLegFocus(null);setMap(false);}}>
-      <div className="connections-result-times"><strong>{warsawClock(j.departure)}<ArrowRight size={17}/>{warsawClock(j.arrival)}</strong><span className="connections-duration">{Math.ceil((j.arrival-j.departure)/60000)} min</span></div>
+      <div className="connections-result-times"><strong>{warsawClock(j.departure)}<ArrowRight size={17}/>{warsawClock(j.arrival)}</strong><span className="connections-duration">{formatJourneyDuration(j.arrival-j.departure)}</span></div>
       <div className="connections-leg-badges">{j.legs.map((l,i)=><span key={i} data-provider={l.provider}>{l.walking!==undefined?<Footprints size={13}/>:<Bus size={13}/>} {l.walking!==undefined?l.walking+' m':l.line}</span>)}</div>
       <div className="connections-endpoints"><span>{journeyDepartureLabel(j.legs[0])}</span><ArrowRight size={16}/><span>{journeyDestinationLabel(j.legs.at(-1)!.to)}</span></div>
       <div className="connections-stops-summary"><span className="connections-disclosure-icon"><Bus size={17}/></span><span className="connections-disclosure-copy"><strong>Przystanki i godziny</strong><small>Szczegóły podróży</small></span><span className="connections-disclosure-action">{selected===j.id?'Zwiń':'Rozwiń'} {selected===j.id?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</span></div>

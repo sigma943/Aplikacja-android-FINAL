@@ -1,5 +1,5 @@
-
 'use client';
+import {formatJourneyDuration} from '@/lib/journey-duration';
 import {Bus,Footprints,Clock,ChevronDown,MapPin} from 'lucide-react';
 import {warsawClock} from '@/lib/transit-time';
 import {stopCount} from '@/lib/polish-count';
@@ -17,9 +17,9 @@ function JourneyDelayBadge({seconds}:{seconds?:number}){
 
 export default function JourneyStages({journey,activeLeg,onSelectLeg}:{journey:Journey;activeLeg?:number|null;onSelectLeg?:(index:number)=>void}){
  return <>{journey.legs.map((l,i)=><div key={i} className="connections-ride">
-       {i>0&&l.departure>journey.legs[i-1].arrival&&<div className="connections-wait"><Clock size={14}/><span>Czas na przesiadkę · {Math.ceil((l.departure-journey.legs[i-1].arrival)/60000)} min</span></div>}
+       {i>0&&l.departure>journey.legs[i-1].arrival&&<div className="connections-wait"><Clock size={14}/><span>Czas na przesiadkę · {formatJourneyDuration(l.departure-journey.legs[i-1].arrival)}</span></div>}
        <div className={"connections-leg-card"+(activeLeg===i?" is-focused":"")} data-provider={l.provider}>
-        <div className="connections-leg-heading"><span className="connections-stage-number">{i+1}</span><button type="button" className="connections-leg-mode connections-leg-focus" data-journey-leg={i} disabled={!onSelectLeg} aria-pressed={activeLeg===i} aria-label={'Pokaż na mapie: '+(l.walking!==undefined?'Pieszo, '+l.walking+' m':'Linia '+l.line)} onClick={()=>onSelectLeg?.(i)}>{l.walking!==undefined?<Footprints size={16}/>:<Bus size={16}/>}<strong>{l.walking!==undefined?'Pieszo':'Linia '+l.line}</strong><MapPin size={12}/></button><span className="connections-duration">{Math.ceil((l.arrival-l.departure)/60000)} min{l.walking!==undefined?' · '+l.walking+' m':''}</span></div>
+        <div className="connections-leg-heading"><span className="connections-stage-number">{i+1}</span><button type="button" className="connections-leg-mode connections-leg-focus" data-journey-leg={i} disabled={!onSelectLeg} aria-pressed={activeLeg===i} aria-label={'Pokaż na mapie: '+(l.walking!==undefined?'Pieszo, '+l.walking+' m':'Linia '+l.line)} onClick={()=>onSelectLeg?.(i)}>{l.walking!==undefined?<Footprints size={16}/>:<Bus size={16}/>}<strong>{l.walking!==undefined?'Pieszo':'Linia '+l.line}</strong><MapPin size={12}/></button><span className="connections-duration">{formatJourneyDuration(l.arrival-l.departure)}{l.walking!==undefined?' · '+l.walking+' m':''}</span></div>
         <div className="connections-timeline">
          <div className="connections-timeline-row"><div className="connections-departure-clock"><time>{warsawClock(l.departure)}</time>{l.walking===undefined&&<JourneyDelayBadge seconds={l.delaySeconds}/>}</div><span className="connections-timeline-dot"/><h3>{journeyDepartureLabel(l,i)}</h3></div>
          <div className="connections-timeline-provider">{l.walking!==undefined?'Dojście pieszo':providers.find(p=>p[0]===l.provider)?.[1]||l.provider}</div>

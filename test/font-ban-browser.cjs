@@ -32,6 +32,18 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.deepEqual(await page.evaluate(()=>({reason:window.__savedBan.reason,expiry:window.__savedBan.expiryDate,silent:window.__savedBan.silent})),{reason:'Nowy powód',expiry:'',silent:true});
   await page.click('[data-tab="devices"]');await page.waitForSelector('input[placeholder="Szukaj..."]');assert.equal(await page.$eval('input[placeholder="Szukaj..."]',e=>getComputedStyle(e).paddingLeft),'32px');
   await page.evaluate(()=>[...document.querySelectorAll('[title="Zmień nazwę urządzenia"]')].find(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden').click());await page.waitForSelector('input[placeholder="np. Telefon Tomka"]');assert.equal(await page.evaluate(()=>document.activeElement.matches('input,textarea')),false,'rename does not auto-open the keyboard');
-  assert.deepEqual(errors,[]);console.log('PASS: explicit search focus, keyboard navigation, restored ban periods, existing-ban editing, rename focus and device search inset');
+  await page.evaluate(()=>[...document.querySelector('input[placeholder="np. Telefon Tomka"]').parentElement.querySelectorAll('button')].find(e=>e.textContent.trim()==='Anuluj').click());await page.waitForSelector('input[placeholder="np. Telefon Tomka"]',{hidden:true});
+  await page.click('[data-tab="navigation"]');
+  const visualOrder=selector=>page.$$eval(selector+' [data-nav-item]',nodes=>nodes.map(n=>({id:n.dataset.navItem,x:n.getBoundingClientRect().x})).sort((a,b)=>a.x-b.x).map(n=>n.id));
+  const checkOrder=async expected=>{for(const selector of ['[data-test-navigation]','[data-navigation-preview]'])assert.deepEqual(await visualOrder(selector),expected);};
+  await checkOrder(['map','stops','journeys','admin','options']);
+  for(const [label,expected] of [['wcześniej',['map','journeys','stops','admin','options']],['wcześniej',['journeys','map','stops','admin','options']],['później',['map','journeys','stops','admin','options']],['później',['map','stops','journeys','admin','options']],['później',['map','stops','admin','journeys','options']]]){
+   await page.click('[aria-label="Przesuń Połączenia '+label+'"]');await checkOrder(expected);
+   assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('mks_interface_appearance_v1')).navOrder),expected);
+  }
+  await page.reload({waitUntil:'domcontentloaded'});await page.click('[data-tab="navigation"]');await checkOrder(['map','stops','admin','journeys','options']);
+  await page.click('[data-hide-admin]');await page.click('[aria-label="Przesuń Połączenia wcześniej"]');await checkOrder(['map','journeys','stops','options']);
+  fs.mkdirSync('test/ui-previews',{recursive:true});await page.$eval('[data-test-navigation]',e=>e.scrollIntoView());await page.screenshot({path:'test/ui-previews/navigation-order.png'});
+  assert.deepEqual(errors,[]);console.log('PASS: explicit search focus, keyboard navigation, restored ban periods, existing-ban editing, rename focus and device search inset, navigation arrows, visual order, preview and persisted order');
  }catch(error){if(browser){const page=(await browser.pages()).at(-1);console.error('Font/ban UI failure:',await page.evaluate(()=>({url:location.href,html:document.body.innerHTML.slice(-5000),text:document.body.innerText,dialogs:document.querySelectorAll('[role="dialog"]').length,focus:document.activeElement?.outerHTML})));fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/font-ban-failure.png'}).catch(()=>{});}throw error;}finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});
