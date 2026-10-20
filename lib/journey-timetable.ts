@@ -2,18 +2,20 @@ import type {Stop} from '@/Panel/src/types';
 import {journeyWindow,stopDistance,type Journey,type JourneyLeg,type JourneyOptions} from './journey-planner';
 import {isRzeszowStation,matchesJourneyPlace} from './journey-places';
 import {warsawTimeMs} from './transit-time';
-import {tightenJourneyInterchanges} from './journey-interchanges';
+import {scanJourneyNetwork} from './journey-engine';
+import type {JourneySearchGraph} from './journey-footpath-network';
 import {pksTerminalStop} from './pks-terminal-identity';
 
 export type TimetableFeed={version:number;provider:string;validFrom:string;validUntil:string;stops:Record<string,{name:string;lat:number;lon:number}>;
  calendars:Record<string,{start:string;end:string;days:string}>;exceptions:Record<string,Record<string,number>>;
- patterns:Array<Array<[string,number,number,number,number]>>;trips:Array<[string,string,string,number,number]>};
-export type Connection={from:Stop;to:Stop;departure:number;arrival:number;course:string;line:string;provider:string;pickup?:boolean;dropoff?:boolean;delaySeconds?:number;scheduledDeparture?:number;scheduledArrival?:number};
+ patterns:Array<Array<[string,number,number,number,number,number?]>>;trips:Array<[string,string,string,number,number]>;diagnostics?:string[]};
+import type {Connection} from './journey-model';
+export type {Connection} from './journey-model';
 const carrier=(id:string)=>({id,name:id==='pks'?'PKS Rzeszów':id==='mpk'?'MPK Rzeszów':'Marcel',colorClass:''});
 export function serviceRuns(feed:TimetableFeed,id:string,date:string){
  const day=date.replaceAll('-',''),exception=feed.exceptions[day]?.[id];if(exception)return exception===1;
  const c=feed.calendars[id],weekday=(new Date(date+'T12:00:00Z').getUTCDay()+6)%7;
- return Boolean(c&&c.start<=day&&c.end>=day&&c.days[weekday]==='1');
+ return Boolean(c&&typeof c.days==='string'&&c.start<=day&&c.end>=day&&c.days[weekday]==='1');
 }
 export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,options:JourneyOptions,delayWindow=0):Connection[]{
  const provider=feed.provider,namespace=provider==='mpk'?'mpk_rzeszow':provider;
@@ -51,122 +53,13 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
    for(let i=1;i<pattern.length;i++){
     const a=pattern[i-1],b=pattern[i],from=mapped.get(a[0]),to=mapped.get(b[0]),departure=clock(start+a[2]),arrival=clock(start+b[1]);
     if(!from||!to||!Number.isFinite(departure)||arrival<departure||departure<earliest||arrival>latest)continue;
-    connections.push({from,to,departure,arrival,course:`${provider}:${id}:${serviceDate}`,line,provider,pickup:a[3]!==1,dropoff:b[4]!==1});
+    connections.push({from,to,departure,arrival,course:`${provider}:${id}:${serviceDate}`,line,provider,pickup:a[3]!==1,dropoff:b[4]!==1,sourceFromStopId:a[0],sourceToStopId:b[0],fromSequence:a[5],toSequence:b[5]});
    }
   }
  }
  return connections;
 }
-type Label={stop:Stop;time:number;legs:JourneyLeg[];rides:number;walking:number};
-/** Chronological connection scan. Staying on one bus never consumes a transfer. */
-export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:JourneyOptions,onProgress:()=>void=()=>{}):Journey[]{
- if(from.id===to.id)return [];
- const {earliest,latest}=journeyWindow(o);
- const stops=[...new Map([from,to,...connections.flatMap(c=>[c.from,c.to])].map(s=>[s.id,s])).values()];
- const buckets=new Map<string,Stop[]>(),cell=(s:Stop)=>[Math.floor((s.lat||0)*100),Math.floor((s.lon||0)*100)];
- for(const stop of stops){if(!Number.isFinite(stop.lat)||!Number.isFinite(stop.lon))continue;const key=cell(stop).join(':');const list=buckets.get(key)||[];list.push(stop);buckets.set(key,list);}
- const neighbors=new Map<string,Array<{stop:Stop;meters:number;minutes:number}>>();
- const near=(stop:Stop)=>{
-  if(neighbors.has(stop.id))return neighbors.get(stop.id)!;const result:Array<{stop:Stop;meters:number;minutes:number}>=[];
-  if(o.walkMeters>0&&Number.isFinite(stop.lat)&&Number.isFinite(stop.lon)){
-   const [y,x]=cell(stop),radius=Math.ceil(o.walkMeters/600);
-   for(let a=-radius;a<=radius;a++)for(let b=-radius;b<=radius;b++)for(const target of buckets.get(`${y+a}:${x+b}`)||[]){
-    if(target.id===stop.id)continue;const meters=Math.ceil(stopDistance(stop,target)*1.35);if(meters<=o.walkMeters)result.push({stop:target,meters,minutes:Math.max(1,Math.ceil(meters/70))});
-   }
-  }
-  neighbors.set(stop.id,result);return result;
- };
- const maxTransfers=o.maxTransfers<0?Infinity:o.maxTransfers;
- const labels=new Map<string,Label[]>(),onboard=new Map<string,Label[]>(),answers:Journey[]=[];
- let revision=0;const answerIds=new Set<string>();
- const departure=(l:Label)=>l.legs[0]?.departure??earliest;
- const walkDistances=new WeakMap<Label,number>();
- // Each uninterrupted walk has its own limit; a bus ride resets that budget.
- // Total walking is still kept for display and ranking.
- const continuousWalk=(l:Label)=>{const cached=walkDistances.get(l);if(cached!==undefined)return cached;let meters=0;for(let i=l.legs.length-1;i>=0&&l.legs[i].walking!==undefined;i--)meters+=l.legs[i].walking!;walkDistances.set(l,meters);return meters;};
- const add=(label:Label)=>{
-  if(matchesJourneyPlace(to,label.stop)&&label.legs.length){
-   const shift=o.arriveBy&&!label.rides?latest-label.time:0;
-   const legs=shift?label.legs.map(leg=>({...leg,departure:leg.departure+shift,arrival:leg.arrival+shift})):label.legs;
-   const id=legs.map(l=>`${l.course}:${l.from.id}:${l.to.id}:${l.departure}`).join('|');
-   if(!answerIds.has(id)){answerIds.add(id);answers.push({id,legs,departure:legs[0].departure,arrival:label.time+shift,walking:label.walking,transfers:Math.max(0,label.rides-1)});}
-   return false;
-  }
-  // The final permitted ride can continue on board or finish with one walk,
-  // but cannot create boarding labels at every nearby platform.
-  if(label.rides>maxTransfers)return false;
-  const key=label.stop.id,list=labels.get(key)||[];
-  if(list.some(l=>l.time<=label.time&&l.walking<=label.walking&&l.rides<=label.rides&&(departure(l)>=departure(label)&&continuousWalk(l)<=continuousWalk(label))))return false;
-  const next=list.filter(l=>!(label.time<=l.time&&label.walking<=l.walking&&label.rides<=l.rides&&(departure(label)>=departure(l)&&continuousWalk(label)<=continuousWalk(l))));next.push(label);
-  labels.set(key,next);revision++;return true;
- };
- const finalWalks=new Map<string,ReturnType<typeof near>>();
- const walk=(label:Label)=>{
-  if(matchesJourneyPlace(to,label.stop))return;
-  let targets=near(label.stop);
-  if(label.rides>maxTransfers){if(!finalWalks.has(label.stop.id))finalWalks.set(label.stop.id,targets.filter(({stop})=>matchesJourneyPlace(to,stop)));targets=finalWalks.get(label.stop.id)!;}
-  for(const {stop,meters,minutes} of targets){
-  if(continuousWalk(label)+meters>o.walkMeters||label.time+minutes*60000>latest)continue;
-  const leg:JourneyLeg={from:label.stop,to:stop,departure:label.time,arrival:label.time+minutes*60000,walking:meters,course:'walk',provider:'walk',line:'Pieszo'};
-  add({...label,stop,time:leg.arrival,legs:[...label.legs,leg],walking:label.walking+meters});
- }};
- const origins=stops.filter(s=>matchesJourneyPlace(from,s)&&s.id!==from.id);
- for(const origin of origins.length?origins:[from]){const initial:Label={stop:origin,time:earliest,legs:[],rides:0,walking:0};add(initial);walk(initial);}
- const process=(c:Connection)=>{
-  if(c.departure<earliest||c.arrival>latest||!o.providers.includes(c.provider))return;
-  const continuing=(onboard.get(c.course)||[]).filter(l=>l.stop.id===c.from.id&&l.time<=c.departure);
-  const boarding=c.pickup===false?[]:(labels.get(c.from.id)||[]).filter(l=>l.rides<=maxTransfers&&l.time+(l.rides?o.transferMinutes*60000:0)<=c.departure&&!l.legs.some(leg=>leg.course===c.course));
-  const next:Label[]=[];
-  for(const label of [...continuing,...boarding]){
-   const same=continuing.includes(label);let path=label.legs;
-   if(!label.rides&&path.length){const shift=c.departure-path.at(-1)!.arrival;path=path.map(leg=>({...leg,departure:leg.departure+shift,arrival:leg.arrival+shift}));}
-   const startCall={stop:c.from,arrival:c.departure,departure:c.departure,scheduledArrival:c.scheduledDeparture,scheduledDeparture:c.scheduledDeparture};
-   const endCall={stop:c.to,arrival:c.arrival,departure:c.arrival,scheduledArrival:c.scheduledArrival,scheduledDeparture:c.scheduledArrival,...(c.dropoff===false?{dropoff:false}:{})};
-   const calls=same?[...(path.at(-1)!.stops||[]).slice(0,-1),{...path.at(-1)!.stops!.at(-1)!,departure:c.departure,scheduledDeparture:c.scheduledDeparture,...(c.pickup===false?{pickup:false}:{})},endCall]:[startCall,endCall];
-   const ride:JourneyLeg=same?{...path.at(-1)!,to:c.to,arrival:c.arrival,scheduledArrival:c.scheduledArrival,stops:calls}:{from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,provider:c.provider,course:c.course,stops:calls,delaySeconds:c.delaySeconds,scheduledDeparture:c.scheduledDeparture,scheduledArrival:c.scheduledArrival};
-   const result:Label={stop:c.to,time:c.arrival,legs:same?[...path.slice(0,-1),ride]:[...path,ride],rides:label.rides+(same?0:1),walking:label.walking};
-   if(next.some(n=>n.rides<=result.rides&&n.walking<=result.walking&&departure(n)>=departure(result)))continue;
-   if(c.dropoff===false||!matchesJourneyPlace(to,result.stop))next.push(result);if(c.dropoff!==false){const accepted=add(result);if(accepted||result.rides>maxTransfers)walk(result);}
-  }
-  if(c.arrival===c.departure){
-   // Keep the incoming onboard position while resolving this instantaneous
-   // cluster; a no-dropoff stop may have no corresponding platform label.
-   let cluster=onboard.get(c.course)||[];
-   const dominates=(a:Label,b:Label)=>a.stop.id===b.stop.id&&a.time<=b.time&&a.rides<=b.rides&&a.walking<=b.walking&&departure(a)>=departure(b);
-   for(const label of next){if(cluster.some(old=>dominates(old,label)))continue;cluster=cluster.filter(old=>!dominates(label,old));cluster.push(label);revision++;}
-   onboard.set(c.course,cluster);
-  }else onboard.set(c.course,next);
- };
- const ordered=[...connections].sort((a,b)=>a.departure-b.departure||a.arrival-b.arrival);
- let reported=0;
- for(let first=0;first<ordered.length;){
-  if(first>=reported){onProgress();reported=first+1024;}
-  let end=first+1;while(end<ordered.length&&ordered[end].departure===ordered[first].departure)end++;
-  let zeroEnd=first;while(zeroEnd<end&&ordered[zeroEnd].arrival===ordered[first].departure)zeroEnd++;
-  // Resolve all instantaneous connections at this clock time before advancing.
-  // This also handles GTFS minute rounding and simultaneous carrier departures.
-  if(zeroEnd>first){let previous;do{previous=revision;for(let i=first;i<zeroEnd;i++)process(ordered[i]);}while(revision!==previous);}
-  for(let i=zeroEnd;i<end;i++)process(ordered[i]);first=end;
- }
- const score=(j:Journey)=>o.sort==='transfers'?j.transfers*86400_000+(o.arriveBy?-j.departure:j.arrival):o.sort==='walking'?j.walking*86400_000+(o.arriveBy?-j.departure:j.arrival):o.arriveBy?-j.departure:j.arrival;
- // Keep later departures, but remove worse detours for the very same boarding.
- const firstRide=(j:Journey)=>j.legs.find(l=>l.walking===undefined);
- const boardingKey=(j:Journey)=>{const ride=firstRide(j);return ride?JSON.stringify([ride.course,ride.from.id,ride.departure]):'walking';};
- const groups=new Map<string,Journey[]>();for(const journey of answers){const key=boardingKey(journey),list=groups.get(key)||[];list.push(journey);groups.set(key,list);}
- const useful=answers.filter(candidate=>!(groups.get(boardingKey(candidate))||[]).some(better=>{
-  if(better===candidate||better.arrival>candidate.arrival||better.transfers>candidate.transfers)return false;
-  const walkingOkay=better.walking<=candidate.walking||(o.sort!=='walking'&&better.walking<=candidate.walking+Math.min(150,o.walkMeters*.3)&&candidate.arrival-better.arrival>=5*60000);
-  return walkingOkay&&(better.arrival<candidate.arrival||better.transfers<candidate.transfers||better.walking<candidate.walking);
- }));
- // A later-starting direct ride also supersedes a needless out-and-back transfer.
- // Never collapse later departures just because an earlier bus arrives earlier.
- const direct=useful.filter(j=>j.transfers===0&&j.legs.some(l=>l.walking===undefined));
- const practical=useful.filter(candidate=>candidate.transfers===0||!direct.some(better=>better.departure>=candidate.departure&&better.arrival<=candidate.arrival&&(better.walking<=candidate.walking||(o.sort!=='walking'&&better.walking<=candidate.walking+Math.min(150,o.walkMeters*.3)))));
- // The scan may produce many label variants of the same sequence of boardings.
- // Deduplicate before inspecting their recorded calls, then deduplicate again
- // because different interchanges can normalize to the same shorter journey.
- const uniqueRoutes=(journeys:Journey[])=>{const seen=new Set<string>();return journeys.filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|')||'walk:'+from.id+':'+to.id;if(seen.has(key))return false;seen.add(key);return true;});};
- const rank=(a:Journey,b:Journey)=>score(a)-score(b)||a.transfers-b.transfers;
- const adjusted=uniqueRoutes(practical.sort(rank)).map(j=>tightenJourneyInterchanges(j,o));
- return uniqueRoutes(adjusted.sort(rank)).slice(0,o.day?undefined:12);
+/** Public deterministic search contract; all carriers use one normalized network. */
+export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:JourneyOptions,onProgress:()=>void=()=>{},graph?:JourneySearchGraph):Journey[]{
+ return scanJourneyNetwork(from,to,connections,o,onProgress,graph);
 }

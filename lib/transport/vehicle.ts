@@ -52,6 +52,8 @@ export interface Vehicle {
   status?: 'active' | 'break' | 'inactive' | 'technical' | 'cached';
   statusText?: string;
   isHistorical?: boolean;
+  /** Only an explicit provider update may cancel a trip or skip a call. */
+  journeyUpdate?: import('../journey-model').JourneyTripUpdate;
   trainName?: string;
   positionQuality?: 'known' | 'estimated';
 }

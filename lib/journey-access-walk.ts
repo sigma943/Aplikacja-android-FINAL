@@ -16,7 +16,7 @@ export async function resolveJourneyAccess(journeys:Journey[],options:JourneyOpt
     const oldWalking=journey.legs.slice(0,rideIndex).reduce((sum,l)=>sum+(l.walking||0),0),departure=ride.departure-route.minutes*60000;
     const walking=journey.walking-oldWalking+route.meters;
     if(route.meters>options.walkMeters||(!options.arriveBy&&departure<options.at)){result[index]=null;continue;}
-    result[index]={...journey,departure,walking,legs:[{...first,to:ride.from,departure,arrival:ride.departure,walking:route.meters,path:route.points},...journey.legs.slice(rideIndex)]};
+    result[index]={...journey,departure,walking,legs:[{...first,to:ride.from,departure,arrival:ride.departure,walking:route.meters,path:route.points,walkingQuality:'verified',walkingCheckedAt:Date.now()},...journey.legs.slice(rideIndex)]};
    }catch{signal.throwIfAborted();failed=true;}
   }
  }));

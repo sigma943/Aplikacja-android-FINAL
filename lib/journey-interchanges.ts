@@ -1,8 +1,9 @@
-import {stopDistance,type Journey,type JourneyLeg,type JourneyOptions} from './journey-planner';
+import {type Journey,type JourneyLeg,type JourneyOptions} from './journey-planner';
+import {journeyWalkMetric,type JourneySearchGraph} from './journey-footpath-network';
 
 /** Keep the same actual courses and arrival, but avoid riding past a usable
  * interchange and back on the next bus. All candidates are recorded calls. */
-export function tightenJourneyInterchanges(journey:Journey,options:JourneyOptions):Journey {
+export function tightenJourneyInterchanges(journey:Journey,options:JourneyOptions,graph?:JourneySearchGraph):Journey {
  let legs=journey.legs,changed=false,walking=journey.walking;
  for(let a=0;a<legs.length;a++){
   const incoming=legs[a];if(incoming.walking!==undefined||!incoming.stops)continue;
@@ -21,9 +22,10 @@ export function tightenJourneyInterchanges(journey:Journey,options:JourneyOption
     const departure=after[j];if(departure.pickup===false||!Number.isFinite(departure.departure)||departure.departure>outgoing.arrival)continue;
     const same=arrival.stop.id===departure.stop.id;
     if(!same&&options.walkMeters<=0)continue;
-    const meters=same?0:Math.ceil(stopDistance(arrival.stop,departure.stop)*1.35);
+    const metric=journeyWalkMetric(arrival.stop,departure.stop,options.walkMeters,graph);if(!metric)continue;
+    const meters=metric.meters;
     if(meters>options.walkMeters||(options.sort==='walking'&&meters>oldWalk))continue;
-    const minutes=same?0:Math.max(1,Math.ceil(meters/70));
+    const minutes=metric.minutes;
     if(arrival.arrival+(minutes+options.transferMinutes)*60000>departure.departure)continue;
     const moving=arrival.arrival-incoming.departure+outgoing.arrival-departure.departure+minutes*60000;
     const saving=oldMoving-moving;
@@ -35,10 +37,11 @@ export function tightenJourneyInterchanges(journey:Journey,options:JourneyOption
   const arrival=before[best.i],departure=after[best.j];
   const first:JourneyLeg={...incoming,to:arrival.stop,arrival:arrival.arrival,scheduledArrival:arrival.scheduledArrival,stops:before.slice(0,best.i+1),path:undefined};
   const last:JourneyLeg={...outgoing,from:departure.stop,departure:departure.departure,scheduledDeparture:departure.scheduledDeparture,stops:after.slice(best.j),path:undefined};
-  const foot:JourneyLeg[] = arrival.stop.id===departure.stop.id?[]:[{from:arrival.stop,to:departure.stop,departure:arrival.arrival,arrival:arrival.arrival+best.minutes*60000,walking:best.meters,line:'Pieszo',course:'walk',provider:'walk'}];
+  const metric=journeyWalkMetric(arrival.stop,departure.stop,options.walkMeters,graph)!;
+  const foot:JourneyLeg[] = arrival.stop.id===departure.stop.id?[]:[{from:arrival.stop,to:departure.stop,departure:arrival.arrival,arrival:arrival.arrival+best.minutes*60000,walking:best.meters,walkingQuality:metric.quality,walkingCheckedAt:metric.checkedAt,path:metric.points,line:'Pieszo',course:'walk',provider:'walk'}];
   legs=[...legs.slice(0,a),first,...foot,last,...legs.slice(b+1)];
   walking+=best.meters-oldWalk;changed=true;
  }
  if(!changed)return journey;
- return {...journey,legs,walking,id:legs.map(leg=>`${leg.course}:${leg.from.id}:${leg.to.id}:${leg.departure}`).join('|')};
+ return {...journey,legs,walking,id:JSON.stringify(legs.map(leg=>[leg.provider,leg.course,leg.from.id,leg.to.id,leg.departure]))};
 }
