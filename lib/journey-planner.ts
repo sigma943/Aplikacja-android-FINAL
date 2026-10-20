@@ -3,7 +3,12 @@ import type {Departure,Stop} from '@/Panel/src/types';
 export type JourneyCall={stop:Stop;arrival:number;departure:number;scheduledArrival?:number;scheduledDeparture?:number};
 export type JourneyLeg={from:Stop;to:Stop;departure:number;arrival:number;line:string;provider:string;course:string;walking?:number;path?:Array<[number,number]>;stops?:JourneyCall[];delaySeconds?:number;scheduledDeparture?:number;scheduledArrival?:number};
 export type Journey={id:string;legs:JourneyLeg[];departure:number;arrival:number;walking:number;transfers:number};
+/** -1 transfers means no count limit; transferMinutes is a minimum safety buffer. */
 export type JourneyOptions={at:number;arriveBy:boolean;maxTransfers:number;walkMeters:number;transferMinutes:number;providers:string[];sort:'fastest'|'transfers'|'walking';day?:string};
+/** A preference, with a small bounded allowance; zero still excludes walking. */
+export function journeyWalkingBudget(meters:number){
+ return meters>0?meters+Math.min(50,Math.max(20,Math.ceil(meters*.1))):0;
+}
 export function journeyWindow(o:JourneyOptions){
  return {earliest:o.arriveBy?(o.day?warsawTimeMs(o.day,'00:00'):o.at-6*3600_000):o.at,
   latest:o.arriveBy?o.at:(o.day?warsawTimeMs(o.day,'24:00')-1:o.at+6*3600_000)};
@@ -61,7 +66,7 @@ export function findJourneys(from:Stop,to:Stop,legs:JourneyLeg[],o:JourneyOption
    if(arrival<=latest&&!seen.has(id)){seen.add(id);found.push({id,legs:path,departure,arrival,walking:walked,transfers:rides-1});}return;
   }
   if(rides>0&&current.id!==to.id){const end=walkLeg(current,to,time);if(end)search(to,end.arrival,[...path,end],rides,walked+end.walking!);}
-  if(rides>=o.maxTransfers+1)return;
+  if(o.maxTransfers>=0&&rides>=o.maxTransfers+1)return;
   if(!neighbors.has(current.id))neighbors.set(current.id,stops.filter(s=>s.id!==current.id&&stopDistance(current,s)*1.35<=o.walkMeters));
   const points=[current,...neighbors.get(current.id)!];
   for(const point of points){

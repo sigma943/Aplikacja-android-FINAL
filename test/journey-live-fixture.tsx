@@ -8,7 +8,8 @@ const place=(id:string,name:string,lat:number,lon:number):Stop=>({id,name,lat,lo
 const a=place('a','Początek',50.04,22),b=place('b','Przesiadka',50.041,22.001),c=place('c','Koniec',50.043,22.004),middle=place('middle','Przystanek pośredni',50.04215,22.0025);
 const d=place('d','Cel podróży',50.044,22.0055);
 export async function loadJourneyCatalog(){return [a,b,c,d];}
-export async function searchConnections(from?:Stop){
+export async function searchConnections(from?:Stop,_to?:Stop,_catalog?:Stop[],_date?:string,options?:unknown,_signal?:AbortSignal,_progress?:unknown,onPartial?:(result:any)=>void){
+ (window as any).__preferences=options;
  const origin=from?.id==='journey:my-location'?from:a;
  const count=((window as any).__liveCalls||0)+1;(window as any).__liveCalls=count;
  const departure=Date.now()+3600000+count*60000,arrival=departure+5400000;
@@ -17,7 +18,9 @@ export async function searchConnections(from?:Stop){
   {from:b,to:c,departure:departure+120000,arrival:departure+600000,course:'pks:123:2026-10-19',provider:'pks',line:'108',delaySeconds:count*60,stops:[{stop:b,arrival:departure+120000,departure:departure+120000},{stop:middle,arrival:departure+360000,departure:departure+360000},{stop:c,arrival:departure+600000,departure:departure+600000}],path:[[b.lat!,b.lon!],[c.lat!,c.lon!]]},
   {from:c,to:d,departure:departure+660000,arrival,course:'mpk:124:2026-10-19',provider:'mpk',line:'11',delaySeconds:-60,path:[[c.lat!,c.lon!],[d.lat!,d.lon!]]},
  ]};
- return {journeys:[journey],warnings:[]};
+ const result={journeys:[journey],warnings:[]};
+ if(count===1&&onPartial){onPartial(result);await new Promise<void>(resolve=>{(window as any).__finishEnrichment=resolve;});}
+ return result;
 }
 (window as any).__journeyThemes=Object.fromEntries(['light-sky','dark-forest','light-pink'].map(t=>[t,themeDecoration(t)]));
 localStorage.setItem('pks-live:journey-recents',JSON.stringify(Array.from({length:7},(_,i)=>({from:a,to:d,searchedAt:Date.now()-i*60000}))));

@@ -27,5 +27,5 @@ export async function executeTimetableSearch(input:TimetableSearch,progress:(n:n
   finally{progress(++loaded,providers.length);}
  }));
  if(providers.length&&failed===providers.length&&!connections.length)throw Error(warnings.join(' '));
- return {journeys:scanJourneys(input.from,input.to,applyJourneyDelays(connections,input.vehicles||[],input.observedAt),input.options),warnings,limited:false};
+ return {journeys:scanJourneys(input.from,input.to,applyJourneyDelays(connections,input.vehicles||[],input.observedAt),input.options,()=>progress(providers.length,providers.length)),warnings,limited:false};
 }

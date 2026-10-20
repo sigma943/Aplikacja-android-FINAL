@@ -4,7 +4,7 @@ const date='2026-10-20',rows=require('./fixtures/marcel-jaslo-rzeszow-1181798.js
 const catalog=rows.map((p,i)=>({id:'marcel-point:'+i,name:p.nazMi+' '+p.nazPr,type:'bus',lat:p.szGps,lon:p.dlGps,carriers:[{id:'marcel'}],sourceProviderIds:['marcel'],providerStopIds:{marcelRouteIds:'JASLO-RZ',marcelCityMatchKeys:marcelCourseStopIndexKey(p)},isFavorite:false,lines:['M']}));
 const options={at:warsawTimeMs(date,'04:20'),arriveBy:false,maxTransfers:1,walkMeters:300,transferMinutes:5,providers:['marcel','mpk'],sort:'fastest'};
 const mpk=JSON.parse(z.gunzipSync(fs.readFileSync('public/data/journeys/mpk.json.gz'))),to={...mpk.stops['158'],id:'journey:mpk:158',type:'bus',lines:[],carriers:[],isFavorite:false};
-function create(api,run){return load('lib/journey-loader.ts',{'./pks-client':api,'./journey-worker-client':{runTimetableSearch:run}}).searchConnections;}
+function create(api,run){return load('lib/journey-loader.ts',{'./pks-client':{fetchVehiclesClient:async()=>[],...api},'./journey-worker-client':{runTimetableSearch:run}}).searchConnections;}
 test('Marcel API adapter joins the recorded real course to MPK, with one fetch per course',async()=>{
  let courseCalls=0,segments=0;
  const search=create({fetchMarcelCoursesClient:async(id,d)=>{assert.equal(id,'JASLO-RZ');assert.equal(d,date);return [{idKu:'1181798',godz:'04:30'},{idKu:'1181798',godz:'04:30'}];},fetchMarcelPublicCourseStopsClient:async id=>{assert.equal(id,'1181798');courseCalls++;return rows;}},async input=>{
@@ -35,4 +35,36 @@ test('cancelling a Marcel request releases the caller and never starts the timet
  let entered;const started=new Promise(resolve=>{entered=resolve;});let workerStarted=false;
  const search=create({fetchMarcelCoursesClient:async()=>{entered();return new Promise(()=>{});}},async()=>{workerStarted=true;throw Error('Should not run');});
  const controller=new AbortController(),pending=search(catalog[0],to,catalog,date,options,controller.signal,()=>{});await started;controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(workerStarted,false);
+});
+
+test('one failed Marcel course preserves completed courses and still connects to PKS',async()=>{
+ const feed=JSON.parse(z.gunzipSync(fs.readFileSync('public/data/journeys/pks.json.gz')));
+ const target={...feed.stops['20'],id:'journey:pks:20',type:'bus',lines:[],carriers:[{id:'pks'}],isFavorite:false};
+ const search=create({fetchMarcelCoursesClient:async()=>[{idKu:'1181798',godz:'04:30'},{idKu:'broken',godz:'04:35'}],fetchMarcelPublicCourseStopsClient:async id=>{if(id==='broken')throw Error('one course unavailable');return rows;}},async input=>({journeys:scanJourneys(input.from,input.to,[...feedConnections(feed,input.catalog,date,input.options),...input.extra],input.options),warnings:input.warnings,limited:false}));
+ const result=await search(catalog[0],target,catalog,date,{...options,providers:['marcel','pks'],walkMeters:500},new AbortController().signal,()=>{});
+ assert.ok(result.journeys.some(j=>j.legs.some(l=>l.provider==='marcel')&&j.legs.some(l=>l.provider==='pks')),'recorded Marcel calls connect to the real PKS timetable');
+ assert.match(result.warnings.join(' '),/część kursów/);
+});
+
+test('failed Marcel route does not erase a different route, and unlimited mode loads intermediate routes',async()=>{
+ const isolated={...catalog[0],id:'isolated',lat:49.1,lon:21.1,providerStopIds:{marcelRouteIds:'broken'}};
+ const remote={...catalog[1],id:'remote',lat:49.2,lon:21.2,providerStopIds:{...catalog[1].providerStopIds,marcelRouteIds:'remote'}};
+ const requested=[];
+ const search=create({fetchMarcelCoursesClient:async id=>{requested.push(id);if(id==='broken')throw Error('route unavailable');return [{idKu:'1181798',godz:'04:30'}];},fetchMarcelPublicCourseStopsClient:async()=>rows},async input=>{assert.equal(input.extra.length,rows.length-1);return {journeys:[],warnings:input.warnings,limited:false};});
+ const result=await search(isolated,{...isolated,id:'end'},[isolated,remote],date,{...options,maxTransfers:-1},new AbortController().signal,()=>{});
+ assert.deepEqual(new Set(requested),new Set(['broken','remote']));assert.match(result.warnings.join(' '),/część kursów/);
+});
+
+test('local PKS results are published while Marcel is still pending and enriched afterwards',async()=>{
+ let release,partialReady;const waiting=new Promise(r=>{release=r}),published=new Promise(r=>{partialReady=r});let scans=0;
+ const local={id:'local',departure:options.at+600000,arrival:options.at+1200000,walking:0,transfers:0,legs:[{from:catalog[0],to,line:'108',provider:'pks',course:'pks:direct',departure:options.at+600000,arrival:options.at+1200000}]};
+ const search=create({fetchMarcelCoursesClient:async()=>{await waiting;return [{idKu:'1181798',godz:'04:30'}];},fetchMarcelPublicCourseStopsClient:async()=>rows},async input=>{scans++;if(scans===1)assert.equal(input.extra.length,0);else assert.equal(input.extra.length,rows.length-1);return {journeys:[local],warnings:[],limited:false};});
+ const pending=search(catalog[0],to,catalog,date,{...options,providers:['pks','marcel']},new AbortController().signal,()=>{},result=>{assert.equal(result.journeys[0],local);partialReady();});
+ await published;assert.equal(scans,1,'PKS was available before the online request completed');release();const result=await pending;assert.equal(scans,2);assert.equal(result.journeys[0].id,'local');
+});
+
+test('cancelling after local results never publishes a stale enrichment',async()=>{
+ let published;const ready=new Promise(r=>{published=r});let scans=0;
+ const search=create({fetchMarcelCoursesClient:async()=>new Promise(()=>{})},async()=>{scans++;return {journeys:[{id:'local',legs:[{provider:'pks'}]}],warnings:[],limited:false};});
+ const controller=new AbortController();const pending=search(catalog[0],to,catalog,date,options,controller.signal,()=>{},()=>published());await ready;controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(scans,1);
 });

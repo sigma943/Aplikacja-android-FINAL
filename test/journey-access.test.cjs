@@ -32,3 +32,15 @@ test('coordinate searches reject a routed 25km pure walk under a 500m limit',asy
  const result=await api.searchConnections(gps,near,[],'2026-10-20',{...options,providers:['pks'],sort:'fastest'},new AbortController().signal,()=>{});
  assert.equal(result.journeys.length,0);
 });
+
+test('50m preference accepts a routed 60m access, but not a 90m access',async()=>{
+ for(const [meters,expected] of [[40,1],[60,1],[90,0]]){
+  const api=load('lib/journey-loader.ts',{
+   './journey-walking':{journeyWalkingRoute:async()=>({points:[],meters,minutes:1})},
+   './journey-worker-client':{runTimetableSearch:async input=>{assert.equal(input.options.walkMeters,70);return {journeys:[journey],warnings:[],limited:false};}},
+   './pks-client':{fetchVehiclesClient:async()=>[]}
+  });
+  const result=await api.searchConnections(gps,end,[],'2026-10-20',{...options,walkMeters:50,providers:['pks'],sort:'fastest'},new AbortController().signal,()=>{});
+  assert.equal(result.journeys.length,expected);if(expected)assert.equal(result.journeys[0].legs[0].walking,meters);
+ }
+});
