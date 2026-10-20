@@ -104,5 +104,9 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[aria-label="Zamień przystanki"]');const stopped=await page.evaluate(()=>window.__liveCalls);await new Promise(r=>setTimeout(r,400));assert.equal(await page.evaluate(()=>window.__liveCalls),stopped,'changing query cancels automatic refresh');
   for(let i=0;i<5;i++)await page.click('.connections-recent-delete');assert.equal(await page.$('.connections-recents'),null);assert.deepEqual(errors,[]);
   fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/journeys-live-refresh.png'});console.log('PASS: 30-second refresh, stable details/map, inactive cancellation, trash icon, centered compact walker and map attribution');
+ }catch(error){
+  const pages=await browser?.pages().catch(()=>[]);const page=pages?.[0];
+  if(page){fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/journeys-interaction-failure.png'}).catch(()=>{});console.error('Journey UI state:',await page.evaluate(()=>({focus:[...document.querySelectorAll('.connections-leg-focus')].map(e=>({label:e.getAttribute('aria-label'),pressed:e.getAttribute('aria-pressed')})),sheet:document.querySelector('.connections-map-sheet')?.outerHTML.slice(0,1800),routes:[...document.querySelectorAll('.connections-walking-path,.connections-bus-path')].map(e=>({class:e.getAttribute('class'),stroke:e.getAttribute('stroke'),opacity:e.getAttribute('stroke-opacity')}))})).catch(()=>null));}
+  throw error;
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

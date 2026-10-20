@@ -23,6 +23,13 @@ const color=(leg:JourneyLeg)=>getVehicleColor({provider:leg.provider==='mpk'?'mp
 const hasCoordinates=(stop:Stop)=>Number.isFinite(stop.lat)&&Number.isFinite(stop.lon);
 const walkSvg='<svg width="18" height="18" viewBox="3.5 0 32 32" aria-hidden="true"><circle cx="20" cy="5.5" r="3.3" fill="currentColor"/><path d="m13 28 3-9 3-8m5 17-5-10m-8 0 3-6 5-1 5 6 4 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+/** Leaflet updates stroke styles, but CSS classes require updating the path element. */
+function JourneyRouteStroke({path,walking,focused,muted,strokeColor,onSelect}:{path:Point[];walking:boolean;focused:boolean;muted:boolean;strokeColor:string;onSelect:()=>void}){
+ const stroke=useRef<L.Polyline>(null);
+ useEffect(()=>{const node=stroke.current?.getElement();node?.classList.toggle('is-focused',focused);node?.classList.toggle('is-muted',muted);},[focused,muted]);
+ return <Polyline ref={stroke} positions={path} className={walking?'connections-walking-path':'connections-bus-path'} eventHandlers={{click:onSelect}} pathOptions={{color:walking?'#fff':strokeColor,dashArray:walking?'5 10':undefined,weight:focused?(walking?5:7):walking?4:5.5,opacity:muted?.3:1,lineCap:'round',lineJoin:'round'}}/>;
+}
+
 function WalkingMarker({position}:{position:Point}){
  const map=useMap(),[zoom,setZoom]=useState(()=>map.getZoom());
  useMapEvents({zoomend:()=>setZoom(map.getZoom())});
@@ -157,7 +164,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
     const path=paths[index];if(!path)return null;const walking=leg.walking!==undefined,focused=activeLeg===index,muted=activeLeg!==null&&!focused;
     return <Fragment key={index}>
      <Polyline interactive={false} positions={path} pathOptions={{color:focused&&walking?'var(--cn-accent)':'#172536',weight:focused?12:walking?7:9,opacity:muted?.15:focused?.8:.6,lineCap:'round',lineJoin:'round'}}/>
-     <Polyline positions={path} className={(walking?'connections-walking-path':'connections-bus-path')+(focused?' is-focused':'')+(muted?' is-muted':'')} eventHandlers={{click:()=>focusStage(index)}} pathOptions={{color:walking?'#fff':color(leg),dashArray:walking?'5 10':undefined,weight:focused?(walking?5:7):walking?4:5.5,opacity:muted?.3:1,lineCap:'round',lineJoin:'round'}}/>
+     <JourneyRouteStroke path={path} walking={walking} focused={focused} muted={muted} strokeColor={color(leg)} onSelect={()=>focusStage(index)}/>
      {walking&&<WalkingMarker position={journeyPathMidpoint(path)!}/>}
     </Fragment>;
    })}
@@ -174,7 +181,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
    <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journeyDestinationLabel(journey.legs.at(-1)!.to)}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
    {mapContent}
-   <JourneyMapSheet journey={journey} activeLeg={activeLeg} onFocusLeg={focusStage}/>
+   <JourneyMapSheet journey={journey} activeLeg={activeLeg} onFocusLeg={index=>{focusStage(index);requestAnimationFrame(()=>dialog.current?.querySelector<HTMLElement>('.leaflet-container')?.focus({preventScroll:true}));}}/>
   </section>,document.body)}
  </div>;
 }
