@@ -124,9 +124,9 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
     {results.slice(0,resultLimit).map(j=><article data-cosmic-panel data-journey-result className={'connections-card connections-result-card'+(selected===j.id?' is-expanded':'')} key={j.id}>
      <button className="connections-result" aria-expanded={selected===j.id} onClick={()=>{setSelected(selected===j.id?null:j.id);setMap(false);}}>
       <div className="connections-result-times"><strong>{warsawClock(j.departure)}<ArrowRight size={17}/>{warsawClock(j.arrival)}</strong><span className="connections-duration">{Math.ceil((j.arrival-j.departure)/60000)} min</span></div>
-      <div className="connections-leg-badges">{j.legs.map((l,i)=><span key={i} data-provider={l.provider}>{l.walking!==undefined?<Footprints size={13}/>:<Bus size={13}/>} {l.walking!==undefined?l.walking+' m':l.line}{l.walking===undefined&&<JourneyDelayBadge seconds={l.delaySeconds}/>}</span>)}</div>
+      <div className="connections-leg-badges">{j.legs.map((l,i)=><span key={i} data-provider={l.provider}>{l.walking!==undefined?<Footprints size={13}/>:<Bus size={13}/>} {l.walking!==undefined?l.walking+' m':l.line}</span>)}</div>
       <div className="connections-endpoints"><span>{journeyDepartureLabel(j.legs[0])}</span><ArrowRight size={16}/><span>{label(j.legs.at(-1)!.to)}</span></div>
-      <div className="connections-stops-summary"><span><Bus size={14}/> Przystanki i godziny</span><span>{selected===j.id?'Zwiń':'Rozwiń'} {selected===j.id?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</span></div>
+      <div className="connections-stops-summary"><span className="connections-disclosure-icon"><Bus size={17}/></span><span className="connections-disclosure-copy"><strong>Przystanki i godziny</strong><small>Szczegóły podróży</small></span><span className="connections-disclosure-action">{selected===j.id?'Zwiń':'Rozwiń'} {selected===j.id?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</span></div>
 
       <div className="connections-result-meta"><span>{j.legs.every(l=>l.walking!==undefined)?'Całą trasę pieszo':j.transfers===0?'Bez przesiadek':j.transfers===1?'1 przesiadka':j.transfers+' przesiadki'}{j.walking>0?' · '+j.walking+' m pieszo':''}</span></div>
      </button>
@@ -142,7 +142,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
         </div>
 
        </div>
-       {l.stops&&l.stops.length>2&&<details className="connections-stop-details"><summary><span>{l.stops.length} przystanków · godziny przyjazdu</span><ChevronDown size={15}/></summary><ol>{l.stops.map((call,index)=><li key={index}><div><time>{warsawClock(index===0?call.departure:call.arrival)}</time>{call.scheduledArrival!==undefined&&call.scheduledArrival!==call.arrival&&<del>{warsawClock(call.scheduledArrival)}</del>}</div><span>{label(call.stop)}</span></li>)}</ol></details>}
+       {l.stops&&l.stops.length>2&&<details className="connections-stop-details"><summary><span className="connections-disclosure-icon"><Clock size={17}/></span><span className="connections-disclosure-copy"><strong>{l.stops.length} przystanków</strong><small>Godziny przyjazdu</small></span><span className="connections-disclosure-chevron"><ChevronDown size={17}/></span></summary><ol>{l.stops.map((call,index)=><li key={index}><div><time>{warsawClock(index===0?call.departure:call.arrival)}</time>{call.scheduledArrival!==undefined&&call.scheduledArrival!==call.arrival&&<del>{warsawClock(call.scheduledArrival)}</del>}</div><span>{label(call.stop)}</span></li>)}</ol></details>}
       </div>)}
 
       {allowMap&&<button className="connections-map-button" onClick={()=>setMap(!map)}><MapPin size={16}/>{map?'Ukryj mapę':'Pokaż podróż na mapie'}</button>}{allowMap&&map&&<JourneyMap journey={j} dark={dark}/>}</div>}

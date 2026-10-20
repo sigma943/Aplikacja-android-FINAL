@@ -160,9 +160,11 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    assert.equal(await page.$eval('.connections-view',e=>e.style.overflow),'');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-label')),'Powiększ mapę');
   }
   await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});await page.screenshot({path:'test/ui-previews/journeys-mobile-inline.png'});
-  // The inline map must allow a vertical swipe to scroll the page, rather than trapping it.
-  await page.evaluate(()=>{const spacer=document.createElement('div');spacer.style.height='1200px';document.querySelector('.connections-view').append(spacer);});
-  const touch=await page.touchscreen.touchStart(180,300);await touch.move(180,220);await touch.move(180,140);await touch.end();await page.waitForFunction(()=>document.querySelector('.connections-view').scrollTop>40);
+  // The inline map supports the same one-finger panning as fullscreen.
+  await page.$eval('.journey-map',e=>e.scrollIntoView());
+  const pan=await page.$eval('.journey-map .leaflet-map-pane',e=>e.style.transform);
+  const touch=await page.touchscreen.touchStart(180,250);await touch.move(240,250);await touch.end();
+  await page.waitForFunction(before=>document.querySelector('.journey-map .leaflet-map-pane').style.transform!==before,{},pan);
   await page.goto(origin+'/?map-case=missing',{waitUntil:'domcontentloaded'});await page.waitForSelector('[aria-label="Niepełna trasa. Ponów wczytywanie"]');assert.equal(await page.$('[aria-label="Wczytywanie trasy"]'),null,'invalid coordinates terminate loading');
   await page.click('[aria-label="Niepełna trasa. Ponów wczytywanie"]');await page.waitForSelector('[aria-label="Niepełna trasa. Ponów wczytywanie"]');await page.waitForFunction(()=>!document.querySelector('[aria-label="Wczytywanie trasy"]'));assert.ok(await page.$('.connections-walking-path'),'a failed leg does not remove the valid route');assert.deepEqual(errors,[]);
   await page.goto(origin+'/?icons=1',{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-nav-item="journeys"] [data-journey-tab-icon]');await page.screenshot({path:'test/ui-previews/journeys-new-icon.png'});

@@ -74,3 +74,28 @@ test('a sideways stop projects perpendicularly onto a curved road without moving
  assert.ok(roadDistance(dot.point,[(a[0]+b[0])/2,(a[1]+b[1])/2])<.01);
  assert.equal(JSON.stringify(road),before);assert.ok(roadDistance(actual,dot.point)>5);
 });
+test('a slower pedestrian answer replaces a fast ring-road detour; alternative foot paths compete by distance',async()=>{
+ const previous=global.fetch,a=stop('a',[50,22]),b=stop('b',[50,22.001]),short=[[50,22],[50,22.0005],[50,22.001]],long=[[50,22],[50.002,22],[50.002,22.001],[50,22.001]];
+ const length=points=>points.slice(1).reduce((n,p,i)=>n+roadDistance(points[i],p),0);let requests=0;
+ try{
+  global.fetch=async url=>{
+   requests++;
+   if(String(url).includes('routed-foot'))return {ok:true,json:async()=>({code:'Ok',routes:[{distance:length(long),geometry:{coordinates:long.map(([lat,lon])=>[lon,lat])}}]})};
+   const query=JSON.parse(decodeURIComponent(String(url).split('?json=')[1]));assert.equal(query.costing_options.pedestrian.shortest,true);
+   await new Promise(resolve=>setTimeout(resolve,25));return {ok:true,json:async()=>({trip:{summary:{length:length(short)/1000},legs:[{shape:encoded(short)}]}})};
+  };
+  const api=load('lib/journey-walking.ts');const result=await api.journeyWalkingRoute(a,b);assert.deepEqual(result.points,short);assert.ok(result.meters<100);assert.equal(requests,2);
+  await api.journeyWalkingRoute(a,b);assert.equal(requests,2,'both calls share the validated best path');
+  global.fetch=async url=>String(url).includes('routed-foot')?{ok:true,json:async()=>({code:'Ok',routes:[{distance:length(long),geometry:{coordinates:long.map(([lat,lon])=>[lon,lat])}},{distance:length(short),geometry:{coordinates:short.map(([lat,lon])=>[lon,lat])}}]})}:{ok:false};
+  assert.deepEqual((await load('lib/journey-walking.ts').journeyWalkingRoute(a,b)).points,short,'OSRM alternatives are considered independently');
+ }finally{global.fetch=previous;}
+});
+test('map roles distinguish real transfers from an initial walk and dots shrink with zoom',()=>{
+ const {journeyPointRole,journeyPointSize}=load('lib/journey-map-markers.ts');
+ const a=stop('a',[50,22]),b=stop('b',[50,22.001]),c=stop('c',[50,22.002]),d=stop('d',[50,22.003]),e=stop('e',[50,22.004]);
+ const journey={legs:[{from:a,to:b,walking:70},{from:b,to:c},{from:c,to:d,walking:70},{from:d,to:e}]};
+ assert.equal(journeyPointRole(journey,a),'start');assert.equal(journeyPointRole(journey,e),'end');
+ assert.equal(journeyPointRole(journey,b),'stop');assert.equal(journeyPointRole(journey,c),'transfer');assert.equal(journeyPointRole(journey,d),'transfer');
+ assert.ok(journeyPointSize(11,'stop')<journeyPointSize(17,'stop'));assert.ok(journeyPointSize(11,'stop')<=1.5);
+ assert.ok(journeyPointSize(11,'transfer')>journeyPointSize(11,'stop')*4);
+});
