@@ -60,7 +60,7 @@ export function findJourneys(from:Stop,to:Stop,legs:JourneyLeg[],o:JourneyOption
    const departure=path[0].departure,arrival=path.at(-1)!.arrival,id=path.map(l=>`${l.course}:${l.from.id}:${l.to.id}:${l.departure}`).join('|');
    if(arrival<=latest&&!seen.has(id)){seen.add(id);found.push({id,legs:path,departure,arrival,walking:walked,transfers:rides-1});}return;
   }
-  if(rides>0&&current.id!==to.id){const end=walkLeg(current,to,time);if(end&&walked+end.walking!<=o.walkMeters)search(to,end.arrival,[...path,end],rides,walked+end.walking!);}
+  if(rides>0&&current.id!==to.id){const end=walkLeg(current,to,time);if(end)search(to,end.arrival,[...path,end],rides,walked+end.walking!);}
   if(rides>=o.maxTransfers+1)return;
   if(!neighbors.has(current.id))neighbors.set(current.id,stops.filter(s=>s.id!==current.id&&stopDistance(current,s)*1.35<=o.walkMeters));
   const points=[current,...neighbors.get(current.id)!];

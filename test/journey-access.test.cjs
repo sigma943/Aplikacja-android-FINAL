@@ -14,3 +14,21 @@ test('an unreachable bus is removed using actual access time and failed geometry
  const fail=load('lib/journey-access-walk.ts',{'./journey-walking':{journeyWalkingRoute:async()=>{throw Error('offline');}}});
  const result=await fail.resolveJourneyAccess([journey],options,new AbortController().signal);assert.equal(result.failed,true);assert.equal(result.journeys[0].legs[0].from.id,gps.id);
 });
+
+test('all later GPS departures are validated and crossing the street has a separate budget',async()=>{
+ let calls=0;const api=load('lib/journey-access-walk.ts',{'./journey-walking':{journeyWalkingRoute:async()=>{calls++;return {points:[],meters:496,minutes:8};}}});
+ const journeys=Array.from({length:17},(_,i)=>({...journey,id:'bus:'+i,walking:233,legs:[...journey.legs,{from:end,to:{id:'opposite'},walking:93,departure:2000000,arrival:2120000}]}));
+ const result=await api.resolveJourneyAccess(journeys,{...options,at:0},new AbortController().signal);
+ assert.equal(calls,17);assert.equal(result.journeys.length,17);assert.equal(result.journeys[0].walking,589);
+});
+
+test('coordinate searches reject a routed 25km pure walk under a 500m limit',async()=>{
+ const near={...gps,id:'journey:point:near',lat:gps.lat+.001};
+ const api=load('lib/journey-loader.ts',{
+  './journey-walking':{journeyWalkingRoute:async()=>({points:[],meters:25407,minutes:363})},
+  './journey-worker-client':{runTimetableSearch:async()=>({journeys:[],warnings:[]})},
+  './pks-client':{fetchVehiclesClient:async()=>[]}
+ });
+ const result=await api.searchConnections(gps,near,[],'2026-10-20',{...options,providers:['pks'],sort:'fastest'},new AbortController().signal,()=>{});
+ assert.equal(result.journeys.length,0);
+});

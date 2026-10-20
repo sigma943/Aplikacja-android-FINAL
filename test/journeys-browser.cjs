@@ -64,6 +64,11 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await screenshot('map-picker-point');await page.click('.connections-place-confirm button');
    await page.waitForFunction(()=>document.querySelector('[data-journey-to]').textContent.includes('Punkt na mapie'));
    await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location');await page.waitForSelector('.connections-place-leaflet');
+   await page.keyboard.down('Shift');try{await page.click('.connections-place-map .leaflet-control-zoom-in');}finally{await page.keyboard.up('Shift');}
+   await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring');
+   await page.click('.connections-place-map .map-catalog-stop');
+   await page.waitForSelector('.connections-place-map .map-stop-ring.is-selected');
+   assert.equal(await page.$('.connections-picked-pin'),null,'a selected real stop glows without a map pin');
    await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker] input');assert.equal(await page.$('.connections-place-leaflet'),null);
    await page.keyboard.press('Escape');assert.equal(await page.$('[data-journey-picker]'),null);assert.deepEqual(errors,[]);
    await page.goto(origin+'/?map-case=curve',{waitUntil:'domcontentloaded'});await page.waitForSelector('.journey-map .leaflet-tile-pane');

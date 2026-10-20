@@ -371,7 +371,10 @@
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) :is(.connections-card,.connections-picker,.connections-map-toolbar,.connections-map-modal){background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}
 .connections-content{position:relative;z-index:1}
 .connections-stop-point.is-selected{filter:drop-shadow(0 0 5px var(--cn-accent)) drop-shadow(0 0 10px var(--cn-accent))}
-.connections-selected-stop{position:absolute;left:10px;right:10px;bottom:10px;z-index:700;display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--cn-accent);border-radius:13px;background:var(--cn-surface);box-shadow:0 3px 18px #0003;color:var(--cn-text);font-size:12px}
-.connections-selected-stop>span{flex:1;min-width:0}
-.connections-selected-stop button{display:grid;place-items:center;border:0;background:none;color:var(--cn-muted);min-width:32px;min-height:32px}
 .journey-map{position:relative}
+
+.connections-stop-badge{position:absolute;z-index:700;display:flex;align-items:flex-start;gap:8px;padding:12px;border:1px solid color-mix(in srgb,var(--cn-accent) 50%,var(--cn-edge));border-radius:16px;background:var(--cn-surface);box-shadow:0 8px 28px #0004;color:var(--cn-text);font-family:inherit;line-height:1.4}
+.connections-stop-badge>div{flex:1;min-width:0}
+.connections-stop-badge small{display:block;margin-bottom:4px;color:var(--cn-accent);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.connections-stop-badge strong{display:block;font-size:12px;font-weight:600;overflow-wrap:anywhere}
+.connections-stop-badge button{display:grid;place-items:center;flex:none;width:28px;height:28px;border:0;border-radius:50%;background:color-mix(in srgb,var(--cn-accent) 10%,transparent);color:var(--cn-muted)}

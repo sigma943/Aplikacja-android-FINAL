@@ -19,3 +19,17 @@ test('Warsaw day bounds follow daylight saving transitions',()=>{
   assert.equal(window.latest-window.earliest+1,hours*3600000);
  }
 });
+
+test('GPS 496m access finds later real 108 rides and a short crossing instead of a return bus',()=>{
+ const fs=require('node:fs'),{gunzipSync}=require('node:zlib'),{feedConnections}=load('lib/journey-timetable.ts');
+ const feed=JSON.parse(gunzipSync(fs.readFileSync('public/data/journeys/pks.json.gz')));
+ const stop=id=>({...feed.stops[id],id:'journey:pks:'+id,type:'bus',carriers:[],lines:[],isFavorite:false});
+ const from={...stop('10'),id:'journey:my-location',lat:feed.stops['10'].lat-.0033,name:'Twoja lokalizacja'},to=stop('1789');
+ const o={...options,at:clock('10:40'),maxTransfers:1,walkMeters:500};
+ const results=scanJourneys(from,to,feedConnections(feed,[],day,o),o),direct=results.filter(j=>j.transfers===0&&j.legs.some(l=>l.line==='108'));
+ assert.ok(direct.length>=3,'later 108 departures must remain available');
+ assert.equal(results[0].transfers,0);assert.equal(results[0].legs[1].line,'108');
+ assert.equal(results[0].legs[1].to.id,'journey:pks:1790');assert.equal(results[0].legs.at(-1).walking,93);
+ assert.equal(results[0].legs[0].walking,496);assert.ok(results.every(j=>j.legs.some(l=>l.walking===undefined)),'no 25km pure walk');
+ assert.ok(direct.some(j=>j.departure>=clock('16:00')),'afternoon buses are retained');
+});

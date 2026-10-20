@@ -25,10 +25,10 @@ test('arrival mode retains a later departure even when an earlier journey arrive
  assert.equal(scanJourneys(a,c,connections,{...options,arriveBy:true,at:90*60000})[0].departure,70*60000);
  assert.equal(scanJourneys(a,c,connections,options).length,2,'show alternative departures too');
 });
-test('walking budget is total across initial, interchange and final walks',()=>{
+test('walking limit applies to each uninterrupted access, transfer or final walk',()=>{
  const near=stop('near',50.0005),end=stop('end',50.0405),connections=[leg(near,c,70,90)];
- assert.equal(scanJourneys(a,end,connections,{...options,walkMeters:100}).length,0);
- const result=scanJourneys(a,end,connections,{...options,walkMeters:200})[0];
+ assert.equal(scanJourneys(a,end,connections,{...options,walkMeters:50}).length,0);
+ const result=scanJourneys(a,end,connections,{...options,walkMeters:100})[0];
  assert.ok(result.walking>100&&result.walking<=200);assert.equal(result.legs[0].arrival,70*60000);assert.ok(result.legs[0].departure>options.at);
  assert.equal(scanJourneys({...a,lat:undefined},end,connections,{...options,walkMeters:2000}).length,0);
 });

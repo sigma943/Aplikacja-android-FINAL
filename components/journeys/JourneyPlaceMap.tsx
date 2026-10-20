@@ -6,7 +6,7 @@ import {MapPin,Check} from 'lucide-react';
 import type {Stop} from '@/Panel/src/types';
 import {mapStopPinHtml} from '@/lib/map-stop-markers';
 import {CatalogStopsLayer} from '@/components/map/StopLayers';
-import {journeyMapPoint} from '@/lib/journey-places';
+import {journeyMapPoint,isJourneyCoordinate} from '@/lib/journey-places';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import 'leaflet/dist/leaflet.css';
 
@@ -17,8 +17,8 @@ function MapPoints({stops,selected,onPick}:{stops:Stop[];selected:Stop|null;onPi
  useMapEvents({click(event){onPick(journeyMapPoint(event.latlng.lat,event.latlng.lng));}});
  useEffect(()=>{const observer=new ResizeObserver(()=>map.invalidateSize({pan:false}));observer.observe(map.getContainer());return()=>observer.disconnect();},[map]);
  return <>
-  <CatalogStopsLayer stops={stops} onSelect={onPick}/>
-  {selected&&Number.isFinite(selected.lat)&&Number.isFinite(selected.lon)&&<Marker position={[selected.lat!,selected.lon!]} icon={pin} zIndexOffset={5000} interactive={false} keyboard={false}/>}
+  <CatalogStopsLayer stops={stops} selected={selected&&!isJourneyCoordinate(selected)?selected.id:null} onSelect={onPick}/>
+  {selected&&isJourneyCoordinate(selected)&&Number.isFinite(selected.lat)&&Number.isFinite(selected.lon)&&<Marker position={[selected.lat!,selected.lon!]} icon={pin} zIndexOffset={5000} interactive={false} keyboard={false}/>}
  </>;
 }
 export default function JourneyPlaceMap({stops,initial,onSelect}:Props){

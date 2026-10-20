@@ -45,17 +45,16 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
   catch{signal.throwIfAborted();warnings.push('Dane o opóźnieniach są niedostępne. Pokazujemy godziny rozkładowe.');}
  }
  const coordinateJourney=isJourneyCoordinate(from)||isJourneyCoordinate(to);
- const walking=coordinateJourney?journeyWalkingRoute(from,to).catch(()=>null):Promise.resolve(null);
+ const walking=coordinateJourney&&stopDistance(from,to)<=options.walkMeters?journeyWalkingRoute(from,to).catch(()=>null):Promise.resolve(null);
  const result=await runTimetableSearch({from,to,catalog,date,options,extra,warnings,vehicles,observedAt:Date.now()},signal,progress);
  if(isJourneyCoordinate(from)){const access=await resolveJourneyAccess(result.journeys,options,signal);result.journeys=access.journeys;if(access.failed)result.warnings.push('Nie udało się wyznaczyć dojścia od Twojej lokalizacji. Otwórz mapę podróży, aby ponowić wczytywanie.');}
  const estimatedWalking=result.journeys.some(j=>j.legs.every(l=>l.walking!==undefined));
  const foot=await (coordinateJourney?walking:estimatedWalking?journeyWalkingRoute(from,to).catch(()=>null):Promise.resolve(null));signal.throwIfAborted();
  if(foot){result.journeys=result.journeys.filter(j=>!j.legs.every(l=>l.walking!==undefined));}
- if(foot&&foot.meters<=(coordinateJourney?30000:options.walkMeters)){
+ if(foot&&foot.meters<=options.walkMeters){
   const duration=foot.minutes*60000,departure=options.arriveBy?options.at-duration:options.at;
-  if(foot.meters<=350&&options.sort!=='walking')result.journeys=result.journeys.filter(j=>options.arriveBy?departure-j.departure<5*60000:j.arrival-(departure+duration)<5*60000);
   result.journeys.push({id:'walk-only',departure,arrival:departure+duration,walking:foot.meters,transfers:0,legs:[{from,to,departure,arrival:departure+duration,line:'Pieszo',provider:'walk',course:'walk',walking:foot.meters,path:foot.points}]});
- }else if(coordinateJourney&&!foot)result.warnings.push('Nie udało się wczytać trasy w całości pieszo. Połączenia autobusowe nadal uwzględniają szacowane dojście do przystanków.');
+ }else if(coordinateJourney&&stopDistance(from,to)<=options.walkMeters&&!foot)result.warnings.push('Nie udało się wczytać trasy w całości pieszo. Połączenia autobusowe nadal uwzględniają szacowane dojście do przystanków.');
  if(estimatedWalking||coordinateJourney){const score=(j:typeof result.journeys[number])=>options.sort==='walking'?j.walking*86400000+(options.arriveBy?-j.departure:j.arrival):options.sort==='transfers'?j.transfers*86400000+(options.arriveBy?-j.departure:j.arrival):options.arriveBy?-j.departure:j.arrival;result.journeys.sort((a,b)=>score(a)-score(b));}
  return result;
 }

@@ -78,6 +78,9 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
  const labels=new Map<string,Label[]>(),onboard=new Map<string,Label[]>(),answers:Journey[]=[];
  let revision=0;const answerIds=new Set<string>();
  const departure=(l:Label)=>l.legs[0]?.departure??earliest;
+ // Each uninterrupted walk has its own limit; a bus ride resets that budget.
+ // Total walking is still kept for display and ranking.
+ const continuousWalk=(l:Label)=>{let meters=0;for(let i=l.legs.length-1;i>=0&&l.legs[i].walking!==undefined;i--)meters+=l.legs[i].walking!;return meters;};
  const add=(label:Label)=>{
   if(matchesJourneyPlace(to,label.stop)&&label.legs.length){
    const shift=o.arriveBy&&!label.rides?latest-label.time:0;
@@ -87,12 +90,12 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
    return;
   }
   const key=label.stop.id,list=labels.get(key)||[];
-  if(list.some(l=>l.time<=label.time&&l.walking<=label.walking&&l.rides<=label.rides&&(!o.arriveBy||departure(l)>=departure(label))))return;
-  const next=list.filter(l=>!(label.time<=l.time&&label.walking<=l.walking&&label.rides<=l.rides&&(!o.arriveBy||departure(label)>=departure(l))));next.push(label);
+  if(list.some(l=>l.time<=label.time&&l.walking<=label.walking&&l.rides<=label.rides&&(departure(l)>=departure(label)&&continuousWalk(l)<=continuousWalk(label))))return;
+  const next=list.filter(l=>!(label.time<=l.time&&label.walking<=l.walking&&label.rides<=l.rides&&(departure(label)>=departure(l)&&continuousWalk(label)<=continuousWalk(l))));next.push(label);
   labels.set(key,next);revision++;
  };
  const walk=(label:Label)=>{for(const {stop,meters,minutes} of near(label.stop)){
-  if(label.walking+meters>o.walkMeters||label.time+minutes*60000>latest)continue;
+  if(continuousWalk(label)+meters>o.walkMeters||label.time+minutes*60000>latest)continue;
   const leg:JourneyLeg={from:label.stop,to:stop,departure:label.time,arrival:label.time+minutes*60000,walking:meters,course:'walk',provider:'walk',line:'Pieszo'};
   add({...label,stop,time:leg.arrival,legs:[...label.legs,leg],walking:label.walking+meters});
  }};
@@ -111,14 +114,14 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
    const calls=same?[...(path.at(-1)!.stops||[]).slice(0,-1),{...path.at(-1)!.stops!.at(-1)!,departure:c.departure,scheduledDeparture:c.scheduledDeparture},endCall]:[startCall,endCall];
    const ride:JourneyLeg=same?{...path.at(-1)!,to:c.to,arrival:c.arrival,scheduledArrival:c.scheduledArrival,stops:calls}:{from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,provider:c.provider,course:c.course,stops:calls,delaySeconds:c.delaySeconds,scheduledDeparture:c.scheduledDeparture,scheduledArrival:c.scheduledArrival};
    const result:Label={stop:c.to,time:c.arrival,legs:same?[...path.slice(0,-1),ride]:[...path,ride],rides:label.rides+(same?0:1),walking:label.walking};
-   if(next.some(n=>n.rides<=result.rides&&n.walking<=result.walking&&(!o.arriveBy||departure(n)>=departure(result))))continue;
+   if(next.some(n=>n.rides<=result.rides&&n.walking<=result.walking&&departure(n)>=departure(result)))continue;
    next.push(result);if(c.dropoff!==false){add(result);walk(result);}
   }
   if(c.arrival===c.departure){
    // Keep the incoming onboard position while resolving this instantaneous
    // cluster; a no-dropoff stop may have no corresponding platform label.
    let cluster=onboard.get(c.course)||[];
-   const dominates=(a:Label,b:Label)=>a.stop.id===b.stop.id&&a.time<=b.time&&a.rides<=b.rides&&a.walking<=b.walking&&(!o.arriveBy||departure(a)>=departure(b));
+   const dominates=(a:Label,b:Label)=>a.stop.id===b.stop.id&&a.time<=b.time&&a.rides<=b.rides&&a.walking<=b.walking&&departure(a)>=departure(b);
    for(const label of next){if(cluster.some(old=>dominates(old,label)))continue;cluster=cluster.filter(old=>!dominates(label,old));cluster.push(label);revision++;}
    onboard.set(c.course,cluster);
   }else onboard.set(c.course,next);
@@ -139,8 +142,12 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
  const groups=new Map<string,Journey[]>();for(const journey of answers){const key=boardingKey(journey),list=groups.get(key)||[];list.push(journey);groups.set(key,list);}
  const useful=answers.filter(candidate=>!(groups.get(boardingKey(candidate))||[]).some(better=>{
   if(better===candidate||better.arrival>candidate.arrival||better.transfers>candidate.transfers)return false;
-  const walkingOkay=better.walking<=candidate.walking||(o.sort!=='walking'&&better.walking<=Math.max(100,candidate.walking)&&candidate.arrival-better.arrival>=5*60000);
+  const walkingOkay=better.walking<=candidate.walking||(o.sort!=='walking'&&better.walking<=candidate.walking+Math.min(150,o.walkMeters*.3)&&candidate.arrival-better.arrival>=5*60000);
   return walkingOkay&&(better.arrival<candidate.arrival||better.transfers<candidate.transfers||better.walking<candidate.walking);
  }));
- const seen=new Set<string>();return useful.sort((a,b)=>score(a)-score(b)||a.transfers-b.transfers).filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|')||'walk:'+from.id+':'+to.id;if(seen.has(key))return false;seen.add(key);return true;}).slice(0,o.day?undefined:12);
+ // A later-starting direct ride also supersedes a needless out-and-back transfer.
+ // Never collapse later departures just because an earlier bus arrives earlier.
+ const direct=useful.filter(j=>j.transfers===0&&j.legs.some(l=>l.walking===undefined));
+ const practical=useful.filter(candidate=>candidate.transfers===0||!direct.some(better=>better.departure>=candidate.departure&&better.arrival<=candidate.arrival&&(better.walking<=candidate.walking||(o.sort!=='walking'&&better.walking<=candidate.walking+Math.min(150,o.walkMeters*.3)))));
+ const seen=new Set<string>();return practical.sort((a,b)=>score(a)-score(b)||a.transfers-b.transfers).filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|')||'walk:'+from.id+':'+to.id;if(seen.has(key))return false;seen.add(key);return true;}).slice(0,o.day?undefined:12);
 }

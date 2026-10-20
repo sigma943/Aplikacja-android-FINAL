@@ -42,6 +42,21 @@ function JourneyStopMarkers({markers,selected,onSelect}:{markers:JourneyMapPoint
  })}</>;
 }
 
+/** A compact, arrow-free callout anchored to the displayed stop, including while panning. */
+function SelectedStopBadge({marker,onClose}:{marker:JourneyMapPoint;onClose:()=>void}){
+ const map=useMap(),ref=useRef<HTMLDivElement>(null),[,setRevision]=useState(0);
+ useMapEvents({move:()=>setRevision(v=>v+1),zoom:()=>setRevision(v=>v+1),resize:()=>setRevision(v=>v+1)});
+ useEffect(()=>{const node=ref.current;if(!node)return;L.DomEvent.disableClickPropagation(node);L.DomEvent.disableScrollPropagation(node);const observer=new ResizeObserver(()=>setRevision(v=>v+1));observer.observe(node);return()=>observer.disconnect();},[map]);
+ const point=map.latLngToContainerPoint(marker.point),size=map.getSize(),width=Math.min(250,size.x-24),height=ref.current?.offsetHeight||76;
+ const left=Math.max(12,Math.min(size.x-width-12,point.x+14+width<=size.x-12?point.x+14:point.x-width-14));
+ const top=Math.max(12,Math.min(size.y-height-12,point.y-height/2));
+ const visible=point.x>=0&&point.x<=size.x&&point.y>=0&&point.y<=size.y;
+ return createPortal(<div ref={ref} className="connections-stop-badge" role="status" style={{left,top,width,visibility:visible?'visible':'hidden'}} data-anchor-x={point.x} data-anchor-y={point.y}>
+  <div><small>{({start:'Początek podróży',end:'Cel podróży',transfer:'Przesiadka',stop:'Przystanek'})[marker.role]}</small><strong>{marker.stop.name}</strong></div>
+  <button aria-label="Zamknij opis przystanku" onClick={onClose}><X size={16}/></button>
+ </div>,map.getContainer());
+}
+
 function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boolean;fitVersion:number}){
  const map=useMap();
  useEffect(()=>{
@@ -106,6 +121,7 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
   });
   return [...unique.values()];
  },[journey,geometry,requestKey]);
+ const selectedMarker=markers.find(marker=>marker.stop.id===selectedStop?.id);
  const failed=geometry.key===requestKey?geometry.failed:[];
  const pending=Object.keys(paths).length+failed.length<journey.legs.length;
  function openMap(){
@@ -136,8 +152,8 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
    </Pane><Pane name="journey-stop-points" style={{zIndex:450}}>
    <JourneyStopMarkers markers={markers} selected={selectedStop?.id||null} onSelect={stop=>setSelectedStop(old=>old?.id===stop.id?null:stop)}/>
    </Pane>
+   {selectedMarker&&<SelectedStopBadge marker={selectedMarker} onClose={()=>setSelectedStop(null)}/>}
   </MapContainer>
-  {selectedStop&&<div className="connections-selected-stop" role="status"><span>{selectedStop.name}</span><button aria-label="Zamknij opis przystanku" onClick={()=>setSelectedStop(null)}><X size={16}/></button></div>}
 
  </>;
  return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
