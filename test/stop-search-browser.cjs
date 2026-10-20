@@ -6,7 +6,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const entry=path.join(root,'test/stop-search-fixture.tsx');
   await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'development',devtool:false,plugins:[new webpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],entry,output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@/lib/journey-loader':entry,'@/lib/journey-catalog':entry,'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')},{test:/\.css$/,use:path.join(root,'test/journey-css-loader.cjs')}]},optimization:{minimize:false}});compiler.run((e,stats)=>compiler.close(()=>e||stats.hasErrors()?reject(e||Error(stats.toString({all:false,errors:true}))):resolve()));});
   const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
-  server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://localhost').pathname,file=path.resolve(temp,'.'+pathname);if(pathname.endsWith('.js')&&file.startsWith(temp+path.sep)&&fs.existsSync(file)){res.setHeader('Content-Type','text/javascript; charset=utf-8');return res.end(fs.readFileSync(file));}if(pathname!=='/'){res.statusCode=404;return res.end();}res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
+  server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://localhost').pathname,file=path.resolve(temp,'.'+pathname);if(pathname.endsWith('.js')&&file.startsWith(temp+path.sep)&&fs.existsSync(file)){res.setHeader('Content-Type','text/javascript; charset=utf-8');return res.end(fs.readFileSync(file));}if(pathname==='/themes/kosmos/nebula.jpg'){res.setHeader('Content-Type','image/jpeg');return res.end(fs.readFileSync(path.join(root,'public/themes/kosmos/nebula.jpg')));}if(pathname!=='/'){res.statusCode=404;return res.end();}res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox']});page=await browser.newPage();const errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});await page.setRequestInterception(true);page.on('request',r=>{if(r.url().startsWith(origin)||r.url().startsWith('data:')||r.url().startsWith('blob:'))r.continue();else{external.push(r.url());r.abort();}});
@@ -28,6 +28,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.evaluate(()=>[...document.querySelectorAll('button')].find(e=>/Pokaż wszystkie \(55\)/i.test(e.textContent)).click());
   await page.waitForSelector('[aria-label="Zamknij pełną listę przystanków"]');assert.equal(await page.$eval(input,e=>e.value),'park');
   assert.ok(await page.$('[data-stop-card-id]'),'existing virtualized full list renders results');
+  for(const theme of ['dark-cosmos','light-sky','dark-forest','light-pink']){
+   await page.evaluate(t=>window.__setStopTheme(t),theme);await page.waitForFunction(t=>document.querySelector('.pks-theme-root').dataset.uiTheme===t&&document.documentElement.dataset.cosmicTheme===(t==='dark-cosmos'?'on':'off'),{},theme);
+   if(theme==='dark-cosmos')assert.equal(await page.$eval('[data-stop-list-mode]>[data-filter-cosmos]',e=>getComputedStyle(e).display),'block');
+   else assert.match(await page.$eval('[data-stop-list-mode]',e=>getComputedStyle(e).backgroundImage),/data:image/);
+   assert.equal(await page.$eval('[data-full-stop-list]',e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
+   assert.equal(await page.$eval(input,e=>e.value),'park','theme changes preserve the active search');
+   await page.screenshot({path:'test/ui-previews/stop-list-theme-'+theme+'.png'});
+  }
+  await page.evaluate(()=>window.__setStopTheme('dark'));
   await page.click('[aria-label="Zamknij pełną listę przystanków"]');
   await query('nowa swilcza');await page.waitForFunction(()=>document.querySelectorAll('[data-stop-card-id]').length===0);
   await page.click('[data-test-update]');await page.waitForSelector('[data-stop-card-id="new"]');

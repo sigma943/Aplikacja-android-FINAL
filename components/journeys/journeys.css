@@ -99,7 +99,7 @@
 .connections-picker h2{font-size:18px;font-weight:700;margin:0}
 .connections-picker header p{font-size:11px;color:var(--cn-muted);margin:4px 0}
 .connections-picker-list{flex:1;min-height:0}
-.connections-picker [data-stop-list-mode=preview]>div:first-child>div:first-child{display:none}
+.connections-picker [data-stop-list-mode=preview]>[data-stop-list-header]>div:first-child{display:none}
 .connections-picker [data-stop-list-scroll]{padding-bottom:28px}
 .connections-view .journey-map{margin-top:14px;border-radius:14px;overflow:hidden}
 @media(min-width:768px){.connections-view{padding:30px 24px 115px}.connections-form{padding:24px}.connections-heading{padding-bottom:25px}.connections-location strong{font-size:15px}.connections-primary{min-height:52px}.connections-picker{inset:14px auto 94px 50%;transform:translateX(-50%);width:min(640px,calc(100% - 32px));border:1px solid var(--cn-edge);border-radius:24px;box-shadow:0 0 0 100vmax #0007}.connections-picker>header{padding-top:20px}}
@@ -198,7 +198,7 @@
 .connections-use-location small{font-size:10px;margin-top:2px}
 .connections-picker>header{padding:12px 14px 10px;gap:10px}
 .connections-picker h2{font-size:17px}
-.connections-picker-list [data-stop-list-mode=preview]>div:first-child{margin:10px 12px 0;padding:10px;border-radius:18px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--cn-edge)}
+.connections-picker-list [data-stop-list-mode=preview]>[data-stop-list-header]{margin:10px 12px 0;padding:10px;border-radius:18px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--cn-edge)}
 .connections-picker-list input{font-size:12px;padding-block:10px;border-radius:12px}
 .connections-picker-list [aria-pressed]{min-height:36px;padding:7px 10px;font-size:11px;border-radius:11px}
 .connections-picker-list [data-stop-list-scroll]{padding:10px 12px 24px;gap:8px}
@@ -412,3 +412,10 @@
 .connections-map-sheet{isolation:isolate;background-color:var(--cn-solid);background-image:none}
 .connections-sheet-handle,.connections-sheet-content{position:relative;z-index:1}
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) .connections-map-sheet{background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}
+
+/* Theme artwork stays behind picker controls and never over street tiles. */
+.connections-picker{isolation:isolate}
+.connections-picker>:not([data-filter-cosmos]){position:relative;z-index:1}
+.connections-place-confirm{position:relative;isolation:isolate;overflow:hidden}
+.connections-place-confirm>:not([data-filter-cosmos]){position:relative;z-index:1}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) .connections-place-confirm{background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}

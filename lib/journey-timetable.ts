@@ -2,6 +2,7 @@ import type {Stop} from '@/Panel/src/types';
 import {journeyWindow,stopDistance,type Journey,type JourneyLeg,type JourneyOptions} from './journey-planner';
 import {isRzeszowStation,matchesJourneyPlace} from './journey-places';
 import {warsawTimeMs} from './transit-time';
+import {tightenJourneyInterchanges} from './journey-interchanges';
 import {pksTerminalStop} from './pks-terminal-identity';
 
 export type TimetableFeed={version:number;provider:string;validFrom:string;validUntil:string;stops:Record<string,{name:string;lat:number;lon:number}>;
@@ -120,8 +121,8 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
    const same=continuing.includes(label);let path=label.legs;
    if(!label.rides&&path.length){const shift=c.departure-path.at(-1)!.arrival;path=path.map(leg=>({...leg,departure:leg.departure+shift,arrival:leg.arrival+shift}));}
    const startCall={stop:c.from,arrival:c.departure,departure:c.departure,scheduledArrival:c.scheduledDeparture,scheduledDeparture:c.scheduledDeparture};
-   const endCall={stop:c.to,arrival:c.arrival,departure:c.arrival,scheduledArrival:c.scheduledArrival,scheduledDeparture:c.scheduledArrival};
-   const calls=same?[...(path.at(-1)!.stops||[]).slice(0,-1),{...path.at(-1)!.stops!.at(-1)!,departure:c.departure,scheduledDeparture:c.scheduledDeparture},endCall]:[startCall,endCall];
+   const endCall={stop:c.to,arrival:c.arrival,departure:c.arrival,scheduledArrival:c.scheduledArrival,scheduledDeparture:c.scheduledArrival,...(c.dropoff===false?{dropoff:false}:{})};
+   const calls=same?[...(path.at(-1)!.stops||[]).slice(0,-1),{...path.at(-1)!.stops!.at(-1)!,departure:c.departure,scheduledDeparture:c.scheduledDeparture,...(c.pickup===false?{pickup:false}:{})},endCall]:[startCall,endCall];
    const ride:JourneyLeg=same?{...path.at(-1)!,to:c.to,arrival:c.arrival,scheduledArrival:c.scheduledArrival,stops:calls}:{from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,provider:c.provider,course:c.course,stops:calls,delaySeconds:c.delaySeconds,scheduledDeparture:c.scheduledDeparture,scheduledArrival:c.scheduledArrival};
    const result:Label={stop:c.to,time:c.arrival,legs:same?[...path.slice(0,-1),ride]:[...path,ride],rides:label.rides+(same?0:1),walking:label.walking};
    if(next.some(n=>n.rides<=result.rides&&n.walking<=result.walking&&departure(n)>=departure(result)))continue;
@@ -161,5 +162,11 @@ export function scanJourneys(from:Stop,to:Stop,connections:Connection[],o:Journe
  // Never collapse later departures just because an earlier bus arrives earlier.
  const direct=useful.filter(j=>j.transfers===0&&j.legs.some(l=>l.walking===undefined));
  const practical=useful.filter(candidate=>candidate.transfers===0||!direct.some(better=>better.departure>=candidate.departure&&better.arrival<=candidate.arrival&&(better.walking<=candidate.walking||(o.sort!=='walking'&&better.walking<=candidate.walking+Math.min(150,o.walkMeters*.3)))));
- const seen=new Set<string>();return practical.sort((a,b)=>score(a)-score(b)||a.transfers-b.transfers).filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|')||'walk:'+from.id+':'+to.id;if(seen.has(key))return false;seen.add(key);return true;}).slice(0,o.day?undefined:12);
+ // The scan may produce many label variants of the same sequence of boardings.
+ // Deduplicate before inspecting their recorded calls, then deduplicate again
+ // because different interchanges can normalize to the same shorter journey.
+ const uniqueRoutes=(journeys:Journey[])=>{const seen=new Set<string>();return journeys.filter(j=>{const key=j.legs.filter(l=>l.walking===undefined).map(l=>l.course+':'+l.from.id+':'+l.to.id).join('|')||'walk:'+from.id+':'+to.id;if(seen.has(key))return false;seen.add(key);return true;});};
+ const rank=(a:Journey,b:Journey)=>score(a)-score(b)||a.transfers-b.transfers;
+ const adjusted=uniqueRoutes(practical.sort(rank)).map(j=>tightenJourneyInterchanges(j,o));
+ return uniqueRoutes(adjusted.sort(rank)).slice(0,o.day?undefined:12);
 }

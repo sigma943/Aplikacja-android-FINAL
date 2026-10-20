@@ -2,6 +2,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {MapContainer,TileLayer,Marker,ZoomControl,useMap,useMapEvents} from 'react-leaflet';
 import L from 'leaflet';
+import CosmicFilterEffects from '../CosmicFilterEffects';
 import {MapPin,Check} from 'lucide-react';
 import type {Stop} from '@/Panel/src/types';
 import {mapStopPinHtml} from '@/lib/map-stop-markers';
@@ -30,6 +31,6 @@ export default function JourneyPlaceMap({stops,initial,onSelect}:Props){
    <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" maxZoom={19}/>
    <ZoomControl position="bottomright"/><MapPoints stops={stops} selected={selected} onPick={setSelected}/>
   </MapContainer>
-  <div className="connections-place-confirm"><div aria-live="polite"><strong>{selected?displayStopCatalogLabel(selected.name,selected.code):'Wybierz miejsce na mapie'}</strong><small>{selected?`${selected.lat!.toFixed(5)}, ${selected.lon!.toFixed(5)}`:'Przybliż mapę, aby zobaczyć kropki przystanków'}</small></div><button className="connections-primary" disabled={!selected} onClick={()=>selected&&onSelect(selected)}><Check size={17}/>Wybierz</button></div>
+  <div className="connections-place-confirm"><CosmicFilterEffects/><div aria-live="polite"><strong>{selected?displayStopCatalogLabel(selected.name,selected.code):'Wybierz miejsce na mapie'}</strong><small>{selected?`${selected.lat!.toFixed(5)}, ${selected.lon!.toFixed(5)}`:'Przybliż mapę, aby zobaczyć kropki przystanków'}</small></div><button className="connections-primary" disabled={!selected} onClick={()=>selected&&onSelect(selected)}><Check size={17}/>Wybierz</button></div>
  </div>;
 }

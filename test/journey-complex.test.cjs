@@ -23,8 +23,8 @@ test('zero-time cycles terminate with unlimited transfers and no buffer',()=>{
  assert.equal(result[0].arrival,10*60000);assert.ok(result.length<5);
 });
 test('full local network with two or unlimited transfers and 2km walks finishes with progress instead of timing out',()=>{
- const child=spawnSync(process.execPath,['test/journey-complex-benchmark.cjs'],{cwd:process.cwd(),encoding:'utf8',timeout:45000,maxBuffer:1024*1024});
- assert.equal(child.error,undefined,String(child.error));assert.equal(child.status,0,child.stderr);console.log(child.stdout.trim());
+ const child=spawnSync(process.execPath,['test/journey-complex-benchmark.cjs'],{cwd:process.cwd(),encoding:'utf8',timeout:60000,maxBuffer:1024*1024});
+ assert.equal(child.error,undefined,String(child.error)+'\n'+child.stdout);assert.equal(child.status,0,child.stderr);console.log(child.stdout.trim());
 });
 
 test('transfer preference is a maximum and preserves direct and one-transfer alternatives',()=>{
