@@ -5,16 +5,17 @@ import {MapContainer,TileLayer,CircleMarker,Polyline,Marker,ZoomControl,useMap,u
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle,X} from 'lucide-react';
 import L from 'leaflet';
 import {journeyLegPath,journeyLegStops} from '@/lib/journey-leg-path';
-import {journeyPathMidpoint,journeyPointRole,journeyPointSize,journeyPointPriority,type JourneyPointRole} from '@/lib/journey-map-markers';
+import {journeyPathMidpoint,journeyPointRole,journeyPointSize,journeyPointPriority,spacedJourneyPoints,type JourneyPointRole} from '@/lib/journey-map-markers';
 import {projectJourneyStops} from '@/lib/journey-route-geometry';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
 import {type Journey,type JourneyLeg} from '@/lib/journey-planner';
 import {useDialogFocus} from '@/lib/use-dialog-focus';
 import {useAppBack} from '@/lib/use-app-back';
 import type {Stop} from '@/Panel/src/types';
-import {journeyDepartureLabel} from '@/lib/journey-label';
+import {journeyDepartureLabel,journeyDestinationLabel} from '@/lib/journey-label';
 import {journeyMapKey} from '@/lib/journey-view-state';
 import 'leaflet/dist/leaflet.css';
+import JourneyMapSheet from './JourneyMapSheet';
 
 type Point=[number,number];
 type Geometry={key:string;paths:Record<number,Point[]>;failed:number[]};
@@ -31,12 +32,13 @@ function WalkingMarker({position}:{position:Point}){
 }
 
 type JourneyMapPoint={stop:Stop;point:Point;role:JourneyPointRole};
-function JourneyStopMarkers({markers,selected,onSelect}:{markers:JourneyMapPoint[];selected:string|null;onSelect:(stop:Stop)=>void}){
+function JourneyStopMarkers({markers,selected,onSelect,showAll=false}:{markers:JourneyMapPoint[];selected:string|null;showAll?:boolean;onSelect:(stop:Stop)=>void}){
  const map=useMap(),[zoom,setZoom]=useState(()=>map.getZoom());
  useMapEvents({zoomend:()=>setZoom(map.getZoom())});
- return <>{markers.map(({stop,point,role})=>{
-  const size=journeyPointSize(zoom,role),name=({start:'Początek',end:'Cel',transfer:'Przesiadka',stop:'Przystanek'})[role]+': '+stop.name;
-  if(role==='stop')return <CircleMarker className={"connections-stop-point is-stop"+(selected===stop.id?" is-selected":"")} key={stop.id+point.join(':')+(selected===stop.id?':selected':'')} center={point} radius={selected===stop.id?size+2:size} eventHandlers={{click:()=>onSelect(stop)}} pathOptions={{color:'#334155',weight:zoom<14?.8:1.2,fillColor:'#fff',fillOpacity:1}}></CircleMarker>;
+ const visible=showAll?markers:spacedJourneyPoints(markers,p=>map.latLngToLayerPoint(p),zoom,selected);
+ return <>{visible.map(({stop,point,role})=>{
+  const size=journeyPointSize(zoom,role),name=({start:'Początek',end:'Cel',transfer:'Przesiadka',stop:'Przystanek'})[role]+': '+(role==='end'?journeyDestinationLabel(stop):stop.name);
+  if(role==='stop')return <CircleMarker className={"connections-stop-point is-stop"+(selected===stop.id?" is-selected":"")} key={stop.id+point.join(':')+(selected===stop.id?':selected':'')} center={point} radius={selected===stop.id?size+2:size} eventHandlers={{click:()=>onSelect(stop)}} pathOptions={{color:'#334155',weight:1.1,fillColor:'#fff',fillOpacity:1}}></CircleMarker>;
   const icon=L.divIcon({className:'connections-stop-point connections-route-point is-'+role+(selected===stop.id?' is-selected':''),html:'<span aria-hidden="true"></span>',iconSize:[size,size],iconAnchor:[size/2,size/2]});
   return <Marker key={stop.id+point.join(':')} position={point} icon={icon} title={name} eventHandlers={{click:()=>onSelect(stop)}} zIndexOffset={role==='transfer'?100:200}></Marker>;
  })}</>;
@@ -53,7 +55,7 @@ function SelectedStopBadge({marker,onClose}:{marker:JourneyMapPoint;onClose:()=>
  const top=Math.max(12,Math.min(size.y-height-12,horizontal?point.y-height/2:point.y-height-14>=12?point.y-height-14:point.y+14));
  const visible=point.x>=0&&point.x<=size.x&&point.y>=0&&point.y<=size.y;
  return createPortal(<div ref={ref} className="connections-stop-badge" role="status" style={{left,top,width,visibility:visible?'visible':'hidden'}} data-anchor-x={point.x} data-anchor-y={point.y}>
-  <div><small>{({start:'Początek podróży',end:'Cel podróży',transfer:'Przesiadka',stop:'Przystanek'})[marker.role]}</small><strong>{marker.stop.name}</strong></div>
+  <div><small>{({start:'Początek podróży',end:'Cel podróży',transfer:'Przesiadka',stop:'Przystanek'})[marker.role]}</small><strong>{marker.role==='end'?journeyDestinationLabel(marker.stop):marker.stop.name}</strong></div>
   <button aria-label="Zamknij opis przystanku" onClick={onClose}><X size={16}/></button>
  </div>,map.getContainer());
 }
@@ -73,14 +75,20 @@ function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boole
  return null;
 }
 
-function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
+type JourneyMapProps={journey:Journey;dark:boolean;focusLeg?:number|null;focusVersion?:number;onFocusLeg?:(index:number|null)=>void};
+function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:JourneyMapProps){
+ const [activeLeg,setActiveLeg]=useState<number|null>(focusLeg);
+ useEffect(()=>{setActiveLeg(focusLeg);setSelectedStop(null);setFitVersion(v=>v+1);},[focusLeg,focusVersion]);
+ function focusStage(index:number|null){setActiveLeg(index);setSelectedStop(null);setFitVersion(v=>v+1);onFocusLeg?.(index);}
+ const geometryKey=journeyMapKey(journey);
  const [selectedStop,setSelectedStop]=useState<Stop|null>(null);
  const [geometry,setGeometry]=useState<Geometry>({key:'',paths:{},failed:[]});
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
  const [placeholderHeight,setPlaceholderHeight]=useState(0);
  const [dialogTheme,setDialogTheme]=useState<CSSProperties>({});
  const host=useRef<HTMLDivElement>(null),dialog=useRef<HTMLElement>(null);
- const requestKey=journey.id+':'+attempt;
+ const requestKey=geometryKey+':'+attempt;
+ useEffect(()=>{if(focusVersion>0&&!expanded)host.current?.scrollIntoView({behavior:'smooth',block:'start'});},[focusVersion,expanded]);
  useDialogFocus(dialog,expanded,()=>setExpanded(false));
  useAppBack(expanded,()=>{setExpanded(false);return true;},80);
  useEffect(()=>{
@@ -102,8 +110,8 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
    });
   });
   return()=>{alive=false;};
- },[journey,requestKey]);
- const endpoints=useMemo(()=>journey.legs.flatMap(leg=>[leg.from,leg.to]).filter(hasCoordinates),[journey]);
+ },[requestKey]);
+ const endpoints=useMemo(()=>journey.legs.flatMap(leg=>[leg.from,leg.to]).filter(hasCoordinates),[geometryKey]);
  const bounds=useMemo(()=>[
   ...endpoints.map(stop=>[stop.lat!,stop.lon!] as Point),
   ...(geometry.key===requestKey?Object.values(geometry.paths).flat():[]),
@@ -121,8 +129,11 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
    });
   });
   return [...unique.values()];
- },[journey,geometry,requestKey]);
- const selectedMarker=markers.find(marker=>marker.stop.id===selectedStop?.id);
+ },[geometryKey,geometry,requestKey]);
+ const focusPoints=useMemo(()=>activeLeg===null?bounds:paths[activeLeg]||[journey.legs[activeLeg]?.from,journey.legs[activeLeg]?.to].filter((s):s is Stop=>Boolean(s)&&hasCoordinates(s!)).map(s=>[s.lat!,s.lon!] as Point),[activeLeg,bounds,geometry,requestKey]);
+ const legStopIds=activeLeg===null?null:new Set(journeyLegStops(journey.legs[activeLeg]).map(stop=>stop.id));
+ const visibleMarkers=legStopIds?markers.filter(marker=>legStopIds.has(marker.stop.id)):markers;
+ const selectedMarker=visibleMarkers.find(marker=>marker.stop.id===selectedStop?.id);
  const failed=geometry.key===requestKey?geometry.failed:[];
  const pending=Object.keys(paths).length+failed.length<journey.legs.length;
  function openMap(){
@@ -139,33 +150,34 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
  const status=pending?<span role="status" aria-label="Wczytywanie trasy"><LoaderCircle size={17} className="animate-spin"/></span>:failed.length>0?<button aria-label="Niepełna trasa. Ponów wczytywanie" title="Niepełna trasa. Ponów wczytywanie" onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={17}/></button>:null;
  const mapContent=<>
   <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomControl={false} dragging touchZoom attributionControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
-   <MapViewport points={bounds} expanded={expanded} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
+   <MapViewport points={focusPoints} expanded={expanded} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
    <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" maxZoom={19}/>
    <Pane name="journey-route-strokes" style={{zIndex:410}}>
    {journey.legs.map((leg,index)=>{
-    const path=paths[index];if(!path)return null;const walking=leg.walking!==undefined;
+    const path=paths[index];if(!path)return null;const walking=leg.walking!==undefined,focused=activeLeg===index,muted=activeLeg!==null&&!focused;
     return <Fragment key={index}>
-     <Polyline positions={path} pathOptions={{color:'#172536',weight:walking?7:9,opacity:.6,lineCap:'round',lineJoin:'round'}}/>
-     <Polyline positions={path} className={walking?'connections-walking-path':'connections-bus-path'} pathOptions={{color:walking?'#fff':color(leg),dashArray:walking?'5 10':undefined,weight:walking?4:5.5,opacity:1,lineCap:'round',lineJoin:'round'}}/>
+     <Polyline interactive={false} positions={path} pathOptions={{color:focused&&walking?'var(--cn-accent)':'#172536',weight:focused?12:walking?7:9,opacity:muted?.15:focused?.8:.6,lineCap:'round',lineJoin:'round'}}/>
+     <Polyline positions={path} className={(walking?'connections-walking-path':'connections-bus-path')+(focused?' is-focused':'')+(muted?' is-muted':'')} eventHandlers={{click:()=>focusStage(index)}} pathOptions={{color:walking?'#fff':color(leg),dashArray:walking?'5 10':undefined,weight:focused?(walking?5:7):walking?4:5.5,opacity:muted?.3:1,lineCap:'round',lineJoin:'round'}}/>
      {walking&&<WalkingMarker position={journeyPathMidpoint(path)!}/>}
     </Fragment>;
    })}
    </Pane><Pane name="journey-stop-points" style={{zIndex:450}}>
-   <JourneyStopMarkers markers={markers} selected={selectedStop?.id||null} onSelect={stop=>setSelectedStop(old=>old?.id===stop.id?null:stop)}/>
+   <JourneyStopMarkers markers={visibleMarkers} showAll={activeLeg!==null} selected={selectedStop?.id||null} onSelect={stop=>setSelectedStop(old=>old?.id===stop.id?null:stop)}/>
    </Pane>
    {selectedMarker&&<SelectedStopBadge marker={selectedMarker} onClose={()=>setSelectedStop(null)}/>}
   </MapContainer>
 
  </>;
  return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
-  <div className="connections-map-toolbar"><strong>Mapa podróży</strong>{status}<button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
+  <div className="connections-map-toolbar"><strong>Mapa podróży</strong>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
   {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
-   <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journey.legs.at(-1)!.to.name}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>setFitVersion(value=>value+1)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
+   <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journeyDestinationLabel(journey.legs.at(-1)!.to)}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
    {mapContent}
+   <JourneyMapSheet journey={journey} activeLeg={activeLeg} onFocusLeg={focusStage}/>
   </section>,document.body)}
  </div>;
 }
 
-// Updating live times must not refit the map or collapse its fullscreen view.
-export default memo(JourneyMap,(before,after)=>before.dark===after.dark&&journeyMapKey(before.journey)===journeyMapKey(after.journey));
+// Re-render live details without reloading geometry or resetting the map viewport.
+export default memo(JourneyMap,(before,after)=>before.dark===after.dark&&before.focusLeg===after.focusLeg&&before.focusVersion===after.focusVersion&&before.journey===after.journey);

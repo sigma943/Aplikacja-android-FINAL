@@ -11,7 +11,7 @@ export function journeyPointRole(journey:Journey,stop:Stop):JourneyPointRole {
  return 'stop';
 }
 export function journeyPointSize(zoom:number,role:JourneyPointRole){
- if(role==='stop')return zoom<12?1.4:zoom<14?1.8:zoom<16?2.5:3.3;
+ if(role==='stop')return zoom<12?2.4:zoom<14?2.7:zoom<16?3:3.4;
  return role==='transfer'?(zoom<14?10:14):(zoom<14?12:16);
 }
 
@@ -26,4 +26,12 @@ export function journeyPathMidpoint(path:Array<[number,number]>):[number,number]
   remaining-=length;
  }
  return [...path[0]];
+}
+
+/** Keep a readable white centre at every zoom; thin out crowded ordinary stops. */
+export function spacedJourneyPoints<T extends {stop:{id:string};point:[number,number];role:JourneyPointRole}>(points:T[],project:(point:[number,number])=>{x:number;y:number},zoom:number,selected?:string|null):T[]{
+ const ranked=[...points].sort((a,b)=>Number(b.stop.id===selected)-Number(a.stop.id===selected)||journeyPointPriority[b.role]-journeyPointPriority[a.role]);
+ const kept:Array<{marker:T;x:number;y:number}>=[],gap=zoom<14?13:10;
+ for(const marker of ranked){const p=project(marker.point);if(marker.role!=='stop'||marker.stop.id===selected||!kept.some(k=>Math.hypot(k.x-p.x,k.y-p.y)<gap))kept.push({marker,...p});}
+ const visible=new Set(kept.map(k=>k.marker));return points.filter(point=>visible.has(point));
 }

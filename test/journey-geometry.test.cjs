@@ -96,7 +96,7 @@ test('map roles distinguish real transfers from an initial walk and dots shrink 
  const journey={legs:[{from:a,to:b,walking:70},{from:b,to:c},{from:c,to:d,walking:70},{from:d,to:e}]};
  assert.equal(journeyPointRole(journey,a),'start');assert.equal(journeyPointRole(journey,e),'end');
  assert.equal(journeyPointRole(journey,b),'stop');assert.equal(journeyPointRole(journey,c),'transfer');assert.equal(journeyPointRole(journey,d),'transfer');
- assert.ok(journeyPointSize(11,'stop')<journeyPointSize(17,'stop'));assert.ok(journeyPointSize(11,'stop')<=1.5);
+ assert.ok(journeyPointSize(11,'stop')<journeyPointSize(17,'stop'));assert.ok(journeyPointSize(11,'stop')>=2.2&&journeyPointSize(11,'stop')<=3);
  assert.ok(journeyPointSize(11,'transfer')>journeyPointSize(11,'stop')*4);
 });
 test('real MPK 35 geometry removes pin spurs at Moniuszki and Cieplinskiego without straightening the route',()=>{
@@ -154,4 +154,13 @@ test('pedestrian midpoint follows distance and never defaults to a two-point rou
  }
  assert.equal(journeyPathMidpoint([]),null);
  assert.deepEqual(journeyPathMidpoint([[50,22],[50,22]]),[50,22]);
+});
+
+test('distant stop dots remain readable while crowding is thinned without hiding endpoints or selection',()=>{
+ const {spacedJourneyPoints,journeyPointSize}=load('lib/journey-map-markers.ts');
+ const markers=Array.from({length:20},(_,i)=>({stop:{id:String(i)},point:[0,i*3],role:i===0?'start':i===19?'end':'stop'}));
+ const before=JSON.stringify(markers),project=p=>({x:p[1],y:p[0]});
+ const visible=spacedJourneyPoints(markers,project,11,'10');
+ assert.ok(visible.length<10);for(const id of ['0','10','19'])assert.ok(visible.some(m=>m.stop.id===id));
+ assert.equal(JSON.stringify(markers),before);assert.ok(journeyPointSize(10,'stop')*2>=4.4);
 });

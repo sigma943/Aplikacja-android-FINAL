@@ -75,3 +75,14 @@ test('surveyed platforms query the exact terminal timetable without sending a lo
  assert.equal(requests.filter(p=>p.startsWith('stop-point-timetable')).length,1,'terminal platforms reuse the area timetable');
  assert.ok(!requests.some(p=>p.includes('nearest-departures/terminal:')));
 });
+
+test('final terminal labels omit only the arrival platform and keep boarding and interchange platforms',()=>{
+ const {journeyDestinationLabel,journeyArrivalLabel}=load('lib/journey-label.ts');
+ const stop={id:'terminal-ten',name:'Rzeszów D.A. st. 10',code:'10'},leg={from:stop,to:stop};
+ assert.equal(journeyDestinationLabel(stop),'Rzeszów D.A.');
+ assert.equal(journeyArrivalLabel(leg,true),'Rzeszów D.A.');
+ assert.equal(journeyArrivalLabel(leg,false),'Rzeszów D.A. st. 10');
+ assert.equal(journeyDepartureLabel(leg),'Rzeszów D.A. st. 10');
+ assert.equal(journeyDestinationLabel({name:'Gwoźnica Górna 24'}),'Gwoźnica Górna 24');
+ assert.equal(stop.code,'10');assert.equal(stop.name,'Rzeszów D.A. st. 10');
+});
