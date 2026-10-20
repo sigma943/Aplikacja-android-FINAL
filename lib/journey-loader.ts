@@ -38,7 +38,7 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
    // An unmatched physical call has a stable course-independent identity, so
    // later Marcel courses can board there without merging nearby named poles.
    const stop=matched.get(key)||{id:coordinate?'journey:marcel:call:'+encodeURIComponent(key):'journey:marcel:'+courseId+':'+index,name:[p.nazMi,p.nazPr].filter(Boolean).join(' '),type:'bus' as const,lat:coordinate?.lat,lon:coordinate?.lon,carriers:[{id:'marcel',name:'Marcel',colorClass:''}],lines:['M'],isFavorite:false};
-   return {stop,time,sourceId:identity,sequence:index};
+   return {stop,time,routePoint:coordinate?[coordinate.lat,coordinate.lon] as [number,number]:undefined,sourceId:identity,sequence:index};
   });
  };
  const routeIds=[...ids],queue:Awaited<ReturnType<typeof fetchMarcelCoursesClient>>=[];
@@ -60,7 +60,8 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
    if(!course){if(!producers)return;await new Promise<void>(resolve=>waiters.add(resolve));continue;}
    try{
     const raw=await fetchMarcelPublicCourseStopsClient(course.idKu);signal.throwIfAborted();const points=pointsFor(String(course.idKu),raw);
-    for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>=a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel',sourceFromStopId:a.sourceId,sourceToStopId:b.sourceId,fromSequence:a.sequence,toSequence:b.sequence});}
+    const sourceRoute=points.every(p=>p.routePoint)?points.map(p=>p.routePoint!):undefined;
+    for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Number.isFinite(a.time)&&b.time>=a.time)result.push({from:a.stop,to:b.stop,departure:a.time,arrival:b.time,course:'marcel:'+course.idKu+':'+date,line:'M',provider:'marcel',sourceRoute,sourceFromPoint:a.routePoint,sourceToPoint:b.routePoint,sourceFromStopId:a.sourceId,sourceToStopId:b.sourceId,fromSequence:a.sequence,toSequence:b.sequence});}
    }catch{signal.throwIfAborted();failed=true;}
   }});
   await Promise.all([...routes,...courses]);

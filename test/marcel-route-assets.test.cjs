@@ -55,3 +55,24 @@ test('journey subroutes use contiguous real stops and preserve the packaged road
   assert.deepEqual(await api.bundledMarcelJourneyRoute([points[10],points[12],points[13]]),[],'must not guess a different course from endpoints');
  }finally{global.fetch=previous;}
 });
+
+test('Rzeszów–Domaradz 27-stop journey selects the complete course instead of ambiguous partial roads, offline',async()=>{
+ const previous=global.fetch;
+ global.fetch=async url=>{assert.ok(String(url).startsWith('/data/marcel-routes/'));return new Response(fs.readFileSync('public'+url));};
+ try{
+  const api=load('lib/journey-leg-path.ts',{'./transport/road-routing':{fetchRoadRouteForStops:async()=>{throw Error('No external router offline');}}});
+  const expectedRoutes=[];
+  for(const shape of ['pattern-9','pattern-15']){
+   const key=Object.keys(catalog.patterns).find(k=>catalog.patterns[k]===shape),pattern=key.split('|').map(p=>p.split(',').map(Number));
+   // The catalog merges platforms and supplies slightly different coordinates.
+   const calls=pattern.slice(0,27).map((point,i)=>({routePoint:point,stop:{id:'alias:'+i,name:'Stop '+i,lat:point[0]+.00008,lon:point[1]-.00006}}));
+   const leg={provider:'marcel',course:'marcel:'+shape,routePattern:pattern,from:calls[0].stop,to:calls.at(-1).stop,stops:calls};
+   const route=await api.journeyLegPath(leg);expectedRoutes.push(route);
+   const full=require('../public/data/marcel-routes/'+shape+'.json');
+   assert.ok(route.length>300);assert.ok(route.length<full.length,'clip the trip to Domaradz, do not show the full course');
+   assert.ok(geometry.roadRouteMatchesStops(route,calls.map(c=>c.routePoint),150));
+   assert.deepEqual(api.journeyLegRoutePoints(leg),pattern.slice(0,27));
+  }
+  assert.notDeepEqual(expectedRoutes[0],expectedRoutes[1],'different known courses keep their own roads');
+ }finally{global.fetch=previous;}
+});

@@ -5,6 +5,7 @@ import {warsawClock} from '@/lib/transit-time';
 import {stopCount} from '@/lib/polish-count';
 import {journeyDepartureLabel,journeyArrivalLabel,journeyDestinationLabel} from '@/lib/journey-label';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
+import AnimatedStopDetails from './AnimatedStopDetails';
 import type {Journey} from '@/lib/journey-planner';
 import type {Stop} from '@/Panel/src/types';
 const providers=[['pks','PKS Rzeszów'],['mpk','MPK Rzeszów'],['marcel','Marcel']];
@@ -26,7 +27,7 @@ export default function JourneyStages({journey,activeLeg,onSelectLeg}:{journey:J
          <div className="connections-timeline-row"><time>{warsawClock(l.arrival)}</time><span className="connections-timeline-dot"/><strong>{journeyArrivalLabel(l,i===journey.legs.length-1)}</strong></div>
         </div>
 
-       {l.stops&&l.stops.length>2&&<details className="connections-stop-details"><summary><span className="connections-disclosure-icon"><Clock size={17}/></span><span className="connections-disclosure-copy"><strong>{stopCount(l.stops.length)}</strong><small>Godziny przyjazdu</small></span><span className="connections-disclosure-chevron"><ChevronDown size={17}/></span></summary><ol>{l.stops.map((call,index)=><li key={index}><div><time>{warsawClock(index===0?call.departure:call.arrival)}</time>{call.scheduledArrival!==undefined&&call.scheduledArrival!==call.arrival&&<del>{warsawClock(call.scheduledArrival)}</del>}</div><span>{i===journey.legs.length-1&&index===l.stops!.length-1?journeyDestinationLabel(call.stop):label(call.stop)}</span></li>)}</ol></details>}
+       {l.stops&&l.stops.length>2&&<AnimatedStopDetails summary={<><span className="connections-disclosure-icon"><Clock size={17}/></span><span className="connections-disclosure-copy"><strong>{stopCount(l.stops.length)}</strong><small>Godziny przyjazdu</small></span><span className="connections-disclosure-chevron"><ChevronDown size={17}/></span></>}><ol>{l.stops.map((call,index)=><li key={index}><div><time>{warsawClock(index===0?call.departure:call.arrival)}</time>{call.scheduledArrival!==undefined&&call.scheduledArrival!==call.arrival&&<del>{warsawClock(call.scheduledArrival)}</del>}</div><span>{i===journey.legs.length-1&&index===l.stops!.length-1?journeyDestinationLabel(call.stop):label(call.stop)}</span></li>)}</ol></AnimatedStopDetails>}
        </div>
       </div>)}</>;
 }

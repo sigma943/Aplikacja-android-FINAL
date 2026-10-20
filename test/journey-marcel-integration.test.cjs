@@ -80,3 +80,14 @@ test('a hanging unrelated Marcel route cannot block completed courses before the
  const result=await search(catalog[0],to,known,date,{...options,maxTransfers:2},new AbortController().signal,()=>{});
  assert.match(result.warnings.join(' '),/przekroczyło limit czasu/);
 });
+
+test('Marcel keeps the complete source pattern through catalog aliases and worker reconstruction',async()=>{
+ const aliases=catalog.map(s=>({...s,lat:Number(s.lat)+.00008,lon:Number(s.lon)-.00006}));
+ const search=create({fetchMarcelCoursesClient:async()=>[{idKu:'1181798',godz:'04:30'}],fetchMarcelPublicCourseStopsClient:async()=>rows},async input=>({journeys:scanJourneys(input.from,input.to,input.extra,input.options),warnings:[],limited:false}));
+ const result=await search(aliases[0],aliases[26],aliases,date,{...options,providers:['marcel'],maxTransfers:0,walkMeters:0},new AbortController().signal,()=>{});
+ assert.ok(result.journeys.length);const leg=result.journeys[0].legs[0];
+ assert.equal(leg.stops.length,27);assert.equal(leg.routePattern.length,rows.length);
+ assert.equal(leg.from.id,aliases[0].id,'interchange identity is unchanged');
+ assert.deepEqual(leg.stops[0].routePoint,[Number(rows[0].szGps),Number(rows[0].dlGps)]);
+ assert.notEqual(leg.stops[0].routePoint[0],leg.from.lat);
+});

@@ -106,11 +106,11 @@ export function scanJourneyNetwork(from:Stop,to:Stop,connections:Connection[],o:
   for(const edge of edges){
    if(!isRide(edge)){legs.push({from:edge.from,to:edge.to,departure:time,arrival:time+edge.minutes*60000,walking:edge.meters,walkingQuality:edge.quality,walkingCheckedAt:edge.checkedAt,path:edge.points,course:'walk',provider:'walk',line:'Pieszo'});time+=edge.minutes*60000;continue;}
    const c=edge.connection,last=legs.at(-1);
-   const call={stop:c.to,arrival:c.arrival,departure:c.arrival,scheduledArrival:c.scheduledArrival,scheduledDeparture:c.scheduledArrival,...(c.dropoff===false?{dropoff:false}:{})};
+   const call={stop:c.to,routePoint:c.sourceToPoint,arrival:c.arrival,departure:c.arrival,scheduledArrival:c.scheduledArrival,scheduledDeparture:c.scheduledArrival,...(c.dropoff===false?{dropoff:false}:{})};
    if(last&&last.walking===undefined&&last.course===c.course&&last.provider===c.provider){
     const previous=last.stops!.at(-1)!;previous.departure=c.departure;previous.scheduledDeparture=c.scheduledDeparture;if(c.pickup===false)previous.pickup=false;
     last.to=c.to;last.arrival=c.arrival;last.scheduledArrival=c.scheduledArrival;last.stops!.push(call);
-   }else legs.push({from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,course:c.course,provider:c.provider,delaySeconds:c.delaySeconds,scheduledDeparture:c.scheduledDeparture,scheduledArrival:c.scheduledArrival,stops:[{stop:c.from,arrival:c.departure,departure:c.departure,scheduledArrival:c.scheduledDeparture,scheduledDeparture:c.scheduledDeparture},call]});
+   }else legs.push({routePattern:c.sourceRoute,from:c.from,to:c.to,departure:c.departure,arrival:c.arrival,line:c.line,course:c.course,provider:c.provider,delaySeconds:c.delaySeconds,scheduledDeparture:c.scheduledDeparture,scheduledArrival:c.scheduledArrival,stops:[{stop:c.from,routePoint:c.sourceFromPoint,arrival:c.departure,departure:c.departure,scheduledArrival:c.scheduledDeparture,scheduledDeparture:c.scheduledDeparture},call]});
    time=c.arrival;
   }
   if(!legs.length)continue;
