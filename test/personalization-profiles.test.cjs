@@ -7,7 +7,7 @@ const profile=(id)=>({id,name:id,updatedAt:1,appearance:{...DEFAULT_INTERFACE_AP
 
 test('damaged navigation records keep every tab exactly once and bound marker sizes',()=>{
  const value=normalizeInterfaceAppearance({navOrder:['options','map','options','bad'],markerSize:900,startScreen:'bad',markerLabel:'bad'});
- assert.deepEqual(value.navOrder,['options','map','stops','admin']);assert.equal(value.markerSize,140);assert.equal(value.startScreen,'map');assert.equal(value.markerLabel,'line');
+ assert.deepEqual(value.navOrder,['options','map','journeys','stops','admin']);assert.equal(value.markerSize,140);assert.equal(value.startScreen,'map');assert.equal(value.markerLabel,'line');
 });
 test('profile normalization isolates appearance, limits counts and rejects duplicate or empty IDs',()=>{
  const profiles=normalizeProfiles([profile('one'),profile('one'),{...profile('two'),accent:'url(bad)',appearance:{markerSize:-1}},profile('')]);
@@ -32,7 +32,7 @@ test('missing scheduled profiles never activate a partial schedule',()=>{
 });
 test('activating a saved profile restores all appearance keys without mutating the snapshot',()=>{
  const entries=storage(),saved=profile('mine');saved.appearance=normalizeInterfaceAppearance({navOrder:['stops','map'],markerSize:130,startScreen:'admin'});
- activateProfile(saved,false);const restored=JSON.parse(entries.get(INTERFACE_APPEARANCE_KEY));assert.equal(restored.markerSize,130);assert.equal(restored.startScreen,'admin');assert.deepEqual(restored.navOrder,['stops','map','admin','options']);assert.equal(saved.appearance.markerSize,130);
+ activateProfile(saved,false);const restored=JSON.parse(entries.get(INTERFACE_APPEARANCE_KEY));assert.equal(restored.markerSize,130);assert.equal(restored.startScreen,'admin');assert.deepEqual(restored.navOrder,['stops','journeys','map','admin','options']);assert.equal(saved.appearance.markerSize,130);
 });
 
 test('removed start screen and one-hand mode are ignored in saved settings and profiles',()=>{

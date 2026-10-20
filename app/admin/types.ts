@@ -1,4 +1,4 @@
-﻿export type Role = 'Właściciel' | 'Administrator' | 'Użytkownik';
+export type Role = 'Właściciel' | 'Administrator' | 'Użytkownik';
 export type Status = 'Aktywny' | 'Zablokowany';
 export type IconType = 'mobile' | 'desktop' | 'tablet';
 
@@ -19,6 +19,7 @@ export interface Device {
   status: Status;
   verified?: boolean;
   loginBlocked?: boolean;
+  banDetails?: import('@/components/firebase/types').DeviceData['banDetails'];
   iconType: IconType;
   /** Tekst „ostatnio online” (Europe/Warsaw) lub brak danych */
   lastSeenLabel?: string;
@@ -39,6 +40,8 @@ export interface AdminPermissions {
   canChangeRoles: boolean;
   disableMap: boolean;
   disableStops: boolean;
+  disableJourneys?:boolean;
+  journeys?:boolean;
   globalSettings: boolean;
   globalSettingsEdit: boolean;
 }

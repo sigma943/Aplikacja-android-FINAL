@@ -1,4 +1,6 @@
 import {createRoot} from 'react-dom/client';
+import {themeDecoration} from '../lib/app-theme';
+(window as any).__pickerThemes=Object.fromEntries(['light-sky','dark-forest','light-pink'].map(t=>[t,themeDecoration(t)]));
 import JourneyMap from '../components/journeys/JourneyMap';
 import type {Journey} from '../lib/journey-planner';
 import {BottomNavigation} from '../components/ApplicationChrome';

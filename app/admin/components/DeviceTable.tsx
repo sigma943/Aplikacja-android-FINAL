@@ -425,7 +425,6 @@ export function DeviceTable({
                   if (e.key === 'Enter') saveRename();
                 }}
                 maxLength={80}
-                autoFocus
                 placeholder="np. Telefon Tomka"
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none transition-colors placeholder:text-slate-600 ui-accent-input"
               />
@@ -472,7 +471,7 @@ export function DeviceTable({
 
       <div ref={toolbarDropdownsRef} className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
         <div className="relative min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input
             type="text"
             placeholder="Szukaj..."
@@ -481,7 +480,7 @@ export function DeviceTable({
               setSearch(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full bg-[#111623] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-colors"
+            className="w-full bg-[#111623] border border-white/10 rounded-xl py-2.5 pl-8 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-colors"
           />
         </div>
 

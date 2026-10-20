@@ -2,6 +2,12 @@ import type {Stop} from '@/Panel/src/types';
 
 export const STATION_ID='journey:rzeszow-da';
 export const LOCATION_ID='journey:my-location';
+export const POINT_PREFIX='journey:point:';
+export const isJourneyCoordinate=(stop:Stop)=>stop.id===LOCATION_ID||stop.id.startsWith(POINT_PREFIX);
+export function journeyMapPoint(lat:number,lon:number):Stop{
+ if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)throw Error('Nieprawidłowy punkt na mapie.');
+ return {id:POINT_PREFIX+lat.toFixed(6)+':'+lon.toFixed(6),name:'Punkt na mapie',type:'bus',carriers:[],lines:[],isFavorite:false,lat,lon};
+}
 export const isRzeszowStation=(stop:Pick<Stop,'name'>)=>/^rzesz[oó]w[\s,]+d\s*\.?\s*a\s*\.?(?:\s|$)/i.test(stop.name.trim());
 export const matchesJourneyPlace=(place:Stop,stop:Stop)=>place.id===stop.id||(place.id===STATION_ID&&isRzeszowStation(stop));
 

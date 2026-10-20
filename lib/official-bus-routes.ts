@@ -92,3 +92,9 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
   }
   return findByCoordinates();
 }
+
+/** Platform pins embedded in shapes can belong to other courses on the same road. */
+export async function officialBusStopPoints(provider:string):Promise<Array<[number,number]>> {
+ const index=await routeIndex(provider);
+ return Object.values(index.stops).map(stop=>[stop.lat,stop.lon]);
+}

@@ -24,7 +24,7 @@ export default function CosmicEffects(){
     let fading:Animation|null=null,parallax=false,lastTilt=0,origin:{beta:number;gamma:number}|null=null;
     let nativeActive=true,allowed=false,animation:Animation|null=null,cometAnimation:Animation|null=null,disposed=false;
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
-    const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
+    const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.connections-view,.pks-panel-scope[data-cosmic-view]';
     const session=visitSession??=cosmicScreenSession(crypto.getRandomValues(new Uint32Array(1))[0]);
     const write=(key:string,value:string)=>{if(root.style.getPropertyValue(key)!==value)root.style.setProperty(key,value);};
     const measure=()=>{
