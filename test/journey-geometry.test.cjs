@@ -146,3 +146,12 @@ test('all packaged Marcel variants retain ordered stops and endpoints after loca
  }
  assert.ok(changed>=5,'recorded pin excursions in at least five variants are corrected');
 });
+
+test('pedestrian midpoint follows distance and never defaults to a two-point route endpoint',()=>{
+ const {journeyPathMidpoint}=load('lib/journey-map-markers.ts');
+ for(const path of [[[50,22],[50,22.004]],[[50,22],[50,22.001],[50,22.004]]]){
+  const point=journeyPathMidpoint(path);assert.equal(point[0],50);assert.ok(Math.abs(point[1]-22.002)<1e-10);
+ }
+ assert.equal(journeyPathMidpoint([]),null);
+ assert.deepEqual(journeyPathMidpoint([[50,22],[50,22]]),[50,22]);
+});

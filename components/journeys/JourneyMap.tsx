@@ -1,11 +1,11 @@
 'use client';
 import {Fragment,memo,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {createPortal} from 'react-dom';
-import {MapContainer,TileLayer,CircleMarker,Tooltip,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
+import {MapContainer,TileLayer,CircleMarker,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle,X} from 'lucide-react';
 import L from 'leaflet';
 import {journeyLegPath,journeyLegStops} from '@/lib/journey-leg-path';
-import {journeyPointRole,journeyPointSize,journeyPointPriority,type JourneyPointRole} from '@/lib/journey-map-markers';
+import {journeyPathMidpoint,journeyPointRole,journeyPointSize,journeyPointPriority,type JourneyPointRole} from '@/lib/journey-map-markers';
 import {projectJourneyStops} from '@/lib/journey-route-geometry';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
 import {type Journey,type JourneyLeg} from '@/lib/journey-planner';
@@ -22,12 +22,12 @@ const color=(leg:JourneyLeg)=>getVehicleColor({provider:leg.provider==='mpk'?'mp
 const hasCoordinates=(stop:Stop)=>Number.isFinite(stop.lat)&&Number.isFinite(stop.lon);
 const walkSvg='<svg width="18" height="18" viewBox="3.5 0 32 32" aria-hidden="true"><circle cx="20" cy="5.5" r="3.3" fill="currentColor"/><path d="m13 28 3-9 3-8m5 17-5-10m-8 0 3-6 5-1 5 6 4 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-function WalkingMarker({position,meters}:{position:Point;meters?:number}){
+function WalkingMarker({position}:{position:Point}){
  const map=useMap(),[zoom,setZoom]=useState(()=>map.getZoom());
  useMapEvents({zoomend:()=>setZoom(map.getZoom())});
  const size=zoom<14?20:zoom<16?24:28;
  const icon=useMemo(()=>L.divIcon({className:'connections-walk-marker',html:walkSvg,iconSize:[size,size],iconAnchor:[size/2,size/2]}),[size]);
- return <Marker pane="markerPane" position={position} icon={icon} keyboard={false}><Tooltip pane="tooltipPane">Dojście pieszo · {meters} m</Tooltip></Marker>;
+ return <Marker pane="markerPane" position={position} icon={icon} keyboard={false} interactive={false}/>;
 }
 
 type JourneyMapPoint={stop:Stop;point:Point;role:JourneyPointRole};
@@ -130,7 +130,7 @@ function JourneyMap({journey,dark}:{journey:Journey;dark:boolean}){
     return <Fragment key={index}>
      <Polyline positions={path} pathOptions={{color:'#172536',weight:walking?7:9,opacity:.6,lineCap:'round',lineJoin:'round'}}/>
      <Polyline positions={path} className={walking?'connections-walking-path':'connections-bus-path'} pathOptions={{color:walking?'#fff':color(leg),dashArray:walking?'5 10':undefined,weight:walking?4:5.5,opacity:1,lineCap:'round',lineJoin:'round'}}/>
-     {walking&&<WalkingMarker position={path[Math.floor(path.length/2)]} meters={leg.walking}/>}
+     {walking&&<WalkingMarker position={journeyPathMidpoint(path)!}/>}
     </Fragment>;
    })}
    </Pane><Pane name="journey-stop-points" style={{zIndex:450}}>

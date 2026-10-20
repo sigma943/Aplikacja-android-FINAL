@@ -53,6 +53,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.equal(await page.$('.connections-map-footer'),null);
   const rect=await page.$eval('.journey-map .leaflet-container',e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};});
   assert.ok(await page.$('.journey-map .leaflet-grab'),'inline map enables dragging');
+  assert.equal(await page.$('.connections-walk-marker.leaflet-interactive'),null,'decorative pedestrian cannot intercept stop taps');
   await page.click('.connections-stop-point.is-stop');await page.waitForSelector('.connections-stop-point.is-selected');assert.equal(await page.$('.leaflet-popup'),null);assert.ok(await page.$('.connections-selected-stop'));await page.click('[aria-label="Zamknij opis przystanku"]');
   for(const theme of ['light-sky','dark-forest','light-pink']){await page.evaluate(t=>{document.querySelector('.pks-theme-root').dataset.uiTheme=t;document.documentElement.style.setProperty('--theme-decoration',window.__journeyThemes[t]);},theme);assert.match(await page.$eval('.connections-view',e=>getComputedStyle(e).backgroundImage),/data:image/);await page.screenshot({path:'test/ui-previews/journeys-'+theme+'.png'});}
   await page.evaluate(()=>{document.querySelector('.pks-theme-root').dataset.uiTheme='dark';document.documentElement.style.removeProperty('--theme-decoration');});

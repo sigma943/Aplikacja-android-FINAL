@@ -14,3 +14,16 @@ export function journeyPointSize(zoom:number,role:JourneyPointRole){
  if(role==='stop')return zoom<12?1.4:zoom<14?1.8:zoom<16?2.5:3.3;
  return role==='transfer'?(zoom<14?10:14):(zoom<14?12:16);
 }
+
+/** Place the pedestrian halfway along the route, not at its middle vertex. */
+export function journeyPathMidpoint(path:Array<[number,number]>):[number,number]|null {
+ if(!path.length)return null;
+ const lengths=path.slice(1).map((p,i)=>Math.hypot(p[0]-path[i][0],(p[1]-path[i][1])*Math.cos((p[0]+path[i][0])*Math.PI/360)));
+ let remaining=lengths.reduce((sum,length)=>sum+length,0)/2;
+ for(let i=0;i<lengths.length;i++){
+  const length=lengths[i];
+  if(length>0&&remaining<=length){const ratio=remaining/length;return [path[i][0]+(path[i+1][0]-path[i][0])*ratio,path[i][1]+(path[i+1][1]-path[i][1])*ratio];}
+  remaining-=length;
+ }
+ return [...path[0]];
+}
