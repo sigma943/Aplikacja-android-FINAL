@@ -24,6 +24,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.equal(await page.$eval('[data-filter-cosmos]',n=>getComputedStyle(n).display),'none');
   assert.equal(await page.$eval('[data-filter-cosmos]',n=>n.dataset.active),'false');
   assert.notEqual(await page.$eval('[data-test-spinner]',n=>getComputedStyle(n).animationName),'none','useful loading spinner remains');
+  assert.equal(await page.$eval('[data-test-spinner]',n=>getComputedStyle(n).animationDuration),'1s','reduced-motion CSS cannot accelerate the useful spinner');
   await page.click('[data-light-toggle]');
   await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='off'&&window.__skipAnimations()!==true);
   assert.notEqual(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backdropFilter),'none','glass returns');
