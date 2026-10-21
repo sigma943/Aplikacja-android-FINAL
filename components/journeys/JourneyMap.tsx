@@ -89,7 +89,7 @@ function MapViewport({points,fitVersion}:{points:Point[];fitVersion:number}){
   let size=map.getSize();
   const observer=new ResizeObserver(()=>{const next=map.getContainer();if(next.clientWidth===size.x&&next.clientHeight===size.y)return;size=L.point(next.clientWidth,next.clientHeight);clearTimeout(timer);timer=setTimeout(()=>fit(false),140);});
   observer.observe(map.getContainer());
-  return()=>{observer.disconnect();clearTimeout(timer);cancelAnimationFrame(frame);map.stop();};
+  return()=>{observer.disconnect();clearTimeout(timer);cancelAnimationFrame(frame);};
  },[map,points,fitVersion]);
  return null;
 }

@@ -13,7 +13,7 @@ localStorage.setItem('mks_transparent','true');
 localStorage.setItem(INTERFACE_APPEARANCE_KEY,JSON.stringify({glassBlur:22,glassOpacity:35,reducedMotion:false}));
 (window as any).__skipAnimations=()=>MotionGlobalConfig.skipAnimations;
 function Fixture(){
- const [light,setLight]=useState(localStorage.getItem('mks_light_effects')==='true'),[future,setFuture]=useState(false),[expanded,setExpanded]=useState(true),[devices,setDevices]=useState(false),[visible,setVisible]=useState(true),[compact,setCompact]=useState(180);
+ const [light,setLight]=useState(localStorage.getItem('mks_light_effects')==='true'),[future,setFuture]=useState(false),[expanded,setExpanded]=useState(false),[devices,setDevices]=useState(false),[visible,setVisible]=useState(true),[compact,setCompact]=useState(180);
  const header=useRef<HTMLDivElement>(null),drag=useSheetGesture(expanded,setExpanded,compact,440);
 
  const bus:any={id:'terminal',provider:'pks',lat:50,lon:22,routeShortName:'288',status:'break',speed:0,schedule:future?[{id:1,name:'Nowy kurs',planned:new Date(Date.now()+600000).toISOString()}]:[]};
