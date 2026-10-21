@@ -22,6 +22,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[data-light-toggle]');
   await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on');
   if(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backdropFilter)!=='none')console.error('Performance cascade diagnostics',await page.evaluate(()=>({attributes:[...document.documentElement.attributes].filter(a=>a.name.includes('personal')||a.name.includes('cosmic')).map(a=>[a.name,a.value]),matches:document.querySelector('[data-test-glass]').matches("html[data-personal-light-effects='on'] body *"),layers:[...document.styleSheets].flatMap(s=>{try{return [...s.cssRules].filter(r=>r.cssText.includes('pks-performance')).map(r=>r.cssText.slice(0,2200));}catch{return [];}})})));
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.personalMotion),'normal','light effects preserve interface motion preferences');
   assert.notEqual(await page.evaluate(()=>window.__skipAnimations()),true,'light mode does not globally short-circuit motion layout updates');
   assert.equal(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backdropFilter),'none');
   assert.equal(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).boxShadow),'none');
@@ -47,10 +48,19 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[data-reopen]');await page.waitForSelector('[data-map-bus-sheet]',{hidden:true});await page.click('[data-reopen]');
   await page.waitForFunction(h=>Math.abs(document.querySelector('[data-map-bus-sheet]').getBoundingClientRect().height-h)<3,{},firstHeight);
   await page.click('[data-devices]');await page.waitForSelector('[data-test-devices] [data-cosmic-panel]');
+  assert.equal(await page.$$eval('[data-admin-device-item]',cards=>cards.length),5);
+  await page.click('[data-test-devices] button:has(.lucide-chevron-right)');
+  await page.waitForFunction(()=>document.querySelectorAll('[data-admin-device-item]').length===2);
+  await page.waitForFunction(()=>[...document.querySelectorAll('[data-admin-device-item]')].every(n=>getComputedStyle(n).opacity==='1'));
   for(const theme of ['light-sky','dark-forest']){
    await page.evaluate(t=>{localStorage.setItem('mks_app_theme',t);document.querySelector('.pks-theme-root').dataset.uiTheme=t;window.dispatchEvent(new Event('pks-interface-appearance'));},theme);
-   assert.ok(await page.$$eval('[data-test-devices] [data-cosmic-panel]',cards=>cards.every(card=>{const box=card.getBoundingClientRect(),footer=card.lastElementChild.getBoundingClientRect();return footer.bottom<=box.bottom+1&&footer.top>=box.top;})),'device card footer remains inside the card in light mode: '+theme);
+   await page.$$eval('.admin-device-card',nodes=>nodes.at(-1).scrollIntoView({block:'end'}));
+   assert.ok(await page.$$eval('.admin-device-card',cards=>cards.every(card=>{const box=card.getBoundingClientRect(),footer=card.lastElementChild.getBoundingClientRect();return getComputedStyle(card).clipPath.startsWith('inset(')&&footer.bottom<=box.bottom+1&&footer.top>=box.top;})),'device card footer remains inside the card in light mode: '+theme);
   }
+  fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/admin-light-effects-cards.png'});
+  await page.click('[data-light-toggle]');await page.click('[data-light-toggle]');
+  await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on'&&document.documentElement.dataset.personalMotion==='normal');
+  assert.ok(await page.$$eval('.admin-device-card',cards=>cards.every(card=>{const box=card.getBoundingClientRect();return card.lastElementChild.getBoundingClientRect().bottom<=box.bottom+1;})),'toggling glass does not clip the final card');
   assert.deepEqual(errors,[]);console.log('PASS: reversible light effects, opaque glass, stopped cosmic accents, retained useful spinner, terminal state and next course');
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

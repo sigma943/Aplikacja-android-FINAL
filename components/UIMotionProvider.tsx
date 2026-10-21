@@ -45,7 +45,7 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
       const variables=panelGlowVariables(value.glowColor,strength,dark,lightEffects,{style:value.glowStyle,spread:value.glowSpread,placement:value.glowPlacement});
       glowKeys=Object.keys(variables);
       for(const [key,next]of Object.entries(variables))root.style.setProperty(key,next);
-      setReduced(value.reducedMotion||lightEffects);
+      setReduced(value.reducedMotion);
       if(switched)window.dispatchEvent(new Event('pks-profile-applied'));
     };
     update();

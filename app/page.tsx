@@ -1108,7 +1108,7 @@ export default function Home() {
     loadVehicleDetails(v);
   }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
   
-  const tabTransitionRef=useTabTransition(activeTab,!interfaceAppearance.reducedMotion&&!lightEffects);
+  const tabTransitionRef=useTabTransition(activeTab,!interfaceAppearance.reducedMotion);
 
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
