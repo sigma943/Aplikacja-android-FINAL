@@ -155,7 +155,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on'&&document.documentElement.dataset.cosmicTheme==='off');
   const checkPlain=async(selector)=>{
    await page.waitForSelector(selector);
-   assert.ok(await page.$$eval(selector,nodes=>nodes.every(n=>{const s=getComputedStyle(n);return s.backgroundImage==='none'&&s.backgroundColor!=='transparent'&&!s.backgroundColor.endsWith(', 0)');})),selector+' has a solid background without cosmic artwork');
+   assert.ok(await page.$$eval(selector,nodes=>nodes.every(n=>{const s=getComputedStyle(n);return s.backgroundImage==='none'&&s.backgroundColor!=='transparent'&&!/^rgba\([^)]*,\s*0\)$/.test(s.backgroundColor);})),selector+' has a solid background without cosmic artwork');
   };
   await checkPlain('.pks-theme-root');await checkPlain('.connections-view');await checkPlain('.connections-card');await checkPlain('.pks-navigation');
   assert.equal(await page.$eval('[data-cosmic-nav-stars]',n=>getComputedStyle(n).display),'none','navigation stars are also disabled');
