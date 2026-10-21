@@ -148,6 +148,48 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[aria-label="Zamień przystanki"]');const stopped=await page.evaluate(()=>window.__liveCalls);await new Promise(r=>setTimeout(r,400));assert.equal(await page.evaluate(()=>window.__liveCalls),stopped,'changing query cancels automatic refresh');
   for(let i=0;i<5;i++)await page.click('.connections-recent-delete');assert.equal(await page.$('.connections-recents'),null);assert.deepEqual(errors,[]);
   fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/journeys-live-refresh.png'});console.log('PASS: 30-second refresh, stable details/map, inactive cancellation, trash icon, centered compact walker and map attribution');
+
+  // Reproduce the real transparent Connections canvas, not just a sample card.
+  await page.goto(origin+'/?cosmic-light=1',{waitUntil:'domcontentloaded'});
+  await page.waitForSelector('.connections-recents');
+  await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on'&&document.documentElement.dataset.cosmicTheme==='off');
+  const checkPlain=async(selector)=>{
+   await page.waitForSelector(selector);
+   assert.ok(await page.$$eval(selector,nodes=>nodes.every(n=>{const s=getComputedStyle(n);return s.backgroundImage==='none'&&s.backgroundColor!=='transparent'&&!/^rgba\([^)]*,\s*0\)$/.test(s.backgroundColor);})),selector+' has a solid background without cosmic artwork');
+  };
+  await checkPlain('.pks-theme-root');await checkPlain('.connections-view');await checkPlain('.connections-card');await checkPlain('.pks-navigation');
+  assert.equal(await page.$eval('[data-cosmic-nav-stars]',n=>getComputedStyle(n).display),'none','navigation stars are also disabled');
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.personalMotion),'normal','light effects keep card animations');
+  const cosmicSaved=await page.evaluate(()=>({theme:localStorage.getItem('mks_app_theme'),appearance:localStorage.getItem('mks_interface_appearance_v1')}));
+  await page.click('[data-fixture-light]');
+  await page.waitForFunction(()=>document.documentElement.dataset.cosmicTheme==='on');
+  assert.match(await page.$eval('.pks-theme-root',n=>getComputedStyle(n).backgroundImage),/url\(/,'cosmic sky returns');
+  assert.notEqual(await page.$eval('[data-cosmic-nav-stars]',n=>getComputedStyle(n).display),'none');
+  await page.click('[data-fixture-light]');
+  await page.waitForFunction(()=>document.documentElement.dataset.cosmicTheme==='off');
+  await checkPlain('.connections-view');
+  await page.click('[data-journey-from]');await checkPlain('.connections-picker-host');await checkPlain('.connections-picker');
+  await page.click('[aria-label="Zamknij wybór przystanku"]');await page.waitForSelector('[data-journey-picker]',{hidden:true});
+  await page.click('.connections-recent>button:first-child');await page.click('.connections-primary');
+  await page.waitForSelector('[data-journey-result]');
+  await page.waitForFunction(()=>typeof window.__finishEnrichment==='function');await page.evaluate(()=>window.__finishEnrichment());
+  await page.waitForSelector('[data-journey-refining]',{hidden:true});
+  await page.click('.connections-result');await page.waitForSelector('.connections-detail');
+  await page.waitForFunction(()=>[...document.querySelectorAll('.connections-disclosure')].every(n=>n.clientHeight>=n.scrollHeight-1),{timeout:2000});
+  // Let the 380 ms header anchor finish before scrolling to the map control.
+  await new Promise(resolve=>setTimeout(resolve,450));
+  await checkPlain('.connections-card');await page.$eval('.connections-map-button',n=>n.scrollIntoView({behavior:'instant',block:'center'}));await page.waitForFunction(()=>{const n=document.querySelector('.connections-map-button'),r=n.getBoundingClientRect();return n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));});await page.click('.connections-map-button');await page.waitForSelector('.connections-walking-path');
+  await page.click('[aria-label="Powiększ mapę"]');await checkPlain('.connections-map-modal');await checkPlain('.connections-map-toolbar');await checkPlain('.connections-map-sheet');
+  assert.ok(await page.$('.connections-map-modal .leaflet-tile-pane'),'functional map remains present');
+  assert.ok(await page.$$eval('[data-filter-cosmos]',nodes=>nodes.every(n=>getComputedStyle(n).display==='none')),'cosmic effects are hidden in all journey portals');
+  await page.screenshot({path:'test/ui-previews/journeys-light-effects-no-cosmos.png'});
+  await page.keyboard.press('Escape');await page.waitForSelector('.connections-map-modal',{hidden:true});
+  assert.deepEqual(await page.evaluate(()=>({theme:localStorage.getItem('mks_app_theme'),appearance:localStorage.getItem('mks_interface_appearance_v1')})),cosmicSaved,'switching effects preserves the saved theme');
+  await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('.connections-view');
+  await page.waitForFunction(()=>document.documentElement.dataset.cosmicTheme==='off'&&document.documentElement.dataset.personalLightEffects==='on');
+  await checkPlain('.pks-theme-root');await checkPlain('.connections-view');
+  assert.deepEqual(errors,[]);
+  console.log('PASS: light effects remove root sky, Connections canvas, picker, map panels and navigation stars; animations, restoration and cold reload remain correct');
  }catch(error){
   const pages=await browser?.pages().catch(()=>[]);const page=pages?.find(page=>page.url().startsWith('http://127.0.0.1:'));
   if(page){fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/journeys-interaction-failure.png'}).catch(()=>{});console.error('Journey UI state:',await page.evaluate(()=>({focus:[...document.querySelectorAll('.connections-leg-focus')].map(e=>({label:e.getAttribute('aria-label'),pressed:e.getAttribute('aria-pressed')})),sheet:document.querySelector('.connections-map-sheet')?.outerHTML.slice(0,1800),routes:[...document.querySelectorAll('.connections-walking-path,.connections-bus-path')].map(e=>({class:e.getAttribute('class'),stroke:e.getAttribute('stroke'),opacity:e.getAttribute('stroke-opacity')}))})).catch(()=>null));}
