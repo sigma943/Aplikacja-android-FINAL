@@ -61,10 +61,9 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    }
    await page.evaluate(()=>{document.querySelector('.pks-theme-root').dataset.uiTheme='dark';document.documentElement.dataset.cosmicTheme='off';document.documentElement.style.removeProperty('--theme-decoration');});
    // Leaflet ignores another zoom while an animated zoom is in progress.
-   // Shift-click requests 15 -> 18 in one action; wait for the actual tile zoom.
-   await page.keyboard.down('Shift');
-   try{await page.click('.connections-place-map .leaflet-control-zoom-in');}finally{await page.keyboard.up('Shift');}
-   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(tile=>/[?&]z=18(?:&|$)/.test(tile.src)));
+   // The picker now starts at 15. One regular step reaches the stop-test view at 16.
+   await page.click('.connections-place-map .leaflet-control-zoom-in');
+   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(tile=>/[?&]z=16(?:&|$)/.test(tile.src)));
    await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring').catch(async error=>{
     await screenshot('picker-markers-failure');
     console.error('Picker diagnostics',await page.evaluate(()=>({tiles:[...new Set([...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].map(tile=>(/[?&]z=(\d+)/.exec(tile.src)||[])[1]))],errors:document.querySelector('.connections-place-map')?.textContent})),errors);throw error;
@@ -74,7 +73,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await screenshot('map-picker-point');await page.click('.connections-place-confirm button');
    await page.waitForFunction(()=>document.querySelector('[data-journey-to]').textContent.includes('Punkt na mapie'));
    await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location');await page.waitForSelector('.connections-place-leaflet');
-   await page.keyboard.down('Shift');try{await page.click('.connections-place-map .leaflet-control-zoom-in');}finally{await page.keyboard.up('Shift');}
+   await page.click('.connections-place-map .leaflet-control-zoom-in');
    await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring');
    await page.click('.connections-place-map .map-catalog-stop');
    await page.waitForSelector('.connections-place-map .map-stop-ring.is-selected');
