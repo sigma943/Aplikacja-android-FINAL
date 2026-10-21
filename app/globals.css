@@ -1122,5 +1122,6 @@ html[data-personal-light-effects='on'] .animate-spin{animation:spin 1s linear in
 
 /* Animate the wrapper, paint the complete card in a separate static rounded
    surface. Explicit clipping keeps WebView's background and footer in one mask. */
-.admin-device-card{isolation:isolate;overflow:clip;min-height:min-content;clip-path:inset(0 round 2rem)}
-html[data-personal-card-radius='true'] .admin-device-card{clip-path:inset(0 round var(--personal-card-radius))}
+.admin-device-card{isolation:isolate;overflow:hidden;min-height:min-content}
+html[data-personal-light-effects='on'] .admin-device-card{overflow:clip;clip-path:inset(0 round 2rem)}
+html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-device-card{clip-path:inset(0 round var(--personal-card-radius))}
