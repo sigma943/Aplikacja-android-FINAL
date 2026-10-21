@@ -1,10 +1,14 @@
 import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
+import UIMotionProvider from '../components/UIMotionProvider';
+import {BottomNavigation} from '../components/ApplicationChrome';
 import JourneyPlanner from '../components/journeys/JourneyPlanner';
 import type {Stop} from '../Panel/src/types';
 import {themeDecoration} from '../lib/app-theme';
 import type {Journey} from '../lib/journey-planner';
 import marcelIndex from '../public/data/marcel-routes/index.json';
+const cosmicLight=location.search.includes('cosmic-light');
+if(cosmicLight){localStorage.setItem('mks_app_theme','dark-cosmos');localStorage.setItem('mks_light_effects','true');}
 const place=(id:string,name:string,lat:number,lon:number):Stop=>({id,name,lat,lon,type:'bus',carriers:[{id:'pks',name:'PKS Rzeszów',colorClass:''}],lines:['108'],isFavorite:false});
 const a=place('a','Początek',50.04,22),b=place('b','Przesiadka',50.041,22.001),c=place('c','Koniec',50.043,22.004),middle=place('middle','Przystanek pośredni',50.04215,22.0025);
 const d=place('d','Cel podróży',50.044,22.0055);
@@ -33,5 +37,14 @@ export async function searchConnections(from?:Stop,_to?:Stop,_catalog?:Stop[],_d
 }
 (window as any).__journeyThemes=Object.fromEntries(['light-sky','dark-forest','light-pink'].map(t=>[t,themeDecoration(t)]));
 localStorage.setItem('pks-live:journey-recents',JSON.stringify(Array.from({length:7},(_,i)=>({from:a,to:d,searchedAt:Date.now()-i*60000}))));
-function Fixture(){const [active,setActive]=useState(true);return <div className="pks-theme-root" data-ui-theme="dark" style={{position:'relative',height:'100dvh'}}><button data-fixture-toggle style={{position:'fixed',right:0,top:0,zIndex:9999}} onClick={()=>setActive(!active)}>Toggle</button><JourneyPlanner stops={[a,b,c]} active={active} dark onClose={()=>{}}/></div>;}
+function Fixture(){
+ const [active,setActive]=useState(true),[light,setLight]=useState(cosmicLight);
+ const surface=<div className="pks-theme-root" data-ui-theme={cosmicLight?'dark-cosmos':'dark'} data-cosmic-tab="journeys" style={{position:'relative',height:'100dvh'}}>
+  <button data-fixture-toggle style={{position:'fixed',right:0,top:0,zIndex:9999}} onClick={()=>setActive(!active)}>Toggle</button>
+  {cosmicLight&&<button data-fixture-light style={{position:'fixed',right:60,top:0,zIndex:20000}} onClick={()=>{const next=!light;setLight(next);localStorage.setItem('mks_light_effects',String(next));window.dispatchEvent(new Event('pks-interface-appearance'));}}>Lekkie efekty</button>}
+  <JourneyPlanner stops={[a,b,c]} active={active} dark onClose={()=>setActive(false)}/>
+  {cosmicLight&&<div style={{position:'fixed',bottom:0,left:0,right:0,zIndex:900}}><BottomNavigation activeTab="journeys" className="pks-navigation" themeColor="#00a3a2" onMap={()=>{}} onStops={()=>{}} onOptions={()=>{}}/></div>}
+ </div>;
+ return cosmicLight?<UIMotionProvider>{surface}</UIMotionProvider>:surface;
+}
 createRoot(document.getElementById('root')!).render(<Fixture/>);
