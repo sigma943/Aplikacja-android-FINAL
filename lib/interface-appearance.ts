@@ -114,7 +114,7 @@ export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,
     glass:String(v.glassOpacity!==defaults.glassOpacity||v.surfaceTint!=='original'),blur:String(!v.glassBlurEnabled||v.glassBlur!==defaults.glassBlur||v.glassSaturation!==defaults.glassSaturation),frost:v.glassBlurEnabled&&v.glassBlur>0?'on':'off',
     cardStyle:v.cardStyle,buttonStyle:v.buttonStyle,surface:v.surfaceTint,text:String(v.textScale!==100),font:v.fontFamily,title:String(v.titleWeight!==700),spacing:String(v.letterSpacing!==0),
     numbers:v.tabularNumbers?'tabular':'proportional',density:v.density,icons:String(v.iconSize!==24||v.iconStroke!==2),
-    departures:v.departureView,marker:v.markerLabel,layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),lightEffects:lightEffects?'on':'off',mapMotion:v.reducedMotion?'reduced':'normal',motion:v.reducedMotion||lightEffects?'reduced':'normal',hover:String(v.hoverHighlight),
+    departures:v.departureView,marker:v.markerLabel,layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),lightEffects:lightEffects?'on':'off',mapMotion:v.reducedMotion?'reduced':'normal',motion:v.reducedMotion?'reduced':'normal',hover:String(v.hoverHighlight),
   };
   for(const [key,value] of Object.entries(attrs))root.setAttribute('data-personal-'+key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value);
   const variables=interfaceAppearanceVariables(v,dark,accent,lightEffects,theme);

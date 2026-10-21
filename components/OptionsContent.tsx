@@ -21,7 +21,7 @@ function OptionsContent(p:Props){
     {[
      {label:'Autobusy bez linii',description:'Pokaż ostatnią pozycję pojazdów bez kursu',icon:<Bus size={20}/>,checked:p.showInactive,change:p.saveInactive},
      {label:'Pokaż przystanki na mapie',description:'Przybliż mapę i dotknij przystanku, aby sprawdzić odjazdy',icon:<MapPin size={20}/>,checked:p.showMapStops||false,change:(on:boolean)=>p.saveMapStops?.(on)},
-     {label:'Lżejsze efekty',description:'Wyłącza szkło, ozdobne animacje, gwiazdy i komety. Wyłączenie przywraca Twój wygląd.',icon:<Sparkles size={20}/>,checked:p.lightEffects,change:p.saveLightEffects},
+     {label:'Lżejsze efekty',description:'Ogranicza obciążenie graficzne: wyłącza szkło, rozmycie i animowane dekoracje, zachowując płynne przejścia kart oraz mapy. Po wyłączeniu przywraca zapisane ustawienia wyglądu.',icon:<Sparkles size={20}/>,checked:p.lightEffects,change:p.saveLightEffects},
     ].map(option=><label key={option.label} className={`personal-toggle rounded-2xl border p-3 ${p.optionsCard}`}><span className="flex min-w-0 items-center gap-3"><span className="shrink-0 ui-accent-text">{option.icon}</span><span><span className="block text-sm font-semibold">{option.label}</span><span className={`mt-1 block text-[11px] leading-relaxed ${p.textSub}`}>{option.description}</span></span></span><input type="checkbox" role="switch" aria-label={option.label} checked={option.checked} onChange={event=>option.change(event.target.checked)}/></label>)}
    </div></div>
   </div>}

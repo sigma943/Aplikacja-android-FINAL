@@ -1,6 +1,6 @@
 'use client';
 
-import {useLayoutEffect} from 'react';
+import {useLayoutEffect,useRef} from 'react';
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {motion, AnimatePresence, type MotionStyle} from 'motion/react';
@@ -49,6 +49,10 @@ interface BusDetailsPanelProps {
 }
 
 export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+  // A removed motion element can interrupt its shared height animation. A new
+  // panel must start from its requested size, not that intermediate value.
+  const initialSync=useRef(busDrag.syncHeight);
+  useLayoutEffect(()=>{initialSync.current();},[]);
   useLayoutEffect(()=>{
     const header=busHeaderRef.current;if(!header||!onHeaderSize)return;
     const measure=()=>onHeaderSize(header.offsetHeight);
