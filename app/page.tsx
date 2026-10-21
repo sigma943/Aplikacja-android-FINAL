@@ -146,12 +146,12 @@ export default function Home() {
   const busHeaderRef=useRef<HTMLDivElement>(null);
   const [busSizes,setBusSizes]=useState({compact:180,full:480});
   const busDrag=useSheetGesture(isBusPanelExpanded,setIsBusPanelExpanded,busSizes.compact,busSizes.full);
-  useEffect(()=>{
-    const header=busHeaderRef.current;if(!header)return;
-    const measure=()=>{const compact=header.getBoundingClientRect().height;const full=Math.max(compact,innerWidth>=768?innerHeight*.85:innerHeight*.60-32);setBusSizes(current=>Math.abs(current.compact-compact)<1&&Math.abs(current.full-full)<1?current:{compact,full});};
-    const observer=new ResizeObserver(measure);observer.observe(header);window.addEventListener('resize',measure);measure();
-    return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
-  },[selectedBus?.id]);
+  // The lazy panel reports its header after it actually mounts, including the
+  // first open while its chunk is still loading.
+  const onBusHeaderSize=useCallback((compact:number)=>{
+    const full=Math.max(compact,innerWidth>=768?innerHeight*.85:innerHeight*.60-32);
+    setBusSizes(current=>Math.abs(current.compact-compact)<1&&Math.abs(current.full-full)<1?current:{compact,full});
+  },[]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOptionsExpanded, setIsOptionsExpanded] = useState(true);
@@ -1340,6 +1340,7 @@ export default function Home() {
                   selectedBus={selectedBus}
                   busDrag={busDrag}
                   busHeaderRef={busHeaderRef}
+                  onHeaderSize={onBusHeaderSize}
                   isBusPanelExpanded={isBusPanelExpanded}
                   setIsBusPanelExpanded={setIsBusPanelExpanded}
                   transparentUI={transparentUI}

@@ -491,7 +491,7 @@ html:not([data-personal-nav='line']) .pks-navigation [data-nav-indicator] { disp
 html[data-personal-nav='pill'] .pks-navigation button[aria-current='page'] { isolation:isolate; }
 html[data-personal-nav='pill'] .pks-navigation button[aria-current='page']::before { content:''; position:absolute; inset:7px; background:var(--pks-accent-soft); border-radius:var(--personal-control-radius); z-index:-1; }
 html[data-personal-inactive='true'] .pks-navigation button:not([aria-current='page']):not(:disabled) { opacity:var(--personal-inactive-opacity); }
-html[data-personal-motion='reduced'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) *,html[data-personal-motion='reduced'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) *::before { animation-duration:.01ms !important; transition-duration:.01ms !important; }
+html[data-personal-motion='reduced'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) *:not(.leaflet-container,.leaflet-container *),html[data-personal-motion='reduced'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) *:not(.leaflet-container,.leaflet-container *)::before { animation-duration:.01ms !important; transition-duration:.01ms !important; }
 html[data-personal-motion='reduced'] .pks-theme-root button:active { scale:1; }
 html[data-personal-hover='false'] .transit-stop-card:hover:not(:focus-within) { border-color:var(--transit-border); }
 html[data-personal-text='true'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) [class~='text-[9px]'] { font-size:var(--personal-text-9) !important; }
@@ -1111,7 +1111,8 @@ html[data-cosmic-theme='on'] [data-stop-list-mode] [data-full-stop-list]{backgro
 /* A reversible performance mode: keep saved visual preferences untouched. */
 /* Layered important overrides also win over the more specific cosmic glass rules. */
 @layer pks-performance {
-html[data-personal-light-effects='on'] body *,html[data-personal-light-effects='on'] body *::before,html[data-personal-light-effects='on'] body *::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;text-shadow:none!important;transition-duration:.01ms!important}
+html[data-personal-light-effects='on'] body *,html[data-personal-light-effects='on'] body *::before,html[data-personal-light-effects='on'] body *::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;text-shadow:none!important}
+html[data-personal-light-effects='on'] body *:not(.leaflet-container,.leaflet-container *){transition-duration:.01ms!important}
 html[data-personal-light-effects='on'] body *:not(.animate-spin):not(.lucide-loader-circle){animation:none!important}
 html[data-personal-light-effects='on'] :is([data-cosmic-effects],[data-filter-cosmos],[data-cosmic-transition],[data-cosmic-stars],[data-cosmic-meteor],[data-cosmic-comet]){display:none!important}
 html[data-personal-light-effects='on'] :is(.pks-glass,.pks-glass-frame,.pks-options-sheet,.map-detail-shell,.transit-surface,.transit-card,[data-cosmic-panel],.connections-card,.connections-map-sheet,.connections-picker){background-color:var(--personal-surface,#101a26)!important;background-image:none!important}

@@ -5,7 +5,7 @@ import {usePathname} from 'next/navigation';
 import AppBackBridge from './AppBackBridge';
 import CosmicEffects from './CosmicEffects';
 import {readAppTheme,resolveAppTheme} from '@/lib/app-theme';
-import { MotionConfig,MotionGlobalConfig } from 'motion/react';
+import { MotionConfig } from 'motion/react';
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppearance} from '@/lib/interface-appearance';
 
@@ -26,7 +26,7 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
     const root=document.documentElement,media=window.matchMedia('(prefers-color-scheme: dark)');
     let cleanupAppearance:undefined|(()=>void);
     let glowKeys:string[]=[];
-    let appliedKey='';const previousSkip=MotionGlobalConfig.skipAnimations;
+    let appliedKey='';
     const update=()=>{
       const switched=applyScheduledProfile();
       let value=normalizeInterfaceAppearance(null);
@@ -45,7 +45,6 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
       const variables=panelGlowVariables(value.glowColor,strength,dark,lightEffects,{style:value.glowStyle,spread:value.glowSpread,placement:value.glowPlacement});
       glowKeys=Object.keys(variables);
       for(const [key,next]of Object.entries(variables))root.style.setProperty(key,next);
-      MotionGlobalConfig.skipAnimations=value.reducedMotion||lightEffects;
       setReduced(value.reducedMotion||lightEffects);
       if(switched)window.dispatchEvent(new Event('pks-profile-applied'));
     };
@@ -58,7 +57,7 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
     return ()=>{
       window.removeEventListener('pks-interface-appearance',update);window.removeEventListener('storage',update);media.removeEventListener('change',update);
       updateRef.current=null;window.removeEventListener('focus',update);
-      MotionGlobalConfig.skipAnimations=previousSkip;cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
+      cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
     };
   },[]);
   return <MotionConfig reducedMotion={reduced?'always':'user'} transition={{duration: .24, ease: [.22, 1, .36, 1]}}><AppBackBridge />{children}<CosmicEffects/></MotionConfig>;

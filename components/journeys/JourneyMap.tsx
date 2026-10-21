@@ -1,4 +1,5 @@
 'use client';
+import {mapReducedMotion} from '@/lib/map-motion';
 import {Fragment,memo,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {createPortal} from 'react-dom';
 import {MapContainer,TileLayer,CircleMarker,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
@@ -71,18 +72,25 @@ function SelectedStopBadge({marker,onClose}:{marker:JourneyMapPoint;onClose:()=>
  </div>,map.getContainer());
 }
 
-function MapViewport({points,expanded,fitVersion,bottomInset}:{points:Point[];expanded:boolean;fitVersion:number;bottomInset:number}){
- const map=useMap();
+function MapViewport({points,fitVersion}:{points:Point[];fitVersion:number}){
+ const map=useMap(),initialized=useRef(false);
  useEffect(()=>{
-  let frame=0;
-  const fit=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
-   map.invalidateSize({pan:false});
-   if(points.length)map.fitBounds(points,{paddingTopLeft:[30,30],paddingBottomRight:[30,Math.min(bottomInset+30,map.getSize().y-120)],maxZoom:17,animate:false});
+  let frame=0,timer:ReturnType<typeof setTimeout>;
+  const fit=(animate:boolean)=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
+   map.stop();map.invalidateSize({pan:false});
+   if(!points.length)return;
+   const options={padding:[24,24] as [number,number],maxZoom:17,animate:animate&&!mapReducedMotion(),duration:.55};
+   if(options.animate)map.flyToBounds(points,options);else map.fitBounds(points,options);
+   initialized.current=true;
   });};
-  fit();
-  const observer=new ResizeObserver(fit);observer.observe(map.getContainer());
-  return()=>{observer.disconnect();cancelAnimationFrame(frame);};
- },[map,points,fitVersion,bottomInset]);
+  fit(initialized.current);
+  // The sheet is a flex sibling. The map already occupies only the visible
+  // space: do not subtract sheet height a second time or refit every frame.
+  let size=map.getSize();
+  const observer=new ResizeObserver(()=>{const next=map.getContainer();if(next.clientWidth===size.x&&next.clientHeight===size.y)return;size=L.point(next.clientWidth,next.clientHeight);clearTimeout(timer);timer=setTimeout(()=>fit(false),140);});
+  observer.observe(map.getContainer());
+  return()=>{observer.disconnect();clearTimeout(timer);cancelAnimationFrame(frame);};
+ },[map,points,fitVersion]);
  return null;
 }
 
@@ -97,15 +105,8 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
  const [placeholderHeight,setPlaceholderHeight]=useState(0),[portalHost,setPortalHost]=useState<Element|null>(null);
  useEffect(()=>{let alive=true;queueMicrotask(()=>{if(alive){setActiveLeg(focusLeg);setSelectedStop(null);setFitVersion(v=>v+1);}});return()=>{alive=false;};},[focusLeg,focusVersion]);
- const [bottomInset,setBottomInset]=useState(0);
  const [dialogTheme,setDialogTheme]=useState<CSSProperties>({});
  const host=useRef<HTMLDivElement>(null),dialog=useRef<HTMLElement>(null);
- useEffect(()=>{
-  if(!expanded)return;
-  const sheet=dialog.current?.querySelector<HTMLElement>('.connections-map-sheet');if(!sheet)return;
-  const update=()=>setBottomInset(sheet.getBoundingClientRect().height);
-  const observer=new ResizeObserver(update);observer.observe(sheet);return()=>observer.disconnect();
- },[expanded]);
  const requestKey=geometryKey+':'+attempt;
  useEffect(()=>{if(focusVersion>0&&!expanded)host.current?.scrollIntoView({behavior:'smooth',block:'start'});},[focusVersion,expanded]);
  useDialogFocus(dialog,expanded,()=>setExpanded(false));
@@ -171,8 +172,8 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  if(endpoints.length<2)return <p className="connections-hint">Brak współrzędnych do wyświetlenia planu.</p>;
  const status=pending?<span role="status" aria-label="Wczytywanie trasy"><LoaderCircle size={17} className="animate-spin"/></span>:failed.length>0?<button aria-label="Niepełna trasa. Ponów wczytywanie" title="Niepełna trasa. Ponów wczytywanie" onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={17}/></button>:null;
  const mapContent=<>
-  <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomControl={false} dragging touchZoom attributionControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
-   <MapViewport points={focusPoints} expanded={expanded} fitVersion={fitVersion} bottomInset={expanded?bottomInset:0}/><ZoomControl position="bottomright"/>
+  <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomSnap={.25} zoomControl={false} dragging touchZoom attributionControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
+   <MapViewport points={focusPoints} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
    <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" maxZoom={19}/>
    <Pane name="journey-route-strokes" style={{zIndex:410}}>
    {journey.legs.map((leg,index)=>{

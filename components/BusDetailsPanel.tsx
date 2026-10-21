@@ -1,5 +1,6 @@
 'use client';
 
+import {useLayoutEffect} from 'react';
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {motion, AnimatePresence, type MotionStyle} from 'motion/react';
@@ -15,6 +16,7 @@ import {displayStopLabel} from '@/lib/stop-label';
 
 interface BusDetailsPanelProps {
   preview?:boolean;
+  onHeaderSize?:(height:number)=>void;
   selectedBusTripFinished?:boolean;
   mpkStopNames?:ReadonlyMap<string,string>;
   selectedBus: Vehicle;
@@ -46,7 +48,13 @@ interface BusDetailsPanelProps {
   formatScheduleStopName: (name: string) => string;
 }
 
-export default function BusDetailsPanel({preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+  useLayoutEffect(()=>{
+    const header=busHeaderRef.current;if(!header||!onHeaderSize)return;
+    const measure=()=>onHeaderSize(header.offsetHeight);
+    const observer=new ResizeObserver(measure);observer.observe(header);window.addEventListener('resize',measure);measure();
+    return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
+  },[busHeaderRef,onHeaderSize]);
   return (
     <motion.div
                   key="bus-panel-map"
