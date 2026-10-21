@@ -1,16 +1,22 @@
 'use client';
-import {useEffect,useRef,useState,type PointerEvent} from 'react';
+import {useCallback,useLayoutEffect,useRef,useState,type PointerEvent} from 'react';
 import {useJourneyReducedMotion} from './journey-motion';
 import {animate,useMotionValue} from 'motion/react';
 export const SHEET_SPRING={type:'spring' as const,stiffness:380,damping:36};
 /** Pointer capture makes the whole sheet follow the handle, with one snap policy. */
 export function useSheetGesture(expanded:boolean,change:(expanded:boolean)=>void,compact:number,full:number,settledHeight=false){
-  const height=useMotionValue(compact),reduce=useJourneyReducedMotion();
+  const height=useMotionValue(expanded?full:compact),reduce=useJourneyReducedMotion();
   const gesture=useRef<{id:number;y:number;height:number;moved:boolean}|null>(null),skip=useRef(false);
   const animation=useRef<ReturnType<typeof animate>|null>(null);
   const [dragging,setDragging]=useState(false);
-  const settle=(target:number)=>{animation.current?.stop();if(settledHeight||reduce){height.set(target);return;}animation.current=animate(height,target,SHEET_SPRING);};
-  useEffect(()=>{if(!gesture.current)settle(expanded?full:compact);return()=>animation.current?.stop();},[expanded,compact,full,reduce,settledHeight]);
+  const settle=useCallback((target:number)=>{animation.current?.stop();if(settledHeight||reduce){height.set(target);return;}animation.current=animate(height,target,SHEET_SPRING);},[height,settledHeight,reduce]);
+  const previousSize=useRef({compact,full});
+  useLayoutEffect(()=>{
+    const resized=previousSize.current.compact!==compact||previousSize.current.full!==full;
+    previousSize.current={compact,full};
+    if(!gesture.current){if(resized){animation.current?.stop();height.set(expanded?full:compact);}else settle(expanded?full:compact);}
+    return()=>animation.current?.stop();
+  },[expanded,compact,full,reduce,settledHeight,height,settle]);
   const finish=(event:PointerEvent<HTMLElement>,cancel=false)=>{
     const start=gesture.current;if(!start||start.id!==event.pointerId)return;
     gesture.current=null;setDragging(false);

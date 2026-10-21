@@ -17,8 +17,9 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.waitForFunction(()=>document.querySelector('[data-filter-cosmos]').dataset.active==='true');
   const saved=await page.evaluate(()=>({appearance:localStorage.getItem('mks_interface_appearance_v1'),glass:localStorage.getItem('mks_transparent')}));
   await page.click('[data-light-toggle]');
-  await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on'&&window.__skipAnimations()===true);
+  await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on');
   if(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backdropFilter)!=='none')console.error('Performance cascade diagnostics',await page.evaluate(()=>({attributes:[...document.documentElement.attributes].filter(a=>a.name.includes('personal')||a.name.includes('cosmic')).map(a=>[a.name,a.value]),matches:document.querySelector('[data-test-glass]').matches("html[data-personal-light-effects='on'] body *"),layers:[...document.styleSheets].flatMap(s=>{try{return [...s.cssRules].filter(r=>r.cssText.includes('pks-performance')).map(r=>r.cssText.slice(0,2200));}catch{return [];}})})));
+  assert.notEqual(await page.evaluate(()=>window.__skipAnimations()),true,'light mode does not globally short-circuit motion layout updates');
   assert.equal(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backdropFilter),'none');
   assert.equal(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).boxShadow),'none');
   assert.match(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backgroundColor),/^rgb\(/,'opaque panels');
@@ -27,13 +28,26 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.notEqual(await page.$eval('[data-test-spinner]',n=>getComputedStyle(n).animationName),'none','useful loading spinner remains');
   assert.equal(await page.$eval('[data-test-spinner]',n=>getComputedStyle(n).animationDuration),'1s','reduced-motion CSS cannot accelerate the useful spinner');
   await page.click('[data-light-toggle]');
-  await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='off'&&window.__skipAnimations()!==true);
+  await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='off');
   assert.notEqual(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backdropFilter),'none','glass returns');
   assert.notEqual(await page.$eval('[data-filter-cosmos]',n=>getComputedStyle(n).display),'none');
   assert.equal(await page.$eval('[data-filter-cosmos]',n=>n.dataset.active),'true','cosmic effects resume');
   assert.deepEqual(await page.evaluate(()=>({appearance:localStorage.getItem('mks_interface_appearance_v1'),glass:localStorage.getItem('mks_transparent')})),saved,'saved preferences survive the temporary mode');
   await page.click('[data-future]');await page.waitForSelector('[data-route-stop-id]');
   assert.equal(await page.$('[data-next-departure]'),null,'a known new course replaces the terminal placeholder');
+  await page.click('[data-light-toggle]');
+  await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on');
+  await page.click('[data-reopen]');await page.waitForSelector('[data-map-bus-sheet]',{hidden:true});
+  await page.click('[data-reopen]');await page.waitForSelector('[data-map-bus-sheet]');
+  await page.waitForFunction(()=>{const sheet=document.querySelector('[data-map-bus-sheet]'),header=sheet?.querySelector('[data-vehicle-header]');return header&&Math.abs(sheet.getBoundingClientRect().height-header.offsetHeight)<3;});
+  const firstHeight=await page.$eval('[data-map-bus-sheet]',n=>n.getBoundingClientRect().height);
+  await page.click('[data-reopen]');await page.waitForSelector('[data-map-bus-sheet]',{hidden:true});await page.click('[data-reopen]');
+  await page.waitForFunction(h=>Math.abs(document.querySelector('[data-map-bus-sheet]').getBoundingClientRect().height-h)<3,{},firstHeight);
+  await page.click('[data-devices]');await page.waitForSelector('[data-test-devices] [data-cosmic-panel]');
+  for(const theme of ['light-sky','dark-forest']){
+   await page.evaluate(t=>{localStorage.setItem('mks_app_theme',t);document.querySelector('.pks-theme-root').dataset.uiTheme=t;window.dispatchEvent(new Event('pks-interface-appearance'));},theme);
+   assert.ok(await page.$$eval('[data-test-devices] [data-cosmic-panel]',cards=>cards.every(card=>{const box=card.getBoundingClientRect(),footer=card.lastElementChild.getBoundingClientRect();return footer.bottom<=box.bottom+1&&footer.top>=box.top;})),'device card footer remains inside the card in light mode: '+theme);
+  }
   assert.deepEqual(errors,[]);console.log('PASS: reversible light effects, opaque glass, stopped cosmic accents, retained useful spinner, terminal state and next course');
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -113,6 +113,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('.connections-map-sheet [data-journey-leg="1"]');
   await page.waitForSelector('.connections-map-modal .connections-bus-path.is-focused');
   assert.ok(await page.$('.connections-map-sheet.is-expanded'),'focusing a route keeps the details sheet open');
+  await page.waitForFunction(()=>!document.querySelector('.connections-map-modal .leaflet-zoom-anim'));
+  const footprint=await page.$eval('.connections-map-modal .connections-bus-path.is-focused',p=>{const r=p.getBoundingClientRect(),m=p.closest('.leaflet-container').getBoundingClientRect();return {route:Math.max(r.width,r.height),map:Math.min(m.width,m.height)};});
+  assert.ok(footprint.route>footprint.map*.3,'expanded sheet does not subtract its height twice and over-zoom the route');
+  await page.evaluate(()=>{document.documentElement.dataset.personalLightEffects='on';document.documentElement.dataset.personalMotion='reduced';document.documentElement.dataset.personalMapMotion='normal';});
+  await page.click('.connections-map-modal .leaflet-control-zoom-in');
+  await page.waitForSelector('.connections-map-modal .leaflet-zoom-anim');
+  assert.equal(await page.$eval('.connections-map-modal .leaflet-zoom-anim .leaflet-zoom-animated',n=>getComputedStyle(n).transitionDuration),'0.25s','light effects preserve Leaflet zoom timing');
+  await page.evaluate(()=>{document.documentElement.dataset.personalLightEffects='off';document.documentElement.dataset.personalMotion='normal';});
+
   assert.equal(await page.$$eval('.connections-map-modal .connections-stop-point',nodes=>nodes.length),3,'the focused bus shows all its calls');
   const mapBefore=await page.evaluate(()=>{window.__focusedMap=document.querySelector('.connections-map-modal .leaflet-container');window.__focusedPath=document.querySelector('.connections-map-modal .connections-bus-path.is-focused');return window.__liveCalls;});
   await page.waitForFunction(n=>window.__liveCalls>n,{},mapBefore);

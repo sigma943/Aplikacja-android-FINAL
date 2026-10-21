@@ -4,6 +4,7 @@ import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLef
 import { Badge } from './Badge';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect, useRef } from 'react';
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import { motion, AnimatePresence } from 'motion/react';
 import { Device } from '../types';
 
@@ -41,6 +42,7 @@ export function DeviceTable({
   onRenameDevice,
   onDeleteDevice,
 }: DeviceTableProps) {
+  const reducedMotion=useJourneyReducedMotion();
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('ALL');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -542,7 +544,7 @@ export function DeviceTable({
             const deleteDisabled = !canDeleteTarget(device, isSelf);
             const primaryLabel = device.name;
             return (
-              <motion.div key={device.id} data-cosmic-panel={`admin-device:${device.id}`} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative overflow-hidden">
+              <motion.div key={device.id} data-cosmic-panel={`admin-device:${device.id}`} initial={reducedMotion?false:{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
                 <div className="flex flex-wrap items-center justify-between relative z-10 gap-3">
                   <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto sm:flex-1">
