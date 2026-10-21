@@ -5,7 +5,7 @@ import {usePathname} from 'next/navigation';
 import AppBackBridge from './AppBackBridge';
 import CosmicEffects from './CosmicEffects';
 import {readAppTheme,resolveAppTheme} from '@/lib/app-theme';
-import { MotionConfig } from 'motion/react';
+import { MotionConfig,MotionGlobalConfig } from 'motion/react';
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppearance} from '@/lib/interface-appearance';
 
@@ -26,7 +26,7 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
     const root=document.documentElement,media=window.matchMedia('(prefers-color-scheme: dark)');
     let cleanupAppearance:undefined|(()=>void);
     let glowKeys:string[]=[];
-    let appliedKey='';
+    let appliedKey='';const previousSkip=MotionGlobalConfig.skipAnimations;
     const update=()=>{
       const switched=applyScheduledProfile();
       let value=normalizeInterfaceAppearance(null);
@@ -41,11 +41,12 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
       cleanupAppearance=applyInterfaceAppearance(root,value,dark,accent,lightEffects,theme);
       void loadInterfaceGoogleFont(interfaceGoogleFont(value)).catch(()=>{/* The system font keeps the interface usable offline. */});
       const strength=panelGlowStrength(localStorage.getItem('mks_panel_glow_strength'));
-      root.dataset.panelGlow=localStorage.getItem('mks_panel_glow')==='true'&&strength>0?'on':'off';
+      root.dataset.panelGlow=!lightEffects&&localStorage.getItem('mks_panel_glow')==='true'&&strength>0?'on':'off';
       const variables=panelGlowVariables(value.glowColor,strength,dark,lightEffects,{style:value.glowStyle,spread:value.glowSpread,placement:value.glowPlacement});
       glowKeys=Object.keys(variables);
       for(const [key,next]of Object.entries(variables))root.style.setProperty(key,next);
-      setReduced(value.reducedMotion);
+      MotionGlobalConfig.skipAnimations=value.reducedMotion||lightEffects;
+      setReduced(value.reducedMotion||lightEffects);
       if(switched)window.dispatchEvent(new Event('pks-profile-applied'));
     };
     update();
@@ -57,7 +58,7 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
     return ()=>{
       window.removeEventListener('pks-interface-appearance',update);window.removeEventListener('storage',update);media.removeEventListener('change',update);
       updateRef.current=null;window.removeEventListener('focus',update);
-      cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
+      MotionGlobalConfig.skipAnimations=previousSkip;cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
     };
   },[]);
   return <MotionConfig reducedMotion={reduced?'always':'user'} transition={{duration: .24, ease: [.22, 1, .36, 1]}}><AppBackBridge />{children}<CosmicEffects/></MotionConfig>;

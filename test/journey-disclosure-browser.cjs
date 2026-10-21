@@ -14,7 +14,11 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
 
   await page.goto(origin+'/?disclosures',{waitUntil:'domcontentloaded'});
   await page.waitForSelector('.connections-recent>button:first-child');await page.click('.connections-recent>button:first-child');
-  await page.click('.connections-primary');await page.waitForSelector('[data-journey-result]');
+  await page.evaluate(()=>{window.__holdSearch=true;});await page.click('.connections-primary');
+  await page.waitForSelector('.connections-primary[aria-busy="true"] .animate-spin');
+  assert.match(await page.$eval('.connections-primary',e=>e.textContent),/Wyszukiwanie/);
+  assert.equal(await page.$('.connections-progress'),null,'the search indicator is confined to the button');
+  await page.evaluate(()=>{window.__holdSearch=false;window.__releaseSearch();});await page.waitForSelector('[data-journey-result]');
   const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const open=async index=>{await page.$$eval('.connections-result',(nodes,i)=>nodes[i].scrollIntoView({block:'center'}),index);await page.$$eval('.connections-result',(nodes,i)=>nodes[i].click(),index);await wait(450);};
   const checkHeader=async index=>{

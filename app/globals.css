@@ -1106,3 +1106,10 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 html[data-cosmic-theme='on'] [data-stop-list-mode] [data-full-stop-list]{background:transparent!important}
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-stop-list-mode]{background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-full-stop-list]{background:transparent!important}
+
+/* A reversible performance mode: keep saved visual preferences untouched. */
+html[data-personal-light-effects='on'] body *,html[data-personal-light-effects='on'] body *::before,html[data-personal-light-effects='on'] body *::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;text-shadow:none!important;transition-duration:.01ms!important}
+html[data-personal-light-effects='on'] body *:not(.animate-spin):not(.lucide-loader-circle){animation:none!important}
+html[data-personal-light-effects='on'] :is([data-cosmic-effects],[data-filter-cosmos],[data-cosmic-transition],[data-cosmic-stars],[data-cosmic-meteor],[data-cosmic-comet]){display:none!important}
+html[data-personal-light-effects='on'] :is(.pks-glass,.pks-glass-frame,.pks-options-sheet,.map-detail-shell,.transit-surface,.transit-card,[data-cosmic-panel],.connections-card,.connections-map-sheet,.connections-picker){background-color:var(--personal-surface,#101a26)!important;background-image:none!important}
+html[data-personal-light-effects='on'] :is(.pks-navigation,.pks-map-search-panel){background-color:var(--personal-surface,#101a26)!important;background-image:none!important}

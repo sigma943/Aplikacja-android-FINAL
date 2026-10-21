@@ -37,13 +37,14 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.click('[data-journey-picker] .connections-use-location');await page.waitForFunction(()=>document.querySelector('[data-journey-from]').textContent.includes('Twoja lokalizacja'));
    await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location');
    await page.waitForSelector('.connections-place-leaflet');
-   assert.equal(await page.$('.connections-place-leaflet canvas'),null,'catalog stops are hidden at the initial distant zoom');
-   assert.equal(await page.$('.connections-place-map .leaflet-marker-icon'),null,'map picker has no vehicle or stop bus icons');
+   assert.ok(await page.$('.connections-place-leaflet'),'picker opens at a close street zoom');
+   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(t=>/[?&]z=15(?:&|$)/.test(t.src)));
+   assert.equal(await page.$('.connections-place-map .leaflet-marker-icon:not(.map-catalog-stop)' ),null,'map picker has no vehicle or stop bus icons');
    const mapRect=await page.$eval('.connections-place-leaflet',e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};});
-   await page.mouse.click(mapRect.x+mapRect.w*.2,mapRect.y+mapRect.h*.35);
+   await page.$eval('.connections-place-leaflet',(e,r)=>e.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.x+r.w*.2,clientY:r.y+r.h*.35})),mapRect);
    await page.waitForFunction(()=>document.querySelector('.connections-place-confirm strong').textContent==='Punkt na mapie');
    await page.waitForSelector('.connections-picked-pin .map-stop-pin');
-   assert.equal(await page.$('.connections-place-map .leaflet-marker-icon:not(.connections-picked-pin)'),null);
+   assert.equal(await page.$('.connections-place-map .leaflet-marker-icon:not(.connections-picked-pin):not(.map-catalog-stop)'),null);
    for(const [accent,expectedColor] of [['#8b5cf6','rgb(139, 92, 246)'],['#ff7a00','rgb(255, 122, 0)']]){
     await page.evaluate(value=>document.documentElement.style.setProperty('--pks-accent',value),accent);
     const pin=await page.$eval('.connections-picked-pin svg',e=>getComputedStyle(e).color);
@@ -60,10 +61,10 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    }
    await page.evaluate(()=>{document.querySelector('.pks-theme-root').dataset.uiTheme='dark';document.documentElement.dataset.cosmicTheme='off';document.documentElement.style.removeProperty('--theme-decoration');});
    // Leaflet ignores another zoom while an animated zoom is in progress.
-   // Shift-click requests 13 -> 16 in one action; wait for the actual tile zoom.
+   // Shift-click requests 15 -> 18 in one action; wait for the actual tile zoom.
    await page.keyboard.down('Shift');
    try{await page.click('.connections-place-map .leaflet-control-zoom-in');}finally{await page.keyboard.up('Shift');}
-   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(tile=>/[?&]z=16(?:&|$)/.test(tile.src)));
+   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(tile=>/[?&]z=18(?:&|$)/.test(tile.src)));
    await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring').catch(async error=>{
     await screenshot('picker-markers-failure');
     console.error('Picker diagnostics',await page.evaluate(()=>({tiles:[...new Set([...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].map(tile=>(/[?&]z=(\d+)/.exec(tile.src)||[])[1]))],errors:document.querySelector('.connections-place-map')?.textContent})),errors);throw error;

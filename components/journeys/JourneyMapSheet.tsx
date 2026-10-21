@@ -26,8 +26,8 @@ export default function JourneyMapSheet({journey,activeLeg,onFocusLeg}:{journey:
    <span className="connections-sheet-summary"><span><strong>{warsawClock(journey.departure)} <span aria-hidden="true">→</span> {warsawClock(journey.arrival)}</strong><small>{description}</small></span>{expanded?<ChevronDown size={19}/>:<ChevronUp size={19}/>}</span>
   </button>
   <div id={id} className="connections-sheet-content" hidden={!expanded}>
-   <button className="connections-sheet-all" onClick={()=>{onFocusLeg(null);setExpanded(false);}}><Route size={16}/>Pokaż całą podróż</button>
-   <div className="connections-journey-timeline"><JourneyStages journey={journey} activeLeg={activeLeg} onSelectLeg={index=>{onFocusLeg(index);setExpanded(false);}}/></div>
+   <button className="connections-sheet-all" onClick={()=>{onFocusLeg(null);}}><Route size={16}/>Pokaż całą podróż</button>
+   <div className="connections-journey-timeline"><JourneyStages journey={journey} activeLeg={activeLeg} onSelectLeg={index=>{onFocusLeg(index);}}/></div>
   </div>
  </section>;
 }

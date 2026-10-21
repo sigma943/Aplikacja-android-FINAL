@@ -13,6 +13,7 @@ export async function searchConnections(from?:Stop,_to?:Stop,_catalog?:Stop[],_d
  (window as any).__preferences=options;
  const origin=from?.id==='journey:my-location'?from:a;
  const count=((window as any).__liveCalls||0)+1;(window as any).__liveCalls=count;
+ if((window as any).__holdSearch)await new Promise<void>(resolve=>{(window as any).__releaseSearch=resolve;});
  const departure=Date.now()+3600000+count*60000,arrival=departure+5400000;
  const journey:Journey={id:'changing:'+count,departure,arrival,walking:100,transfers:1,legs:[
   {from:origin,to:b,departure,arrival:departure+120000,course:'walk',provider:'walk',line:'Pieszo',walking:100,path:[[origin.lat!,origin.lon!],[b.lat!,b.lon!]]},

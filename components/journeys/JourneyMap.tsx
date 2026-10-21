@@ -72,18 +72,18 @@ function SelectedStopBadge({marker,onClose}:{marker:JourneyMapPoint;onClose:()=>
  </div>,map.getContainer());
 }
 
-function MapViewport({points,expanded,fitVersion}:{points:Point[];expanded:boolean;fitVersion:number}){
+function MapViewport({points,expanded,fitVersion,bottomInset}:{points:Point[];expanded:boolean;fitVersion:number;bottomInset:number}){
  const map=useMap();
  useEffect(()=>{
   let frame=0;
   const fit=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
    map.invalidateSize({pan:false});
-   if(points.length)map.fitBounds(points,{padding:[30,40],maxZoom:17,animate:false});
+   if(points.length)map.fitBounds(points,{paddingTopLeft:[30,30],paddingBottomRight:[30,Math.min(bottomInset+30,map.getSize().y-120)],maxZoom:17,animate:false});
   });};
   fit();
   const observer=new ResizeObserver(fit);observer.observe(map.getContainer());
   return()=>{observer.disconnect();cancelAnimationFrame(frame);};
- },[map,points,fitVersion]);
+ },[map,points,fitVersion,bottomInset]);
  return null;
 }
 
@@ -98,8 +98,15 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
  const [placeholderHeight,setPlaceholderHeight]=useState(0),[portalHost,setPortalHost]=useState<Element|null>(null);
  useEffect(()=>{let alive=true;queueMicrotask(()=>{if(alive){setActiveLeg(focusLeg);setSelectedStop(null);setFitVersion(v=>v+1);}});return()=>{alive=false;};},[focusLeg,focusVersion]);
+ const [bottomInset,setBottomInset]=useState(0);
  const [dialogTheme,setDialogTheme]=useState<CSSProperties>({});
  const host=useRef<HTMLDivElement>(null),dialog=useRef<HTMLElement>(null);
+ useEffect(()=>{
+  if(!expanded)return;
+  const sheet=dialog.current?.querySelector<HTMLElement>('.connections-map-sheet');if(!sheet)return;
+  const update=()=>setBottomInset(sheet.getBoundingClientRect().height);
+  const observer=new ResizeObserver(update);observer.observe(sheet);return()=>observer.disconnect();
+ },[expanded]);
  const requestKey=geometryKey+':'+attempt;
  useEffect(()=>{if(focusVersion>0&&!expanded)host.current?.scrollIntoView({behavior:'smooth',block:'start'});},[focusVersion,expanded]);
  useDialogFocus(dialog,expanded,()=>setExpanded(false));
@@ -165,7 +172,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  const status=pending?<span role="status" aria-label="Wczytywanie trasy"><LoaderCircle size={17} className="animate-spin"/></span>:failed.length>0?<button aria-label="Niepełna trasa. Ponów wczytywanie" title="Niepełna trasa. Ponów wczytywanie" onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={17}/></button>:null;
  const mapContent=<>
   <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomControl={false} dragging touchZoom attributionControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
-   <MapViewport points={focusPoints} expanded={expanded} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
+   <MapViewport points={focusPoints} expanded={expanded} fitVersion={fitVersion} bottomInset={expanded?bottomInset:0}/><ZoomControl position="bottomright"/>
    <TileLayer url="https://mt1.google.com/vt/lyrs=m&hl=pl&gl=PL&x={x}&y={y}&z={z}" maxZoom={19}/>
    <Pane name="journey-route-strokes" style={{zIndex:410}}>
    {journey.legs.map((leg,index)=>{

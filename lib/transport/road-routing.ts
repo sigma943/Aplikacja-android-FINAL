@@ -27,6 +27,14 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
     const chunks=routeChunks(points);
     const results: ShapePoint[][]=new Array(chunks.length);
     const secondary: ShapePoint[][] = new Array(chunks.length);
+    const fetchCompleteSecondary = async () => {
+      const coordinates=points.map(([lat,lon])=>lon+','+lat).join(';');
+      const data=await withRequestDeadline(signal=>requestJson<{routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
+        'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false',{signal}),undefined,12000);
+      const route:ShapePoint[]=(data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
+      if(!routedRoadRouteMatchesStops(route,points))throw Error('Incomplete complete-course road route');
+      return route;
+    };
     const fetchSecondary = async (index: number) => {
       if (secondary[index]) return secondary[index];
       const chunk = chunks[index];
@@ -39,6 +47,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       return route;
     };
     let cursor=0;
+    try {
     await Promise.all(Array.from({length:Math.min(3,chunks.length)},async()=> {
       while(cursor<chunks.length) {
         const index=cursor++,chunk=chunks[index];
@@ -69,6 +78,10 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
         results[index]=route;
       }
     }));
+    }catch(error){
+      if(chunks.length>1&&points.length<=100){try{return await fetchCompleteSecondary();}catch{/* Retain the original diagnostic on failed recovery. */}}
+      throw error;
+    }
     try {
       const route = joinRouteChunks(results);
       if (!routedRoadRouteMatchesStops(route,points)) throw new Error('Incomplete joined road route');
@@ -77,6 +90,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       // Routers may snap a shared stop onto different roads or opposite ends of
       // its search radius. Never bridge that gap with a straight line. Rebuild
       // the whole pattern with one router, reusing already validated responses.
+      if(points.length<=100){try{return await fetchCompleteSecondary();}catch{/* Retry consistently routed chunks below. */}}
       cursor = 0;
       await Promise.all(Array.from({length:Math.min(3,chunks.length)},async()=> {
         while(cursor<chunks.length) {

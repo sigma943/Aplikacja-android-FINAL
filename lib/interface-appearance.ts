@@ -88,10 +88,10 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
   const variables:Record<string,string>={
     '--personal-panel-radius':`${v.panelRadius}px`,'--personal-card-radius':`${v.cardRadius}px`,'--personal-control-radius':`${v.controlRadius}px`,
     '--personal-edge':`rgba(${dark?'255,255,255':'15,23,42'},${v.borderStrength/100})`,
-    '--personal-shadow':`0 8px ${12+v.shadowStrength*.3}px rgba(0,0,0,${Math.min(v.shadowStrength,lightEffects?15:100)/400})`,
-    '--personal-glass':`rgba(${bg.join(',')},${v.glassOpacity/100})`,
+    '--personal-shadow':lightEffects?'none':`0 8px ${12+v.shadowStrength*.3}px rgba(0,0,0,${Math.min(v.shadowStrength,lightEffects?15:100)/400})`,
+    '--personal-glass':`rgba(${bg.join(',')},${lightEffects?1:v.glassOpacity/100})`,
     '--personal-surface':`rgb(${bg.join(',')})`,
-    '--personal-blur':`${v.glassBlurEnabled?Math.min(v.glassBlur,lightEffects?6:28):0}px`,'--personal-saturation':`${v.glassSaturation}%`,
+    '--personal-blur':`${v.glassBlurEnabled&&!lightEffects?Math.min(v.glassBlur,28):0}px`,'--personal-saturation':`${v.glassSaturation}%`,
     '--personal-title-weight':`${v.titleWeight}`,'--personal-letter-spacing':`${v.letterSpacing}px`,
     '--personal-font':interfaceFontStack(v),
     '--personal-icon-size':`${v.iconSize}px`,'--personal-icon-stroke':`${v.iconStroke}`,'--personal-inactive-opacity':`${v.inactiveOpacity/100}`,
@@ -114,7 +114,7 @@ export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,
     glass:String(v.glassOpacity!==defaults.glassOpacity||v.surfaceTint!=='original'),blur:String(!v.glassBlurEnabled||v.glassBlur!==defaults.glassBlur||v.glassSaturation!==defaults.glassSaturation),frost:v.glassBlurEnabled&&v.glassBlur>0?'on':'off',
     cardStyle:v.cardStyle,buttonStyle:v.buttonStyle,surface:v.surfaceTint,text:String(v.textScale!==100),font:v.fontFamily,title:String(v.titleWeight!==700),spacing:String(v.letterSpacing!==0),
     numbers:v.tabularNumbers?'tabular':'proportional',density:v.density,icons:String(v.iconSize!==24||v.iconStroke!==2),
-    departures:v.departureView,marker:v.markerLabel,layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),motion:v.reducedMotion?'reduced':'normal',hover:String(v.hoverHighlight),
+    departures:v.departureView,marker:v.markerLabel,layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),lightEffects:lightEffects?'on':'off',motion:v.reducedMotion||lightEffects?'reduced':'normal',hover:String(v.hoverHighlight),
   };
   for(const [key,value] of Object.entries(attrs))root.setAttribute('data-personal-'+key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value);
   const variables=interfaceAppearanceVariables(v,dark,accent,lightEffects,theme);
