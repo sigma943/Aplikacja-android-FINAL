@@ -10,6 +10,7 @@ export function useSheetGesture(expanded:boolean,change:(expanded:boolean)=>void
   const animation=useRef<ReturnType<typeof animate>|null>(null);
   const [dragging,setDragging]=useState(false);
   const settle=useCallback((target:number)=>{animation.current?.stop();if(settledHeight||reduce){height.set(target);return;}animation.current=animate(height,target,SHEET_SPRING);},[height,settledHeight,reduce]);
+  const syncHeight=useCallback(()=>{animation.current?.stop();height.set(expanded?full:compact);},[expanded,full,compact,height]);
   const previousSize=useRef({compact,full});
   useLayoutEffect(()=>{
     const resized=previousSize.current.compact!==compact||previousSize.current.full!==full;
@@ -27,7 +28,7 @@ export function useSheetGesture(expanded:boolean,change:(expanded:boolean)=>void
     const next=Math.abs(dy)>24?dy<0:height.get()>(compact+full)/2;
     settle(next?full:compact);change(next);
   };
-  return {height,dragging,handle:{
+  return {height,dragging,syncHeight,handle:{
     onPointerDown:(event:PointerEvent<HTMLElement>)=>{if(event.button!==0)return;animation.current?.stop();skip.current=false;gesture.current={id:event.pointerId,y:event.clientY,height:height.get(),moved:false};event.currentTarget.setPointerCapture(event.pointerId);},
     onPointerMove:(event:PointerEvent<HTMLElement>)=>{const start=gesture.current;if(!start||start.id!==event.pointerId)return;const dy=event.clientY-start.y;if(Math.abs(dy)>5&&!start.moved){start.moved=true;setDragging(true);}if(start.moved)height.set(Math.max(compact,Math.min(full,start.height-dy)));},
     onPointerUp:(event:PointerEvent<HTMLElement>)=>finish(event),
