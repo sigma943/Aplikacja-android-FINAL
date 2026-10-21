@@ -971,7 +971,7 @@ export default function Home() {
             : NaN)
       : NaN;
   const breakCountdown =
-    Number.isFinite(selectedBusBreakUntil)
+    Number.isFinite(selectedBusBreakUntil) && selectedBusBreakUntil > now
       ? Math.max(0, Math.floor((selectedBusBreakUntil - now) / 1000))
       : null;
   const breakCountdownLabel = breakCountdown === null

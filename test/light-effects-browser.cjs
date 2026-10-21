@@ -18,6 +18,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const saved=await page.evaluate(()=>({appearance:localStorage.getItem('mks_interface_appearance_v1'),glass:localStorage.getItem('mks_transparent')}));
   await page.click('[data-light-toggle]');
   await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on'&&window.__skipAnimations()===true);
+  if(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backdropFilter)!=='none')console.error('Performance cascade diagnostics',await page.evaluate(()=>({attributes:[...document.documentElement.attributes].filter(a=>a.name.includes('personal')||a.name.includes('cosmic')).map(a=>[a.name,a.value]),matches:document.querySelector('[data-test-glass]').matches("html[data-personal-light-effects='on'] body *"),layers:[...document.styleSheets].flatMap(s=>{try{return [...s.cssRules].filter(r=>r.cssText.includes('pks-performance')).map(r=>r.cssText.slice(0,2200));}catch{return [];}})})));
   assert.equal(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backdropFilter),'none');
   assert.equal(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).boxShadow),'none');
   assert.match(await page.$eval('[data-test-glass]',n=>getComputedStyle(n).backgroundColor),/^rgb\(/,'opaque panels');
