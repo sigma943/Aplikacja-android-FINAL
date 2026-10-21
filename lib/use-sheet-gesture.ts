@@ -1,10 +1,11 @@
 'use client';
 import {useEffect,useRef,useState,type PointerEvent} from 'react';
-import {animate,useMotionValue,useReducedMotion} from 'motion/react';
+import {useJourneyReducedMotion} from './journey-motion';
+import {animate,useMotionValue} from 'motion/react';
 export const SHEET_SPRING={type:'spring' as const,stiffness:380,damping:36};
 /** Pointer capture makes the whole sheet follow the handle, with one snap policy. */
 export function useSheetGesture(expanded:boolean,change:(expanded:boolean)=>void,compact:number,full:number,settledHeight=false){
-  const height=useMotionValue(compact),reduce=useReducedMotion();
+  const height=useMotionValue(compact),reduce=useJourneyReducedMotion();
   const gesture=useRef<{id:number;y:number;height:number;moved:boolean}|null>(null),skip=useRef(false);
   const animation=useRef<ReturnType<typeof animate>|null>(null);
   const [dragging,setDragging]=useState(false);

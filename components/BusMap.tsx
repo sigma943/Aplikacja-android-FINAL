@@ -18,6 +18,7 @@ import {officialBusRoute} from '@/lib/official-bus-routes';
 import {roadRouteMatchesStops, cleanRoadJunctionLoops} from '@/lib/bus-road-geometry';
 import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
+import {withRequestDeadline} from '@/lib/request-deadline';
 import {loadRouteWithRetry} from '@/lib/route-load-retry';
 
 import {fetchRouteGeometryClient, type RouteGeometryStop} from '@/lib/pks-client';
@@ -31,7 +32,7 @@ import {MapStateTracker, MapCenterer, MapClickListener} from '@/components/map/M
 import {VehicleMarkerLayer} from '@/components/map/VehicleMarkers';
 import {SelectedStopPin, CatalogStopsLayer, RouteStopsLayer} from '@/components/map/StopLayers';
 
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v15-course-validated-roads';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v16-complete-course-recovery';
 
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 
@@ -110,6 +111,7 @@ function BusMap({
     void loadStopPlatforms().then(()=>{if(active)setPlatformRevision(v=>v+1);});
     return()=>{active=false;};
   },[needsPlatforms]);
+  const [routeError,setRouteError]=useState(''),[routeAttempt,setRouteAttempt]=useState(0);
   const [snappedRoute, setSnappedRoute] = useState<[number, number][]>([]);
   const refinedRouteCacheRef = useRef(new Map<string, [number, number][]>());
   const refinedRouteByVehicleRef = useRef(new Map<string, [number, number][]>());
@@ -229,7 +231,7 @@ function BusMap({
       const loadBundledRoute = async()=>routeMode === 'road'
         ? selectedVehicle.provider==='marcel'
           ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon])).catch(()=>[])
-          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon])).catch(()=>[])
+          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon]),{completePattern:!!selectedVehicle.routePath?.length&&routeGeometryStops.length===routeStopIds.length}).catch(()=>[])
         : [];
       const localRoute = await preferredLocalRoute({
         mode: routeMode,
@@ -268,7 +270,7 @@ function BusMap({
         mode: routeMode,
         stops: routeGeometryStops,
       }, { signal: controller.signal });}, controller.signal, [1000, 3000, 10000, 30000], {
-        keepRetrying: true,
+        keepRetrying: false,
         isUsable: response => (response.geometry?.coordinates || [])
           .filter(([lon, lat]) => Number.isFinite(lat) && Number.isFinite(lon)).length > 1,
       });
@@ -298,22 +300,23 @@ function BusMap({
         }
     };
 
-    loadRoute().catch((error) => {
-      if ((error as any)?.name === 'AbortError') return;
+    withRequestDeadline(()=>loadRoute(),controller.signal,45000).catch((error) => {
       if (requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
-      // Keep the last good rendered route when a transient network/backend error happens.
+      // Keep any valid geometry and make failure recoverable without reselection.
+      setRouteError(currentIdentity);controller.abort();
     });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [routeKey, routeStopsHash, routeCourse, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.routeGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeAttempt,routeKey, routeStopsHash, routeCourse, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.routeGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 
   return (
     <div ref={mapContainerRef} className={`h-full w-full relative z-0 style-map ${vehicles.length > 35 ? 'is-high-volume' : ''}`}>
+      {routeError===routeIdentity&&selectedVehicle&&currentGeometry.length<2&&<div role="status" data-vehicle-route-error className="absolute top-40 left-3 right-3 z-[1000] rounded-xl border bg-slate-900 p-3 text-sm text-white">Nie udało się wczytać przebiegu trasy. Przystanki i pozycja autobusu pozostają dostępne.<button className="ml-2 underline" onClick={()=>{setRouteError('');setRouteAttempt(v=>v+1);}}>Ponów</button></div>}
       <style>{`
         /* Hide zoom controls on mobile */
         @media (max-width: 768px) {

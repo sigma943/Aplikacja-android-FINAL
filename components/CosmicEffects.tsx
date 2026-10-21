@@ -137,7 +137,7 @@ export default function CosmicEffects(){
       const theme=resolveAppTheme(readAppTheme());
       const nextRegion=theme==='dark-cosmos'?findRegion():null;
       root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
-      try{root.dataset.cosmicGlass=localStorage.getItem('mks_transparent')==='false'?'off':'on';}catch{root.dataset.cosmicGlass='on';}
+      try{root.dataset.cosmicGlass=light||localStorage.getItem('mks_transparent')==='false'?'off':'on';}catch{root.dataset.cosmicGlass='on';}
       let parallaxPreference=false;try{parallaxPreference=localStorage.getItem(COSMIC_PARALLAX_KEY)==='true';}catch{}
       write('--cosmos-clear-veil',!appearance.glassBlurEnabled||appearance.glassBlur===0?'rgba(4,8,22,.56)':'transparent');
       write('--cosmos-veil-alpha',String(appearance.glassOpacity/100*.42));

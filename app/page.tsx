@@ -1,4 +1,5 @@
 'use client';
+import {vehicleTripFinished} from '@/lib/vehicle-trip-finished';
 import {DEFAULT_APP_THEME,normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
 import {reconcileVehicles} from '@/lib/vehicle-reconcile';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
@@ -547,6 +548,7 @@ export default function Home() {
     });
   }, [hasLoadedTransportProviders, hiddenProvidersSet]);
 
+  const vehicleDetailsLoadingOwnerRef=useRef(0);
   const loadVehicleDetails = useCallback(async (
     vehicle: Vehicle,
     options?: { force?: boolean; silent?: boolean },
@@ -563,7 +565,7 @@ export default function Home() {
 
     const requestSeq = vehicleDetailsRequestSeqRef.current + 1;
     vehicleDetailsRequestSeqRef.current = requestSeq;
-    if (!silent) setSelectedBusDetailsLoading(true);
+    if (!silent) {vehicleDetailsLoadingOwnerRef.current=requestSeq;setSelectedBusDetailsLoading(true);}
     try {
       const details = await fetchVehicleDetailsClient(provider, vehicle.id, showInactive);
       if (details) {
@@ -581,7 +583,7 @@ export default function Home() {
       console.warn('Vehicle details unavailable:', error);
       return null;
     } finally {
-      if (!silent && vehicleDetailsRequestSeqRef.current === requestSeq) setSelectedBusDetailsLoading(false);
+      if (vehicleDetailsLoadingOwnerRef.current === requestSeq) {vehicleDetailsLoadingOwnerRef.current=0;setSelectedBusDetailsLoading(false);}
     }
   }, [mergeVehicleDetails, showInactive]);
 
@@ -969,7 +971,7 @@ export default function Home() {
             : NaN)
       : NaN;
   const breakCountdown =
-    Number.isFinite(selectedBusBreakUntil)
+    Number.isFinite(selectedBusBreakUntil) && selectedBusBreakUntil > now
       ? Math.max(0, Math.floor((selectedBusBreakUntil - now) / 1000))
       : null;
   const breakCountdownLabel = breakCountdown === null
@@ -997,9 +999,10 @@ export default function Home() {
     selectedBus?.statusText?.toLowerCase().includes('odjazd za') ||
     selectedBusStatusLabel === 'Przerwa',
   );
+  const selectedBusTripFinished = vehicleTripFinished(selectedBus,now);
   const selectedBusScheduleLoading =
     Boolean(selectedBus) &&
-    selectedBusDetailsLoading &&
+    selectedBusDetailsLoading && !selectedBusTripFinished &&
     ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
   const selectedBusTimedStops = useMemo(() => selectedBus ? timedVehicleStops(selectedBus) : [],
     [selectedBus?.routeStops, selectedBus?.schedule, selectedBus?.delay, selectedBus?.status, selectedBus?.provider]);
@@ -1110,7 +1113,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+    <div data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -1352,6 +1355,7 @@ export default function Home() {
                   selectedBusGpsSignalClock={selectedBusGpsSignalClock}
                   breakCountdownLabel={breakCountdownLabel}
                   selectedBusIsWaitingForDeparture={selectedBusIsWaitingForDeparture}
+                  selectedBusTripFinished={selectedBusTripFinished}
                   selectedBusScheduleLoading={selectedBusScheduleLoading}
                   selectedBusDisplayedStops={selectedBusDisplayedStops}
                   selectedStopId={selectedStopId}

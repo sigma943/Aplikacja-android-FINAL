@@ -33,8 +33,8 @@ function pointAt(route:Point[],position:number):Point {
  const index=Math.min(route.length-2,Math.floor(position)),t=position-index;
  return [route[index][0]+(route[index+1][0]-route[index][0])*t,route[index][1]+(route[index+1][1]-route[index][1])*t];
 }
-export function sliceJourneyRoute(route:Point[],stops:Point[],padding=0):Point[]{
- const projections=projectJourneyStops(route,stops);if(projections.length!==stops.length)return [];
+export function sliceJourneyRoute(route:Point[],stops:Point[],padding=0,tolerance=150):Point[]{
+ const projections=projectJourneyStops(route,stops,tolerance);if(projections.length!==stops.length)return [];
  let start=projections[0].position,end=projections.at(-1)!.position;
  if(end<=start)return [];
  let remaining=padding;
