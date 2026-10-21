@@ -7,7 +7,7 @@ function checked(points:Array<[number,number]>,distance:number,from:Stop,to:Stop
  if(points.length<2||!points.every(validRoadPoint))throw Error('Nieprawidłowa geometria piesza.');
  const length=points.slice(1).reduce((sum,p,i)=>sum+roadDistance(points[i],p),0);
  if(points.length<2||!points.every(validRoadPoint)||!Number.isFinite(distance)||distance<0||
-  stopDistance(from,{lat:points[0][0],lon:points[0][1]} as Stop)>30||stopDistance(to,{lat:points.at(-1)![0],lon:points.at(-1)![1]} as Stop)>30||
+  stopDistance(from,{lat:points[0][0],lon:points[0][1]} as Stop)>8||stopDistance(to,{lat:points.at(-1)![0],lon:points.at(-1)![1]} as Stop)>8||
   Math.abs(distance-length)>Math.max(30,length*.35))throw Error('Brak kompletnej trasy pieszej.');
  return {points,meters:Math.ceil(distance),minutes:Math.max(1,Math.ceil(distance/70))};
 }

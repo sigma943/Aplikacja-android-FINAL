@@ -55,12 +55,13 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   assert.equal(await page.$eval('.connections-heading p',e=>e.textContent),'Rozkłady jazdy i planowanie podróży');
   await page.click('.connections-stop-details summary');assert.ok(await page.$('.connections-stop-details[open]'));await page.click('.connections-stop-details summary');
   assert.ok(await page.evaluate(()=>{
-   const routes=[...document.querySelectorAll('.connections-bus-path,.connections-walking-path')];
-   return [...document.querySelectorAll('.connections-stop-point')].every(dot=>{
-    const rect=dot.getBoundingClientRect(),x=(rect.left+rect.right)/2,y=(rect.top+rect.bottom)/2;
-    return routes.some(route=>{const length=route.getTotalLength(),matrix=route.getScreenCTM();for(let i=0;i<=Math.ceil(length);i++){const p=route.getPointAtLength(Math.min(length,i)),screen=new DOMPoint(p.x,p.y).matrixTransform(matrix);if(Math.hypot(screen.x-x,screen.y-y)<1.5)return true;}return false;});
+   const dots=[...document.querySelectorAll('.connections-stop-point')];
+   const routes=[...document.querySelectorAll('.connections-bus-path')];
+   return dots.some(dot=>{
+    const r=dot.getBoundingClientRect(),x=(r.left+r.right)/2,y=(r.top+r.bottom)/2;
+    return routes.every(route=>{const length=route.getTotalLength(),m=route.getScreenCTM();for(let i=0;i<=Math.ceil(length);i++){const p=route.getPointAtLength(Math.min(length,i)),s=new DOMPoint(p.x,p.y).matrixTransform(m);if(Math.hypot(s.x-x,s.y-y)<2)return false;}return true;});
    });
-  }),'all white dots lie on the route, including the offset intermediate platform');
+  }),'physical passenger platforms are not snapped onto the bus road');
   await page.$eval('.journey-map',e=>e.scrollIntoView());
   fs.mkdirSync('test/ui-previews',{recursive:true});await page.screenshot({path:'test/ui-previews/journeys-geometry.png'});
   assert.equal(await page.evaluate(()=>window.__testMap===document.querySelector('.journey-map .leaflet-container')),true,'automatic refresh retains the same map');

@@ -1,4 +1,4 @@
-import {roadRouteMatchesStops,validRoadPoint} from './bus-road-geometry';
+import {roadRouteMatchesStops,validRoadPoint,removeRedundantRoadCycles} from './bus-road-geometry';
 import {journeyBusCorridor} from './journey-bus-corridor';
 import {correctMarcelNiebylecRoute} from './marcel-niebylec-route';
 import {sliceJourneyRoute} from './journey-route-geometry';
@@ -28,7 +28,7 @@ export async function bundledMarcelRoute(points:Point[]):Promise<Point[]>{
     const shape=catalog.patterns?.[key];if(!shape||!/^[a-z0-9-]+$/.test(shape))return [];
     if(!shapes.has(shape))shapes.set(shape,json<Point[]>(`/data/marcel-routes/${shape}.json`).catch(error=>{shapes.delete(shape);throw error;}));
     const route=await shapes.get(shape)!;
-    return roadRouteMatchesStops(route,points,150)?route:[];
+    return roadRouteMatchesStops(route,points,150)?removeRedundantRoadCycles(route,points):[];
   }catch{return [];}
 }
 

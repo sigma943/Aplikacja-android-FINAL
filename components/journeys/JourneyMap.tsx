@@ -4,9 +4,8 @@ import {createPortal} from 'react-dom';
 import {MapContainer,TileLayer,CircleMarker,Polyline,Marker,ZoomControl,useMap,useMapEvents,Pane} from 'react-leaflet';
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle,X} from 'lucide-react';
 import L from 'leaflet';
-import {journeyLegPath,journeyLegStops,journeyLegRoutePoints} from '@/lib/journey-leg-path';
+import {journeyLegPath,journeyLegStops} from '@/lib/journey-leg-path';
 import {journeyPathMidpoint,journeyPointRole,journeyPointSize,journeyPointPriority,spacedJourneyPoints,type JourneyPointRole} from '@/lib/journey-map-markers';
-import {projectJourneyStops} from '@/lib/journey-route-geometry';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
 import {type Journey,type JourneyLeg} from '@/lib/journey-planner';
 import {useDialogFocus} from '@/lib/use-dialog-focus';
@@ -143,7 +142,8 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
   journey.legs.forEach((leg,index)=>{
    const path=geometry.key===requestKey?geometry.paths[index]:undefined;if(!path)return;
    const stops=journeyLegStops(leg).filter(hasCoordinates);
-   const points=projectJourneyStops(path,journeyLegRoutePoints(leg).filter(p=>p.every(Number.isFinite)),leg.walking!==undefined?35:150);
+   // Passenger platforms stay on their physical side of the road.
+   const points=stops.map(stop=>({point:[stop.lat!,stop.lon!] as Point}));
    points.forEach((p,i)=>{
     const key=p.point.map(v=>v.toFixed(6)).join(':'),role=journeyPointRole(journey,stops[i]),previous=unique.get(key);
     if(!previous||journeyPointPriority[role]>journeyPointPriority[previous.role])unique.set(key,{stop:stops[i],point:p.point,role});

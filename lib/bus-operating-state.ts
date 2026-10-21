@@ -31,7 +31,10 @@ export function busOperatingState(input:BusOperatingInput) {
   const waiting=Number.isFinite(firstMs)&&firstMs>input.nowMs+(input.reportedBreak?0:15000);
   const lastMs=transitTimestamp(last?.real||last?.planned);
   const ended=Number.isFinite(lastMs)&&lastMs<=input.nowMs+60000;
-  if(waiting && ((stopped&&atFirst)||input.reportedBreak))return {
+  // A confirmed future course start also covers deadheading to its origin.
+  // A future intermediate ETA must never be treated as a course start.
+  const beforeCourseStart=Number.isFinite(input.firstDepartureMs);
+  if(waiting && (beforeCourseStart||(stopped&&atFirst)||input.reportedBreak))return {
     status:'break' as const,
     statusText:`Przerwa do ${warsawClock(firstMs)}`,
     nextTripStartAtMs:firstMs,

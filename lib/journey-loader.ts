@@ -11,6 +11,7 @@ import type {TransportProviderId} from './transport/types';
 import {warsawDateIso,warsawTimeMs} from './transit-time';
 import {withRequestDeadline} from './request-deadline';
 import {readBusCoordinates} from './bus-coordinates';
+import {sameRouteStopName} from './reconcile-route-stops';
 import {marcelCourseStopIndexKey} from '@/components/stops-panel/stop-domain';
 
 async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:JourneyOptions,signal:AbortSignal,result:Connection[],warnings:string[]){
@@ -31,8 +32,8 @@ async function marcelConnections(from:Stop,to:Stop,catalog:Stop[],date:string,o:
    let time=warsawTimeMs(date,p.godz);if(time<previous&&previous-time>12*3600_000)time+=86400_000;previous=time;
    const coordinate=readBusCoordinates(p.szGps,p.dlGps),identity=marcelCourseStopIndexKey(p),key=JSON.stringify([identity,coordinate]);
    if(!matched.has(key)){
-    const named=names.get(identity)||[];
-    const candidates=named.length===1?[]:known.map(stop=>({stop,d:stopDistance(stop,{lat:coordinate?.lat,lon:coordinate?.lon} as Stop)})).filter(x=>x.d<35).sort((a,b)=>a.d-b.d);
+    const named=(names.get(identity)||[]).filter(stop=>coordinate&&stopDistance(stop,coordinate as Stop)<250);
+    const candidates=named.length===1?[]:known.map(stop=>({stop,d:stopDistance(stop,{lat:coordinate?.lat,lon:coordinate?.lon} as Stop)})).filter(x=>x.d<35&&sameRouteStopName([p.nazMi,p.nazPr].filter(Boolean).join(' '),[x.stop.name,x.stop.code].filter(Boolean).join(' '))).sort((a,b)=>a.d-b.d);
     matched.set(key,named.length===1?named[0]:candidates.length&&(!candidates[1]||candidates[1].d-candidates[0].d>5)?candidates[0].stop:null);
    }
    // An unmatched physical call has a stable course-independent identity, so
@@ -95,7 +96,7 @@ export async function searchConnections(from:Stop,to:Stop,catalog:Stop[],date:st
  if(foot){result.journeys=result.journeys.filter(j=>!j.legs.every(l=>l.walking!==undefined));}
  if(foot&&foot.meters<=options.walkMeters){
   const duration=foot.minutes*60000,departure=options.arriveBy?options.at-duration:options.at;
-  result.journeys.push({id:'walk-only',departure,arrival:departure+duration,walking:foot.meters,transfers:0,legs:[{from,to,departure,arrival:departure+duration,line:'Pieszo',provider:'walk',course:'walk',walking:foot.meters,path:foot.points}]});
+  result.journeys.push({id:'walk-only',departure,arrival:departure+duration,walking:foot.meters,transfers:0,legs:[{from,to,departure,arrival:departure+duration,line:'Pieszo',provider:'walk',course:'walk',walking:foot.meters,walkingQuality:'verified',path:foot.points}]});
  }else if(coordinateJourney&&stopDistance(from,to)<=options.walkMeters&&!foot)result.warnings.push('Nie udało się wczytać trasy w całości pieszo. Połączenia autobusowe nadal uwzględniają szacowane dojście do przystanków.');
  if(foot&&foot.meters<=options.walkMeters&&options.sort!=='walking')result.journeys=result.journeys.filter(j=>j.id==='walk-only'||j.transfers===0||(options.arriveBy?j.departure>options.at-foot.minutes*60000:j.arrival<options.at+foot.minutes*60000));
  if(estimatedWalking||coordinateJourney){const score=(j:typeof result.journeys[number])=>options.sort==='walking'?j.walking*86400000+(options.arriveBy?-j.departure:j.arrival):options.sort==='transfers'?j.transfers*86400000+(options.arriveBy?-j.departure:j.arrival):options.arriveBy?-j.departure:j.arrival;result.journeys.sort((a,b)=>score(a)-score(b));}

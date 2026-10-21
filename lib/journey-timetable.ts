@@ -4,6 +4,7 @@ import {isRzeszowStation,matchesJourneyPlace} from './journey-places';
 import {warsawTimeMs} from './transit-time';
 import {scanJourneyNetwork} from './journey-engine';
 import type {JourneySearchGraph} from './journey-footpath-network';
+import {sameRouteStopName} from './reconcile-route-stops';
 import {pksTerminalStop} from './pks-terminal-identity';
 
 export type TimetableFeed={version:number;provider:string;validFrom:string;validUntil:string;stops:Record<string,{name:string;lat:number;lon:number}>;
@@ -34,9 +35,9 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
   const known=exact.get(id);if(known){mapped.set(id,known);continue;}
   const names=named.get(nameKey(point.name))||[];
   const sameName=names.length===1&&stopDistance(names[0],point as Stop)<250?names[0]:undefined;
-  if(sameName){mapped.set(id,{...sameName,lat:point.lat,lon:point.lon});continue;}
+  if(sameName){mapped.set(id,sameName);continue;}
   const candidates=providerStops
-   .map(stop=>({stop,distance:stopDistance(stop,point as Stop)})).filter(x=>x.distance<45).sort((a,b)=>a.distance-b.distance);
+   .map(stop=>({stop,distance:stopDistance(stop,point as Stop)})).filter(x=>x.distance<45&&sameRouteStopName(point.name,[x.stop.name,x.stop.code].filter(Boolean).join(' '))).sort((a,b)=>a.distance-b.distance);
   const closest=candidates[0];
   const match=closest&&(!candidates[1]||candidates[1].distance-closest.distance>5)?closest.stop:undefined;
   mapped.set(id,match||{...point,id:`journey:${provider}:${id}`,type:'bus',carriers:[carrier(provider)],lines:[],isFavorite:false,sourceProviderIds:[namespace],providerStopIds:{[namespace]:id}});
