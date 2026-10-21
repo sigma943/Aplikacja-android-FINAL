@@ -6,7 +6,7 @@ import {journeyBusCorridor} from './journey-bus-corridor';
 import {journeyWalkingRoute} from './journey-walking';
 import {correctPksStationJunction} from './pks-station-junction';
 import {correctMarcelNiebylecRoute} from './marcel-niebylec-route';
-import {validRoadPoint,roadRouteMatchesStops} from './bus-road-geometry';
+import {validRoadPoint,roadRouteMatchesStops,removeRedundantRoadCycles} from './bus-road-geometry';
 import {sliceJourneyRoute,type Point} from './journey-route-geometry';
 
 export function journeyLegStops(leg:JourneyLeg){return leg.stops?.length?leg.stops.map(c=>c.stop):[leg.from,leg.to];}
@@ -30,11 +30,11 @@ export function journeyLegPath(leg:JourneyLeg):Promise<Point[]>{
   // Stop dots are projected separately by JourneyMap. Never rebuild a known
   // course through stop pins or synthetic corridor waypoints.
   const local=sliceJourneyRoute(official,coords);
-  if(local.length>1&&roadRouteMatchesStops(local,coords,150))return local;
+  if(local.length>1&&roadRouteMatchesStops(local,coords,150))return removeRedundantRoadCycles(local,coords);
   try{
    const road=await fetchRoadRouteForStops(coords,'journey-road:v3:'+key,{stopWaypoints:true});
    const clipped=sliceJourneyRoute(journeyBusCorridor(road,[...pins,...coords],8),coords);
-   if(clipped.length>1&&roadRouteMatchesStops(clipped,coords,150))return clipped;
+   if(clipped.length>1&&roadRouteMatchesStops(clipped,coords,150))return removeRedundantRoadCycles(clipped,coords);
   }catch{ /* Leave unavailable geometry missing; never connect stops by chords. */ }
   throw Error('Brak potwierdzonego przebiegu trasy autobusowej.');
  })().catch(error=>{pending.delete(key);throw error;}));

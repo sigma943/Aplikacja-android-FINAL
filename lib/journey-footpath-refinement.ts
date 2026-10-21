@@ -6,14 +6,14 @@ import {roadDistance,validRoadPoint} from './bus-road-geometry';
 import {withRequestDeadline} from './request-deadline';
 
 type Result={journeys:Journey[];warnings:string[];limited:boolean};
-const storageKey='journey-footpaths:v1',ttl=7*86400000;
+const storageKey='journey-footpaths:v2',ttl=7*86400000;
 const paths=new Map<string,JourneyFootpath>();
 let hydrated=false;
 function valid(p:JourneyFootpath,now:number){
  if(!p||typeof p.key!=='string'||p.key.length>1024||!Number.isFinite(p.meters)||p.meters<0||p.meters>50000||!Number.isFinite(p.minutes)||p.minutes!==Math.max(1,Math.ceil(p.meters/70))||!Number.isFinite(p.checkedAt)||p.checkedAt>now+60000||now-p.checkedAt>ttl||!Array.isArray(p.points)||p.points.length<2||!p.points.every(validRoadPoint))return false;
  const length=p.points.slice(1).reduce((sum,point,i)=>sum+roadDistance(p.points[i],point),0);
  if(Math.abs(p.meters-length)>Math.max(30,length*.35))return false;
- try{const key=JSON.parse(p.key);return Array.isArray(key)&&key.length===6&&validRoadPoint([key[1],key[2]])&&validRoadPoint([key[4],key[5]])&&roadDistance(p.points[0],[key[1],key[2]])<=30&&roadDistance(p.points.at(-1)!,[key[4],key[5]])<=30;}catch{return false;}
+ try{const key=JSON.parse(p.key);return Array.isArray(key)&&key.length===6&&validRoadPoint([key[1],key[2]])&&validRoadPoint([key[4],key[5]])&&roadDistance(p.points[0],[key[1],key[2]])<=8&&roadDistance(p.points.at(-1)!,[key[4],key[5]])<=8;}catch{return false;}
 }
 export function storedJourneyFootpaths(now=Date.now()){
  if(!hydrated&&typeof window!=='undefined'){
@@ -62,6 +62,10 @@ export async function refineJourneyFootpaths(input:TimetableSearch,scan:(input:T
   current={...input,graph:{...graph,footpaths:[...graph.footpaths]}};
   result=await scan(current);signal.throwIfAborted();
  }
+ // Prefer confirmed alternatives. Offline estimates remain available only when
+ // no complete verified journey could be found; never silently certify them.
+ const verified=result.journeys.filter(j=>j.legs.every(l=>l.walking===undefined||l.walkingQuality==='verified'));
+ if(verified.length)return {...result,journeys:verified,limited:result.limited||verified.length!==result.journeys.length};
  const estimated=result.journeys.some(j=>j.legs.some(l=>l.walking!==undefined&&l.walkingQuality!=='verified'));
  return {...result,limited:result.limited||estimated,warnings:[...result.warnings,...(estimated?['Część dojść pieszych jest szacowana. Nie udało się potwierdzić wszystkich przejść; sprawdź je przed podróżą.']:[])]};
 }
