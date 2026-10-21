@@ -176,7 +176,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.waitForSelector('[data-journey-refining]',{hidden:true});
   await page.click('.connections-result');await page.waitForSelector('.connections-detail');
   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-disclosure')].every(n=>n.clientHeight>=n.scrollHeight-1),{timeout:2000});
-  await checkPlain('.connections-card');await page.click('.connections-map-button');await page.waitForSelector('.connections-walking-path');
+  await checkPlain('.connections-card');await page.$eval('.connections-map-button',n=>n.scrollIntoView({block:'center'}));await page.click('.connections-map-button');await page.waitForSelector('.connections-walking-path');
   await page.click('[aria-label="Powiększ mapę"]');await checkPlain('.connections-map-modal');await checkPlain('.connections-map-toolbar');await checkPlain('.connections-map-sheet');
   assert.ok(await page.$('.connections-map-modal .leaflet-tile-pane'),'functional map remains present');
   assert.ok(await page.$$eval('[data-filter-cosmos]',nodes=>nodes.every(n=>getComputedStyle(n).display==='none')),'cosmic effects are hidden in all journey portals');
