@@ -1,6 +1,7 @@
 'use client';
 import JourneyIcon from './journeys/JourneyIcon';
 import CosmicFilterEffects from './CosmicFilterEffects';
+import LandscapeChrome from './LandscapeChrome';
 import {NAV_ITEMS,type NavItem} from '@/lib/interface-appearance';
 import type {CSSProperties} from 'react';
 import {motion} from 'motion/react';
@@ -21,6 +22,7 @@ export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,
 <div data-map-search-panel className={`pks-map-search-panel ${mapGlassPanel} rounded-[1.4rem] border p-3 md:p-4 flex flex-col gap-3 pointer-events-auto w-full md:w-96 transition-all`}>
 
                 <CosmicFilterEffects/>
+                <LandscapeChrome variant="filter"/>
                 <div className="relative z-[1] flex items-center justify-between font-extrabold text-xl tracking-tight" style={{ color: themeColor }}>
                   <div className="flex items-center gap-2">
                      <Bus className="w-5 h-5 md:w-6 md:h-6" />
@@ -74,6 +76,7 @@ type NavigationProps={preview?:boolean;order?:readonly NavItem[];activeTab:strin
 export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,className,themeColor,isMapTabDisabled=false,isStopsTabDisabled=false,isJourneysTabDisabled=false,canOpenAdminEmbed=false,onMap,onStops,onAdmin,onOptions,onJourneys}:NavigationProps){
  const items={journeys:{label:'Połączenia',Icon:JourneyIcon,disabled:isJourneysTabDisabled,onClick:onJourneys},map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
  return <div data-navigation-preview={preview||undefined} className={`relative isolate pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${className}`}>
+  <LandscapeChrome variant="navigation"/>
   <svg data-cosmic-nav-stars viewBox="0 0 393 64" preserveAspectRatio="none" aria-hidden="true">
    <g fill="#bfeaff"><path d="M25 5l1.2 3.8L30 10l-3.8 1.2L25 15l-1.2-3.8L20 10l3.8-1.2Z"/><circle cx="163" cy="8" r=".8"/></g>
    <g fill="#ffd5a5"><path transform="translate(0 9)" d="M218 48l1.2 2.4 2.6.4-1.9 1.8.5 2.7-2.4-1.3-2.4 1.3.5-2.7-1.9-1.8 2.6-.4Z"/><circle cx="100" cy="13" r=".65"/></g>

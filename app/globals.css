@@ -1144,3 +1144,32 @@ html[data-landscape-theme='on'] { --personal-glass:var(--landscape-surface,rgba(
 html[data-landscape-theme='on'] :is(.pks-options-sheet,.map-detail-shell,.pks-navigation,.pks-map-search-panel) { -webkit-backdrop-filter:blur(5px) saturate(112%)!important; backdrop-filter:blur(5px) saturate(112%)!important; }
 html[data-landscape-theme='on'] .transit-view { -webkit-backdrop-filter:none!important; backdrop-filter:none!important; }
 html[data-landscape-theme='on'][data-personal-light-effects='on'] :is(.pks-options-sheet,.map-detail-shell,.pks-navigation,.pks-map-search-panel) { -webkit-backdrop-filter:none!important; backdrop-filter:none!important; }
+/* Mountain glass also reaches legacy admin surfaces whose solid backgrounds
+   have higher specificity than the general card material. */
+html[data-landscape-theme='on'] :is(.pks-panel-scope,.pks-glass-frame,[data-admin-viewport]) {
+  --panel-solid:var(--landscape-surface,rgba(9,24,40,.62))!important;
+  --panel-surface:var(--landscape-surface,rgba(9,24,40,.62))!important;
+  --panel-glass:var(--landscape-surface,rgba(9,24,40,.62))!important;
+}
+html[data-landscape-theme='on'] [data-admin-viewport] { background:transparent!important; }
+html[data-landscape-theme='on'] [data-admin-viewport] :is(.admin-device-card,.pks-personal-card,[data-interface-panel],input:not([type='checkbox']):not([type='radio']),select,textarea) {
+  background-color:var(--landscape-surface,rgba(9,24,40,.62))!important;
+  border-color:#c3e5de35!important;
+}
+[data-landscape-chrome] { display:none; }
+html[data-landscape-theme='on'] [data-landscape-chrome] {
+  display:block;position:absolute;inset:0;width:100%;height:100%;z-index:0;
+  pointer-events:none;color:var(--landscape-chrome-light,#baded9);opacity:.8;
+}
+html[data-landscape-theme='on'] .pks-map-search-panel { position:relative;isolation:isolate;overflow:hidden; }
+html[data-landscape-theme='on'] .pks-navigation { overflow:hidden; }
+html[data-landscape-theme='on'] [data-landscape-chrome='navigation'] { opacity:.65; }
+[data-landscape-chrome-cloud] { animation:landscape-chrome-drift 12s ease-in-out infinite alternate;animation-play-state:paused; }
+[data-landscape-chrome-water] { animation:landscape-chrome-ripple 3s ease-in-out infinite alternate;animation-play-state:paused; }
+html[data-landscape-motion='on'] :is([data-landscape-chrome-cloud],[data-landscape-chrome-water]) { animation-play-state:running; }
+@keyframes landscape-chrome-drift { to { transform:translateX(18px); } }
+@keyframes landscape-chrome-ripple { to { transform:translateX(4px);opacity:.3; } }
+@media(prefers-reduced-motion:reduce){[data-landscape-chrome] * { animation:none!important; }}
+html[data-landscape-theme='on'] [data-options-overlay] { -webkit-backdrop-filter:none!important;backdrop-filter:none!important;background-color:rgba(2,10,20,.12)!important; }
+/* Avoid stacking two dark glass fills inside the already translucent sheet. */
+html[data-landscape-theme='on'] .pks-options-sheet :is(.pks-option-card,.personal-preset,.personal-group,.personal-tabs) { background-color:rgba(16,36,51,.22)!important;background-image:none!important; }

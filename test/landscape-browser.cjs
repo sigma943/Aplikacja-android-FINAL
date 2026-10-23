@@ -24,6 +24,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   assert.ok(await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),y=Math.floor(c.height*.6),after=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;let changed=0;for(let i=0;i<after.length;i+=4)if(Math.abs(after[i]-window.__waterBefore[i])+Math.abs(after[i+1]-window.__waterBefore[i+1])+Math.abs(after[i+2]-window.__waterBefore[i+2])>2)changed++;return changed>100;}),'water visibly ripples at a fixed scene time');
   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+  await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]');window.__cloudBefore=c.getContext('2d').getImageData(0,0,c.width,Math.floor(c.height*.33)).data;});
+  await page.screenshot({path:'test/ui-previews/landscape-motion-before.png'});
+  await new Promise(r=>setTimeout(r,3000));
+  assert.ok(await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),after=c.getContext('2d').getImageData(0,0,c.width,Math.floor(c.height*.33)).data;let changed=0;for(let i=0;i<after.length;i+=4)if(Math.abs(after[i]-window.__cloudBefore[i])+Math.abs(after[i+1]-window.__cloudBefore[i+1])+Math.abs(after[i+2]-window.__cloudBefore[i+2])>12)changed++;return changed>300;}),'clouds visibly change position within three seconds at a fixed daytime instant');
+  await page.screenshot({path:'test/ui-previews/landscape-motion-after.png'});
   // Real timetable UI over the same scene, including a small viewport and scrolling.
   await page.evaluate(()=>document.querySelector('[data-toggle-ui]').click());await page.waitForSelector('[data-departure-row]');
   await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('.transit-view')).opacity)>=.999);
@@ -37,6 +42,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await new Promise(r=>setTimeout(r,2000));
   const metrics=await page.evaluate(()=>window.__landscapeDiagnostics());
   assert.ok(metrics.canvasPixels<=1800000);assert.equal(metrics.source,'default-rzeszow');
+  // Native saver/bridge fallback must remain live instead of freezing the world.
+  await page.evaluate(()=>window.__landscapeTestPower(true));
+  await page.waitForFunction(()=>window.__landscapeDiagnostics().motion==='power-saving');
+  const saverFrames=await page.evaluate(()=>window.__landscapeDiagnostics().frames);
+  await new Promise(r=>setTimeout(r,1300));
+  assert.ok(await page.evaluate(n=>window.__landscapeDiagnostics().frames>=n+2,saverFrames));
+  await page.evaluate(()=>window.__landscapeTestPower(false));
+  await page.waitForFunction(()=>window.__landscapeDiagnostics().interval<200);
   await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
   await page.waitForFunction(()=>window.__landscapeDiagnostics().interval===15000);
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
@@ -46,6 +59,23 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.waitForFunction(n=>window.__landscapeDiagnostics().frames>n,{},paused);
   await page.evaluate(()=>document.querySelector('[data-toggle-scene]').click());
   await page.waitForFunction(()=>!document.querySelector('[data-landscape-stage]')&&!window.__landscapeDiagnostics&&!document.documentElement.dataset.landscapeTheme);
+  await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
+  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+  await page.goto(origin+'/landscape-map-fixture/');
+  await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
+  for(const kind of ['filter','navigation'])assert.equal(await page.$eval('[data-landscape-chrome="'+kind+'"]',e=>getComputedStyle(e).display),'block');
+  await page.type('[data-map-search-panel] input','108');
+  assert.equal(await page.$eval('[data-map-search-panel] input',e=>e.value),'108');
+  await page.click('[data-nav-item="stops"]');assert.equal(await page.$eval('[data-nav-item="stops"]',e=>e.getAttribute('aria-current')),'page');
+  await page.click('[data-nav-item="map"]');
+  await page.screenshot({path:'test/ui-previews/landscape-map-chrome.png'});
+  await page.goto(origin+'/landscape-admin-fixture/');
+  await page.waitForSelector('.admin-device-card',{timeout:45000});
+  await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
+  for(const selector of ['.admin-device-card','[data-admin-viewport] input[placeholder="Szukaj..."]']){
+   assert.ok(await page.$eval(selector,e=>{const c=getComputedStyle(e).backgroundColor;return c.startsWith('rgba')&&Number(c.split(',').pop().replace(')',''))<.7;}),'admin glass must be translucent: '+selector);
+  }
+  await page.screenshot({path:'test/ui-previews/landscape-admin-glass.png'});
   assert.deepEqual(errors,[]);
   fs.writeFileSync('test/ui-previews/landscape-metrics.json',JSON.stringify({environment:'Headless Chrome CI; not physical Android battery measurements',...metrics},null,2));
   console.log('Landscape: four solar views, live timetable, small phone, bounded canvas, reduced motion, background pause/resume and theme disposal verified. Draw metrics:',metrics.averageDrawMs,metrics.maxDrawMs);

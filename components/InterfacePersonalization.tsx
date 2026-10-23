@@ -49,7 +49,7 @@ export default function InterfacePersonalization(p:Props){
       return <button type="button" key={next.name} aria-label={`Zestaw: ${next.name}`} aria-pressed={active} onClick={()=>preset(next)} className="personal-preset ui-accent-focus" style={{backgroundColor:presetSurfaces[p.theme]||(dark?'#1c2833':'#ffffff'),color:dark?'#f3f1ff':'#172536',colorScheme:dark?'dark':'light'} as CSSProperties}>
         <PresetThumbnail name={next.name}/>
         <span className="personal-preset-name"><span>{next.name}</span>{active&&<Check size={14} aria-hidden="true"/>}</span>
-        <span className="personal-preset-description">{next.description}</span>
+        <span className="personal-preset-description" title={next.theme==='dark-mountains'?'Bez zapisanej lokalizacji sceneria korzysta z Rzeszowa.':undefined}>{next.description}</span>
       </button>;
     })}</div></div>
     <label className="personal-search"><SlidersHorizontal size={16}/><input aria-label="Szukaj ustawień personalizacji" placeholder="Znajdź ustawienie…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button type="button" onClick={()=>setQuery('')} aria-label="Wyczyść wyszukiwanie personalizacji">×</button>}</label>

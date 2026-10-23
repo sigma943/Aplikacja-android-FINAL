@@ -60,7 +60,7 @@ export default function OptionsSheet({ expanded, onExpandedChange, onClose, clas
 
   return (
     <motion.div initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} transition={{duration: 0.15}}
-      className={overlayClassName} onClick={event => {if (event.target === event.currentTarget) onClose();}}>
+      data-options-overlay className={overlayClassName} onClick={event => {if (event.target === event.currentTarget) onClose();}}>
       <motion.div ref={sheet} role="dialog" aria-modal="true" aria-labelledby="options-title" data-options-sheet data-expanded={expanded}
         initial={{y: '100%', opacity: 0}} animate={{y: 0, opacity: 1}} exit={{y: '100%', opacity: 0}}
         transition={SHEET_SPRING} className={className} style={{height:drag.height,willChange:'transform'}}

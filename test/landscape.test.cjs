@@ -7,11 +7,20 @@ test('water crests move gently and clouds drift steadily across the seamless til
  const values=[];
  for(const y of [1350,1600,2000])for(let x=0;x<1000;x+=71){
   const first=r.waterWave(x,y,0),later=r.waterWave(x,y,2);
-  assert.ok(Math.abs(first)<6&&Math.abs(later)<6,'wave displacement remains subtle');values.push(Math.abs(first-later));
+  assert.ok(Math.abs(first)<14&&Math.abs(later)<14,'wave displacement remains bounded');values.push(Math.abs(first-later));
  }
  assert.ok(values.some(value=>value>.5),'crests move rather than drawing static full-width lines');
- assert.ok(r.cloudOffset(60)>r.cloudOffset(0)+40&&r.cloudOffset(60)<100,'slow continuous drift');
- assert.ok(Math.abs(r.cloudOffset(61)-r.cloudOffset(60))<2);
+ assert.ok(r.cloudOffset(3)-r.cloudOffset(0)>=12,'cloud movement is visible within seconds');
+ assert.ok(Math.abs(r.cloudOffset(61)-r.cloudOffset(60))<=4);
+});
+test('power policy keeps a live world in saver mode and recovers from one expensive frame',()=>{
+ const {landscapeMotionPolicy:p,landscapeFrameBudget:budget}=load('lib/landscape-motion.ts');
+ const base={hidden:false,nativeActive:true,reduced:false,light:false,limited:false,critical:false,slow:false};
+ assert.equal(p(base).animate,true);assert.ok(p(base).interval<100);
+ assert.equal(p({...base,limited:true}).animate,true);assert.equal(p({...base,limited:true}).interval,500);
+ for(const flags of [{critical:true},{reduced:true},{light:true},{hidden:true},{nativeActive:false}])assert.equal(p({...base,...flags}).animate,false);
+ let avg=budget(12,75);assert.ok(avg<28,'an isolated relight does not permanently select a low frame rate');
+ for(let i=0;i<30;i++)avg=budget(avg,12);assert.ok(avg<18);
 });
 test('Rzeszow solar events agree with seasonal reference windows and do not hard-code hours',()=>{
  for(const [date,rise,set] of [['2026-06-21',[2,3],[18,19]],['2026-12-21',[6,7],[14,15]],['2026-03-20',[4,6],[16,18]]]){

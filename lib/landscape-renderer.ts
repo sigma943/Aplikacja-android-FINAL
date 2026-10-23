@@ -3,11 +3,11 @@ import horizon from './landscape-horizon.json';
 const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
 const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
-export const cloudOffset=(seconds:number)=>((seconds*1.15)%WIDTH+WIDTH)%WIDTH;
+export const cloudOffset=(seconds:number)=>((seconds*4)%WIDTH+WIDTH)%WIDTH;
 /** Two gentle crossing wave trains; dimensions increase towards the viewer. */
 export function waterWave(x:number,y:number,seconds:number){
   const depth=smoothstep(.59,.94,y/HEIGHT);
-  return Math.sin(x*.025+y*.052-seconds*.75)*(1.1+depth*2.8)+Math.sin(x*.049-y*.019+seconds*.48)*(.6+depth*1.4);
+  return Math.sin(x*.025+y*.052-seconds*1.2)*(2.8+depth*6.2)+Math.sin(x*.049-y*.019+seconds*.76)*(1.4+depth*3.2);
 }
 export function mountainHorizon(x:number){
   const index=Math.max(0,Math.min(255,x*255)),i=Math.floor(index);
@@ -140,7 +140,7 @@ export class LandscapeRenderer{
     // Broken, gently curved crests visibly move within the water mask.
     for(let i=0;i<64;i++){
       const y=HEIGHT*(.6+i*.006),p=i/64;
-      w.strokeStyle=sky.day>.5?'#daf3f1':'#9ebcda';w.globalAlpha=.055+p*.065;w.lineWidth=.65+p*1.1;
+      w.strokeStyle=sky.day>.5?'#daf3f1':'#b3cce7';w.globalAlpha=.11+p*.10;w.lineWidth=.9+p*1.6;
       for(let j=0;j<5;j++){
         const x=((j*237+i*71)%1130)-65,span=17+p*38;
         w.beginPath();w.moveTo(x,y+waterWave(x,y,seconds));

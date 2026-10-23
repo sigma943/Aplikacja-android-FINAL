@@ -22,6 +22,7 @@ public class LandscapePowerPolicyPlugin extends Plugin {
     JSObject value = new JSObject();
     boolean hot = Build.VERSION.SDK_INT >= 29 && power.getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_MODERATE;
     value.put("limited", power.isPowerSaveMode() || hot);
+    value.put("critical", Build.VERSION.SDK_INT >= 29 && power.getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE);
     return value;
   }
   @Override public void load() {
