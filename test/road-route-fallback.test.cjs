@@ -50,3 +50,18 @@ test('retrying a long route reuses completed road chunks and never caches a fail
   assert.equal(firstChunkRequests,1);
   assert.equal(roadRouteCache.has('long-route'),true);
 });
+
+test('different snaps at chunk boundaries recover a continuous full-course route without drawing a connector',async()=>{
+ const points=Array.from({length:15},(_,i)=>[50+i*.002,22]);let complete=0;
+ const {fetchRoadRouteForStops}=loadTs('lib/transport/road-routing.ts',{'../transport/http':{requestJson:async url=>{
+  if(String(url).includes('valhalla')){
+   const q=JSON.parse(new URL(url).searchParams.get('json')),chunk=q.locations.map(p=>[p.lat,p.lon]);
+   if(chunk[0][0]!==points[0][0])chunk[0]=[chunk[0][0],22.0002];
+   return {trip:{legs:[{shape:encode(chunk)}]}};
+  }
+  const coords=String(url).split('/driving/')[1].split('?')[0].split(';').map(p=>p.split(',').map(Number).reverse());
+  assert.equal(coords.length,15,'recovery requests the whole course');complete++;
+  return {routes:[{geometry:{coordinates:points.map(([lat,lon])=>[lon,lat])}}]};
+ }}});
+ assert.deepEqual(await fetchRoadRouteForStops(points,'snap-recovery'),points);assert.equal(complete,1);
+});

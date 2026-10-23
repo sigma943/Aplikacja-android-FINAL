@@ -56,7 +56,7 @@ jobs:
         run: npm ci
 
       - name: Verify automatic road routing fallback
-        run: node --test test/road-route-fallback.test.cjs test/official-route-live-pattern.test.cjs
+        run: node --test test/road-route-fallback.test.cjs test/official-route-live-pattern.test.cjs test/vehicle-route-validation.test.cjs test/road-route-quality.test.cjs test/preferred-route.test.cjs test/route-cache-performance.test.cjs test/bus-routes.test.cjs test/pks-202-route.test.cjs test/pks-312-route.test.cjs test/marcel-road-routing.test.cjs
 
       - name: Test Application
         if: env.FULL_VERIFICATION == 'true'
@@ -68,8 +68,24 @@ jobs:
           npm --prefix functions ci
           npm --prefix functions test
 
+      - name: Verify journey timetable loading and history contrast
+        run: |
+          node --test test/map-motion.test.cjs test/physical-routing-regressions.test.cjs test/journey-opposite-stops.test.cjs test/vehicle-trip-finished.test.cjs test/official-route-live-pattern.test.cjs test/road-route-fallback.test.cjs test/journey-engine-v2.test.cjs test/journey-reliability.test.cjs test/journey-interchanges.test.cjs test/journey-marcel-integration.test.cjs test/interface-appearance.test.cjs test/stop-search.test.cjs test/journey-schedules.test.cjs test/journey-realtime.test.cjs test/journey-places.test.cjs test/journey-native-assets.test.cjs test/journey-day.test.cjs test/journey-timetable.test.cjs test/terminal-platforms-journey-label.test.cjs test/pks-terminal-physical.test.cjs test/journey-view-state.test.cjs test/journey-geometry.test.cjs test/marcel-route-assets.test.cjs test/physical-stop-aliases.test.cjs test/journey-access.test.cjs test/journey-settings.test.cjs test/personalization-profiles.test.cjs test/ban-details.test.cjs test/dialog-focus.test.cjs
+          node --test test/journey-complex.test.cjs
+          node test/journey-recents-browser.cjs
+          node test/journey-engine-browser.cjs
+
       - name: Build Android Web Assets
         run: npm run build:android:web
+
+      - name: Verify journey place picker
+        run: |
+          JOURNEY_PICKER_ONLY=1 node test/journeys-browser.cjs
+          node test/light-effects-browser.cjs
+          node test/journey-live-browser.cjs
+          node test/journey-disclosure-browser.cjs
+          node test/font-ban-browser.cjs
+          node test/stop-search-browser.cjs
 
       - name: Verify route stroke transition
         run: node test/route-style-browser.cjs
@@ -107,7 +123,6 @@ jobs:
           packages: "platform-tools platforms;android-36 build-tools;36.0.0"
 
       - name: Verify Firebase restoration rules
-        if: env.FULL_VERIFICATION == 'true'
         run: npm run test:rules
 
       - name: Setup Gradle

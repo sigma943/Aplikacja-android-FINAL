@@ -13,7 +13,7 @@ test('course IDs and clocks do not invalidate geometry; direction, order and sto
   assert.notEqual(a,key('road','marcel','M','Rzeszów',[stops[0],{...stops[1],lon:22.02}]));
 });
 
-test('Marcel geometry persists with the same identity used by the map and ignores course variants',async()=>{
+test('Marcel persistence distinguishes courses while inferred routing work is shared by coordinates',async()=>{
   const previous=global.fetch, oldWindow=global.window;
   const values=new Map(); let calls=0;
   global.window={localStorage:{setItem:(key,value)=>values.set(key,value)}};
@@ -24,11 +24,13 @@ test('Marcel geometry persists with the same identity used by the map and ignore
     const {routeGeometryKey}=loadTs('lib/route-geometry-key.ts');
     const request={carrier:'marcel',line:'M',direction:'Rzeszów',variant:'course-1',mode:'road',dataVersion:'road-v9-validated-stop-waypoints',stops:points.map(([lat,lon],id)=>({lat,lon,id}))};
     await client.fetchRouteGeometryClient(request);
-    const key=routeGeometryKey('road','marcel','M','Rzeszow',request.stops);
+    const key=routeGeometryKey('road','marcel','M','Rzeszow',request.stops,request.variant);
     const saved=JSON.parse(values.get('routeGeometry:'+key));
     assert.deepEqual(saved.points,points);assert.equal(saved.version,request.dataVersion);assert.ok(saved.expiresAt>Date.now());
     await client.fetchRouteGeometryClient({...request,variant:'course-2'});
     assert.equal(calls,1);
+    const secondKey=routeGeometryKey('road','marcel','M','Rzeszow',request.stops,'course-2');
+    assert.notEqual(key,secondKey);assert.ok(values.has('routeGeometry:'+secondKey));
   } finally {global.fetch=previous;if(oldWindow===undefined)delete global.window;else global.window=oldWindow;}
 });
 

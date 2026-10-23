@@ -125,6 +125,8 @@ service cloud.firestore {
                'canChangeRoles',
                'disableMap',
                'disableStops',
+               'disableJourneys',
+               'journeys',
                'globalSettings',
                'globalSettingsEdit',
                'canBan',
@@ -145,6 +147,8 @@ service cloud.firestore {
                incoming().role != 'owner' &&
                !granted.get('disableMap', false) &&
                !granted.get('disableStops', false) &&
+               !granted.get('disableJourneys', false) &&
+               !granted.get('journeys', false) &&
                (!granted.get('shield', false) || caller.get('shield', false)) &&
                (!granted.get('users', false) || caller.get('users', false)) &&
                (!granted.get('group', false) || caller.get('group', false)) &&
@@ -169,6 +173,8 @@ service cloud.firestore {
                'canChangeRoles',
                'disableMap',
                'disableStops',
+               'disableJourneys',
+               'journeys',
                'globalSettings',
                'globalSettingsEdit',
                'canBan',
@@ -202,6 +208,7 @@ service cloud.firestore {
 
     function userInstallationCreateAllowed(data) {
       return newLoginApprovalValid(data) && data.role == 'user' &&
+             data.permissions.get('journeys', false) != true &&
              (!(data.verified is bool) || data.verified == false) &&
              userPermissionsAreSafe(data) &&
              (
@@ -217,7 +224,7 @@ service cloud.firestore {
              callerDeviceData().get('installationId', '') == data.installationId &&
              data.role == 'user' &&
              (!(data.verified is bool) || data.verified == false) &&
-             userPermissionsAreSafe(data) &&
+             userPermissionsAreSafe(data) && keepsTabAccessRestrictionsUnchanged() &&
              (
                (data.status == existing().status && data.get('banDetails', null) == existing().get('banDetails', null)) ||
                (data.status == 'banned' && autoBanUnverifiedEnabled() && hasAutoBanDetails(data))
@@ -225,10 +232,15 @@ service cloud.firestore {
     }
 
     function keepsTabAccessRestrictionsUnchanged() {
-      return !(incoming().permissions is map) ||
+      let next = incoming().get('permissions', {});
+      let previous = existing().get('permissions', {});
+      let before = previous is map ? previous : {};
+      return !(next is map) ||
              (
-               incomingPermEnabled('disableMap') == existingPermEnabled('disableMap') &&
-               incomingPermEnabled('disableStops') == existingPermEnabled('disableStops')
+               (next.get('disableMap', false) == true) == (before.get('disableMap', false) == true) &&
+               (next.get('disableStops', false) == true) == (before.get('disableStops', false) == true) &&
+               (next.get('disableJourneys', false) == true) == (before.get('disableJourneys', false) == true) &&
+               (next.get('journeys', false) == true) == (before.get('journeys', false) == true)
              );
     }
 
@@ -246,6 +258,7 @@ service cloud.firestore {
       let activeAllowed = data.status == 'active' && !autoBanUnverifiedEnabled();
       let autoBannedAllowed = data.status == 'banned' && data.verified == false && hasAutoBanDetails(data);
       return validKeys && validTypes && newLoginApprovalValid(data) &&
+             data.permissions.get('journeys', false) != true &&
              (!('installationId' in data) || !exists(/databases/$(database)/documents/installations/$(data.installationId))) &&
              (activeAllowed || autoBannedAllowed);
     }

@@ -4,6 +4,7 @@ import { Search, Filter, Lock, Settings, Smartphone, Tablet, Monitor, ChevronLef
 import { Badge } from './Badge';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect, useRef } from 'react';
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import { motion, AnimatePresence } from 'motion/react';
 import { Device } from '../types';
 
@@ -41,6 +42,7 @@ export function DeviceTable({
   onRenameDevice,
   onDeleteDevice,
 }: DeviceTableProps) {
+  const reducedMotion=useJourneyReducedMotion();
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('ALL');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -425,7 +427,6 @@ export function DeviceTable({
                   if (e.key === 'Enter') saveRename();
                 }}
                 maxLength={80}
-                autoFocus
                 placeholder="np. Telefon Tomka"
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none transition-colors placeholder:text-slate-600 ui-accent-input"
               />
@@ -472,7 +473,7 @@ export function DeviceTable({
 
       <div ref={toolbarDropdownsRef} className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
         <div className="relative min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input
             type="text"
             placeholder="Szukaj..."
@@ -481,7 +482,7 @@ export function DeviceTable({
               setSearch(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full bg-[#111623] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-colors"
+            className="w-full bg-[#111623] border border-white/10 rounded-xl py-2.5 pl-8 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-colors"
           />
         </div>
 
@@ -543,8 +544,9 @@ export function DeviceTable({
             const deleteDisabled = !canDeleteTarget(device, isSelf);
             const primaryLabel = device.name;
             return (
-              <motion.div key={device.id} data-cosmic-panel={`admin-device:${device.id}`} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
+              <motion.div key={device.id} initial={reducedMotion?false:{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="relative min-w-0 shrink-0" data-admin-device-item>
+               <div data-cosmic-panel={`admin-device:${device.id}`} className="admin-device-card pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative">
+                <div className="admin-device-card-glow absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
                 <div className="flex flex-wrap items-center justify-between relative z-10 gap-3">
                   <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto sm:flex-1">
                     <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center shrink-0 shadow-lg group-hover:scale-105 transition-transform">{getIcon(device.iconType)}</div>
@@ -593,6 +595,7 @@ export function DeviceTable({
                     {device.loginBlocked&&<span data-login-pending className="max-w-[9rem] break-words text-[10px] font-medium leading-snug text-amber-400" title="Nowe logowania są wyłączone">Oczekuje na dostęp</span>}
                   </div>
                 </div>
+               </div>
               </motion.div>
             );
           }) : (

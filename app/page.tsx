@@ -1,4 +1,5 @@
 'use client';
+import {vehicleTripFinished} from '@/lib/vehicle-trip-finished';
 import {DEFAULT_APP_THEME,normalizeAppTheme,readAppTheme,resolveAppTheme,systemPrefersDark,THEME_SCREEN_COLORS,themeDecoration,type AppTheme} from '@/lib/app-theme';
 import {reconcileVehicles} from '@/lib/vehicle-reconcile';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
@@ -47,7 +48,7 @@ import {warsawDateIso} from '@/lib/transit-time';
 import type {Stop as StopsPanelStop} from '@/Panel/src/types';
 import {fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type PkpQueryViewport, type TransportProviderId} from '@/lib/pks-client';
 import {useFirebase} from '@/components/FirebaseProvider';
-import {canAccessAdminDashboard} from '@/lib/admin/rbac';
+import {canAccessAdminDashboard,canUseJourneys} from '@/lib/admin/rbac';
 
 import {formatGpsSignalClock, hasUsableRouteDetails, vehicleRouteDetailsCacheKey, latestPksRemainingSchedule, withAlpha, getVehicleDisplayNumber} from '@/lib/home/vehicle-display';
 import {AVAILABLE_TRANSPORT_PROVIDERS, PKP_INTERCITY_REFRESH_MS, hasInternetReachability, sanitizeProvidersWithVisibility, readStoredTransportProviders, sameTransportProviders, VEHICLE_PROVIDER_STALE_GRACE_MS} from '@/lib/home/provider-settings';
@@ -144,12 +145,12 @@ export default function Home() {
   const busHeaderRef=useRef<HTMLDivElement>(null);
   const [busSizes,setBusSizes]=useState({compact:180,full:480});
   const busDrag=useSheetGesture(isBusPanelExpanded,setIsBusPanelExpanded,busSizes.compact,busSizes.full);
-  useEffect(()=>{
-    const header=busHeaderRef.current;if(!header)return;
-    const measure=()=>{const compact=header.getBoundingClientRect().height;const full=Math.max(compact,innerWidth>=768?innerHeight*.85:innerHeight*.60-32);setBusSizes(current=>Math.abs(current.compact-compact)<1&&Math.abs(current.full-full)<1?current:{compact,full});};
-    const observer=new ResizeObserver(measure);observer.observe(header);window.addEventListener('resize',measure);measure();
-    return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
-  },[selectedBus?.id]);
+  // The lazy panel reports its header after it actually mounts, including the
+  // first open while its chunk is still loading.
+  const onBusHeaderSize=useCallback((compact:number)=>{
+    const full=Math.max(compact,innerWidth>=768?innerHeight*.85:innerHeight*.60-32);
+    setBusSizes(current=>Math.abs(current.compact-compact)<1&&Math.abs(current.full-full)<1?current:{compact,full});
+  },[]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOptionsExpanded, setIsOptionsExpanded] = useState(true);
@@ -200,12 +201,14 @@ export default function Home() {
     }catch{setActiveTab('map');}
   },[loading,canOpenAdminEmbed]);
   const isMapTabDisabled = Boolean(device?.permissions?.disableMap);
+  const isJourneysTabDisabled=!canUseJourneys(device?.role,device?.permissions);
   const isStopsTabDisabled = Boolean(device?.permissions?.disableStops) && !isMapTabDisabled;
   useEffect(() => {
     if (activeTab === 'admin' && !canOpenAdminEmbed) setActiveTab('map');
     if (activeTab === 'map' && isMapTabDisabled) setActiveTab('stops');
-    if ((activeTab === 'stops'||activeTab==='journeys') && isStopsTabDisabled) setActiveTab('map');
-  }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled]);
+    if (activeTab === 'stops' && isStopsTabDisabled) setActiveTab('map');
+    if(activeTab==='journeys'&&isJourneysTabDisabled)setActiveTab(isMapTabDisabled?'stops':'map');
+  }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled,isJourneysTabDisabled]);
   const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, apiLat?: number | null, apiLon?: number | null, lat?: number, lon?: number}[]>([]);
   const [stopsLoadError, setStopsLoadError] = useState(false);
   const stopsLoadPendingRef = useRef(false);
@@ -545,6 +548,7 @@ export default function Home() {
     });
   }, [hasLoadedTransportProviders, hiddenProvidersSet]);
 
+  const vehicleDetailsLoadingOwnerRef=useRef(0);
   const loadVehicleDetails = useCallback(async (
     vehicle: Vehicle,
     options?: { force?: boolean; silent?: boolean },
@@ -561,7 +565,7 @@ export default function Home() {
 
     const requestSeq = vehicleDetailsRequestSeqRef.current + 1;
     vehicleDetailsRequestSeqRef.current = requestSeq;
-    if (!silent) setSelectedBusDetailsLoading(true);
+    if (!silent) {vehicleDetailsLoadingOwnerRef.current=requestSeq;setSelectedBusDetailsLoading(true);}
     try {
       const details = await fetchVehicleDetailsClient(provider, vehicle.id, showInactive);
       if (details) {
@@ -579,7 +583,7 @@ export default function Home() {
       console.warn('Vehicle details unavailable:', error);
       return null;
     } finally {
-      if (!silent && vehicleDetailsRequestSeqRef.current === requestSeq) setSelectedBusDetailsLoading(false);
+      if (vehicleDetailsLoadingOwnerRef.current === requestSeq) {vehicleDetailsLoadingOwnerRef.current=0;setSelectedBusDetailsLoading(false);}
     }
   }, [mergeVehicleDetails, showInactive]);
 
@@ -967,7 +971,7 @@ export default function Home() {
             : NaN)
       : NaN;
   const breakCountdown =
-    Number.isFinite(selectedBusBreakUntil)
+    Number.isFinite(selectedBusBreakUntil) && selectedBusBreakUntil > now
       ? Math.max(0, Math.floor((selectedBusBreakUntil - now) / 1000))
       : null;
   const breakCountdownLabel = breakCountdown === null
@@ -995,9 +999,10 @@ export default function Home() {
     selectedBus?.statusText?.toLowerCase().includes('odjazd za') ||
     selectedBusStatusLabel === 'Przerwa',
   );
+  const selectedBusTripFinished = vehicleTripFinished(selectedBus,now);
   const selectedBusScheduleLoading =
     Boolean(selectedBus) &&
-    selectedBusDetailsLoading &&
+    selectedBusDetailsLoading && !selectedBusTripFinished &&
     ((selectedBus?.schedule?.length || 0) <= 1 || !(selectedBus?.schedule || []).some((stop) => stop.planned || stop.real));
   const selectedBusTimedStops = useMemo(() => selectedBus ? timedVehicleStops(selectedBus) : [],
     [selectedBus?.routeStops, selectedBus?.schedule, selectedBus?.delay, selectedBus?.status, selectedBus?.provider]);
@@ -1103,12 +1108,12 @@ export default function Home() {
     loadVehicleDetails(v);
   }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
   
-  const tabTransitionRef=useTabTransition(activeTab,!interfaceAppearance.reducedMotion&&!lightEffects);
+  const tabTransitionRef=useTabTransition(activeTab,!interfaceAppearance.reducedMotion);
 
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects && transparentUI ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+    <div data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -1335,6 +1340,7 @@ export default function Home() {
                   selectedBus={selectedBus}
                   busDrag={busDrag}
                   busHeaderRef={busHeaderRef}
+                  onHeaderSize={onBusHeaderSize}
                   isBusPanelExpanded={isBusPanelExpanded}
                   setIsBusPanelExpanded={setIsBusPanelExpanded}
                   transparentUI={transparentUI}
@@ -1350,6 +1356,7 @@ export default function Home() {
                   selectedBusGpsSignalClock={selectedBusGpsSignalClock}
                   breakCountdownLabel={breakCountdownLabel}
                   selectedBusIsWaitingForDeparture={selectedBusIsWaitingForDeparture}
+                  selectedBusTripFinished={selectedBusTripFinished}
                   selectedBusScheduleLoading={selectedBusScheduleLoading}
                   selectedBusDisplayedStops={selectedBusDisplayedStops}
                   selectedStopId={selectedStopId}
@@ -1382,7 +1389,7 @@ export default function Home() {
               </AnimatePresence>
 
             </div>
-         {(hasOpenedJourneys||activeTab==='journeys')&&<div hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
+         {!isJourneysTabDisabled&&(hasOpenedJourneys||activeTab==='journeys')&&<div hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
          {/* ============== NEW STOPS VIEW ============== */}
          <motion.div
             key="new-stops-panel"
@@ -1435,12 +1442,12 @@ export default function Home() {
 
       </div>
 
-         {activeTab==='map'&&!isStopsTabDisabled&&<button className="hidden md:flex absolute bottom-6 left-6 z-[1000] journey-desktop-link" onClick={()=>setActiveTab('journeys')}>Połączenia →</button>}
+         {activeTab==='map'&&!isJourneysTabDisabled&&<button className="hidden md:flex absolute bottom-6 left-6 z-[1000] journey-desktop-link" onClick={()=>setActiveTab('journeys')}>Połączenia →</button>}
          {/* Bottom Navigation for Mobile */}
       <div className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
-         <BottomNavigation order={interfaceAppearance.navOrder} activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
+         <BottomNavigation order={interfaceAppearance.navOrder} activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} isJourneysTabDisabled={isJourneysTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
             onMap={()=>{if(!isMapTabDisabled){setActiveTab('map');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);}}}
-            onJourneys={()=>{if(isStopsTabDisabled)return;setActiveTab('journeys');setSelectedBus(null);setSelectedStopId(null);setIsSettingsOpen(false);}}
+            onJourneys={()=>{if(isJourneysTabDisabled)return;setActiveTab('journeys');setSelectedBus(null);setSelectedStopId(null);setIsSettingsOpen(false);}}
             onStops={()=>{if(!isStopsTabDisabled){setActiveTab('stops');setSelectedBus(null);}}}
             onAdmin={()=>{if(activeTab!=='admin')adminReturnTab.current=activeTab==='stops'?'stops':'map';setActiveTab('admin');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);setIsSettingsOpen(false);}}
             onOptions={openOptions}/>
@@ -1458,7 +1465,7 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <OptionsContent canOpenAdminEmbed={canOpenAdminEmbed} chrome={optionsChrome} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={expandOptions} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
+            <OptionsContent journeysAllowed={!isJourneysTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed} chrome={optionsChrome} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={expandOptions} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
           </Suspense>
         )}

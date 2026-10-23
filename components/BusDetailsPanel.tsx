@@ -1,5 +1,6 @@
 'use client';
 
+import {useLayoutEffect,useRef} from 'react';
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {motion, AnimatePresence, type MotionStyle} from 'motion/react';
@@ -15,6 +16,8 @@ import {displayStopLabel} from '@/lib/stop-label';
 
 interface BusDetailsPanelProps {
   preview?:boolean;
+  onHeaderSize?:(height:number)=>void;
+  selectedBusTripFinished?:boolean;
   mpkStopNames?:ReadonlyMap<string,string>;
   selectedBus: Vehicle;
   busDrag: ReturnType<typeof useSheetGesture>;
@@ -45,7 +48,17 @@ interface BusDetailsPanelProps {
   formatScheduleStopName: (name: string) => string;
 }
 
-export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+  // A removed motion element can interrupt its shared height animation. A new
+  // panel must start from its requested size, not that intermediate value.
+  const initialSync=useRef(busDrag.syncHeight);
+  useLayoutEffect(()=>{initialSync.current();},[]);
+  useLayoutEffect(()=>{
+    const header=busHeaderRef.current;if(!header||!onHeaderSize)return;
+    const measure=()=>onHeaderSize(header.offsetHeight);
+    const observer=new ResizeObserver(measure);observer.observe(header);window.addEventListener('resize',measure);measure();
+    return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
+  },[busHeaderRef,onHeaderSize]);
   return (
     <motion.div
                   key="bus-panel-map"
@@ -188,7 +201,8 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                         )}
                       </div>
                       
-                      {(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
+                      {selectedBusTripFinished&&<div role="status" data-next-departure className={`p-3 rounded-xl border ${mapDetailCard}`}><div className={`flex items-center gap-2 text-sm ${textMain}`}><Clock size={17}/>{breakCountdownLabel?`Kolejny odjazd za ${breakCountdownLabel}`:'Obliczanie czasu do kolejnego odjazdu…'}</div></div>}
+                      {!selectedBusTripFinished&&(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
                             <MapPin className="w-4 h-4" /> {selectedVehicleIsTrain ? 'Wszystkie przystanki trasy' : 'Następne przystanki'}

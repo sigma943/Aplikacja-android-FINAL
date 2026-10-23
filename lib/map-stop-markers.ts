@@ -87,3 +87,7 @@ export function visibleMapStops(stops:Stop[],bbox:[number,number,number,number],
 export function mapStopIconHtml(color:string,selected:boolean){
   return `<span class="map-stop-ring${selected?' is-selected':''}" style="--stop-color:${color}"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7 2h10a4 4 0 0 1 4 4v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a4 4 0 0 1 4-4Zm3 1.5a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5h-4ZM6.5 6A1.5 1.5 0 0 0 5 7.5v5A1.5 1.5 0 0 0 6.5 14h11a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 17.5 6h-11ZM8 17.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Zm11 0a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z"/><path d="M5 19h4v2.5a1.5 1.5 0 0 1-1.5 1.5h-1A1.5 1.5 0 0 1 5 21.5V19Zm10 0h4v2.5a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5V19Z"/></svg></span>`;
 }
+
+export function mapStopPinHtml(color:string){
+ return `<svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" style="color:${color};filter:drop-shadow(0 3px 4px #0005)"><path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/><circle cx="19" cy="18" r="6.5" fill="white"/></svg>`;
+}

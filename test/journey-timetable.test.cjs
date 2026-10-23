@@ -25,10 +25,10 @@ test('arrival mode retains a later departure even when an earlier journey arrive
  assert.equal(scanJourneys(a,c,connections,{...options,arriveBy:true,at:90*60000})[0].departure,70*60000);
  assert.equal(scanJourneys(a,c,connections,options).length,2,'show alternative departures too');
 });
-test('walking budget is total across initial, interchange and final walks',()=>{
+test('walking limit applies to each uninterrupted access, transfer or final walk',()=>{
  const near=stop('near',50.0005),end=stop('end',50.0405),connections=[leg(near,c,70,90)];
- assert.equal(scanJourneys(a,end,connections,{...options,walkMeters:100}).length,0);
- const result=scanJourneys(a,end,connections,{...options,walkMeters:200})[0];
+ assert.equal(scanJourneys(a,end,connections,{...options,walkMeters:50}).length,0);
+ const result=scanJourneys(a,end,connections,{...options,walkMeters:100})[0];
  assert.ok(result.walking>100&&result.walking<=200);assert.equal(result.legs[0].arrival,70*60000);assert.ok(result.legs[0].departure>options.at);
  assert.equal(scanJourneys({...a,lat:undefined},end,connections,{...options,walkMeters:2000}).length,0);
 });
@@ -46,7 +46,7 @@ test('calendar exceptions and previous service day retain a real after-midnight 
 });
 test('real PKS 301 finds its complete direct course to Rzeszow D.A. without any departure-board API',()=>{
  const feed=JSON.parse(strFromU8(gunzipSync(fs.readFileSync('public/data/journeys/pks.json.gz'))));
- const from={...stop('journey:pks:566'),...feed.stops['566']},to={...stop('journey:pks:58'),...feed.stops['58']};
+ const from={...stop('journey:pks:566'),...feed.stops['566']},to=load('lib/pks-terminal-identity.ts').pksTerminalStop('58',feed.stops['58'],[]);
  const o={...options,maxTransfers:0,at:warsawTimeMs('2026-10-19','09:30')};
  const result=scanJourneys(from,to,feedConnections(feed,[],'2026-10-19',o),o);
  const course=result.find(j=>j.legs[0].course==='pks:7807:2026-10-19');assert.ok(course);assert.equal(course.departure,warsawTimeMs('2026-10-19','09:40'));assert.equal(course.transfers,0);assert.equal(course.legs[0].line,'301');assert.equal(course.legs[0].to.id,to.id);
