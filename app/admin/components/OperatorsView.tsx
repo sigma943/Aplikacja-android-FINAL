@@ -42,7 +42,7 @@ export function OperatorsView({
   onSaveGlobalSettings,
 }: OperatorsViewProps) {
   const [search, setSearch] = useState('');
-  const [filterRole, setFilterRole] = useState('ALL');
+  const [filterRole, setFilterRole] = useState<'ALL' | 'WŁAŚCICIEL' | 'ADMIN'>('ALL');
   const [editingOperator, setEditingOperator] = useState<Operator | null>(null);
   const [showGlobalPermissions, setShowGlobalPermissions] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -127,7 +127,7 @@ export function OperatorsView({
               onClick={() => setShowFilterDropdown(!showFilterDropdown)}
               className="flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 transition-all cursor-pointer group"
             >
-              {filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : filterRole === 'ADMIN' ? 'Administratorzy' : 'Użytkownicy'}
+              {filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : 'Administratorzy'}
               <Filter size={16} className={cn("transition-transform duration-300", showFilterDropdown && "rotate-180")} />
             </button>
             <AnimatePresence>
@@ -141,7 +141,6 @@ export function OperatorsView({
                   <button onClick={() => { setFilterRole('ALL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Wszyscy</button>
                   <button onClick={() => { setFilterRole('WŁAŚCICIEL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Właściciele</button>
                   <button onClick={() => { setFilterRole('ADMIN'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Administratorzy</button>
-                  <button onClick={() => { setFilterRole('UŻYTKOWNIK'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors cursor-pointer">Użytkownicy</button>
                 </motion.div>
               )}
             </AnimatePresence>
