@@ -18,6 +18,6 @@ try{
  await page.evaluate(()=>{window.horizonAt('2026-10-24T10:00Z');window.horizonHidden(false);});
  const altitude=await page.$eval('[data-horizon-sky]',e=>+e.dataset.solarAltitude);assert.ok(altitude>15,'resume immediately uses current time');
  await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);await page.waitForFunction(()=>document.getAnimations().length===0);
- await page.click('#toggle-theme');assert.equal(await page.$eval('[data-horizon-sky]',e=>getComputedStyle(e).display),'none');assert.equal(await page.evaluate(()=>document.getAnimations().length),0);
+ await page.click('#toggle-theme');assert.equal(await page.$eval('[data-horizon-sky]',e=>getComputedStyle(e).display),'none');assert.equal(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.target?.closest?.('[data-horizon-sky],[data-horizon-window]')).length),0,'switching themes cancels sky animation while ordinary UI transitions remain allowed');
  assert.deepEqual(errors,[]);console.log('Horizon browser: four skies, readable surfaces, pause/resume, reduced motion and theme cleanup passed.');
 }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});
