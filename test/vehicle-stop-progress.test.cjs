@@ -2,6 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const loadTs=require('./load-ts.cjs');
 const {upcomingTimedVehicleStops}=loadTs('lib/vehicle-stop-timing.ts');
+const {vehicleRouteDetailsCacheKey}=loadTs('lib/home/vehicle-display.ts');
 const now=Date.parse('2026-10-23T04:19:30Z');
 const stop=(id,time)=>({id,name:`Stop ${id}`,planned:`2026-10-23T04:${time}:00Z`,real:null});
 const previous=stop(1,'17'),next=stop(2,'19'),later=stop(3,'20');
@@ -15,6 +16,14 @@ test('PKS 108 retains the next stop after its scheduled minute with an older GPS
 });
 test('PKS removes the stop only when a new feed snapshot advances the remaining sequence',()=>{
   assert.deepEqual(upcomingTimedVehicleStops({...vehicle,lastStopId:2,schedule:[later]},now).map(s=>s.id),[3]);
+});
+test('PKS passage invalidates cached remaining stops even within the same journey',()=>{
+  const key=bus=>vehicleRouteDetailsCacheKey(bus,'pks',false);
+  const current={...vehicle,journeyId:42};
+  assert.notEqual(key(current),key({...current,lastStopId:2}));
+  assert.notEqual(key({...current,lastStopId:undefined}),key(current));
+  assert.equal(key(current),key({...current,lastSignalTime:'2026-10-23T04:19:00Z'}));
+  assert.notEqual(key(current),key({...current,journeyId:43}));
 });
 test('PKS keeps corrected departure times without treating early predictions as passage',()=>{
   const result=upcomingTimedVehicleStops({...vehicle,delay:-180},now);
