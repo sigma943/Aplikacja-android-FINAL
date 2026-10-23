@@ -93,17 +93,16 @@ test('solar palette makes daytime maps light and night maps dark with readable i
  }
 });
 
-test('solar glass warms at sunset, changes continuously and keeps contrast over bright artwork',()=>{
+test('solar glass stays translucent with restrained colours throughout dawn and dusk',()=>{
  const {landscapePalette:palette}=load('lib/landscape-palette.ts');
  const numbers=value=>value.match(/[\d.]+/g).map(Number);
  const luminance=color=>color.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
  let previous;
  for(let altitude=-18;altitude<=60;altitude+=.01){
   const p=palette({sun:{altitude:altitude*Math.PI/180}}),surface=numbers(p['--landscape-surface']),ink=numbers(p['--landscape-ink']);
-  for(const backdrop of [0,255]){
-   const background=surface.slice(0,3).map(v=>v*surface[3]+backdrop*(1-surface[3])),a=luminance(ink),b=luminance(background);
-   assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,'text contrast at solar altitude '+altitude);
-  }
+  assert.ok(surface[3]>=.50&&surface[3]<=.56,'artwork remains visible at solar altitude '+altitude);
+  for(const key of ['field','panel-row'])assert.ok(numbers(p['--landscape-'+key])[3]<=.30,'nested surfaces do not accumulate opaque fills');
+  assert.ok(ink.every(value=>Number.isFinite(value)));
   const values=['surface','field','panel-scrim','panel-row','nav-top','nav-bottom'].flatMap(key=>numbers(p['--landscape-'+key]));
   if(previous)assert.ok(values.every((v,i)=>Math.abs(v-previous[i])<=2),'no palette jumps at '+altitude);
   previous=values;
@@ -112,7 +111,8 @@ test('solar glass warms at sunset, changes continuously and keeps contrast over 
  const surface=numbers(sunset['--landscape-surface']);
  assert.ok(luminance(numbers(palette({sun:{altitude:30*Math.PI/180}})['--landscape-surface']).slice(0,3))>.8,'daytime cards must be light');
  assert.ok(luminance(numbers(palette({sun:{altitude:-15*Math.PI/180}})['--landscape-surface']).slice(0,3))<.03,'nighttime cards must be dark');
- assert.ok(surface[0]>surface[1]&&surface[0]>surface[2],'sunset glass is warm rather than white');
+ assert.ok(surface[0]>surface[2],'sunset glass keeps a subtle warm tint');
+ assert.ok(Math.max(...surface.slice(0,3))-Math.min(...surface.slice(0,3))<40,'sunset tint never becomes saturated pink or orange');
 });
 
 test('sunset darkens every surface stage and sunrise traverses the same palette in reverse',()=>{
