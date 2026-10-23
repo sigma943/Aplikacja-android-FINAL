@@ -27,8 +27,9 @@ export function horizonSnapshot(time:number,lat=HORIZON_DEFAULT_LOCATION.lat,lon
   const altitude=sun.altitude*degrees,day=smooth(-7,14,altitude),night=1-smooth(-15,-5,altitude);
   const rising=SunCalc.getPosition(new Date(time+60_000),lat,lon).altitude>sun.altitude;
   const warmth=Math.exp(-(((altitude+1)/7)**2));
-  const top=mixSky(mixSky('#070d22',rising?'#727db1':'#76517d',1-night),'#327fb8',day);
-  const bottom=mixSky(mixSky('#121b35',rising?'#f1b9b0':'#f29765',1-night),'#c0e5f2',day);
+  const evening=.5+.5*Math.sin(sun.azimuth);
+  const top=mixSky(mixSky('#070d22',mixSky('#727db1','#76517d',evening),1-night),'#327fb8',day);
+  const bottom=mixSky(mixSky('#121b35',mixSky('#f1b9b0','#f29765',evening),1-night),'#c0e5f2',day);
   // Clock-independent altitude also handles polar day/night and date-line travel.
   const project=(azimuth:number,alt:number)=>({x:50+Math.sin(azimuth)*43,y:78-(alt*degrees+.833)*.95});
   const times=SunCalc.getTimes(date,lat,lon);
