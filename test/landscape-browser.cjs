@@ -9,7 +9,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   await page.setRequestInterception(true);page.on('request',req=>req.url().startsWith(origin)||req.url().startsWith('data:')?req.continue():req.abort());
-  await page.goto(origin+'/landscape-fixture/');await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
+  await page.goto(origin+'/landscape-fixture/');await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0&&document.querySelector('[data-landscape-stage]')?.dataset.assetsReady==='true');
   fs.mkdirSync('test/ui-previews',{recursive:true});
   await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}'});
   for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){

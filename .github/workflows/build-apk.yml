@@ -121,7 +121,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stop-ui-previews
-          path: test/ui-previews/*.png
+          path: |
+            test/ui-previews/*.png
+            test/ui-previews/landscape-metrics.json
           if-no-files-found: ignore
 
       - name: Generate Android Icons
