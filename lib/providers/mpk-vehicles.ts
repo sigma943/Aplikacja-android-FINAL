@@ -3,7 +3,7 @@ import {mpkFleetModel} from '../mpk-fleet-models';
 
 import {parseMybusTimetable} from '../mpk-mybus-timetable';
 
-import {mpkFeedVehicles, mpkSignalTime, mpkFirstText, mpkMybusDepartureTime, mpkVehicleLine, mpkVehicleDirection, mpkMybusCourseId} from '../mpk-vehicle-feed';
+import {mpkFreshFeedVehicles, mpkFeedVehicles, mpkSignalTime, mpkFirstText, mpkMybusDepartureTime, mpkVehicleLine, mpkVehicleDirection, mpkMybusCourseId} from '../mpk-vehicle-feed';
 
 import {busOperatingState} from '../bus-operating-state';
 
@@ -246,7 +246,7 @@ async function fetchMpkVehicleFeed(signal?: AbortSignal) {
   for (const load of loaders) {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
     try {
-      const rows = await load();
+      const rows = mpkFreshFeedVehicles(await load());
       if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
       if (rows.length > 0) return rows;
       emptyResponse = true;

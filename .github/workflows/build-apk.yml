@@ -80,7 +80,7 @@ jobs:
 
       - name: Verify astronomical Horizon theme
         run: |
-          node --test test/horizon-sky.test.cjs test/app-theme.test.cjs test/journey-settings.test.cjs test/ban-details.test.cjs test/vehicle-stop-progress.test.cjs
+          node --test test/mpk-mybus-fallback.test.cjs test/horizon-sky.test.cjs test/app-theme.test.cjs test/journey-settings.test.cjs test/ban-details.test.cjs test/vehicle-stop-progress.test.cjs
           node test/horizon-browser.cjs
           node test/horizon-app-browser.cjs
 

@@ -28,7 +28,7 @@ import {readPersistentRouteGeometry, writePersistentRouteGeometry} from '@/lib/m
 import {preferredLocalRoute} from '@/lib/map/preferred-route';
 import {simplifyRouteForPaint, dedupeStableStopIds, normalizeRouteCachePart, hashRouteGeometryStops} from '@/lib/map/route-presentation';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
-import {MapStateTracker, MapCenterer, MapClickListener} from '@/components/map/MapControls';
+import {MapSizeSync, MapStateTracker, MapCenterer, MapClickListener} from '@/components/map/MapControls';
 import {VehicleMarkerLayer} from '@/components/map/VehicleMarkers';
 import {SelectedStopPin, CatalogStopsLayer, RouteStopsLayer} from '@/components/map/StopLayers';
 
@@ -392,6 +392,7 @@ function BusMap({
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
       >
+        <MapSizeSync active={active}/>
         <MapStateTracker onInteraction={handleInteraction} onViewportChange={onViewportChange} />
         <MapClickListener onClick={onMapClick} />
         <MapCenterer center={forcedCenter} onComplete={onCenterComplete} />

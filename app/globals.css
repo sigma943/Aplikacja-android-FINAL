@@ -1140,12 +1140,12 @@ html[data-horizon-theme='on'] :is([data-horizon-sky],[data-horizon-window]){disp
 [data-horizon-stars]{z-index:2}
 [data-horizon-stars] svg{width:100%;height:100%}
 [data-horizon-atmosphere]{z-index:3;clip-path:inset(0 0 22% 0)}
-[data-horizon-sun],[data-horizon-moon]{position:absolute;left:0;top:0;width:48px;height:48px}
-[data-horizon-sun]{width:52px;height:52px;border-radius:50%;background:#ffdcad;box-shadow:0 0 28px 10px #ffb87735,0 0 85px 36px #ee8a6e18}
+[data-horizon-sun],[data-horizon-moon]{position:absolute;left:0;top:0;width:32px;height:32px}
+[data-horizon-sun]{width:34px;height:34px;border-radius:50%;background:#ffdcad;box-shadow:0 0 28px 10px #ffb87735,0 0 85px 36px #ee8a6e18}
 [data-horizon-sun] span{position:absolute;inset:0;border-radius:inherit;background:radial-gradient(circle at 40% 30%,#ffefd0,#ffd399)}
 [data-horizon-moon]{filter:drop-shadow(0 0 12px #fff0bf32)}
 [data-horizon-moon] svg{width:100%;height:100%;overflow:visible}
-[data-horizon-landscape]{position:absolute;left:0;bottom:0;width:100%;height:36%;z-index:4}
+[data-horizon-landscape]{position:absolute;left:0;bottom:0;width:100%;height:25%;z-index:4}
 [data-horizon-town]{opacity:var(--horizon-town-opacity,0)}
 [data-horizon-canvas]{position:fixed;inset:0;z-index:-1;border-radius:0}
 html[data-horizon-theme='on'] body{background:#0b1030}
@@ -1161,7 +1161,7 @@ html[data-horizon-theme='on'] .pks-theme-root{
 /* Isolation keeps the sky above its opaque base and below the controls. */
 html[data-horizon-theme='on'] :is(.connections-view,.transit-view,[data-admin-viewport],.pks-options-sheet){isolation:isolate;background:var(--ui-canvas,#0b1030)!important;backdrop-filter:none!important}
 html[data-horizon-theme='on'] .pks-theme-root:not([data-cosmic-tab='map']) [data-map-canvas],
-html[data-horizon-theme='on'] .pks-theme-root:has(.pks-options-sheet) [data-map-canvas]{display:none!important;visibility:hidden!important;pointer-events:none!important}
+html[data-horizon-theme='on'] .pks-theme-root:has(.pks-options-sheet) [data-map-canvas]{visibility:hidden!important;pointer-events:none!important}
 html[data-horizon-theme='on'] :is(.pks-panel-scope,.pks-glass-frame,.transit-view){--panel-glass:var(--ui-glass);--panel-surface:var(--ui-glass-row);--panel-solid:var(--ui-surface);--panel-edge:var(--ui-edge);--transit-canvas:var(--ui-canvas);--transit-surface:var(--ui-surface);--transit-card:var(--ui-raised);--transit-border:var(--ui-edge)}
 html[data-horizon-theme='on'] [data-full-stop-list]{background:transparent!important}
 html[data-horizon-theme='on'] :is(.transit-surface,.connections-card,.admin-device-card,.pks-personal-card,.admin-topbar,.personal-group){background-color:var(--ui-surface)!important;background-image:linear-gradient(135deg,#b4a5ff09,transparent 58%)!important;color:var(--ui-text);border-color:var(--ui-edge);backdrop-filter:none!important}
