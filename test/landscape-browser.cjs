@@ -8,20 +8,25 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
-  await page.setRequestInterception(true);page.on('request',req=>req.url().startsWith(origin)||req.url().startsWith('data:')?req.continue():req.abort());
+  await page.setRequestInterception(true);page.on('request',req=>req.url().startsWith('https://mt1.google.com/')?req.respond({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path fill="#eaf1e7" d="M0 0h256v256H0z"/><path d="M0 130h256M110 0v256" stroke="#fff" stroke-width="12"/><path d="M0 10q80 100 256 50" stroke="#afd7ee" stroke-width="20" fill="none"/><text x="125" y="115" fill="#526159" font-size="11">Rzeszów</text></svg>'}):req.url().startsWith(origin)||req.url().startsWith('data:')?req.continue():req.abort());
   await page.goto(origin+'/landscape-fixture/');await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0&&document.querySelector('[data-landscape-stage]')?.dataset.assetsReady==='true');
   fs.mkdirSync('test/ui-previews',{recursive:true});
-  await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}'});
+  await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}html[data-landscape-theme] *{transition-duration:0s!important}'});
   for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
    await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+   await new Promise(r=>setTimeout(r,150));
    await page.screenshot({path:'test/ui-previews/landscape-'+name+'.png'});
   }
+  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-26T23:00:00+01:00',rate:0}));
+  await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+  const recorder=await page.screencast({path:'test/ui-previews/landscape-live.webm',fps:24});
+  await new Promise(r=>setTimeout(r,6000));await recorder.stop();
   // At a fixed astronomical instant, changes below the skyline must come from
   // real water motion, not an advancing clock or a moving full-screen wallpaper.
   await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),y=Math.floor(c.height*.6);window.__waterBefore=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;});
   await new Promise(r=>setTimeout(r,1200));
-  assert.ok(await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),y=Math.floor(c.height*.6),after=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;let changed=0;for(let i=0;i<after.length;i+=4)if(Math.abs(after[i]-window.__waterBefore[i])+Math.abs(after[i+1]-window.__waterBefore[i+1])+Math.abs(after[i+2]-window.__waterBefore[i+2])>2)changed++;return changed>100;}),'water visibly ripples at a fixed scene time');
+  assert.ok(await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),y=Math.floor(c.height*.6),after=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;let changed=0;for(let i=0;i<after.length;i+=4)if(Math.abs(after[i]-window.__waterBefore[i])+Math.abs(after[i+1]-window.__waterBefore[i+1])+Math.abs(after[i+2]-window.__waterBefore[i+2])>2)changed++;return changed>2500;}),'water visibly ripples at a fixed scene time');
   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
   await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]');window.__cloudBefore=c.getContext('2d').getImageData(0,0,c.width,Math.floor(c.height*.33)).data;});
@@ -64,6 +69,17 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.goto(origin+'/landscape-map-fixture/');
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
   for(const kind of ['filter','navigation'])assert.equal(await page.$eval('[data-landscape-chrome="'+kind+'"]',e=>getComputedStyle(e).display),'block');
+  await page.waitForSelector('.leaflet-layer img');
+  for(const [name,iso,invert] of [['day','2026-10-23T12:00:00+02:00',0],['night','2026-10-26T23:00:00+01:00',1]]){
+   await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
+   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+   await new Promise(r=>setTimeout(r,12500));
+   assert.ok(await page.$eval('.leaflet-layer',(e,n)=>getComputedStyle(e).filter.startsWith('invert('+n+')'),invert),'actual Leaflet layer changes with the Sun');
+   const ink=await page.$eval('[data-map-search-panel] input',e=>getComputedStyle(e).color);
+   assert.equal(ink,name==='day'?'rgb(20, 45, 57)':'rgb(244, 248, 252)');
+   assert.equal(await page.$eval('[data-landscape-chrome]',e=>e.tagName),'SPAN','map chrome has no geometric scenery');
+   await page.screenshot({path:'test/ui-previews/landscape-map-'+name+'.png'});
+  }
   await page.type('[data-map-search-panel] input','108');
   assert.equal(await page.$eval('[data-map-search-panel] input',e=>e.value),'108');
   await page.click('[data-nav-item="stops"]');assert.equal(await page.$eval('[data-nav-item="stops"]',e=>e.getAttribute('aria-current')),'page');

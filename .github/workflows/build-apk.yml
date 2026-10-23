@@ -123,6 +123,7 @@ jobs:
           name: stop-ui-previews
           path: |
             test/ui-previews/*.png
+            test/ui-previews/landscape-live.webm
             test/ui-previews/landscape-metrics.json
           if-no-files-found: ignore
 

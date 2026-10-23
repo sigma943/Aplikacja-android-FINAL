@@ -11,14 +11,15 @@ test('water crests move gently and clouds drift steadily across the seamless til
  }
  assert.ok(values.some(value=>value>.5),'crests move rather than drawing static full-width lines');
  assert.ok(r.cloudOffset(3)-r.cloudOffset(0)>=12,'cloud movement is visible within seconds');
- assert.ok(Math.abs(r.cloudOffset(61)-r.cloudOffset(60))<=4);
+ assert.ok(Math.abs(r.cloudOffset(61)-r.cloudOffset(60))<=12);
 });
 test('power policy keeps a live world in saver mode and recovers from one expensive frame',()=>{
  const {landscapeMotionPolicy:p,landscapeFrameBudget:budget}=load('lib/landscape-motion.ts');
  const base={hidden:false,nativeActive:true,reduced:false,light:false,limited:false,critical:false,slow:false};
  assert.equal(p(base).animate,true);assert.ok(p(base).interval<100);
+ assert.equal(p({...base,light:true}).animate,true);assert.equal(p({...base,light:true}).interval,500);
  assert.equal(p({...base,limited:true}).animate,true);assert.equal(p({...base,limited:true}).interval,500);
- for(const flags of [{critical:true},{reduced:true},{light:true},{hidden:true},{nativeActive:false}])assert.equal(p({...base,...flags}).animate,false);
+ for(const flags of [{critical:true},{reduced:true},{hidden:true},{nativeActive:false}])assert.equal(p({...base,...flags}).animate,false);
  let avg=budget(12,75);assert.ok(avg<28,'an isolated relight does not permanently select a low frame rate');
  for(let i=0;i<30;i++)avg=budget(avg,12);assert.ok(avg<18);
 });
@@ -74,4 +75,17 @@ test('invalid and denied locations use explicit Rzeszow fallback; polar events s
  // Same absolute time with different ISO offsets, including DST fallback, yields identical sky.
  assert.deepEqual(at('2026-10-25T02:30:00+02:00'),at('2026-10-25T00:30:00Z'));
  assert.notEqual(at('2026-10-25T02:30:00+02:00').sun.altitude,at('2026-10-25T02:30:00+01:00').sun.altitude);
+});
+
+test('solar palette makes daytime maps light and night maps dark with continuous readable ink',()=>{
+ const {landscapePalette:palette}=load('lib/landscape-palette.ts');
+ const noon=palette(at('2026-10-23T10:00:00Z')),night=palette(at('2026-10-26T22:00:00Z'));
+ assert.match(noon['--landscape-map-filter'],/^invert\(0\.000%\)/);
+ assert.match(night['--landscape-map-filter'],/^invert\(100\.000%\)/);
+ assert.equal(noon['--landscape-ink'],'rgb(20,45,57)');assert.equal(night['--landscape-ink'],'rgb(244,248,252)');
+ const sunset=a.solarEvents(Date.parse('2026-10-23T12:00:00Z'),place).sunset;
+ for(let t=sunset-3600000;t<sunset+3600000;t+=60000){
+  const p=palette(a.astronomyAt(t,place)),q=palette(a.astronomyAt(t+1000,place));
+  const value=x=>Number(x['--landscape-map-filter'].match(/invert\(([\d.]+)/)[1]);assert.ok(Math.abs(value(p)-value(q))<.1);
+ }
 });

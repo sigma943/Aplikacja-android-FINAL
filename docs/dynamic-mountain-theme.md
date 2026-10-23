@@ -93,3 +93,13 @@ Cloud speed is now 4 design pixels/s (roughly 1.5 screen pixels/s on a 393 px ph
 `LandscapeChrome.tsx` adds lightweight illustrated peaks, pines, water and drifting wisps behind the real MapHeader and BottomNavigation controls. These SVG decorations use the shared scene color and pause with the canvas policy. Map tiles and pointer interaction are unchanged. Admin neutral surface variables now resolve to the shared translucent material even for legacy solid surface selectors; nested option cards use a weaker fill to avoid accumulating opacity. The full-screen Options overlay no longer blurs the whole scene. Other themes are unaffected.
 
 Preset description: “Żywa dolina, płynące chmury i blask na wodzie”. Fallback location information remains in code and in the preset tooltip.
+
+### Korekta po zgłoszeniu statycznej wody i stale ciemnej mapy
+
+- Usunięto dekoracyjne wielokąty gór, choinki i kreski z filtra oraz nawigacji. Materiał paneli ma jedynie miękkie światło i cienką krawędź; kontrolki zachowują układ.
+- Zamiast nieruchomych rzędów kresek odbicie wyznacza ruchome pole normalnych trzech przecinających się fal. Każda klatka zmienia kształt i jasność nieregularnych srebrnych/złotych refleksów. Cała woda otrzymuje ruchome światło otoczenia, nawet poza głównym odblaskiem. Krajobraz odbity w 108 pasmach jest odkształcany poziomo i pionowo. Dokładna maska nadal chroni brzegi i drzewa.
+- Pole światła ma 192×192 próbek i trwały bufor ImageData; nie alokuje tablic co klatkę. Domyślnie 24 kl./s, po wykryciu wolnego rysowania 12 kl./s. Są to docelowe częstotliwości, nie gwarancja wydajności telefonu.
+- Chmury przesuwają się stale z prędkością 12 jednostek sceny/s (około 4,7 piksela/s na ekranie szerokości 393 px), z łagodnym zszyciem brzegów. Obłoki zmieniają także transmisję światła na wodę.
+- Tryb lekkich efektów wcześniej zatrzymywał całą scenerię. Teraz, podobnie jak oszczędzanie energii/nieobsługiwany most natywny, zostawia 2 kl./s. Jawna redukcja ruchu, ukryta aplikacja i krytyczna temperatura nadal wstrzymują ruch.
+- Nowa wspólna paleta zależy ciągle od wysokości Słońca: jasne szkło i ciemny tekst za dnia, ciemne szkło i jasny tekst nocą. Filtr prawdziwej warstwy Leaflet przechodzi z neutralnego dziennego do odwróconego nocnego. Przejścia kolorów i filtra trwają 12 s, pozycje pojazdów oraz semantyczne kolory przewoźników nie są filtrowane dodatkowo.
+- Test przeglądarkowy używa rzeczywistego BusMap/Leaflet z lokalnie podstawionymi testowymi kafelkami, sprawdza dzienny/nocny filtr oraz kolory pola wyszukiwania. Zapisuje 6-sekundowy film w czasie rzeczywistym przy zatrzymanym zegarze astronomii. To dowód ruchu renderera w Chrome, nie pomiar fizycznego urządzenia Android.
