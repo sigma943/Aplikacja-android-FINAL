@@ -1179,7 +1179,7 @@ html[data-landscape-theme='on'] :is(.pks-theme-root,.pks-panel-scope,.pks-glass-
 html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-gray-100,.text-gray-200,.map-detail-title) { color:var(--landscape-ink)!important; }
 html[data-landscape-theme='on'] :is(.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.text-gray-400,.text-gray-500,.map-detail-muted) { color:var(--landscape-muted)!important; }
 html[data-landscape-theme='on'] :is(.pks-map-search-panel input,.pks-options-sheet input,.pks-options-sheet select) { background-color:var(--landscape-field)!important;color:var(--landscape-ink)!important;border-color:var(--landscape-edge)!important; }
-html[data-landscape-theme='on'] .pks-map-search-panel>div:first-of-type { color:var(--landscape-accent)!important; }
+html[data-landscape-theme='on'] .pks-map-search-panel [data-map-brand] { color:var(--landscape-accent)!important; }
 html[data-landscape-theme='on'] .pks-navigation { color:var(--landscape-muted)!important; }
 html[data-landscape-theme='on'] [data-nav-item][aria-current='page'] { color:var(--landscape-accent)!important; }
 html[data-landscape-theme='on'] [data-nav-indicator] { background-color:var(--landscape-accent)!important; }
@@ -1188,3 +1188,7 @@ html[data-landscape-theme='on'] :is(.pks-theme-root,.transit-card,.transit-surfa
 html[data-landscape-theme='on'] :is(.pks-options-sheet,.pks-map-search-panel,.pks-navigation,.map-detail-shell) { border-color:var(--landscape-edge)!important; }
 html[data-landscape-theme='on'] .pks-options-sheet :is(.pks-option-card,.personal-preset,.personal-group,.personal-tabs) { background-color:var(--landscape-field)!important; }
 html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-title,.map-detail-muted) { transition:color 1.8s ease-in-out; }
+
+html[data-landscape-theme='on'],html[data-landscape-theme='on'] :is(.pks-theme-root,.pks-panel-scope,.pks-glass-frame) { --pks-accent-text:var(--landscape-accent)!important; }
+html[data-landscape-theme='on'] :is([data-map-brand],.ui-accent-text,.ui-accent-soft) { transition:color 1.8s ease-in-out,background-color 1.8s ease-in-out; }
+html[data-landscape-theme='on'] .transit-view button[data-selected='false'] { background-color:var(--landscape-field)!important;border-color:var(--landscape-edge)!important; }

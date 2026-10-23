@@ -90,6 +90,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    assert.ok(await page.$eval('.leaflet-layer',(e,n)=>getComputedStyle(e).filter.startsWith('invert('+n+')'),invert),'actual Leaflet layer changes with the Sun');
    const ink=await page.$eval('[data-map-search-panel] input',e=>getComputedStyle(e).color);
    assert.equal(ink,name==='day'?'rgb(20, 45, 57)':'rgb(244, 248, 252)');
+   assert.equal(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color),name==='day'?'rgb(15, 101, 91)':'rgb(166, 226, 203)','map brand accent stays readable in both materials');
    assert.equal(await page.$eval('[data-landscape-chrome]',e=>e.tagName),'SPAN','map chrome has no geometric scenery');
    await page.screenshot({path:'test/ui-previews/landscape-map-'+name+'.png'});
   }

@@ -23,7 +23,7 @@ export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,
 
                 <CosmicFilterEffects/>
                 <LandscapeChrome variant="filter"/>
-                <div className="relative z-[1] flex items-center justify-between font-extrabold text-xl tracking-tight" style={{ color: themeColor }}>
+                <div data-map-brand className="relative z-[1] flex items-center justify-between font-extrabold text-xl tracking-tight" style={{ color: themeColor }}>
                   <div className="flex items-center gap-2">
                      <Bus className="w-5 h-5 md:w-6 md:h-6" />
                      <span className="text-lg md:text-xl">PKS Live</span>
