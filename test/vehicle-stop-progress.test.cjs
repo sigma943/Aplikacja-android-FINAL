@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const loadTs=require('./load-ts.cjs');
 const {upcomingTimedVehicleStops}=loadTs('lib/vehicle-stop-timing.ts');
-const {vehicleRouteDetailsCacheKey}=loadTs('lib/home/vehicle-display.ts');
+const {vehicleRouteDetailsCacheKey,latestPksRemainingSchedule}=loadTs('lib/home/vehicle-display.ts');
 const now=Date.parse('2026-10-23T04:19:30Z');
 const stop=(id,time)=>({id,name:`Stop ${id}`,planned:`2026-10-23T04:${time}:00Z`,real:null});
 const previous=stop(1,'17'),next=stop(2,'19'),later=stop(3,'20');
@@ -24,6 +24,14 @@ test('PKS passage invalidates cached remaining stops even within the same journe
   assert.notEqual(key({...current,lastStopId:undefined}),key(current));
   assert.equal(key(current),key({...current,lastSignalTime:'2026-10-23T04:19:00Z'}));
   assert.notEqual(key(current),key({...current,journeyId:43}));
+});
+test('fresh shorter PKS details replace cached stops instead of losing to a completeness score',()=>{
+  const fresh={...vehicle,lastStopId:2,lastSignalTime:'2026-10-23T04:20:00Z',schedule:[later]};
+  const merged={...vehicle,schedule:latestPksRemainingSchedule(vehicle,fresh)};
+  assert.deepEqual(upcomingTimedVehicleStops(merged,now).map(s=>s.id),[3]);
+  assert.deepEqual(latestPksRemainingSchedule(fresh,vehicle),[later],'older details cannot restore a passed stop');
+  assert.deepEqual(latestPksRemainingSchedule({...fresh,schedule:[],routeStops:[]},vehicle),vehicle.schedule,'fleet-only telemetry preserves detailed stops');
+  assert.deepEqual(latestPksRemainingSchedule(vehicle,{...fresh,schedule:[]}),[],'a completed remaining sequence can be empty');
 });
 test('PKS keeps corrected departure times without treating early predictions as passage',()=>{
   const result=upcomingTimedVehicleStops({...vehicle,delay:-180},now);

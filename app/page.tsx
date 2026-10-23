@@ -49,7 +49,7 @@ import {fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type P
 import {useFirebase} from '@/components/FirebaseProvider';
 import {canAccessAdminDashboard} from '@/lib/admin/rbac';
 
-import {formatGpsSignalClock, hasUsableRouteDetails, vehicleRouteDetailsCacheKey, withAlpha, getVehicleDisplayNumber} from '@/lib/home/vehicle-display';
+import {formatGpsSignalClock, hasUsableRouteDetails, vehicleRouteDetailsCacheKey, latestPksRemainingSchedule, withAlpha, getVehicleDisplayNumber} from '@/lib/home/vehicle-display';
 import {AVAILABLE_TRANSPORT_PROVIDERS, PKP_INTERCITY_REFRESH_MS, hasInternetReachability, sanitizeProvidersWithVisibility, readStoredTransportProviders, sameTransportProviders, VEHICLE_PROVIDER_STALE_GRACE_MS} from '@/lib/home/provider-settings';
 
 const PKS_COLOR = '#14b8a6';
@@ -497,7 +497,8 @@ export default function Home() {
       dataAgeSec: base.dataAgeSec,
       lastSignalTime: base.lastSignalTime,
       scheduleSource: hasLiveSchedule || !detailsSchedule.length ? base.scheduleSource : details.scheduleSource,
-      schedule: hasLiveSchedule ? baseSchedule : (detailsSchedule.length > 0 ? detailsSchedule : baseSchedule),
+      schedule: provider === 'pks' ? latestPksRemainingSchedule(base, details)
+        : hasLiveSchedule ? baseSchedule : (detailsSchedule.length > 0 ? detailsSchedule : baseSchedule),
       routeStops: details.scheduleSource === 'mybus' ? detailsRouteStops : hasLiveRouteStops ? baseRouteStops : (detailsRouteStops.length > 0 ? detailsRouteStops : baseRouteStops),
       routeGeometry: details.scheduleSource === 'mybus' ? details.routeGeometry : (details.routeGeometry?.length ? details.routeGeometry : base.routeGeometry),
       routePath: details.scheduleSource === 'mybus' ? detailsRoutePath : hasLiveRoutePath ? baseRoutePath : (detailsRoutePath.length > 0 ? detailsRoutePath : baseRoutePath),
