@@ -20,7 +20,6 @@ import {useLatestCallback} from '@/lib/use-latest-callback';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {useSheetGesture} from '@/lib/use-sheet-gesture';
 import {BackScope, useAppBack} from '@/lib/use-app-back';
-import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {uiAccentVariables,normalizeUiAccent} from '@/lib/ui-accent';
@@ -30,7 +29,7 @@ import {panelGlowStrength} from '@/lib/panel-glow';
 import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
-import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
+import {timedVehicleStops, upcomingTimedVehicleStops} from '@/lib/vehicle-stop-timing';
 
 import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
 import dynamic from 'next/dynamic';
@@ -1002,8 +1001,8 @@ export default function Home() {
   const selectedBusTimedStops = useMemo(() => selectedBus ? timedVehicleStops(selectedBus) : [],
     [selectedBus?.routeStops, selectedBus?.schedule, selectedBus?.delay, selectedBus?.status, selectedBus?.provider]);
   const selectedBusDisplayedStops = useMemo(() => selectedVehicleIsTrain ? selectedBusTimedStops
-    : upcomingVehicleStops(selectedBusTimedStops, now, selectedBus?.lastStopId),
-    [selectedBusTimedStops, now, selectedBus?.lastStopId, selectedVehicleIsTrain]);
+    : selectedBus ? upcomingTimedVehicleStops(selectedBus, now) : [],
+    [selectedBusTimedStops, selectedBus, now, selectedVehicleIsTrain]);
 
   const openVehicleRouteStop = useCallback((stopId:string) => {
     const point=(selectedBus?.routeStops||selectedBus?.schedule||[]).find(stop=>String(stop.id)===stopId);
