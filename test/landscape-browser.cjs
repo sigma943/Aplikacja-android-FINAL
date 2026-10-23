@@ -49,7 +49,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.evaluate(()=>document.querySelector('[data-toggle-ui]').click());await page.waitForSelector('[data-departure-row]');
   await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('.transit-view')).opacity)>=.999);
   await new Promise(r=>setTimeout(r,350));
-  assert.ok(await page.evaluate(()=>{const color=getComputedStyle(document.querySelector('.transit-card')).backgroundColor,alpha=Number(color.split(',').pop().replace(')',''));return alpha>=.58&&alpha<=.68;}),'glass exposes scenery while keeping a dark scrim');
+  assert.ok(await page.evaluate(()=>{const color=getComputedStyle(document.querySelector('.transit-card')).backgroundColor,alpha=Number(color.split(',').pop().replace(')',''));return alpha>=.70&&alpha<=.76;}),'glass exposes scenery while keeping a dark scrim');
   await page.screenshot({path:'test/ui-previews/landscape-timetable.png'});
   await page.setViewport({width:320,height:640,deviceScaleFactor:2});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
@@ -84,16 +84,25 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   for(const [name,iso,invert] of [['day','2026-10-23T12:00:00+02:00',0],['night','2026-10-26T23:00:00+01:00',1]]){
    await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
-   await new Promise(r=>setTimeout(r,600));
+   await new Promise(r=>setTimeout(r,2700));
    assert.equal(await page.$eval('.leaflet-layer',e=>getComputedStyle(e).transitionDuration),'0s','map polarity never animates through washed-out grey');
    assert.ok(await page.$eval('.leaflet-layer',(e,n)=>getComputedStyle(e).filter.startsWith('invert('+n+')'),invert),'actual Leaflet layer changes with the Sun');
    const ink=await page.$eval('[data-map-search-panel] input',e=>getComputedStyle(e).color);
-   assert.equal(ink,name==='day'?'rgb(20, 45, 57)':'rgb(244, 248, 252)');
+   assert.equal(ink,name==='day'?'rgb(236, 247, 252)':'rgb(244, 248, 252)');
    assert.equal(await page.$eval('[data-fixture-period]',e=>e.dataset.fixturePeriod),name,'solar mode reaches React component props as well as CSS');
-   assert.equal(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color),name==='day'?'rgb(15, 101, 91)':'rgb(166, 226, 203)','map brand accent stays readable in both materials');
+   assert.equal(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color),name==='day'?'rgb(164, 232, 216)':'rgb(166, 226, 203)','map brand accent stays readable in both materials');
    assert.ok(await page.$eval('[data-landscape-window=filter]',e=>e.width>100&&e.height>20),'filter receives the actual rendered sky');
    await page.screenshot({path:'test/ui-previews/landscape-map-'+name+'.png'});
   }
+  assert.equal(await page.$eval('[data-landscape-window=filter]',e=>getComputedStyle(e).filter),'blur(6px)','only the filter sky is softened');
+  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T17:10:00+02:00',rate:0}));
+  await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+  await new Promise(r=>setTimeout(r,600));
+  const transition=await page.$eval('[data-map-search-panel] input',e=>({color:getComputedStyle(e).color,target:getComputedStyle(document.documentElement).getPropertyValue('--landscape-ink').replaceAll(' ',''),duration:getComputedStyle(e).transitionDuration}));
+  assert.notEqual(transition.color.replaceAll(' ',''),transition.target,'text moves through intermediate colours rather than snapping');
+  assert.ok(transition.duration.includes('2.4s'));
+  await new Promise(r=>setTimeout(r,2200));
+  await page.screenshot({path:'test/ui-previews/landscape-map-sunset.png'});
   await page.type('[data-map-search-panel] input','108');
   assert.equal(await page.$eval('[data-map-search-panel] input',e=>e.value),'108');
   await page.click('[data-nav-item="stops"]');assert.equal(await page.$eval('[data-nav-item="stops"]',e=>e.getAttribute('aria-current')),'page');
@@ -103,7 +112,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.waitForSelector('.admin-device-card',{timeout:45000});
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
   for(const selector of ['.admin-device-card','[data-admin-viewport] input[placeholder="Szukaj..."]']){
-   assert.ok(await page.$eval(selector,e=>{const c=getComputedStyle(e).backgroundColor;return c.startsWith('rgba')&&Number(c.split(',').pop().replace(')',''))<.7;}),'admin glass must be translucent: '+selector);
+   assert.ok(await page.$eval(selector,e=>{const c=getComputedStyle(e).backgroundColor;return c.startsWith('rgba')&&Number(c.split(',').pop().replace(')',''))<.8;}),'admin glass must be translucent: '+selector);
   }
   await page.screenshot({path:'test/ui-previews/landscape-admin-glass.png'});
   for(const mode of ['bus','stop']){
@@ -114,11 +123,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    if(mode==='bus'){
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0}));
     await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='day'&&document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
-    await new Promise(r=>setTimeout(r,400));
+    await new Promise(r=>setTimeout(r,2700));
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).backgroundColor),'rgb(8, 13, 29)','daytime carrier header retains the dark cosmic base');
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)','header text stays light in solar day mode');
     assert.equal(await page.$eval('[data-vehicle-header] [class*="text-white"]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)');
-    assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])>=.8),'daytime route has a strong light scrim');
+    assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])>=.7),'daytime route retains a readable coloured scrim');
    }
    const canvas=await page.$eval('[data-landscape-window=panel]',e=>{const d=e.getContext('2d').getImageData(0,0,e.width,e.height).data;const colors=new Set();for(let i=0;i<d.length;i+=16)colors.add(d[i]+','+d[i+1]+','+d[i+2]);return colors.size;});
    assert.ok(canvas>100,'expanded '+mode+' sheet contains detailed scenery, not a flat fill');

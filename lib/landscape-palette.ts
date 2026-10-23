@@ -1,19 +1,33 @@
-import {skyState,type AstronomyState} from './landscape-astronomy';
-/** Solar materials share a polarity switch, eased by CSS. Keeping inverse maps
- * near 50% for an entire twilight would erase roads and label contrast. */
+import {smoothstep,type AstronomyState} from './landscape-astronomy';
+/** Map polarity stays at readable endpoints. Glass follows solar elevation
+ * continuously; a light ink family avoids a dark/light text flip at sunset. */
 export const isLandscapeDay=(state:AstronomyState)=>state.sun.altitude>-.035;
 export function landscapePalette(state:AstronomyState){
-  const day=isLandscapeDay(state)?1:0,twilight=skyState(state).twilight;
-  const rgb=(night:number[],light:number[])=>night.map((v,i)=>Math.round(v+(light[i]-v)*day)).join(',');
-  const surface=(day?[239+12*twilight,249-9*twilight,251-27*twilight]:[9+6*twilight,24,40-4*twilight]).map(Math.round).join(',');
+  const altitude=state.sun.altitude*180/Math.PI;
+  const stops=[
+    {at:-12,surface:[9,24,40],ink:[244,248,252],muted:[207,225,237],accent:[166,226,203],field:[12,31,49]},
+    {at:-5,surface:[35,35,65],ink:[246,237,255],muted:[215,205,237],accent:[210,192,248],field:[40,36,66]},
+    {at:1,surface:[79,45,58],ink:[255,239,220],muted:[242,216,201],accent:[255,212,164],field:[84,49,62]},
+    {at:9,surface:[33,65,84],ink:[239,247,252],muted:[204,226,236],accent:[177,230,221],field:[28,60,79]},
+    {at:20,surface:[20,61,86],ink:[236,247,252],muted:[202,226,239],accent:[164,232,216],field:[21,54,76]},
+  ];
+  let index=0;while(index<stops.length-2&&altitude>stops[index+1].at)index++;
+  const a=stops[index],b=stops[index+1],t=smoothstep(a.at,b.at,altitude);
+  const mix=(key:'surface'|'ink'|'muted'|'accent'|'field')=>a[key].map((v,i)=>Math.round(v+(b[key][i]-v)*t)).join(',');
+  const rgba=(key:'surface'|'field',alpha:number)=>`rgba(${mix(key)},${alpha})`;
+  const day=isLandscapeDay(state)?1:0;
   return {
-    '--landscape-surface':`rgba(${surface},${(.62+day*.04).toFixed(3)})`,
-    '--landscape-ink':`rgb(${rgb([244,248,252],[20,45,57])})`,
-    '--landscape-muted':`rgb(${rgb([207,225,237],[59,83,95])})`,
-    '--landscape-accent':`rgb(${rgb([166,226,203],[15,101,91])})`,
-    '--landscape-edge':`rgba(${rgb([208,233,237],[53,99,111])},.24)`,
-    '--landscape-field':`rgba(${rgb([7,23,40],[248,253,255])},.36)`,
-    '--landscape-chrome-light':`rgba(${rgb([174,220,234],[255,246,213])},.30)`,
+    '--landscape-surface':rgba('surface',.74),
+    '--landscape-ink':`rgb(${mix('ink')})`,
+    '--landscape-muted':`rgb(${mix('muted')})`,
+    '--landscape-accent':`rgb(${mix('accent')})`,
+    '--landscape-edge':`rgba(${mix('muted')},.24)`,
+    '--landscape-field':rgba('field',.62),
+    '--landscape-panel-scrim':rgba('surface',.76),
+    '--landscape-panel-row':rgba('field',.78),
+    '--landscape-nav-top':rgba('surface',.52),
+    '--landscape-nav-bottom':rgba('field',.94),
+    '--landscape-chrome-light':`rgba(${mix('accent')},.30)`,
     '--landscape-map-filter':`invert(${((1-day)*100).toFixed(3)}%) hue-rotate(${((1-day)*180).toFixed(3)}deg) brightness(${(.95+day*.05).toFixed(3)}) contrast(${(.9+day*.1).toFixed(3)})`,
   };
 }

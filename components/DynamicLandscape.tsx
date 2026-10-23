@@ -130,7 +130,7 @@ export default function DynamicLandscape({active}:{active:boolean}){
       for(const listener of listeners)void listener.then(handle=>handle.remove());
       delete debug.__landscapePreview;delete debug.__landscapeDiagnostics;
       delete debug.__landscapeTestPower;delete root.dataset.landscapeMotion;
-      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
+      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter','panel-scrim','panel-row','nav-top','nav-bottom'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
     };
   },[active]);
   return active?<canvas ref={canvas} data-landscape-stage aria-hidden="true"/>:null;

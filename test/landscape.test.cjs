@@ -82,13 +82,31 @@ test('solar palette makes daytime maps light and night maps dark with readable i
  const noon=palette(at('2026-10-23T10:00:00Z')),night=palette(at('2026-10-26T22:00:00Z'));
  assert.match(noon['--landscape-map-filter'],/^invert\(0\.000%\)/);
  assert.match(night['--landscape-map-filter'],/^invert\(100\.000%\)/);
- assert.equal(noon['--landscape-ink'],'rgb(20,45,57)');assert.equal(night['--landscape-ink'],'rgb(244,248,252)');
+ assert.equal(noon['--landscape-ink'],'rgb(236,247,252)');assert.equal(night['--landscape-ink'],'rgb(244,248,252)');
  // Across a whole twilight, only readable map endpoints are targeted.
  // Map filters switch directly so roads never pass through a grey midpoint.
  const sunset=a.solarEvents(Date.parse('2026-10-23T12:00:00Z'),place).sunset;
  for(let t=sunset-3600000;t<sunset+3600000;t+=60000){
   const p=palette(a.astronomyAt(t,place));
   assert.match(p['--landscape-map-filter'],/^invert\((0|100)\.000%\)/);
-  assert.ok(['rgb(20,45,57)','rgb(244,248,252)'].includes(p['--landscape-ink']));
+  assert.ok(p['--landscape-ink'].startsWith('rgb('));
  }
+});
+
+test('solar glass warms at sunset, changes continuously and keeps contrast over bright artwork',()=>{
+ const {landscapePalette:palette}=load('lib/landscape-palette.ts');
+ const numbers=value=>value.match(/[\d.]+/g).map(Number);
+ const luminance=color=>color.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+ let previous;
+ for(let altitude=-18;altitude<=60;altitude+=.01){
+  const p=palette({sun:{altitude:altitude*Math.PI/180}}),surface=numbers(p['--landscape-surface']),ink=numbers(p['--landscape-ink']);
+  const brightest=surface.slice(0,3).map(v=>v*surface[3]+255*(1-surface[3]));
+  assert.ok((luminance(ink)+.05)/(luminance(brightest)+.05)>=4.5,'text contrast at solar altitude '+altitude);
+  const values=['surface','ink','muted','accent','panel-scrim','panel-row'].flatMap(key=>numbers(p['--landscape-'+key]));
+  if(previous)assert.ok(values.every((v,i)=>Math.abs(v-previous[i])<=1),'no palette jumps at '+altitude);
+  previous=values;
+ }
+ const sunset=palette({sun:{altitude:Math.PI/180}});
+ const surface=numbers(sunset['--landscape-surface']);
+ assert.ok(surface[0]>surface[1]&&surface[0]>surface[2],'sunset glass is warm rather than white');
 });

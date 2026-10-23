@@ -1184,13 +1184,13 @@ html[data-landscape-theme='on'] .pks-navigation { color:var(--landscape-muted)!i
 html[data-landscape-theme='on'] [data-nav-item][aria-current='page'] { color:var(--landscape-accent)!important; }
 html[data-landscape-theme='on'] [data-nav-indicator] { background-color:var(--landscape-accent)!important; }
 html[data-landscape-theme='on'] :is(.leaflet-layer,.leaflet-control-zoom-in,.leaflet-control-zoom-out,.leaflet-control-attribution) { filter:var(--landscape-map-filter)!important;transition:none!important; }
-html[data-landscape-theme='on'] :is(.pks-theme-root,.transit-card,.transit-surface,.pks-panel-scope,.pks-options-sheet,.pks-option-card,.pks-navigation,.pks-map-search-panel,[data-nav-item],input,textarea,select,.admin-device-card) { transition:color .25s ease-out,background-color .25s ease-out,border-color .25s ease-out; }
+html[data-landscape-theme='on'] :is(.pks-theme-root,.transit-card,.transit-surface,.pks-panel-scope,.pks-options-sheet,.pks-option-card,.pks-navigation,.pks-map-search-panel,[data-nav-item],input,textarea,select,.admin-device-card) { transition:color 2.4s linear,background-color 2.4s linear,border-color 2.4s linear; }
 html[data-landscape-theme='on'] :is(.pks-options-sheet,.pks-map-search-panel,.pks-navigation,.map-detail-shell) { border-color:var(--landscape-edge)!important; }
 html[data-landscape-theme='on'] .pks-options-sheet :is(.pks-option-card,.personal-preset,.personal-group,.personal-tabs) { background-color:var(--landscape-field)!important; }
-html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-title,.map-detail-muted) { transition:color .25s ease-out; }
+html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-title,.map-detail-muted) { transition:color 2.4s linear; }
 
 html[data-landscape-theme='on'],html[data-landscape-theme='on'] :is(.pks-theme-root,.pks-panel-scope,.pks-glass-frame) { --pks-accent-text:var(--landscape-accent)!important; }
-html[data-landscape-theme='on'] :is([data-map-brand],.ui-accent-text,.ui-accent-soft) { transition:color .25s ease-out,background-color .25s ease-out; }
+html[data-landscape-theme='on'] :is([data-map-brand],.ui-accent-text,.ui-accent-soft) { transition:color 2.4s linear,background-color 2.4s linear; }
 html[data-landscape-theme='on'] .transit-view button[data-selected='false'] { background-color:var(--landscape-field)!important;border-color:var(--landscape-edge)!important; }
 
 /* The map is opaque: scene windows let its sheets share the artwork used by
@@ -1219,5 +1219,22 @@ html[data-landscape-theme='on'] .transit-card :is(.transit-card,.transit-surface
    follow the spring's intermediate heights, avoiding stepped resampling. */
 html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { bottom:auto;height:calc(60svh - 32px); }
 @media(min-width:768px) { html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { height:85svh; } }
-html[data-landscape-theme='on'][data-landscape-period='day'] [data-landscape-chrome='panel']::after { background:rgba(242,249,252,.84);opacity:1; }
-html[data-landscape-theme='on'][data-landscape-period='day'] .map-detail-shell .map-detail-row { background:rgba(248,252,255,.90)!important;border-color:rgba(34,71,90,.20)!important; }
+html[data-landscape-theme='on'] [data-landscape-chrome='panel']::after { background:var(--landscape-panel-scrim);opacity:1; }
+html[data-landscape-theme='on'] .map-detail-shell .map-detail-row { background:var(--landscape-panel-row)!important;border-color:var(--landscape-edge)!important; }
+
+/* Soften only the tiny sky bitmap, keeping text sharp and avoiding a live
+   full-map backdrop blur. Sheet artwork keeps its original edges. */
+html[data-landscape-theme='on'] [data-landscape-chrome='filter'] canvas { filter:blur(6px);transform:scale(1.06); }
+html[data-landscape-theme='on'] [data-landscape-chrome='panel'] canvas { filter:none; }
+html[data-landscape-theme='on'] [data-landscape-chrome]::after { transition:background-color 2.4s linear; }
+html[data-landscape-theme='on'] .pks-navigation { background:var(--landscape-nav-bottom)!important;box-shadow:0 -8px 30px #06152330,inset 0 1px 0 #e3f8ff38; }
+html[data-landscape-theme='on'] [data-landscape-chrome='navigation'] canvas { opacity:.45;filter:blur(1px); }
+html[data-landscape-theme='on'] [data-landscape-chrome='navigation']::after { opacity:1;background:linear-gradient(180deg,var(--landscape-nav-top),var(--landscape-nav-bottom)); }
+html[data-landscape-theme='on'] [data-nav-item][aria-current='page'] { background:radial-gradient(ellipse at 50% 15%,var(--landscape-chrome-light),transparent 72%); }
+/* Carrier accents stay legible on the solar glass, including daytime props. */
+html[data-landscape-theme='on'] .map-detail-shell { color:var(--landscape-ink)!important; }
+/* The carrier header is a constant material; never interpolate it from the
+   surrounding solar ink when a sheet mounts. */
+html[data-landscape-theme='on'] [data-vehicle-header],
+html[data-landscape-theme='on'] [data-vehicle-header][data-ui-mode] [class*='text-white'] { transition:none!important; }
+html[data-landscape-theme='on'] [data-landscape-chrome='filter']::after { opacity:1; }
