@@ -78,6 +78,11 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify astronomical Horizon theme
+        run: |
+          node --test test/horizon-sky.test.cjs test/app-theme.test.cjs test/journey-settings.test.cjs test/ban-details.test.cjs test/vehicle-stop-progress.test.cjs
+          node test/horizon-browser.cjs
+
       - name: Verify journey place picker
         run: |
           JOURNEY_PICKER_ONLY=1 node test/journeys-browser.cjs

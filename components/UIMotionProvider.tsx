@@ -4,6 +4,7 @@ import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {usePathname} from 'next/navigation';
 import AppBackBridge from './AppBackBridge';
 import CosmicEffects from './CosmicEffects';
+import HorizonSky from './HorizonSky';
 import {readAppTheme,resolveAppTheme} from '@/lib/app-theme';
 import { MotionConfig } from 'motion/react';
 import {useEffect,useRef,useState,type ReactNode} from 'react';
@@ -60,5 +61,5 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
       cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
     };
   },[]);
-  return <MotionConfig reducedMotion={reduced?'always':'user'} transition={{duration: .24, ease: [.22, 1, .36, 1]}}><AppBackBridge />{children}<CosmicEffects/></MotionConfig>;
+  return <MotionConfig reducedMotion={reduced?'always':'user'} transition={{duration: .24, ease: [.22, 1, .36, 1]}}><AppBackBridge />{children}<CosmicEffects/><HorizonSky/></MotionConfig>;
 }

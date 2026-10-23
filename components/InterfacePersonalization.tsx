@@ -36,6 +36,7 @@ export default function InterfacePersonalization(p:Props){
   };
   const reset=()=>{localStorage.setItem(SCHEDULE_KEY,JSON.stringify({...readSchedule(),enabled:false}));window.dispatchEvent(new Event('pks-profiles-changed'));p.onChange({...DEFAULT_INTERFACE_APPEARANCE});p.setTheme('dark-oled');p.setAccent('#00A3A2');p.setGlass(true);p.setGlow(false);p.setGlowStrength(40);};
   const preset=(next:InterfacePreset)=>{
+    if(next.theme==='dark-horizon'){try{localStorage.setItem(SCHEDULE_KEY,JSON.stringify({...readSchedule(),enabled:false}));window.dispatchEvent(new Event('pks-profiles-changed'));}catch{/* Theme still works without the optional scheduler. */}}
     try{p.onChange({...next.appearance});p.setTheme(next.theme);p.setAccent(next.accent);p.setGlass(next.glass);p.setGlow(next.glow);p.setGlowStrength(next.glowStrength);}catch{p.setTheme('system');}
   };
   const colorPicker=(label:string,color:string,onChange:(value:string)=>void,customLabel:string,inputLabel:string,prefix:string)=><>
@@ -52,6 +53,7 @@ export default function InterfacePersonalization(p:Props){
         <span className="personal-preset-description">{next.description}</span>
       </button>;
     })}</div></div>
+    {p.theme==='dark-horizon'&&<div className="personal-note"><p data-horizon-location-label>Niebo dla zapisanej lokalizacji lub Rzeszowa.</p><button type="button" className="personal-choice ui-accent-focus mt-2" onClick={()=>window.dispatchEvent(new Event('pks-horizon-location-request'))}>Użyj mojej lokalizacji</button><p className="mt-2">Ruch według rzeczywistego czasu. Bez śledzenia GPS w tle. Wygląd nieba nie uwzględnia pogody.</p></div>}
     <label className="personal-search"><SlidersHorizontal size={16}/><input aria-label="Szukaj ustawień personalizacji" placeholder="Znajdź ustawienie…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button type="button" onClick={()=>setQuery('')} aria-label="Wyczyść wyszukiwanie personalizacji">×</button>}</label>
     {group('colors','Motyw i kolory','Motywy, paleta i własny akcent',<Palette size={19}/>,<>
       <div className="grid grid-cols-3 gap-2">{[['system','Systemowy'],['light','Jasny'],['light-warm','Piaskowy'],['dark','Ciemny'],['dark-oled','AMOLED'],['dark-cosmos','Kosmos'],['light-pink','Różowy'],['dark-forest','Leśny'],['light-sky','Niebo']].map(([key,name])=><button type="button" key={key} aria-pressed={p.theme===key} className={selected(p.theme===key)} onClick={()=>{if(key==='dark-forest'||key==='light-sky'||key==='dark-cosmos'){preset(INTERFACE_PRESETS.find(next=>next.theme===key)!);return;}p.setTheme(key);if(key==='light-pink')p.setAccent('#c02674');}}>{name}</button>)}</div>

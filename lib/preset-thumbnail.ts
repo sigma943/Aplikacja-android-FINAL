@@ -2,6 +2,7 @@ import type {InterfacePreset} from './interface-presets';
 
 /** A self-contained image keeps preset colours outside sibling CSS gradient layers. */
 export function presetThumbnailSource(preset: InterfacePreset, compact = false): string {
+  if(preset.theme==='dark-horizon')return 'data:image/svg+xml,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 160"><defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#111b3a"/><stop offset=".55" stop-color="#7b668d"/><stop offset="1" stop-color="#f1ac83"/></linearGradient></defs><rect width="320" height="160" fill="url(#sky)"/><g fill="#edf4ff"><circle cx="28" cy="21" r="1"/><circle cx="101" cy="35" r="1.3"/><circle cx="154" cy="17" r="1"/><circle cx="277" cy="25" r="1"/></g><circle cx="237" cy="113" r="20" fill="#ffe3b0"/><path d="M55 23a13 13 0 1 0 17 17a15 15 0 0 1-17-17" fill="#f6edd7"/><path d="M0 125L50 117L95 126L150 114L208 124L263 117L320 128V160H0Z" fill="#172d40"/><rect x="16" y="139" width="90" height="4" rx="2" fill="#b8d9f7" opacity=".7"/></svg>`);
   const pad=compact?7:9, height=80+pad*2;
   const safe=(value:string)=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]!));
   const background=safe(preset.preview.background),surface=safe(preset.preview.surface),text=safe(preset.preview.text),accent=safe(preset.accent);

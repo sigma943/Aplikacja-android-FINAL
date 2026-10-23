@@ -1,4 +1,5 @@
 import type {Stop} from '@/Panel/src/types';
+import {rememberHorizonLocation} from './horizon-location';
 
 export const STATION_ID='journey:rzeszow-da';
 export const LOCATION_ID='journey:my-location';
@@ -24,7 +25,7 @@ export function journeyPickerStops(catalog:Stop[]):Stop[]{
 export function currentJourneyLocation():Promise<Stop>{
  return new Promise((resolve,reject)=>{
   if(!navigator.geolocation){reject(Error('Lokalizacja jest niedostępna na tym urządzeniu. Wybierz przystanek z listy.'));return;}
-  navigator.geolocation.getCurrentPosition(p=>resolve({id:LOCATION_ID,name:'Twoja lokalizacja',type:'bus',carriers:[],lines:[],isFavorite:false,lat:p.coords.latitude,lon:p.coords.longitude}),
+  navigator.geolocation.getCurrentPosition(p=>{rememberHorizonLocation(p.coords.latitude,p.coords.longitude);resolve({id:LOCATION_ID,name:'Twoja lokalizacja',type:'bus',carriers:[],lines:[],isFavorite:false,lat:p.coords.latitude,lon:p.coords.longitude});},
    e=>reject(Error(e.code===1?'Zezwól aplikacji na dostęp do lokalizacji lub wybierz przystanek z listy.':'Nie udało się ustalić lokalizacji. Spróbuj ponownie lub wybierz przystanek.')),
    {enableHighAccuracy:true,timeout:12000,maximumAge:30000});
  });

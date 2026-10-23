@@ -9,6 +9,11 @@ const appearance=(changes:Partial<InterfaceAppearance>):InterfaceAppearance=>({.
 
 export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   {
+    name:'Horyzont',description:'Żywe niebo, ruch słońca i aktualna faza księżyca dla Twojej lokalizacji',theme:'dark-horizon',accent:'#a9ceff',glass:true,glow:false,glowStrength:25,
+    appearance:appearance({glassOpacity:78,glassBlur:0,glassBlurEnabled:false,borderStrength:16,shadowStrength:15,navIndicator:'line',glowStyle:'accent',glowColor:'#a9ceff'}),
+    preview:{background:'#364f78',surface:'#172d40',text:'#f1f6ff'},
+  },
+  {
     name:'Różowy',description:'Cukierkowy róż, malinowe akcenty i subtelne serduszka',theme:'light-pink',accent:'#c02674',glass:true,glow:false,glowStrength:40,
     appearance:appearance({}),
     preview:{background:'#ffd1e8',surface:'#ffd1e8',text:'#57153c'},

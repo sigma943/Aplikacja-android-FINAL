@@ -13,6 +13,7 @@ import {vehicleStopDeparture} from '@/lib/vehicle-stop-timing';
 import {punctualityTimeClass} from '@/lib/punctuality-color';
 import {mpkVehicleDisplayName} from '@/lib/mpk-stop-label';
 import {displayStopLabel} from '@/lib/stop-label';
+import {HorizonWindow} from './HorizonSky';
 
 interface BusDetailsPanelProps {
   preview?:boolean;
@@ -75,6 +76,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   transition={SHEET_SPRING}
                   className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
+                  <HorizonWindow/>
                   <motion.div 
                      ref={busHeaderRef}
                      role="button"
