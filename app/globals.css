@@ -1190,3 +1190,5 @@ html[data-horizon-theme='on'] [data-admin-viewport] [data-cosmic-canvas]{backgro
 html[data-horizon-theme='on'] [data-horizon-sky]{display:none}
 html[data-horizon-theme='on']:has(.pks-options-sheet) [data-horizon-sky]{display:block}
 html[data-horizon-theme='on']:has(.pks-status-screen) [data-horizon-sky]{display:none}
+/* Override the shared glass root, whose selectors include both theme and glass attributes. */
+html[data-horizon-theme='on'] .pks-theme-root [data-admin-viewport][data-panel-theme][data-glass]{background:var(--ui-canvas,#0b1030)!important}
