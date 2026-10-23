@@ -10,7 +10,7 @@ const appearance=(changes:Partial<InterfaceAppearance>):InterfaceAppearance=>({.
 export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   {
     name:'Żywy Krajobraz – Dynamiczne Góry',description:'Animowana dolina z naturalnym cyklem dnia i nocy, ruchem Słońca i Księżyca oraz odbiciami na wodzie. Bez udostępnionej lokalizacji: Rzeszów.',theme:'dark-mountains',accent:'#a6e2cb',glass:true,glow:false,glowStrength:25,
-    appearance:appearance({glassOpacity:80,glassBlur:8,borderStrength:16,shadowStrength:15,navIndicator:'line'}),
+    appearance:appearance({glassOpacity:62,glassBlur:5,borderStrength:16,shadowStrength:15,navIndicator:'line'}),
     preview:{background:'#40799a',surface:'#142d40',text:'#f4f8fc'},
   },
   {

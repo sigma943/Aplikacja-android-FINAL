@@ -1130,11 +1130,17 @@ html[data-personal-light-effects='on'] .animate-spin{animation:spin 1s linear in
 html[data-personal-light-effects='on'] .admin-device-card{overflow:clip;clip-path:inset(0 round 2rem)}
 html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-device-card{clip-path:inset(0 round var(--personal-card-radius))}
 /* Living mountains: one fixed scene, readable stable dark glass at every solar elevation. */
-.pks-theme-root[data-ui-theme='dark-mountains'] { isolation:isolate; background:#091828!important; --ui-canvas:transparent; --ui-surface:var(--landscape-surface,rgba(9,24,40,.82)); --ui-glass:var(--ui-surface); --ui-glass-row:rgba(9,24,40,.78); --ui-raised:#142d40; --ui-text:#f4f8fc; --ui-muted:#cedee8; --ui-edge:#d0e9ed30; }
+.pks-theme-root[data-ui-theme='dark-mountains'] { isolation:isolate; background:#091828!important; --ui-canvas:transparent; --ui-surface:var(--landscape-surface,rgba(9,24,40,.62)); --ui-glass:var(--ui-surface); --ui-glass-row:rgba(9,24,40,.58); --ui-raised:#142d40; --ui-text:#f4f8fc; --ui-muted:#e3eef5; --ui-edge:#d0e9ed30; }
 [data-landscape-stage] { position:absolute; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; contain:strict; }
 .pks-theme-root[data-ui-theme='dark-mountains'] [data-map-canvas][inert] { visibility:hidden; }
 .pks-theme-root[data-ui-theme='dark-mountains'] :is(.transit-view,.connections-view,.journey-view,[data-statistics-view],[data-cosmic-canvas],[data-full-stop-list]) { background:transparent!important; --transit-canvas:transparent; --transit-surface:var(--ui-surface); --transit-card:var(--ui-glass-row); --transit-border:var(--ui-edge); }
 .pks-theme-root[data-ui-theme='dark-mountains'] :is(.pks-panel-scope[data-panel-theme],.pks-glass-frame[data-panel-theme]) { --panel-glass:var(--ui-surface); --panel-surface:var(--ui-glass-row); --panel-solid:#142d40; --panel-edge:var(--ui-edge); }
-html[data-landscape-theme='on'] :is(.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-card,.pks-option-card,.pks-navigation,[data-cosmic-panel]) { background-color:var(--landscape-surface,rgba(9,24,40,.82))!important; background-image:none!important; border-color:#d0e9ed30; }
-html[data-landscape-theme='on'] :is(.transit-view,.map-detail-shell,.pks-panel-scope,[data-carrier-sheet]) :is(.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-muted) { color:#cedee8; }
-html[data-landscape-theme='on'] :is(input,textarea)::placeholder { color:#cedee8; }
+html[data-landscape-theme='on'] :is(.pks-map-search-panel,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.transit-card,.admin-topbar,.pks-personal-card,.pks-option-card,.pks-navigation,[data-cosmic-panel]) { background-color:var(--landscape-surface,rgba(9,24,40,.62))!important; background-image:none!important; border-color:#d0e9ed30; }
+html[data-landscape-theme='on'] :is(.transit-view,.map-detail-shell,.pks-panel-scope,[data-carrier-sheet]) :is(.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-muted) { color:#e3eef5; }
+html[data-landscape-theme='on'] :is(input,textarea)::placeholder { color:#e3eef5; }
+
+/* A small blur on outer glass preserves details and stable text contrast. */
+html[data-landscape-theme='on'] { --personal-glass:var(--landscape-surface,rgba(9,24,40,.62))!important; --personal-surface:var(--landscape-surface,rgba(9,24,40,.62))!important; }
+html[data-landscape-theme='on'] :is(.pks-options-sheet,.map-detail-shell,.pks-navigation,.pks-map-search-panel) { -webkit-backdrop-filter:blur(5px) saturate(112%)!important; backdrop-filter:blur(5px) saturate(112%)!important; }
+html[data-landscape-theme='on'] .transit-view { -webkit-backdrop-filter:none!important; backdrop-filter:none!important; }
+html[data-landscape-theme='on'][data-personal-light-effects='on'] :is(.pks-options-sheet,.map-detail-shell,.pks-navigation,.pks-map-search-panel) { -webkit-backdrop-filter:none!important; backdrop-filter:none!important; }

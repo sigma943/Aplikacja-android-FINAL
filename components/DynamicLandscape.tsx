@@ -70,7 +70,7 @@ export default function DynamicLandscape({active}:{active:boolean}){
     worker.onmessage=event=>{
       if(!alive||event.data.id!==requestId)return;
       samples=event.data;events=event.data.events;
-      root.style.setProperty('--landscape-surface',`rgba(9,24,40,${(.82-.08*Math.max(0,Math.sin(samples!.a.sun.altitude))).toFixed(3)})`);
+      root.style.setProperty('--landscape-surface',`rgba(9,24,40,${(.59+.07*Math.max(0,Math.sin(samples!.a.sun.altitude))).toFixed(3)})`);
       draw();
     };
     worker.onerror=()=>{element.dataset.renderError='astronomy-worker';};

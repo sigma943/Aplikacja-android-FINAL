@@ -3,6 +3,16 @@ const load=require('./load-ts.cjs');
 const a=load('lib/landscape-astronomy.ts'),r=load('lib/landscape-renderer.ts');
 const place=a.DEFAULT_LANDSCAPE_LOCATION;
 const at=iso=>a.astronomyAt(Date.parse(iso),place);
+test('water crests move gently and clouds drift steadily across the seamless tile',()=>{
+ const values=[];
+ for(const y of [1350,1600,2000])for(let x=0;x<1000;x+=71){
+  const first=r.waterWave(x,y,0),later=r.waterWave(x,y,2);
+  assert.ok(Math.abs(first)<6&&Math.abs(later)<6,'wave displacement remains subtle');values.push(Math.abs(first-later));
+ }
+ assert.ok(values.some(value=>value>.5),'crests move rather than drawing static full-width lines');
+ assert.ok(r.cloudOffset(60)>r.cloudOffset(0)+40&&r.cloudOffset(60)<100,'slow continuous drift');
+ assert.ok(Math.abs(r.cloudOffset(61)-r.cloudOffset(60))<2);
+});
 test('Rzeszow solar events agree with seasonal reference windows and do not hard-code hours',()=>{
  for(const [date,rise,set] of [['2026-06-21',[2,3],[18,19]],['2026-12-21',[6,7],[14,15]],['2026-03-20',[4,6],[16,18]]]){
   const e=a.solarEvents(Date.parse(date+'T12:00:00Z'),place);
