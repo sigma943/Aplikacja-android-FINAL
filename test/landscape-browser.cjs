@@ -20,8 +20,18 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   }
   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-26T23:00:00+01:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
-  const recorder=await page.screencast({path:'test/ui-previews/landscape-live.webm',fps:24});
-  await new Promise(r=>setTimeout(r,6000));await recorder.stop();
+  // Record the actual live canvas with Chrome's own encoder, without depending
+  // on an external ffmpeg executable being installed on every CI runner.
+  const recording=await page.evaluate(async()=>{
+   const stream=document.querySelector('[data-landscape-stage]').captureStream(24),chunks=[];
+   const recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp8',videoBitsPerSecond:1800000});
+   const finished=new Promise(resolve=>recorder.onstop=resolve);recorder.ondataavailable=event=>chunks.push(event.data);
+   recorder.start();await new Promise(resolve=>setTimeout(resolve,6000));recorder.stop();await finished;
+   stream.getTracks().forEach(track=>track.stop());const bytes=new Uint8Array(await new Blob(chunks).arrayBuffer());
+   let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary);
+  });
+  assert.ok(recording.length>10000,'live recording contains encoded frames');
+  fs.writeFileSync('test/ui-previews/landscape-live.webm',Buffer.from(recording,'base64'));
   // At a fixed astronomical instant, changes below the skyline must come from
   // real water motion, not an advancing clock or a moving full-screen wallpaper.
   await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),y=Math.floor(c.height*.6);window.__waterBefore=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;});
