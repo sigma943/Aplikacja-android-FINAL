@@ -913,7 +913,7 @@ html[data-cosmic-theme='on'] [data-cosmic-effects] { z-index:30; mix-blend-mode:
 [data-cosmic-meteor]::before { top:-1.5px; width:4px; height:4px; box-shadow:0 0 7px #dce8ff; }
 /* The global switch retains the blur radius. With sharp backgrounds, preserve
    contrast by mixing a protective fill into translucent surfaces. */
-html[data-personal-frost='off']:not([data-cosmic-theme='on']) :is(.pks-glass,.pks-glass-frame,.pks-map-search-panel,.pks-navigation,.pks-options-sheet,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on'],.pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-option-card)) {
+html[data-personal-frost='off']:not([data-cosmic-theme='on']):not([data-horizon-theme='on']) :is(.pks-glass,.pks-glass-frame,.pks-map-search-panel,.pks-navigation,.pks-options-sheet,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on'],.pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-option-card)) {
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
   background-color:color-mix(in srgb,var(--personal-glass) 45%,var(--personal-surface) 55%) !important;
 }
