@@ -475,8 +475,8 @@ html[data-personal-shadow='true'] :is(.pks-map-surface,.map-detail-shell,.pks-op
 html[data-personal-surface='accent'] :is(.pks-map-surface,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.widget-generator,.pks-navigation,[data-interface-panel],.pks-personal-panel),
 html[data-personal-surface='warm'] :is(.pks-map-surface,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.widget-generator,.pks-navigation,[data-interface-panel],.pks-personal-panel) { background-color:var(--personal-surface) !important; }
 html:is([data-personal-surface='accent'],[data-personal-surface='warm'],[data-personal-surface='custom']) :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { background-color:var(--personal-surface) !important; }
-html[data-personal-glass='true'] :is(.pks-glass,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on']),
-html[data-personal-glass='true'] .pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,[data-interface-panel],.pks-personal-panel,[data-interface-card]) { background-color:var(--personal-glass) !important; }
+html[data-personal-glass='true']:not([data-horizon-theme='on']) :is(.pks-glass,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on']),
+html[data-personal-glass='true']:not([data-horizon-theme='on']) .pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,[data-interface-panel],.pks-personal-panel,[data-interface-card]) { background-color:var(--personal-glass) !important; }
 html[data-personal-blur='true'] :is(.pks-glass,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on']),
 html[data-personal-blur='true'] .pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card) { -webkit-backdrop-filter:blur(var(--personal-blur)) saturate(var(--personal-saturation)) !important; backdrop-filter:blur(var(--personal-blur)) saturate(var(--personal-saturation)) !important; }
 html:not([data-personal-font='system']) :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) , html:not([data-personal-font='system']) :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) :is(button,input,select,textarea,.font-sans,.font-mono) { font-family:var(--personal-font) !important; }
@@ -516,7 +516,7 @@ html:not([data-personal-density='comfortable']) [data-interface-row] { padding-b
 
 html[data-personal-surface='custom'] :is(.pks-map-surface,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.widget-generator,.pks-navigation,[data-interface-panel],.pks-personal-panel) { background-color:var(--personal-surface) !important; }
 html:not([data-personal-surface='original']) .pks-panel-scope { --panel-solid:var(--personal-surface); }
-html[data-personal-glass='true'] :is(.pks-panel-scope,.pks-glass-frame) { --panel-glass:var(--personal-glass); --panel-surface:var(--personal-glass); }
+html[data-personal-glass='true']:not([data-horizon-theme='on']) :is(.pks-panel-scope,.pks-glass-frame) { --panel-glass:var(--personal-glass); --panel-surface:var(--personal-glass); }
 html[data-personal-border='true'] :is(.pks-navigation,.pks-panel-scope) { border-color:var(--personal-edge) !important; --panel-edge:var(--personal-edge); }
 html[data-personal-title='true'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) :is(h4,h5,.pks-map-surface .font-extrabold,.map-detail-shell .font-black) { font-weight:var(--personal-title-weight) !important; }
 html[data-personal-icons='true'] .pks-navigation button > svg path { stroke-width:var(--personal-icon-stroke); }
@@ -533,7 +533,7 @@ html:is([data-panel-glow='on'],[data-personal-pattern='grid'],[data-personal-pat
 }
 html[data-personal-border='true'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { border-color:var(--personal-edge) !important; }
 html[data-personal-shadow='true'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { box-shadow:var(--personal-shadow) !important; }
-html[data-personal-glass='true'] .pks-glass-frame { background-color:var(--personal-glass) !important; }
+html[data-personal-glass='true']:not([data-horizon-theme='on']) .pks-glass-frame { background-color:var(--personal-glass) !important; }
 html[data-personal-blur='true'] :is(.pks-glass-frame,.pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,[data-interface-panel],.pks-personal-panel,[data-interface-card],.pks-personal-card)) { -webkit-backdrop-filter:blur(var(--personal-blur)) saturate(var(--personal-saturation)) !important; backdrop-filter:blur(var(--personal-blur)) saturate(var(--personal-saturation)) !important; }
 html[data-personal-icons='true'] :is(.transit-view,.pks-panel-scope,[data-carrier-sheet]) svg.lucide { stroke-width:var(--personal-icon-stroke); }
 html[data-personal-contrast='strong'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) { --ui-muted:var(--personal-muted); --map-sheet-muted:var(--personal-muted); }
@@ -1200,3 +1200,5 @@ html[data-horizon-theme='on'] .pks-options-sheet{
  --pks-accent-soft:#bda2ff28!important;--pks-accent-border:#bda2ff70!important;--pks-accent-on:#171029!important;
  background:#0b1030!important
 }
+
+html[data-horizon-theme='on'] .pks-theme-root[data-ui-theme='dark-horizon'] .pks-options-sheet[data-options-sheet]{background:#0b1030!important}
