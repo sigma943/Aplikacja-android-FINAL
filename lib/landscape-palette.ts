@@ -1,8 +1,9 @@
 import {skyState,type AstronomyState} from './landscape-astronomy';
 /** Solar materials share a polarity switch, eased by CSS. Keeping inverse maps
  * near 50% for an entire twilight would erase roads and label contrast. */
+export const isLandscapeDay=(state:AstronomyState)=>state.sun.altitude>-.035;
 export function landscapePalette(state:AstronomyState){
-  const day=state.sun.altitude>-.035?1:0,twilight=skyState(state).twilight;
+  const day=isLandscapeDay(state)?1:0,twilight=skyState(state).twilight;
   const rgb=(night:number[],light:number[])=>night.map((v,i)=>Math.round(v+(light[i]-v)*day)).join(',');
   const surface=(day?[239+12*twilight,249-9*twilight,251-27*twilight]:[9+6*twilight,24,40-4*twilight]).map(Math.round).join(',');
   return {

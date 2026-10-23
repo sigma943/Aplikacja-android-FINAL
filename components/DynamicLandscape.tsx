@@ -3,7 +3,7 @@ import {useEffect,useRef} from 'react';
 import {App} from '@capacitor/app';
 import {Capacitor,registerPlugin,type PluginListenerHandle} from '@capacitor/core';
 import {LANDSCAPE_LOCATION_KEY,landscapeLocation,interpolateAstronomy,type AstronomyState} from '@/lib/landscape-astronomy';
-import {landscapePalette} from '@/lib/landscape-palette';
+import {landscapePalette,isLandscapeDay} from '@/lib/landscape-palette';
 import {LandscapeRenderer} from '@/lib/landscape-renderer';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {landscapeMotionPolicy,landscapeFrameBudget} from '@/lib/landscape-motion';
@@ -74,6 +74,8 @@ export default function DynamicLandscape({active}:{active:boolean}){
       if(!alive||event.data.id!==requestId)return;
       samples=event.data;events=event.data.events;
       for(const [key,value] of Object.entries(landscapePalette(samples!.a)))root.style.setProperty(key,value);
+      const period=isLandscapeDay(samples!.a)?'day':'night';
+      if(root.dataset.landscapePeriod!==period){root.dataset.landscapePeriod=period;window.dispatchEvent(new Event('pks-landscape-period'));}
       draw();
     };
     worker.onerror=()=>{element.dataset.renderError='astronomy-worker';};
@@ -106,7 +108,7 @@ export default function DynamicLandscape({active}:{active:boolean}){
       for(const listener of listeners)void listener.then(handle=>handle.remove());
       delete debug.__landscapePreview;delete debug.__landscapeDiagnostics;
       delete debug.__landscapeTestPower;delete root.dataset.landscapeMotion;
-      delete root.dataset.landscapeTheme;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
+      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
     };
   },[active]);
   return active?<canvas ref={canvas} data-landscape-stage aria-hidden="true"/>:null;

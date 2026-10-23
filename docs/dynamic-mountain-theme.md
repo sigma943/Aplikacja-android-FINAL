@@ -105,3 +105,5 @@ Preset description: “Żywa dolina, płynące chmury i blask na wodzie”. Fall
 - Test przeglądarkowy używa rzeczywistego BusMap/Leaflet z lokalnie podstawionymi testowymi kafelkami, sprawdza dzienny/nocny filtr oraz kolory pola wyszukiwania. Zapisuje 6-sekundowy film w czasie rzeczywistym przy zatrzymanym zegarze astronomii. To dowód ruchu renderera w Chrome, nie pomiar fizycznego urządzenia Android.
 
 Materiały UI zachowują czytelną jasną lub ciemną polaryzację; zmiana następuje przy wysokości Słońca −2° z przejściem CSS 1,8 s. Nie przetrzymujemy mapy przy invert(50%) przez środek zmierzchu, bo usuwa to kontrast dróg i etykiet. Ciepły odcień szkła i całe oświetlenie sceny pozostają ciągłe.
+
+`useLandscapeDay` przekazuje zmianę dnia/nocy do istniejących właściwości `isDark` głównej aplikacji, dzięki czemu także pozostałe komponenty wybierają własne jasne/ciemne warianty. Zdarzenie jest wysyłane wyłącznie po zmianie pory, bez aktualizowania React przy każdej klatce ani każdej próbce astronomii. Test mapy potwierdza synchronizację tej właściwości z paletą.
