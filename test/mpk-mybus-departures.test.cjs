@@ -88,7 +88,7 @@ test('failing real-time sources back off for a minute, while timetables keep ref
 test('distant planned service stays usable without a misleading forecast failure banner',async()=>{
  const original=Date.now;Date.now=()=>now;
  try{
-  const rows=await api([],[{...planned[0],departure_time:'08:33:00'}],Error('HTTP 503')).client.fetchMpkRzeszowDeparturesClient('256',date);
-  assert.equal(rows.length,1);assert.equal(rows.warning,undefined);assert.equal(rows[0].real_departure_at_ms,undefined);
+  const {client,calls}=api([],[{...planned[0],departure_time:'08:33:00'}],Error('HTTP 503'));const rows=await client.fetchMpkRzeszowDeparturesClient('256',date);
+  assert.ok(!calls.some(url=>url.includes('GetTimeTableReal')||url.includes('GetNextDepartues')));assert.equal(rows.length,1);assert.equal(rows.warning,undefined);assert.equal(rows[0].real_departure_at_ms,undefined);
  }finally{Date.now=original;}
 });

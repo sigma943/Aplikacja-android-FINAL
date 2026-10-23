@@ -1,3 +1,4 @@
+import {currentMpkSource} from './mpk-source';
 
 import {diagnosticRequest, diagnosticSource, measuredTransport} from '../transport-diagnostics';
 
@@ -23,6 +24,7 @@ function einfoFallbackUrl(pathAndOptionalQuery: string) {
 }
 
 async function requestJson<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
+  url=currentMpkSource(url);
   const diagnostic=diagnosticRequest(url);
   const load=()=>foregroundRequest(activeSignal => withRequestDeadline((signal) => requestJsonImpl<T>(url, { ...init, signal }), activeSignal), init?.signal);
   return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,value=>diagnosticCount(url,value),undefined,'request',diagnosticSource(url)):load();
@@ -86,6 +88,7 @@ async function requestEinfoJson<T>(pathAndOptionalQuery: string, init?: RequestI
 }
 
 async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
+  url=currentMpkSource(url);
   const load=()=>foregroundRequest(activeSignal => withRequestDeadline((signal) => requestTextImpl(url, { ...init, signal }), activeSignal), init?.signal);
   const diagnostic=diagnosticRequest(url);
   return diagnostic?measuredTransport(diagnostic.provider,diagnostic.kind,load,text=>/GetVehicles|vehicles_proxy/.test(url)?(text.match(/<V\s/g)||[]).length:/GetVehicleTimeTable/.test(url)?(text.match(/<Stop\s/g)||[]).length:undefined,undefined,'request',diagnosticSource(url)):load();

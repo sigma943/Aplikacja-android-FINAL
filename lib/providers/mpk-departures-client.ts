@@ -133,7 +133,8 @@ export async function fetchMpkRzeszowDeparturesClient(
   if (board.status === 'fulfilled') board.value.forEach((entry) => entries.set(key(entry), entry));
   let values = [...entries.values()];
   let realtimeUnavailable = false;
-  if (dateIso === warsawDateIso() && !values.some(entry => entry.real_departure_time)) {
+  const nearby=values.some(entry=>{const at=warsawTimeMs(dateIso,entry.departure_time);return Number.isFinite(at)&&at>=Date.now()-120_000&&at<=Date.now()+60*60_000;});
+  if (dateIso === warsawDateIso() && !values.some(entry => entry.real_departure_time) && (nearby||!values.length||board.status==='rejected')) {
     try {
       const {mybusStopCatalogue} = await import('../mpk-mybus-stop-catalogue');
       const matches = Object.entries(mybusStopCatalogue).filter(([,entry]) => String(entry[0]) === stopId);
@@ -153,7 +154,6 @@ export async function fetchMpkRzeszowDeparturesClient(
   if(realtimeUnavailable && schedule.status === 'rejected' && board.status === 'rejected') throw schedule.reason;
   // Forecasts are normally unavailable for courses hours away. Do not label
   // a healthy distant timetable as a live-data failure.
-  const nearby=values.some(entry=>{const at=warsawTimeMs(dateIso,entry.departure_time);return Number.isFinite(at)&&at>=Date.now()-120_000&&at<=Date.now()+60*60_000;});
   if(realtimeUnavailable&&nearby) result.warning = 'MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.';
   return result;
 }
