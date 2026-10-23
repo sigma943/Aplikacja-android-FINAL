@@ -1160,3 +1160,5 @@ html[data-horizon-theme='on'] [data-horizon-window]{display:block}
 html[data-horizon-theme='on'] .pks-map-search-panel{position:relative;overflow:hidden;isolation:isolate}
 html[data-horizon-theme='on'] .pks-map-search-panel>:not([data-horizon-window]){position:relative;z-index:1}
 html[data-horizon-theme='on'] .map-detail-shell [data-vehicle-header]{background:transparent!important}
+/* Labels retain a readable backing even when the sun passes behind a heading. */
+html[data-horizon-theme='on'] :is(.connections-heading,.connections-results-heading){background:var(--ui-glass)!important;border-radius:20px;padding:14px;margin-bottom:14px}
