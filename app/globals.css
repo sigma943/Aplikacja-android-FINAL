@@ -1192,3 +1192,11 @@ html[data-horizon-theme='on']:has(.pks-options-sheet) [data-horizon-sky]{display
 html[data-horizon-theme='on']:has(.pks-status-screen) [data-horizon-sky]{display:none}
 /* Override the shared glass root, whose selectors include both theme and glass attributes. */
 html[data-horizon-theme='on'] .pks-theme-root [data-admin-viewport][data-panel-theme][data-glass]{background:var(--ui-canvas,#0b1030)!important}
+/* Settings defines its own inline palette; keep it in the same astronomical palette. */
+html[data-horizon-theme='on'] .pks-options-sheet{
+ --ui-canvas:#0b1030!important;--ui-surface:var(--horizon-surface,#101633)!important;--ui-raised:var(--horizon-raised,#1a2044)!important;
+ --ui-text:#f2f0ff!important;--ui-muted:#bcbdd8!important;--ui-edge:#b6a5ef36!important;
+ --pks-accent:var(--horizon-accent,#bda2ff)!important;--pks-accent-text:var(--horizon-accent,#bda2ff)!important;
+ --pks-accent-soft:#bda2ff28!important;--pks-accent-border:#bda2ff70!important;--pks-accent-on:#171029!important;
+ background:#0b1030!important
+}
