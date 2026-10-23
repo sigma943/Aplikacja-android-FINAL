@@ -4,6 +4,7 @@ import {DEFAULT_APP_THEME,normalizeAppTheme,readAppTheme,resolveAppTheme,systemP
 import {reconcileVehicles} from '@/lib/vehicle-reconcile';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
 import {loadOptionsCode,loadTransportSelectorCode,loadBusDetailsCode,loadTrainDetailsCode,warmPanelCode} from '@/lib/home/panel-code';
+import DynamicLandscape from '@/components/DynamicLandscape';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
 
 import {toggleStopFavoriteIds} from '@/lib/stop-identity';
@@ -1114,6 +1115,7 @@ export default function Home() {
 
   return (
     <div data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+      <DynamicLandscape active={actualTheme==='dark-mountains'}/>
       <style>{`
         .dark-mode-map .leaflet-layer,
         .dark-mode-map .leaflet-control-zoom-in,
@@ -1218,7 +1220,7 @@ export default function Home() {
          {/* ============== MAP VIEW ============== */}
          <div data-map-canvas className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
             <BusMap
-               active={activeTab==='map'||actualTheme!=='dark-cosmos'}
+               active={activeTab==='map'||!['dark-cosmos','dark-mountains'].includes(actualTheme)}
                clockMs={selectedBus?now:0}
                vehicles={filteredVehicles} 
                onVehicleClick={handleVehicleClick}

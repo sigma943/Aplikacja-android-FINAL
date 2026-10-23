@@ -78,6 +78,11 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify living mountain astronomy and lifecycle
+        run: |
+          node --test test/landscape.test.cjs test/app-theme.test.cjs test/interface-presets.test.cjs test/appearance-backup.test.cjs test/personalization-profiles.test.cjs test/journey-places.test.cjs
+          node test/landscape-browser.cjs
+
       - name: Verify removed theme migration and MPK recovery
         run: |
           node --test test/mpk-api-diagnostics.test.cjs test/mpk-mybus-fallback.test.cjs test/removed-theme.test.cjs test/mpk-mybus-departures.test.cjs test/app-theme.test.cjs test/journey-settings.test.cjs test/ban-details.test.cjs test/vehicle-stop-progress.test.cjs

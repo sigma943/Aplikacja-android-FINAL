@@ -1,5 +1,5 @@
 import {COSMIC_SKY} from './cosmic-scene';
-export const THEME_MODES=['system','light','light-warm','light-pink','light-sky','dark','dark-pink','dark-oled','dark-forest','dark-cosmos'] as const;
+export const THEME_MODES=['system','light','light-warm','light-pink','light-sky','dark','dark-pink','dark-oled','dark-forest','dark-cosmos','dark-mountains'] as const;
 export type AppTheme=typeof THEME_MODES[number];
 export const DEFAULT_APP_THEME:AppTheme='dark-oled';
 export function normalizeAppTheme(value:unknown):AppTheme{
@@ -22,6 +22,7 @@ export function readAppTheme():AppTheme{
 export const THEME_SCREEN_COLORS:Record<Exclude<AppTheme,'system'>,{background:string;text:string}>={
   light:{background:'#f8fafc',text:'#020617'},'light-warm':{background:'#f2ede1',text:'#272116'},'light-pink':{background:'#ffd1e8',text:'#57153c'},
   'light-sky':{background:'#d5efff',text:'#103750'},dark:{background:'#111027',text:'#ffffff'},'dark-pink':{background:'#21121b',text:'#ffffff'},'dark-oled':{background:'#000000',text:'#ffffff'},
+  'dark-mountains':{background:'#091828',text:'#f4f8fc'},
   'dark-cosmos':{background:'#000000',text:'#f3f1ff'},'dark-forest':{background:'#061a13',text:'#edf9f0'},
 };
 const svg=(body:string)=>`url("data:image/svg+xml,${encodeURIComponent(body)}")`;

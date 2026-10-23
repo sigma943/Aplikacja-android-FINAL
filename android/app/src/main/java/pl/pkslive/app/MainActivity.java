@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(StopWidgetPlugin.class);
     registerPlugin(AdminStatisticsExportPlugin.class);
     registerPlugin(AppearanceBackupPlugin.class);
+    registerPlugin(LandscapePowerPolicyPlugin.class);
     super.onCreate(savedInstanceState);
   }
 }
