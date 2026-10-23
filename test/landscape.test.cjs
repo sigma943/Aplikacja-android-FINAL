@@ -83,8 +83,8 @@ test('solar palette makes daytime maps light and night maps dark with readable i
  assert.match(noon['--landscape-map-filter'],/^invert\(0\.000%\)/);
  assert.match(night['--landscape-map-filter'],/^invert\(100\.000%\)/);
  assert.equal(noon['--landscape-ink'],'rgb(20,45,57)');assert.equal(night['--landscape-ink'],'rgb(244,248,252)');
- // Across a whole twilight, only readable map endpoints are targeted. CSS
- // supplies the short smooth transition instead of a prolonged grey map.
+ // Across a whole twilight, only readable map endpoints are targeted.
+ // Map filters switch directly so roads never pass through a grey midpoint.
  const sunset=a.solarEvents(Date.parse('2026-10-23T12:00:00Z'),place).sunset;
  for(let t=sunset-3600000;t<sunset+3600000;t+=60000){
   const p=palette(a.astronomyAt(t,place));

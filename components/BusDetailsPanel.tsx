@@ -2,6 +2,7 @@
 
 import {useLayoutEffect,useRef} from 'react';
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
+import LandscapeChrome from './LandscapeChrome';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {motion, AnimatePresence, type MotionStyle} from 'motion/react';
 import {Navigation, Clock, MapPin} from 'lucide-react';
@@ -76,6 +77,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
 
+                  <LandscapeChrome variant="panel"/>
                   <motion.div 
                      ref={busHeaderRef}
                      role="button"

@@ -1183,12 +1183,31 @@ html[data-landscape-theme='on'] .pks-map-search-panel [data-map-brand] { color:v
 html[data-landscape-theme='on'] .pks-navigation { color:var(--landscape-muted)!important; }
 html[data-landscape-theme='on'] [data-nav-item][aria-current='page'] { color:var(--landscape-accent)!important; }
 html[data-landscape-theme='on'] [data-nav-indicator] { background-color:var(--landscape-accent)!important; }
-html[data-landscape-theme='on'] :is(.leaflet-layer,.leaflet-control-zoom-in,.leaflet-control-zoom-out,.leaflet-control-attribution) { filter:var(--landscape-map-filter)!important;transition:filter 1.8s ease-in-out; }
-html[data-landscape-theme='on'] :is(.pks-theme-root,.transit-card,.transit-surface,.pks-panel-scope,.pks-options-sheet,.pks-option-card,.pks-navigation,.pks-map-search-panel,[data-nav-item],input,textarea,select,.admin-device-card) { transition:color 1.8s ease-in-out,background-color 1.8s ease-in-out,border-color 1.8s ease-in-out; }
+html[data-landscape-theme='on'] :is(.leaflet-layer,.leaflet-control-zoom-in,.leaflet-control-zoom-out,.leaflet-control-attribution) { filter:var(--landscape-map-filter)!important;transition:none!important; }
+html[data-landscape-theme='on'] :is(.pks-theme-root,.transit-card,.transit-surface,.pks-panel-scope,.pks-options-sheet,.pks-option-card,.pks-navigation,.pks-map-search-panel,[data-nav-item],input,textarea,select,.admin-device-card) { transition:color .25s ease-out,background-color .25s ease-out,border-color .25s ease-out; }
 html[data-landscape-theme='on'] :is(.pks-options-sheet,.pks-map-search-panel,.pks-navigation,.map-detail-shell) { border-color:var(--landscape-edge)!important; }
 html[data-landscape-theme='on'] .pks-options-sheet :is(.pks-option-card,.personal-preset,.personal-group,.personal-tabs) { background-color:var(--landscape-field)!important; }
-html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-title,.map-detail-muted) { transition:color 1.8s ease-in-out; }
+html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-title,.map-detail-muted) { transition:color .25s ease-out; }
 
 html[data-landscape-theme='on'],html[data-landscape-theme='on'] :is(.pks-theme-root,.pks-panel-scope,.pks-glass-frame) { --pks-accent-text:var(--landscape-accent)!important; }
-html[data-landscape-theme='on'] :is([data-map-brand],.ui-accent-text,.ui-accent-soft) { transition:color 1.8s ease-in-out,background-color 1.8s ease-in-out; }
+html[data-landscape-theme='on'] :is([data-map-brand],.ui-accent-text,.ui-accent-soft) { transition:color .25s ease-out,background-color .25s ease-out; }
 html[data-landscape-theme='on'] .transit-view button[data-selected='false'] { background-color:var(--landscape-field)!important;border-color:var(--landscape-edge)!important; }
+
+/* The map is opaque: scene windows let its sheets share the artwork used by
+   other tabs. One compositor supplies all windows; glass never blurs live pixels. */
+html[data-landscape-theme='on'] :is(.pks-options-sheet,.map-detail-shell,.pks-navigation,.pks-map-search-panel,.transit-view *) {
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+}
+html[data-landscape-theme='on'] [data-landscape-chrome] { overflow:hidden;background:none; }
+[data-landscape-window] { display:block;width:100%;height:100%;opacity:0; }
+[data-landscape-window][data-scene-ready='true'] { opacity:1; }
+html[data-landscape-theme='on'] [data-landscape-chrome]::after { content:'';position:absolute;inset:0;background:var(--landscape-surface);opacity:.62; }
+html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { z-index:-1; }
+html[data-landscape-theme='on'] .map-detail-shell { isolation:isolate;box-shadow:0 -8px 32px #020c1826,inset 0 1px 0 #e2f5ff40; }
+html[data-landscape-theme='on'] .map-detail-shell :is(.map-detail-body,.map-stop-departures) { background:transparent!important; }
+html[data-landscape-theme='on'] .map-detail-row { background:var(--landscape-field)!important;border-color:var(--landscape-edge)!important;box-shadow:inset 0 1px 0 #ffffff0d; }
+html[data-landscape-theme='on'] [data-vehicle-header] { background:linear-gradient(120deg,var(--landscape-field),transparent)!important;color:var(--landscape-ink)!important;border-bottom:1px solid var(--landscape-edge); }
+html[data-landscape-theme='on'] .pks-navigation { box-shadow:0 -4px 24px #03132324; }
+html[data-landscape-theme='on'] [data-nav-item][aria-current='page'] { background:radial-gradient(ellipse at 50% 10%,var(--landscape-chrome-light),transparent 75%); }
+html[data-landscape-theme='on'] .transit-card :is(.transit-card,.transit-surface) { background-color:var(--landscape-field)!important; }
+@media(prefers-reduced-motion:reduce) { html[data-landscape-theme='on'] * { transition-duration:0s!important; } }

@@ -26,8 +26,6 @@ export class LandscapeRenderer{
   private terrain:HTMLCanvasElement;
   private clouds:HTMLCanvasElement;
   private water:HTMLCanvasElement;
-  private surface:HTMLCanvasElement;
-  private surfacePixels:ImageData;
   private lastLight='';
   private width=1;private height=1;private scale=1;private offsetX=0;private offsetY=0;
   private assets:LandscapeAssets|null=null;
@@ -35,13 +33,11 @@ export class LandscapeRenderer{
   private stars=Array.from({length:180},(_,i)=>{const r=(n:number)=>((Math.sin(n*127.1)*43758.5453)%1+1)%1;return{x:r(i+1),y:r(i+72)*.46,size:.4+r(i+17),brightness:r(i+45)};});
   constructor(private canvas:HTMLCanvasElement){
     this.ctx=canvas.getContext('2d',{alpha:false})!;
-    this.surface=document.createElement('canvas');this.surface.width=192;this.surface.height=192;
-    this.surfacePixels=this.surface.getContext('2d')!.createImageData(192,192);
     this.terrain=document.createElement('canvas');this.clouds=document.createElement('canvas');this.water=document.createElement('canvas');
   }
   setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';}
   resize(w:number,h:number,dpr:number){
-    const density=Math.min(dpr,1.5,Math.sqrt(1800000/(w*h)));
+    const density=Math.min(dpr,1.25,Math.sqrt(900000/(w*h)));
     this.width=this.canvas.width=Math.round(w*density);this.height=this.canvas.height=Math.round(h*density);
     for(const layer of [this.terrain,this.clouds,this.water]){layer.width=this.width;layer.height=this.height;}
     // Uniform scale; phones crop at most a narrow edge instead of stretching artwork.
@@ -133,50 +129,50 @@ export class LandscapeRenderer{
     w.fillStyle=water;w.fillRect(0,HEIGHT*.57,WIDTH,HEIGHT);
     // Ripple the reflected terrain in narrow strips, reusing the existing texture.
     w.globalAlpha=.40;
-    for(let i=0;i<108;i++){
-      const y=HEIGHT*(.59+i*.0039),band=HEIGHT*.0039;
+    for(let i=0;i<64;i++){
+      const y=HEIGHT*(.59+i*.0066),band=HEIGHT*.0066;
       const sourceY=HEIGHT*1.30-y-band+waterWave(300,y,seconds)*1.5;
       if(sourceY<0)continue;
       w.save();w.translate(waterWave(480,y,seconds)*2.2,y+band);w.scale(1,-1);
       const sy=(sourceY*this.scale+this.offsetY)/this.height*this.terrain.height;
       w.drawImage(this.terrain,0,Math.max(0,sy),this.width,Math.max(1,band*this.scale),0,0,WIDTH,band);w.restore();
     }
-    // Evaluate a moving normal field over the ENTIRE river, rather than animating
-    // the opacity of fixed strokes. Low-resolution shading is bilinearly enlarged;
-    // the full-resolution bank mask and reflected terrain keep the illustration crisp.
-    const pixels=this.surfacePixels.data;
+    // Small travelling wavelets provide visible relief even without a celestial
+    // reflection. Batch crests/troughs by depth instead of shading 36k pixels
+    // with seven trigonometric functions on the UI thread on every frame.
     const sunPower=sky.day*discVisibility(sun.x,sun.y,25/HEIGHT,state.sun.altitude)*this.cloudTransmission(sun.x,sun.y,cloudShift);
     const moonPower=state.illumination.fraction*(1-sky.day)*discVisibility(moon.x,moon.y,22/HEIGHT,state.moon.altitude)*this.cloudTransmission(moon.x,moon.y,cloudShift);
     const light=moonPower>sunPower?moon:sun,power=Math.max(sunPower,moonPower),lunar=moonPower>sunPower;
-    for(let row=0;row<192;row++){
-      const depth=row/191,y=HEIGHT*(.57+.43*depth),perspective=.16+.84*depth;
-      for(let col=0;col<192;col++){
-        const x=col/191*WIDTH;
-        // Crossing travelling waves, with wavelengths increasing towards the eye.
-        const u=x/(22+depth*48),v=(y-HEIGHT*.57)/(5+depth*13);
-        const a=Math.sin(u+v-seconds*2.1),b=Math.sin(u*1.73-v*.82+seconds*1.43);
-        const ripple=Math.sin(u*3.1+v*2.8-seconds*3.2);
-        const nx=a*.57+b*.28+ripple*.15;
-        const ny=Math.cos(u*.48+v-seconds*1.8)*.58+Math.cos(u*1.7-v*1.3+seconds*1.15)*.42;
+    w.lineCap='round';
+    for(let row=0;row<60;row++){
+      const depth=row/59,y=HEIGHT*(.585+.415*depth*depth),size=2+depth*13;
+      // Short, irregular arcs, never straight stripes across the whole river.
+      for(const trough of [true,false]){
+        w.beginPath();
+        for(let col=0;col<18;col++){
+          const seed=row*13.37+col*7.91;
+          const x=((col*61+Math.sin(seed)*23+seconds*(3+depth*8))%1100+1100)%1100-50;
+          const wave=waterWave(x,y,seconds),yy=y+wave*(.25+depth*.25)+(trough?size*.3:0);
+          const half=size*(.6+.4*Math.sin(seed+1));
+          w.moveTo(x-half,yy);w.quadraticCurveTo(x,yy-size*.22,x+half,yy+size*.08);
+        }
+        w.lineWidth=.6+depth*1.5;
+        w.strokeStyle=trough?'#03172e':'#c3e7ed';
+        w.globalAlpha=trough?.10+depth*.08:.16+sky.day*.10+depth*.10;w.stroke();
+      }
+      // Glints sit on the same travelling crests and narrow with distance.
+      if(power>.001){
         const axis=500+(light.x-.5)*(150+depth*1250);
-        const distance=(x-axis)/(110+perspective*340);
-        // Wave normals break the light path into flowing silver/gold facets.
-        const reflected=distance+nx*.95;
-        const lobe=Math.exp(-reflected*reflected*1.25);
-        const facet=Math.pow(Math.max(0,1-Math.abs(ny*.86+nx*.21)),7);
-        const specular=power*lobe*(.13+facet*.87)*(1-depth*.28);
-        const crest=(nx*.5+ny*.5)*(.025+.055*depth);
-        const ambient=.045+crest+Math.pow(Math.max(0,ny*.8+nx*.2),4)*(.15+.08*sky.day);
-        const strength=Math.min(.94,Math.max(.005,ambient+specular*.85));
-        const index=(row*192+col)*4;
-        pixels[index]=lunar?202:Math.round(160+95*specular);
-        pixels[index+1]=lunar?226:Math.round(204+29*specular);
-        pixels[index+2]=lunar?255:Math.round(229-68*specular);
-        pixels[index+3]=Math.round(strength*255);
+        w.beginPath();
+        for(let i=0;i<7;i++){
+          const x=axis+(i-3)*(10+depth*36)+Math.sin(row*4.1+i)*size;
+          const yy=y+waterWave(x,y,seconds)*(.25+depth*.25);
+          const glint=size*(.3+.7*Math.max(0,Math.sin(row*2.8+i*1.7-seconds*1.4)));
+          w.moveTo(x-glint,yy);w.lineTo(x+glint,yy);
+        }
+        w.strokeStyle=lunar?'#e1efff':'#fff1c6';w.globalAlpha=power*(.18+.44*Math.max(0,Math.sin(row*1.7-seconds*1.3)));w.stroke();
       }
     }
-    this.surface.getContext('2d')!.putImageData(this.surfacePixels,0,0);
-    w.globalAlpha=1;w.imageSmoothingEnabled=true;w.drawImage(this.surface,0,HEIGHT*.57,WIDTH,HEIGHT*.43);
     w.globalAlpha=1;w.globalCompositeOperation='destination-in';w.drawImage(this.assets.water,0,0,WIDTH,HEIGHT);w.globalCompositeOperation='source-over';
     c.setTransform(1,0,0,1,0,0);c.drawImage(this.water,0,0);
     // Feathered valley mist, driven by the same light; no per-frame blur filters.

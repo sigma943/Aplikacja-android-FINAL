@@ -44,6 +44,26 @@ export default function DynamicLandscape({active}:{active:boolean}){
       const ms=now();worker.postMessage({ms,location,id:++requestId,span:Math.max(30000,(preview.rate??1)*1000)});
       modelTimer=setTimeout(updateModel,preview.iso&&preview.rate!==1?500:15000);
     };
+    let lastWindows=0;
+    const paintWindows=(mono:number)=>{
+      if(mono-lastWindows<100)return;lastWindows=mono;
+      // Read layout before resizing any bitmap. Small copies preserve the same
+      // sky/water and solar lighting without another animated scene per sheet.
+      const windows=Array.from(document.querySelectorAll<HTMLCanvasElement>('[data-landscape-window]')).map(target=>({target,rect:target.getBoundingClientRect()}));
+      for(const {target,rect} of windows){
+        if(!rect.width||!rect.height)continue;
+        const width=Math.ceil(Math.min(rect.width,600)),height=Math.ceil(rect.height*width/rect.width);
+        if(target.width!==width||target.height!==height){target.width=width;target.height=height;}
+        const context=target.getContext('2d',{alpha:false});if(!context)continue;
+        const kind=target.dataset.landscapeWindow;
+        const sw=Math.min(element.width,element.height*width/height),sh=sw*height/width;
+        const top=kind==='filter'?.07:kind==='navigation'?.51:.42;
+        context.drawImage(element,(element.width-sw)/2,Math.min(element.height-sh,element.height*top),sw,sh,0,0,width,height);
+        target.dataset.sceneReady=element.dataset.assetsReady==='true'?'true':'false';
+      }
+    };
+    const refreshWindows=()=>{lastWindows=0;paintWindows(performance.now()+100);};
+    window.addEventListener('pks-landscape-window',refreshWindows);
     const draw=()=>{
       clearTimeout(drawTimer);if(!visible()||!alive)return;
       const mono=performance.now(),wall=Date.now(),motionPolicy=policy();
@@ -54,6 +74,7 @@ export default function DynamicLandscape({active}:{active:boolean}){
       if(samples){
         const start=performance.now(),state=interpolateAstronomy(samples.a,samples.b,now());
         renderer.render(state,mono/1000,motionPolicy.animate);
+        paintWindows(mono);
         const cost=performance.now()-start;frames++;totalMs+=cost;maxMs=Math.max(maxMs,cost);
         if(frames>10){frameCost=landscapeFrameBudget(frameCost,cost);if(frameCost>28)slow=true;else if(frameCost<18)slow=false;}
       }
@@ -102,6 +123,7 @@ export default function DynamicLandscape({active}:{active:boolean}){
     }
     root.dataset.landscapeTheme='on';resize();updateModel();
     return()=>{
+      window.removeEventListener('pks-landscape-window',refreshWindows);
       alive=false;clearTimeout(drawTimer);clearTimeout(modelTimer);worker.terminate();observer.disconnect();
       document.removeEventListener('visibilitychange',restart);window.removeEventListener('focus',restart);
       window.removeEventListener('pks-interface-appearance',restart);window.removeEventListener('storage',restart);window.removeEventListener('pks-landscape-location',restart);media.removeEventListener('change',restart);

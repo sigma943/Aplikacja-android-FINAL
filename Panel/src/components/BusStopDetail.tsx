@@ -62,7 +62,7 @@ function getDynamicDays() {
 export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, vehicles = [], onShowOnMap, isDarkTheme = true, active = true }: BusStopDetailProps) {
   const [cosmos,setCosmos]=useState(false);
   useLayoutEffect(()=>{
-    const update=()=>setCosmos(resolveAppTheme(readAppTheme())==='dark-cosmos');
+    const update=()=>setCosmos(['dark-cosmos','dark-mountains'].includes(resolveAppTheme(readAppTheme())));
     update();
     for(const event of ['storage','pks-profile-applied','pks-interface-appearance'])window.addEventListener(event,update);
     return()=>{for(const event of ['storage','pks-profile-applied','pks-interface-appearance'])window.removeEventListener(event,update);};

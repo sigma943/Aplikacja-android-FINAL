@@ -8,6 +8,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+  await page.evaluateOnNewDocument(()=>localStorage.setItem('mks_app_theme','dark-mountains'));
   await page.setRequestInterception(true);page.on('request',req=>req.url().startsWith('https://mt1.google.com/')?req.respond({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path fill="#eaf1e7" d="M0 0h256v256H0z"/><path d="M0 130h256M110 0v256" stroke="#fff" stroke-width="12"/><path d="M0 10q80 100 256 50" stroke="#afd7ee" stroke-width="20" fill="none"/><text x="125" y="115" fill="#526159" font-size="11">Rzeszów</text></svg>'}):req.url().startsWith(origin)||req.url().startsWith('data:')?req.continue():req.abort());
   await page.goto(origin+'/landscape-fixture/');await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0&&document.querySelector('[data-landscape-stage]')?.dataset.assetsReady==='true');
   fs.mkdirSync('test/ui-previews',{recursive:true});
@@ -56,7 +57,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.evaluate(()=>window.__landscapePreview({}));
   await new Promise(r=>setTimeout(r,2000));
   const metrics=await page.evaluate(()=>window.__landscapeDiagnostics());
-  assert.ok(metrics.canvasPixels<=1800000);assert.equal(metrics.source,'default-rzeszow');
+  assert.ok(metrics.canvasPixels<=900000);assert.equal(metrics.source,'default-rzeszow');
   // Native saver/bridge fallback must remain live instead of freezing the world.
   await page.evaluate(()=>window.__landscapeTestPower(true));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().motion==='power-saving');
@@ -84,15 +85,13 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
    await new Promise(r=>setTimeout(r,600));
-   const intermediate=await page.$eval('.leaflet-layer',e=>Number(getComputedStyle(e).filter.match(/invert\(([\d.]+)/)[1]));
-   assert.ok(intermediate>0&&intermediate<1,'map transition is animated, not an abrupt filter switch');
-   await new Promise(r=>setTimeout(r,1600));
+   assert.equal(await page.$eval('.leaflet-layer',e=>getComputedStyle(e).transitionDuration),'0s','map polarity never animates through washed-out grey');
    assert.ok(await page.$eval('.leaflet-layer',(e,n)=>getComputedStyle(e).filter.startsWith('invert('+n+')'),invert),'actual Leaflet layer changes with the Sun');
    const ink=await page.$eval('[data-map-search-panel] input',e=>getComputedStyle(e).color);
    assert.equal(ink,name==='day'?'rgb(20, 45, 57)':'rgb(244, 248, 252)');
    assert.equal(await page.$eval('[data-fixture-period]',e=>e.dataset.fixturePeriod),name,'solar mode reaches React component props as well as CSS');
    assert.equal(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color),name==='day'?'rgb(15, 101, 91)':'rgb(166, 226, 203)','map brand accent stays readable in both materials');
-   assert.equal(await page.$eval('[data-landscape-chrome]',e=>e.tagName),'SPAN','map chrome has no geometric scenery');
+   assert.ok(await page.$eval('[data-landscape-window=filter]',e=>e.width>100&&e.height>20),'filter receives the actual rendered sky');
    await page.screenshot({path:'test/ui-previews/landscape-map-'+name+'.png'});
   }
   await page.type('[data-map-search-panel] input','108');
@@ -107,6 +106,18 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    assert.ok(await page.$eval(selector,e=>{const c=getComputedStyle(e).backgroundColor;return c.startsWith('rgba')&&Number(c.split(',').pop().replace(')',''))<.7;}),'admin glass must be translucent: '+selector);
   }
   await page.screenshot({path:'test/ui-previews/landscape-admin-glass.png'});
+  for(const mode of ['bus','stop']){
+   await page.goto(origin+'/landscape-'+mode+'-sheet-fixture/');
+   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>1);
+   await page.waitForFunction(()=>document.querySelector('[data-landscape-window=panel]')?.dataset.sceneReady==='true');
+   assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter),'none');
+   const canvas=await page.$eval('[data-landscape-window=panel]',e=>{const d=e.getContext('2d').getImageData(0,0,e.width,e.height).data;const colors=new Set();for(let i=0;i<d.length;i+=16)colors.add(d[i]+','+d[i+1]+','+d[i+2]);return colors.size;});
+   assert.ok(canvas>100,'expanded '+mode+' sheet contains detailed scenery, not a flat fill');
+   await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-expanded.png'});
+   const handle=mode==='bus'?'[data-vehicle-header]':'.map-stop-handle';
+   await page.click(handle);await page.waitForFunction(selector=>document.querySelector(selector)?.getAttribute('aria-expanded')==='false',{},handle);
+   await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-collapsed.png'});
+  }
   assert.deepEqual(errors,[]);
   fs.writeFileSync('test/ui-previews/landscape-metrics.json',JSON.stringify({environment:'Headless Chrome CI; not physical Android battery measurements',...metrics},null,2));
   console.log('Landscape: four solar views, live timetable, small phone, bounded canvas, reduced motion, background pause/resume and theme disposal verified. Draw metrics:',metrics.averageDrawMs,metrics.maxDrawMs);
