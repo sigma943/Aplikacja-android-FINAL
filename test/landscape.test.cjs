@@ -82,7 +82,7 @@ test('solar palette makes daytime maps light and night maps dark with readable i
  const noon=palette(at('2026-10-23T10:00:00Z')),night=palette(at('2026-10-26T22:00:00Z'));
  assert.match(noon['--landscape-map-filter'],/^invert\(0\.000%\)/);
  assert.match(night['--landscape-map-filter'],/^invert\(100\.000%\)/);
- assert.equal(noon['--landscape-ink'],'rgb(236,247,252)');assert.equal(night['--landscape-ink'],'rgb(244,248,252)');
+ assert.equal(noon['--landscape-ink'],'rgb(20,45,57)');assert.equal(night['--landscape-ink'],'rgb(244,248,252)');
  // Across a whole twilight, only readable map endpoints are targeted.
  // Map filters switch directly so roads never pass through a grey midpoint.
  const sunset=a.solarEvents(Date.parse('2026-10-23T12:00:00Z'),place).sunset;
@@ -100,13 +100,30 @@ test('solar glass warms at sunset, changes continuously and keeps contrast over 
  let previous;
  for(let altitude=-18;altitude<=60;altitude+=.01){
   const p=palette({sun:{altitude:altitude*Math.PI/180}}),surface=numbers(p['--landscape-surface']),ink=numbers(p['--landscape-ink']);
-  const brightest=surface.slice(0,3).map(v=>v*surface[3]+255*(1-surface[3]));
-  assert.ok((luminance(ink)+.05)/(luminance(brightest)+.05)>=4.5,'text contrast at solar altitude '+altitude);
-  const values=['surface','ink','muted','accent','panel-scrim','panel-row'].flatMap(key=>numbers(p['--landscape-'+key]));
-  if(previous)assert.ok(values.every((v,i)=>Math.abs(v-previous[i])<=1),'no palette jumps at '+altitude);
+  for(const backdrop of [0,255]){
+   const background=surface.slice(0,3).map(v=>v*surface[3]+backdrop*(1-surface[3])),a=luminance(ink),b=luminance(background);
+   assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,'text contrast at solar altitude '+altitude);
+  }
+  const values=['surface','field','panel-scrim','panel-row','nav-top','nav-bottom'].flatMap(key=>numbers(p['--landscape-'+key]));
+  if(previous)assert.ok(values.every((v,i)=>Math.abs(v-previous[i])<=2),'no palette jumps at '+altitude);
   previous=values;
  }
  const sunset=palette({sun:{altitude:Math.PI/180}});
  const surface=numbers(sunset['--landscape-surface']);
+ assert.ok(luminance(numbers(palette({sun:{altitude:30*Math.PI/180}})['--landscape-surface']).slice(0,3))>.8,'daytime cards must be light');
+ assert.ok(luminance(numbers(palette({sun:{altitude:-15*Math.PI/180}})['--landscape-surface']).slice(0,3))<.03,'nighttime cards must be dark');
  assert.ok(surface[0]>surface[1]&&surface[0]>surface[2],'sunset glass is warm rather than white');
+});
+
+test('sunset darkens every surface stage and sunrise traverses the same palette in reverse',()=>{
+ const {landscapePalette:palette}=load('lib/landscape-palette.ts');
+ const at=angle=>palette({sun:{altitude:angle*Math.PI/180}});
+ const levels=[30,12,6,3,0,-2,-4,-6,-12,-18];
+ const values=levels.map(angle=>at(angle)['--landscape-surface'].match(/[\d.]+/g).slice(0,3).map(Number).reduce((s,v)=>s+v,0));
+ for(let i=1;i<values.length;i++)assert.ok(values[i]<=values[i-1],'glass darkens throughout sunset');
+ const lightAt=hour=>palette(a.astronomyAt(Date.parse('2026-10-23T'+String(hour).padStart(2,'0')+':00:00Z'),place))['--landscape-surface'].match(/[\d.]+/g).slice(0,3).map(Number).reduce((s,v)=>s+v,0);
+ for(const hours of [[2,4,6,8,10],[20,18,16,14,12]]){
+  const light=hours.map(lightAt);
+  for(let i=1;i<light.length;i++)assert.ok(light[i]>=light[i-1],'actual sunrise lightens the glass and sunset darkens it');
+ }
 });

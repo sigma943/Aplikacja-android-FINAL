@@ -1238,3 +1238,8 @@ html[data-landscape-theme='on'] .map-detail-shell { color:var(--landscape-ink)!i
 html[data-landscape-theme='on'] [data-vehicle-header],
 html[data-landscape-theme='on'] [data-vehicle-header][data-ui-mode] [class*='text-white'] { transition:none!important; }
 html[data-landscape-theme='on'] [data-landscape-chrome='filter']::after { opacity:1; }
+
+/* Both legacy light and dark component classes follow the solar ink. Status
+   badges with their own strong fills retain their semantic foregrounds. */
+html[data-landscape-theme='on'] :is(.text-slate-700,.text-slate-800,.text-slate-900,.text-gray-700,.text-gray-800,.text-gray-900) { color:var(--landscape-ink)!important;transition:color 2.4s linear; }
+html[data-landscape-theme='on'] [data-vehicle-header][data-ui-mode] { color:#f8fafc!important; }

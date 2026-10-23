@@ -5,6 +5,7 @@ import {reconcileVehicles} from '@/lib/vehicle-reconcile';
 import {platformPosition,loadStopPlatforms} from '@/lib/stop-platform-position';
 import {loadOptionsCode,loadTransportSelectorCode,loadBusDetailsCode,loadTrainDetailsCode,warmPanelCode} from '@/lib/home/panel-code';
 import DynamicLandscape from '@/components/DynamicLandscape';
+import {useLandscapeDay} from '@/lib/use-landscape-day';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
 
 import {toggleStopFavoriteIds} from '@/lib/stop-identity';
@@ -919,9 +920,8 @@ export default function Home() {
 
   // Theme Helpers
   const actualTheme = resolveAppTheme(appTheme,systemIsDark);
-  // Solar glass keeps light ink throughout the day; its continuous palette owns
-  // the colours. Do not replace every component's classes at a day/night boundary.
-  const isDark = actualTheme.startsWith('dark');
+  const landscapeDay=useLandscapeDay(actualTheme==='dark-mountains');
+  const isDark = actualTheme.startsWith('dark')&&!landscapeDay;
   const isOled = actualTheme === 'dark-oled' || actualTheme === 'dark-cosmos';
   const isLightPink = actualTheme === 'light-pink';
   const isPink = actualTheme === 'dark-pink';

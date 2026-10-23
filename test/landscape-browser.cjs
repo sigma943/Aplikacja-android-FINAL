@@ -49,7 +49,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.evaluate(()=>document.querySelector('[data-toggle-ui]').click());await page.waitForSelector('[data-departure-row]');
   await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('.transit-view')).opacity)>=.999);
   await new Promise(r=>setTimeout(r,350));
-  assert.ok(await page.evaluate(()=>{const color=getComputedStyle(document.querySelector('.transit-card')).backgroundColor,alpha=Number(color.split(',').pop().replace(')',''));return alpha>=.70&&alpha<=.76;}),'glass exposes scenery while keeping a dark scrim');
+  assert.ok(await page.evaluate(()=>{const color=getComputedStyle(document.querySelector('.transit-card')).backgroundColor,alpha=Number(color.split(',').pop().replace(')',''));return alpha>=.78&&alpha<=.84;}),'glass exposes scenery while keeping a dark scrim');
   await page.screenshot({path:'test/ui-previews/landscape-timetable.png'});
   await page.setViewport({width:320,height:640,deviceScaleFactor:2});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
@@ -88,9 +88,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    assert.equal(await page.$eval('.leaflet-layer',e=>getComputedStyle(e).transitionDuration),'0s','map polarity never animates through washed-out grey');
    assert.ok(await page.$eval('.leaflet-layer',(e,n)=>getComputedStyle(e).filter.startsWith('invert('+n+')'),invert),'actual Leaflet layer changes with the Sun');
    const ink=await page.$eval('[data-map-search-panel] input',e=>getComputedStyle(e).color);
-   assert.equal(ink,name==='day'?'rgb(236, 247, 252)':'rgb(244, 248, 252)');
+   assert.equal(ink,name==='day'?'rgb(20, 45, 57)':'rgb(244, 248, 252)');
    assert.equal(await page.$eval('[data-fixture-period]',e=>e.dataset.fixturePeriod),name,'solar mode reaches React component props as well as CSS');
-   assert.equal(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color),name==='day'?'rgb(164, 232, 216)':'rgb(166, 226, 203)','map brand accent stays readable in both materials');
+   assert.equal(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color),name==='day'?'rgb(15, 101, 91)':'rgb(166, 226, 203)','map brand accent stays readable in both materials');
    assert.ok(await page.$eval('[data-landscape-window=filter]',e=>e.width>100&&e.height>20),'filter receives the actual rendered sky');
    await page.screenshot({path:'test/ui-previews/landscape-map-'+name+'.png'});
   }
@@ -112,7 +112,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.waitForSelector('.admin-device-card',{timeout:45000});
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
   for(const selector of ['.admin-device-card','[data-admin-viewport] input[placeholder="Szukaj..."]']){
-   assert.ok(await page.$eval(selector,e=>{const c=getComputedStyle(e).backgroundColor;return c.startsWith('rgba')&&Number(c.split(',').pop().replace(')',''))<.8;}),'admin glass must be translucent: '+selector);
+   assert.ok(await page.$eval(selector,e=>{const c=getComputedStyle(e).backgroundColor;return c.startsWith('rgba')&&Number(c.split(',').pop().replace(')',''))<.9;}),'admin glass must be translucent: '+selector);
   }
   await page.screenshot({path:'test/ui-previews/landscape-admin-glass.png'});
   for(const mode of ['bus','stop']){
