@@ -1206,8 +1206,18 @@ html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { z-index:-1; }
 html[data-landscape-theme='on'] .map-detail-shell { isolation:isolate;box-shadow:0 -8px 32px #020c1826,inset 0 1px 0 #e2f5ff40; }
 html[data-landscape-theme='on'] .map-detail-shell :is(.map-detail-body,.map-stop-departures) { background:transparent!important; }
 html[data-landscape-theme='on'] .map-detail-row { background:var(--landscape-field)!important;border-color:var(--landscape-edge)!important;box-shadow:inset 0 1px 0 #ffffff0d; }
-html[data-landscape-theme='on'] [data-vehicle-header] { background:linear-gradient(120deg,var(--landscape-field),transparent)!important;color:var(--landscape-ink)!important;border-bottom:1px solid var(--landscape-edge); }
+/* Carrier header keeps the same dark base and tint as Kosmos, at every hour. */
+html[data-landscape-theme='on'] [data-vehicle-header] { background:var(--landscape-vehicle-header),#080d1d!important;color:#f8fafc!important;border-bottom:1px solid #ffffff24; }
+html[data-landscape-theme='on'] [data-vehicle-header][data-ui-mode] [class*='text-white'] { color:#f8fafc!important; }
+html[data-landscape-theme='on'] [data-vehicle-header][data-ui-mode] > div:first-child { background:#ffffff66; }
 html[data-landscape-theme='on'] .pks-navigation { box-shadow:0 -4px 24px #03132324; }
 html[data-landscape-theme='on'] [data-nav-item][aria-current='page'] { background:radial-gradient(ellipse at 50% 10%,var(--landscape-chrome-light),transparent 75%); }
 html[data-landscape-theme='on'] .transit-card :is(.transit-card,.transit-surface) { background-color:var(--landscape-field)!important; }
 @media(prefers-reduced-motion:reduce) { html[data-landscape-theme='on'] * { transition-duration:0s!important; } }
+
+/* Clip a fixed-size illustration as the sheet opens. Its crop and bitmap never
+   follow the spring's intermediate heights, avoiding stepped resampling. */
+html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { bottom:auto;height:calc(60svh - 32px); }
+@media(min-width:768px) { html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { height:85svh; } }
+html[data-landscape-theme='on'][data-landscape-period='day'] [data-landscape-chrome='panel']::after { background:rgba(242,249,252,.84);opacity:1; }
+html[data-landscape-theme='on'][data-landscape-period='day'] .map-detail-shell .map-detail-row { background:rgba(248,252,255,.90)!important;border-color:rgba(34,71,90,.20)!important; }

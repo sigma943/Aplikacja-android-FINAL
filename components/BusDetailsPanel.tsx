@@ -3,6 +3,7 @@
 import {useLayoutEffect,useRef} from 'react';
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
 import LandscapeChrome from './LandscapeChrome';
+import {vehicleHeaderStyle} from '@/lib/interface-appearance';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {motion, AnimatePresence, type MotionStyle} from 'motion/react';
 import {Navigation, Clock, MapPin} from 'lucide-react';
@@ -87,7 +88,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                      onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();setIsBusPanelExpanded(value => !value);}}}
                      data-vehicle-header data-ui-mode={isDark ? 'dark' : 'light'}
                      className="p-3 pb-5 md:p-6 md:pb-8 text-white relative shrink-0 cursor-pointer touch-none overflow-hidden" 
-                     style={selectedBusHeaderStyle}
+                     style={{...selectedBusHeaderStyle,'--landscape-vehicle-header':vehicleHeaderStyle(selectedVehicleColor,true,true).background} as CSSProperties}
                      {...busDrag.handle}
                   >
                      <div 

@@ -111,11 +111,32 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>1);
    await page.waitForFunction(()=>document.querySelector('[data-landscape-window=panel]')?.dataset.sceneReady==='true');
    assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter),'none');
+   if(mode==='bus'){
+    await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0}));
+    await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='day'&&document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
+    await new Promise(r=>setTimeout(r,400));
+    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).backgroundColor),'rgb(8, 13, 29)','daytime carrier header retains the dark cosmic base');
+    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)','header text stays light in solar day mode');
+    assert.equal(await page.$eval('[data-vehicle-header] [class*="text-white"]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)');
+    assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])>=.8),'daytime route has a strong light scrim');
+   }
    const canvas=await page.$eval('[data-landscape-window=panel]',e=>{const d=e.getContext('2d').getImageData(0,0,e.width,e.height).data;const colors=new Set();for(let i=0;i<d.length;i+=16)colors.add(d[i]+','+d[i+1]+','+d[i+2]);return colors.size;});
    assert.ok(canvas>100,'expanded '+mode+' sheet contains detailed scenery, not a flat fill');
    await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-expanded.png'});
    const handle=mode==='bus'?'[data-vehicle-header]':'.map-stop-handle';
-   await page.click(handle);await page.waitForFunction(selector=>document.querySelector(selector)?.getAttribute('aria-expanded')==='false',{},handle);
+   if(mode==='bus'){
+    const motion=await page.evaluate(async()=>{
+     const sheet=document.querySelector('[data-map-bus-sheet]'),canvas=document.querySelector('[data-landscape-window=panel]');
+     const bitmap=[canvas.width,canvas.height],heights=[],sizes=[];
+     document.querySelector('[data-vehicle-header]').click();const start=performance.now();
+     while(performance.now()-start<800){await new Promise(requestAnimationFrame);heights.push(Math.round(sheet.getBoundingClientRect().height));sizes.push(canvas.width+':'+canvas.height);}
+     return {bitmap,heights,sizes,after:[canvas.width,canvas.height]};
+    });
+    assert.ok(new Set(motion.heights).size>4,'sheet height changes smoothly over successive frames');
+    assert.deepEqual(motion.after,motion.bitmap,'the illustration keeps its dimensions across expansion/collapse');
+    assert.equal(new Set(motion.sizes).size,1,'the illustration is never resized during the height spring');
+   }else await page.click(handle);
+   await page.waitForFunction(selector=>document.querySelector(selector)?.getAttribute('aria-expanded')==='false',{},handle);
    await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-collapsed.png'});
   }
   assert.deepEqual(errors,[]);
