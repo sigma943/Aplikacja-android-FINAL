@@ -1,10 +1,12 @@
-import {skyState,smoothstep,type AstronomyState} from './landscape-astronomy';
-/** One continuous solar palette shared by the map, glass and neutral typography. */
+import {skyState,type AstronomyState} from './landscape-astronomy';
+/** Solar materials share a polarity switch, eased by CSS. Keeping inverse maps
+ * near 50% for an entire twilight would erase roads and label contrast. */
 export function landscapePalette(state:AstronomyState){
-  const day=smoothstep(.08,.94,skyState(state).day);
+  const day=state.sun.altitude>-.035?1:0,twilight=skyState(state).twilight;
   const rgb=(night:number[],light:number[])=>night.map((v,i)=>Math.round(v+(light[i]-v)*day)).join(',');
+  const surface=(day?[239+12*twilight,249-9*twilight,251-27*twilight]:[9+6*twilight,24,40-4*twilight]).map(Math.round).join(',');
   return {
-    '--landscape-surface':`rgba(${rgb([9,24,40],[239,249,251])},${(.62+day*.04).toFixed(3)})`,
+    '--landscape-surface':`rgba(${surface},${(.62+day*.04).toFixed(3)})`,
     '--landscape-ink':`rgb(${rgb([244,248,252],[20,45,57])})`,
     '--landscape-muted':`rgb(${rgb([207,225,237],[59,83,95])})`,
     '--landscape-accent':`rgb(${rgb([166,226,203],[15,101,91])})`,

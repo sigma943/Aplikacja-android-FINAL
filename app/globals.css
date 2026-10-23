@@ -1183,8 +1183,8 @@ html[data-landscape-theme='on'] .pks-map-search-panel>div:first-of-type { color:
 html[data-landscape-theme='on'] .pks-navigation { color:var(--landscape-muted)!important; }
 html[data-landscape-theme='on'] [data-nav-item][aria-current='page'] { color:var(--landscape-accent)!important; }
 html[data-landscape-theme='on'] [data-nav-indicator] { background-color:var(--landscape-accent)!important; }
-html[data-landscape-theme='on'] :is(.leaflet-layer,.leaflet-control-zoom-in,.leaflet-control-zoom-out,.leaflet-control-attribution) { filter:var(--landscape-map-filter)!important;transition:filter 12s linear; }
-html[data-landscape-theme='on'] :is(.pks-theme-root,.transit-card,.transit-surface,.pks-panel-scope,.pks-options-sheet,.pks-option-card,.pks-navigation,.pks-map-search-panel,[data-nav-item],input,textarea,select,.admin-device-card) { transition:color 12s linear,background-color 12s linear,border-color 12s linear; }
+html[data-landscape-theme='on'] :is(.leaflet-layer,.leaflet-control-zoom-in,.leaflet-control-zoom-out,.leaflet-control-attribution) { filter:var(--landscape-map-filter)!important;transition:filter 1.8s ease-in-out; }
+html[data-landscape-theme='on'] :is(.pks-theme-root,.transit-card,.transit-surface,.pks-panel-scope,.pks-options-sheet,.pks-option-card,.pks-navigation,.pks-map-search-panel,[data-nav-item],input,textarea,select,.admin-device-card) { transition:color 1.8s ease-in-out,background-color 1.8s ease-in-out,border-color 1.8s ease-in-out; }
 html[data-landscape-theme='on'] :is(.pks-options-sheet,.pks-map-search-panel,.pks-navigation,.map-detail-shell) { border-color:var(--landscape-edge)!important; }
 html[data-landscape-theme='on'] .pks-options-sheet :is(.pks-option-card,.personal-preset,.personal-group,.personal-tabs) { background-color:var(--landscape-field)!important; }
-html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-title,.map-detail-muted) { transition:color 12s linear; }
+html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.map-detail-title,.map-detail-muted) { transition:color 1.8s ease-in-out; }

@@ -83,7 +83,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   for(const [name,iso,invert] of [['day','2026-10-23T12:00:00+02:00',0],['night','2026-10-26T23:00:00+01:00',1]]){
    await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
-   await new Promise(r=>setTimeout(r,12500));
+   await new Promise(r=>setTimeout(r,600));
+   const intermediate=await page.$eval('.leaflet-layer',e=>Number(getComputedStyle(e).filter.match(/invert\(([\d.]+)/)[1]));
+   assert.ok(intermediate>0&&intermediate<1,'map transition is animated, not an abrupt filter switch');
+   await new Promise(r=>setTimeout(r,1600));
    assert.ok(await page.$eval('.leaflet-layer',(e,n)=>getComputedStyle(e).filter.startsWith('invert('+n+')'),invert),'actual Leaflet layer changes with the Sun');
    const ink=await page.$eval('[data-map-search-panel] input',e=>getComputedStyle(e).color);
    assert.equal(ink,name==='day'?'rgb(20, 45, 57)':'rgb(244, 248, 252)');
