@@ -26,17 +26,19 @@ export function horizonSnapshot(time:number,lat=HORIZON_DEFAULT_LOCATION.lat,lon
   const date=new Date(time),sun=SunCalc.getPosition(date,lat,lon),moon=SunCalc.getMoonPosition(date,lat,lon),light=SunCalc.getMoonIllumination(date);
   const altitude=sun.altitude*degrees,day=smooth(-7,14,altitude),night=1-smooth(-15,-5,altitude);
   const rising=SunCalc.getPosition(new Date(time+60_000),lat,lon).altitude>sun.altitude;
-  const warmth=Math.exp(-(((altitude+1)/7)**2));
+  const warmth=Math.exp(-(((altitude-1)/10)**2));
   const evening=.5+.5*Math.sin(sun.azimuth);
-  const top=mixSky(mixSky('#070d22',mixSky('#727db1','#76517d',evening),1-night),'#327fb8',day);
-  const bottom=mixSky(mixSky('#121b35',mixSky('#f1b9b0','#f29765',evening),1-night),'#c0e5f2',day);
+  const top=mixSky('#070c28','#1a3159',day);
+  const middle=mixSky(mixSky('#171738','#49335e',1-night),'#435e8c',day);
+  const bottom=mixSky(mixSky('#29264f','#7794be',day),mixSky('#d18ea8','#ec9d79',evening),warmth*(1-night));
   // Clock-independent altitude also handles polar day/night and date-line travel.
   const project=(azimuth:number,alt:number)=>({x:50+Math.sin(azimuth)*43,y:78-(alt*degrees+.833)*.95});
   const times=SunCalc.getTimes(date,lat,lon);
   const instant=(value:Date)=>Number.isFinite(value?.getTime())?value.getTime():null;
-  return {time,altitude,rising,top,bottom,warmth,night,day,sunrise:instant(times.sunrise),sunset:instant(times.sunset),
-    surface:mixSky('#101b30','#172d40',day),raised:mixSky('#17253d','#244153',day),
-    accent:mixSky(mixSky('#a9ceff','#ffbb94',warmth),'#b2e6f3',day),
+  return {time,altitude,rising,top,middle,bottom,warmth,night,day,sunrise:instant(times.sunrise),sunset:instant(times.sunset),
+    surface:mixSky('#101633','#172344',day),raised:mixSky('#1a2044','#252e54',day),
+    accent:mixSky(mixSky('#bda2ff','#b9c8ff',day),'#e0b5ff',warmth*.6),
+    ridgeFar:mixSky('#25284d','#435477',day),ridgeMid:mixSky('#1a2243','#2c3c5c',day),ridgeNear:mixSky('#111a37','#1b2c48',day),
     sun:{...project(sun.azimuth,sun.altitude),opacity:smooth(-1.8,-.8,altitude)},
     moon:{...project(moon.azimuth,moon.altitude),opacity:smooth(-1,2,moon.altitude*degrees)*(1-day*.88),
       fraction:light.fraction,phase:light.phase,rotation:-(light.angle-moon.parallacticAngle)*degrees-90,path:moonPhasePath(light.fraction)},

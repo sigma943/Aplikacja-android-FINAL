@@ -31,6 +31,7 @@ import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterface
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops, upcomingTimedVehicleStops} from '@/lib/vehicle-stop-timing';
+import {HorizonWindow} from '@/components/HorizonSky';
 
 import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
 import dynamic from 'next/dynamic';
@@ -1218,7 +1219,7 @@ export default function Home() {
          {/* ============== MAP VIEW ============== */}
          <div data-map-canvas className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
             <BusMap
-               active={activeTab==='map'||actualTheme!=='dark-cosmos'}
+               active={(activeTab==='map'||(actualTheme!=='dark-cosmos'&&actualTheme!=='dark-horizon'))&&!(actualTheme==='dark-horizon'&&isSettingsOpen)}
                clockMs={selectedBus?now:0}
                vehicles={filteredVehicles} 
                onVehicleClick={handleVehicleClick}
@@ -1465,6 +1466,7 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
+            <HorizonWindow canvas/>
             <OptionsContent journeysAllowed={!isJourneysTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed} chrome={optionsChrome} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={expandOptions} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
           </Suspense>

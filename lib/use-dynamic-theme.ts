@@ -37,11 +37,13 @@ export function useDynamicTheme(ref:RefObject<HTMLDivElement|null>){
       const duration=reduced()?0:HORIZON_STEP_MS;
       const scenes=[ref.current,...document.querySelectorAll<HTMLDivElement>('[data-horizon-window]')];
       for(const stage of scenes){
-      const mainMap=stage===ref.current&&document.querySelector('.pks-theme-root')?.getAttribute('data-cosmic-tab')==='map';
-      const animate=duration&&!mainMap&&stage.getClientRects().length>0;
+      stage.style.visibility='visible';
+      const mainMap=stage===ref.current&&document.querySelector('.pks-theme-root')?.getAttribute('data-cosmic-tab')==='map'&&!document.querySelector('.pks-options-sheet');
+      const bounds=stage.getBoundingClientRect();
+      const animate=duration&&!mainMap&&bounds.width>0&&bounds.height>0&&bounds.bottom>0&&bounds.top<innerHeight&&bounds.right>0&&bounds.left<innerWidth&&getComputedStyle(stage).visibility!=='hidden';
       stage.dataset.moving=duration?'on':'off';
       const layers=stage.querySelectorAll<HTMLElement>('[data-horizon-gradient]');
-      const gradient=(s:typeof current)=>`linear-gradient(180deg,${s.top} 0%,${s.bottom} 78%,${s.bottom} 100%)`;
+      const gradient=(s:typeof current)=>`linear-gradient(180deg,${s.top} 0%,${s.top} 27%,${s.middle} 62%,${s.bottom} 80%,${s.bottom} 100%)`;
       // Two static gradients crossfade on the compositor; no full-screen
       // animated gradient, blur, canvas loop, React state or per-frame JS.
       layers[layer].style.background=gradient(current);layers[layer].style.opacity='1';
@@ -60,6 +62,8 @@ export function useDynamicTheme(ref:RefObject<HTMLDivElement|null>){
       const stars=stage.querySelector<HTMLElement>('[data-horizon-stars]')!;stars.style.opacity=String(current.stars);
       if(animate&&current.stars!==next.stars)animations.push(stars.animate([{opacity:current.stars},{opacity:next.stars}],{duration,fill:'forwards'}));
       stage.dataset.solarAltitude=current.altitude.toFixed(3);stage.dataset.moonFraction=current.moon.fraction.toFixed(4);
+      stage.style.setProperty('--horizon-ridge-far',current.ridgeFar);stage.style.setProperty('--horizon-ridge-mid',current.ridgeMid);stage.style.setProperty('--horizon-ridge-near',current.ridgeNear);
+      stage.style.setProperty('--horizon-town-opacity',String(current.night));
       stage.style.visibility='visible';
       }
       write('--horizon-surface',current.surface);write('--horizon-raised',current.raised);write('--horizon-accent',current.accent);
@@ -80,7 +84,7 @@ export function useDynamicTheme(ref:RefObject<HTMLDivElement|null>){
     const locationRequest=()=>{void requestLocation(true);};
     const stopActivity=observeAppActivity(update);
     const sceneChanged=new MutationObserver(records=>{
-      if(records.some(record=>record.type==='attributes'||[...record.addedNodes,...record.removedNodes].some(node=>node instanceof Element&&(node.matches('[data-horizon-window]')||node.querySelector('[data-horizon-window]')))))refresh();
+      if(records.some(record=>record.type==='attributes'||[...record.addedNodes,...record.removedNodes].some(node=>node instanceof Element&&(node.matches('[data-horizon-window],.pks-options-sheet')||node.querySelector('[data-horizon-window],.pks-options-sheet')))))refresh();
     });
     sceneChanged.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['data-cosmic-tab']});
     for(const event of ['pks-interface-appearance','pks-profile-applied','storage','focus'])window.addEventListener(event,refresh);

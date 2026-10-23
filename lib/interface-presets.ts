@@ -9,9 +9,9 @@ const appearance=(changes:Partial<InterfaceAppearance>):InterfaceAppearance=>({.
 
 export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   {
-    name:'Horyzont',description:'Żywe niebo, ruch słońca i aktualna faza księżyca dla Twojej lokalizacji',theme:'dark-horizon',accent:'#a9ceff',glass:true,glow:false,glowStrength:25,
+    name:'Horyzont',description:'Góry i leśny horyzont, ruch słońca i aktualna faza księżyca',theme:'dark-horizon',accent:'#bda2ff',glass:true,glow:false,glowStrength:25,
     appearance:appearance({glassOpacity:78,glassBlur:0,glassBlurEnabled:false,borderStrength:16,shadowStrength:15,navIndicator:'line',glowStyle:'accent',glowColor:'#a9ceff'}),
-    preview:{background:'#364f78',surface:'#172d40',text:'#f1f6ff'},
+    preview:{background:'#101334',surface:'#191e43',text:'#f1f0ff'},
   },
   {
     name:'Różowy',description:'Cukierkowy róż, malinowe akcenty i subtelne serduszka',theme:'light-pink',accent:'#c02674',glass:true,glow:false,glowStrength:40,
@@ -56,5 +56,5 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
 ];
 
 export function matchesInterfacePreset(preset:InterfacePreset,current:{appearance:InterfaceAppearance;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number}){
-  return current.theme===preset.theme&&current.accent.toLowerCase()===preset.accent&&current.glass===preset.glass&&current.glow===preset.glow&&current.glowStrength===preset.glowStrength&&Object.entries(preset.appearance).every(([key,value])=>JSON.stringify(current.appearance[key as keyof InterfaceAppearance])===JSON.stringify(value));
+  return current.theme===preset.theme&&(preset.theme==='dark-horizon'||current.accent.toLowerCase()===preset.accent)&&current.glass===preset.glass&&current.glow===preset.glow&&current.glowStrength===preset.glowStrength&&Object.entries(preset.appearance).every(([key,value])=>JSON.stringify(current.appearance[key as keyof InterfaceAppearance])===JSON.stringify(value));
 }

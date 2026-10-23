@@ -1,4 +1,5 @@
 import {displayStopCatalogLabel} from '@/lib/stop-label';
+import {HorizonWindow} from '@/components/HorizonSky';
 import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
@@ -172,6 +173,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       data-cosmic-view={`stop:${stop.id}`}
       className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
     >
+      <HorizonWindow canvas/>
       <div className="w-full max-w-3xl min-w-0 mx-auto">
         {/* Header */}
         <div {...cosmicPanel('stop-header')} className={`relative mx-3 mt-3 rounded-[24px] border p-3.5 lg:mx-8 lg:p-5 overflow-hidden backdrop-blur-2xl ${headerShellClass}`}>

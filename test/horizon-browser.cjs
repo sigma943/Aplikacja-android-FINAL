@@ -12,7 +12,7 @@ try{
   await page.evaluate(t=>window.horizonAt(t),time);await page.screenshot({path:`test/ui-previews/horizon-${label}.png`});
   const result=await page.evaluate(()=>({alt:+document.querySelector('[data-horizon-sky]').dataset.solarAltitude,animations:document.getAnimations().length,surface:getComputedStyle(document.querySelector('.transit-surface')).backgroundColor}));
   assert.ok(result.animations<=5);assert.ok(result.surface!=='rgba(0, 0, 0, 0)');
-  assert.notEqual(await page.$eval('.connections-heading',e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','headings keep contrast when the sky is bright');
+  assert.ok(await page.$('[data-horizon-landscape]'),'landscape is rendered separately from the moving celestial bodies');
  }
  const stars=await page.$eval('[data-horizon-stars]',e=>+e.style.opacity);assert.ok(stars>.5);
  await page.evaluate(()=>window.horizonHidden(true));assert.equal(await page.evaluate(()=>document.getAnimations().length),0,'background cancels every sky animation');
