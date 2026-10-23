@@ -475,8 +475,8 @@ html[data-personal-shadow='true'] :is(.pks-map-surface,.map-detail-shell,.pks-op
 html[data-personal-surface='accent'] :is(.pks-map-surface,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.widget-generator,.pks-navigation,[data-interface-panel],.pks-personal-panel),
 html[data-personal-surface='warm'] :is(.pks-map-surface,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.widget-generator,.pks-navigation,[data-interface-panel],.pks-personal-panel) { background-color:var(--personal-surface) !important; }
 html:is([data-personal-surface='accent'],[data-personal-surface='warm'],[data-personal-surface='custom']) :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { background-color:var(--personal-surface) !important; }
-html[data-personal-glass='true']:not([data-horizon-theme='on']) :is(.pks-glass,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on']),
-html[data-personal-glass='true']:not([data-horizon-theme='on']) .pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,[data-interface-panel],.pks-personal-panel,[data-interface-card]) { background-color:var(--personal-glass) !important; }
+html[data-personal-glass='true'] :is(.pks-glass,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on']),
+html[data-personal-glass='true'] .pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,[data-interface-panel],.pks-personal-panel,[data-interface-card]) { background-color:var(--personal-glass) !important; }
 html[data-personal-blur='true'] :is(.pks-glass,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on']),
 html[data-personal-blur='true'] .pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card) { -webkit-backdrop-filter:blur(var(--personal-blur)) saturate(var(--personal-saturation)) !important; backdrop-filter:blur(var(--personal-blur)) saturate(var(--personal-saturation)) !important; }
 html:not([data-personal-font='system']) :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) , html:not([data-personal-font='system']) :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) :is(button,input,select,textarea,.font-sans,.font-mono) { font-family:var(--personal-font) !important; }
@@ -516,7 +516,7 @@ html:not([data-personal-density='comfortable']) [data-interface-row] { padding-b
 
 html[data-personal-surface='custom'] :is(.pks-map-surface,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.widget-generator,.pks-navigation,[data-interface-panel],.pks-personal-panel) { background-color:var(--personal-surface) !important; }
 html:not([data-personal-surface='original']) .pks-panel-scope { --panel-solid:var(--personal-surface); }
-html[data-personal-glass='true']:not([data-horizon-theme='on']) :is(.pks-panel-scope,.pks-glass-frame) { --panel-glass:var(--personal-glass); --panel-surface:var(--personal-glass); }
+html[data-personal-glass='true'] :is(.pks-panel-scope,.pks-glass-frame) { --panel-glass:var(--personal-glass); --panel-surface:var(--personal-glass); }
 html[data-personal-border='true'] :is(.pks-navigation,.pks-panel-scope) { border-color:var(--personal-edge) !important; --panel-edge:var(--personal-edge); }
 html[data-personal-title='true'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) :is(h4,h5,.pks-map-surface .font-extrabold,.map-detail-shell .font-black) { font-weight:var(--personal-title-weight) !important; }
 html[data-personal-icons='true'] .pks-navigation button > svg path { stroke-width:var(--personal-icon-stroke); }
@@ -533,7 +533,7 @@ html:is([data-panel-glow='on'],[data-personal-pattern='grid'],[data-personal-pat
 }
 html[data-personal-border='true'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { border-color:var(--personal-edge) !important; }
 html[data-personal-shadow='true'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { box-shadow:var(--personal-shadow) !important; }
-html[data-personal-glass='true']:not([data-horizon-theme='on']) .pks-glass-frame { background-color:var(--personal-glass) !important; }
+html[data-personal-glass='true'] .pks-glass-frame { background-color:var(--personal-glass) !important; }
 html[data-personal-blur='true'] :is(.pks-glass-frame,.pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,[data-interface-panel],.pks-personal-panel,[data-interface-card],.pks-personal-card)) { -webkit-backdrop-filter:blur(var(--personal-blur)) saturate(var(--personal-saturation)) !important; backdrop-filter:blur(var(--personal-blur)) saturate(var(--personal-saturation)) !important; }
 html[data-personal-icons='true'] :is(.transit-view,.pks-panel-scope,[data-carrier-sheet]) svg.lucide { stroke-width:var(--personal-icon-stroke); }
 html[data-personal-contrast='strong'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) { --ui-muted:var(--personal-muted); --map-sheet-muted:var(--personal-muted); }
@@ -913,7 +913,7 @@ html[data-cosmic-theme='on'] [data-cosmic-effects] { z-index:30; mix-blend-mode:
 [data-cosmic-meteor]::before { top:-1.5px; width:4px; height:4px; box-shadow:0 0 7px #dce8ff; }
 /* The global switch retains the blur radius. With sharp backgrounds, preserve
    contrast by mixing a protective fill into translucent surfaces. */
-html[data-personal-frost='off']:not([data-cosmic-theme='on']):not([data-horizon-theme='on']) :is(.pks-glass,.pks-glass-frame,.pks-map-search-panel,.pks-navigation,.pks-options-sheet,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on'],.pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-option-card)) {
+html[data-personal-frost='off']:not([data-cosmic-theme='on']) :is(.pks-glass,.pks-glass-frame,.pks-map-search-panel,.pks-navigation,.pks-options-sheet,.map-detail-shell[data-glass='on'],[data-carrier-sheet][data-glass='on'],.pks-panel-scope[data-glass='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-option-card)) {
   -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
   background-color:color-mix(in srgb,var(--personal-glass) 45%,var(--personal-surface) 55%) !important;
 }
@@ -1129,76 +1129,3 @@ html[data-personal-light-effects='on'] .animate-spin{animation:spin 1s linear in
 .admin-device-card{isolation:isolate;overflow:hidden;min-height:min-content}
 html[data-personal-light-effects='on'] .admin-device-card{overflow:clip;clip-path:inset(0 round 2rem)}
 html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-device-card{clip-path:inset(0 round var(--personal-card-radius))}
-
-/* Horyzont: each full-screen view owns an opaque landscape canvas. */
-[data-horizon-sky],[data-horizon-window]{display:none;pointer-events:none;overflow:hidden;contain:strict;visibility:hidden;background:#0b1030}
-[data-horizon-sky]{position:fixed;inset:0;z-index:0}
-[data-horizon-window]{position:absolute;inset:0;z-index:0;border-radius:inherit}
-html[data-horizon-theme='on'] :is([data-horizon-sky],[data-horizon-window]){display:block}
-[data-horizon-gradient],[data-horizon-stars],[data-horizon-atmosphere]{position:absolute;inset:0}
-[data-horizon-gradient]{z-index:0}
-[data-horizon-stars]{z-index:2}
-[data-horizon-stars] svg{width:100%;height:100%}
-[data-horizon-atmosphere]{z-index:3;clip-path:inset(0 0 22% 0)}
-[data-horizon-sun],[data-horizon-moon]{position:absolute;left:0;top:0;width:32px;height:32px}
-[data-horizon-sun]{width:34px;height:34px;border-radius:50%;background:#ffdcad;box-shadow:0 0 28px 10px #ffb87735,0 0 85px 36px #ee8a6e18}
-[data-horizon-sun] span{position:absolute;inset:0;border-radius:inherit;background:radial-gradient(circle at 40% 30%,#ffefd0,#ffd399)}
-[data-horizon-moon]{filter:drop-shadow(0 0 12px #fff0bf32)}
-[data-horizon-moon] svg{width:100%;height:100%;overflow:visible}
-[data-horizon-landscape]{position:absolute;left:0;bottom:0;width:100%;height:25%;z-index:4}
-[data-horizon-town]{opacity:var(--horizon-town-opacity,0)}
-[data-horizon-canvas]{position:fixed;inset:0;z-index:-1;border-radius:0}
-html[data-horizon-theme='on'] body{background:#0b1030}
-html[data-horizon-theme='on'] .pks-theme-root{
- z-index:1;background:transparent!important;
- --ui-canvas:#0b1030;--ui-surface:var(--horizon-surface,#101633);--ui-raised:var(--horizon-raised,#1a2044);
- --ui-text:#f2f0ff;--ui-muted:#bcbdd8;--ui-edge:#b6a5ef36;
- --ui-glass:color-mix(in srgb,var(--ui-surface) 96%,#131a3a);--ui-glass-row:var(--ui-raised);
- --pks-accent:var(--horizon-accent,#bda2ff)!important;--pks-accent-text:var(--horizon-accent,#bda2ff)!important;
- --pks-accent-soft:color-mix(in srgb,var(--horizon-accent,#bda2ff) 20%,#171b3b)!important;
- --pks-accent-hover:#bda2ff28!important;--pks-accent-border:#bda2ff70!important;--pks-accent-on:#171029!important;color:var(--ui-text)
-}
-/* Isolation keeps the sky above its opaque base and below the controls. */
-html[data-horizon-theme='on'] :is(.connections-view,.transit-view,[data-admin-viewport],.pks-options-sheet){isolation:isolate;background:var(--ui-canvas,#0b1030)!important;backdrop-filter:none!important}
-html[data-horizon-theme='on'] .pks-theme-root:not([data-cosmic-tab='map']) [data-map-canvas],
-html[data-horizon-theme='on'] .pks-theme-root:has(.pks-options-sheet) [data-map-canvas]{visibility:hidden!important;pointer-events:none!important}
-html[data-horizon-theme='on'] :is(.pks-panel-scope,.pks-glass-frame,.transit-view){--panel-glass:var(--ui-glass);--panel-surface:var(--ui-glass-row);--panel-solid:var(--ui-surface);--panel-edge:var(--ui-edge);--transit-canvas:var(--ui-canvas);--transit-surface:var(--ui-surface);--transit-card:var(--ui-raised);--transit-border:var(--ui-edge)}
-html[data-horizon-theme='on'] [data-full-stop-list]{background:transparent!important}
-html[data-horizon-theme='on'] :is(.transit-surface,.connections-card,.admin-device-card,.pks-personal-card,.admin-topbar,.personal-group){background-color:var(--ui-surface)!important;background-image:linear-gradient(135deg,#b4a5ff09,transparent 58%)!important;color:var(--ui-text);border-color:var(--ui-edge);backdrop-filter:none!important}
-html[data-horizon-theme='on'] .pks-panel-scope :is([class~='bg-[#040609]'],[class~='bg-[#080B12]'],[class~='bg-[#0d1117]'],[class~='bg-[#0F131D]'],[class~='bg-[#0f131d]'],[class~='bg-[#111623]'],[class~='bg-[#111623]/50'],[class~='bg-[#151B28]'],[class~='bg-[#0a0f18]']){background-color:var(--ui-raised)!important}
-html[data-horizon-theme='on'] :is(.pks-options-sheet,.pks-panel-scope) :is(input:not([type='checkbox']):not([type='radio']),select,textarea){background-color:var(--ui-raised)!important;color:var(--ui-text)!important}
-html[data-horizon-theme='on'] input::placeholder{color:#b6b6d1!important;opacity:1}
-html[data-horizon-theme='on'] :is(.text-slate-400,.text-slate-500,.text-slate-600){color:var(--ui-muted,#bcbdd8)}
-html[data-horizon-theme='on'] .pks-navigation{background:#0c1232!important;border-color:#b6a5ef38!important;backdrop-filter:none!important;box-shadow:0 -4px 24px #070b2428}
-html[data-horizon-theme='on'] .pks-navigation [aria-current='page']{color:var(--horizon-accent)!important}
-html[data-horizon-theme='on'] .pks-map-search-panel{position:relative;overflow:hidden;isolation:isolate;background:#111a3a!important;border-color:#b6a5ef40!important;backdrop-filter:none!important}
-html[data-horizon-theme='on'] .pks-map-search-panel>:not([data-horizon-window]){position:relative;z-index:1}
-html[data-horizon-theme='on'] .pks-map-search-panel input{background:#171f48bb!important;border-color:#b6a5ef30!important;color:#f2f0ff!important}
-html[data-horizon-theme='on'] .pks-map-search-panel [style*='color']{color:var(--horizon-accent)!important}
-[data-horizon-window]:not([data-horizon-canvas])::after{content:'';position:absolute;inset:0;z-index:5;background:linear-gradient(#0b10303b,#10173724)}
-[data-horizon-window]:not([data-horizon-canvas]) [data-horizon-sun]{width:28px;height:28px;box-shadow:0 0 18px 8px #ffc48535}
-[data-horizon-window]:not([data-horizon-canvas]) [data-horizon-moon]{width:30px;height:30px}
-html[data-horizon-theme='on'] .map-detail-shell{isolation:isolate;background:var(--ui-surface)!important;border-color:var(--ui-edge);backdrop-filter:none!important}
-html[data-horizon-theme='on'] .map-detail-shell [data-vehicle-header]{background:transparent!important}
-html[data-horizon-theme='on'] :is(.connections-heading,.connections-results-heading){background:none!important;box-shadow:none!important;border:0!important;border-radius:0!important}
-html[data-horizon-theme='on'] .connections-primary{background:linear-gradient(110deg,#9263e6,#b08aff)!important;color:#fff!important;box-shadow:0 5px 24px #9263e62b}
-html[data-horizon-theme='on'] .connections-segmented .active{background:#8052ce!important}
-html[data-horizon-theme='on'] .pks-options-sheet .personal-preset{background:#111833!important;border-color:#b6a5ef35!important}
-html[data-horizon-theme='on'] .pks-options-sheet .personal-preset[aria-pressed='true']{border-color:#c3a2ff!important;box-shadow:0 0 0 1px #c3a2ff70,inset 0 0 24px #a980ff0b}
-html[data-horizon-theme='on'] .connections-heading h1{text-shadow:0 2px 10px #070b24}
-html[data-horizon-theme='on'] [data-admin-viewport] [data-cosmic-canvas]{background:transparent!important}
-html[data-horizon-theme='on'] [data-horizon-sky]{display:none}
-html[data-horizon-theme='on']:has(.pks-options-sheet) [data-horizon-sky]{display:block}
-html[data-horizon-theme='on']:has(.pks-status-screen) [data-horizon-sky]{display:none}
-/* Override the shared glass root, whose selectors include both theme and glass attributes. */
-html[data-horizon-theme='on'] .pks-theme-root [data-admin-viewport][data-panel-theme][data-glass]{background:var(--ui-canvas,#0b1030)!important}
-/* Settings defines its own inline palette; keep it in the same astronomical palette. */
-html[data-horizon-theme='on'] .pks-options-sheet{
- --ui-canvas:#0b1030!important;--ui-surface:var(--horizon-surface,#101633)!important;--ui-raised:var(--horizon-raised,#1a2044)!important;
- --ui-text:#f2f0ff!important;--ui-muted:#bcbdd8!important;--ui-edge:#b6a5ef36!important;
- --pks-accent:var(--horizon-accent,#bda2ff)!important;--pks-accent-text:var(--horizon-accent,#bda2ff)!important;
- --pks-accent-soft:#bda2ff28!important;--pks-accent-border:#bda2ff70!important;--pks-accent-on:#171029!important;
- background:#0b1030!important
-}
-
-html[data-horizon-theme='on'] .pks-theme-root[data-ui-theme='dark-horizon'] .pks-options-sheet[data-options-sheet]{background:#0b1030!important}

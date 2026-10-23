@@ -23,7 +23,6 @@ import JourneyStages from './JourneyStages';
 import JourneyDisclosure from './JourneyDisclosure';
 import {anchorJourneyHeader} from '@/lib/journey-scroll-anchor';
 import CosmicFilterEffects from '../CosmicFilterEffects';
-import {HorizonWindow} from '../HorizonSky';
 import './journeys.css';
 const JourneyMap=dynamic(()=>import('./JourneyMap'),{ssr:false,loading:()=> <p className="connections-hint">Ładowanie mapy…</p>});
 const JourneyPlaceMap=dynamic(()=>import('./JourneyPlaceMap'),{ssr:false,loading:()=> <p className="connections-hint">Ładowanie mapy…</p>});
@@ -101,7 +100,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
  },30000,active&&results!==null&&!busy,30000);
  const changeOption=(patch:Partial<typeof options>)=>{invalidate();setOptions(value=>({...value,...patch}));};
  return <section ref={viewRef} className="connections-view" data-panel-theme={dark?'dark':'light'} data-cosmic-canvas aria-label="Połączenia">
-  <HorizonWindow canvas/>
+
   <div className="connections-content" inert={Boolean(picker)}>
    <header className="connections-heading"><span className="connections-emblem"><JourneyIcon size={28}/></span><div><h1>Połączenia</h1><p>Rozkłady jazdy i planowanie podróży</p></div></header>
    <div className="connections-workspace"><aside className="connections-search-column"><div data-cosmic-panel className="connections-card connections-form">

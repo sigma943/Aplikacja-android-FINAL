@@ -78,11 +78,10 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
-      - name: Verify astronomical Horizon theme
+      - name: Verify removed theme migration and MPK recovery
         run: |
-          node --test test/mpk-mybus-fallback.test.cjs test/horizon-sky.test.cjs test/app-theme.test.cjs test/journey-settings.test.cjs test/ban-details.test.cjs test/vehicle-stop-progress.test.cjs
-          node test/horizon-browser.cjs
-          node test/horizon-app-browser.cjs
+          node --test test/mpk-mybus-fallback.test.cjs test/removed-theme.test.cjs test/mpk-mybus-departures.test.cjs test/app-theme.test.cjs test/journey-settings.test.cjs test/ban-details.test.cjs test/vehicle-stop-progress.test.cjs
+          node test/theme-removal-browser.cjs
 
       - name: Verify journey place picker
         run: |

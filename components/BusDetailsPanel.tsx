@@ -13,7 +13,6 @@ import {vehicleStopDeparture} from '@/lib/vehicle-stop-timing';
 import {punctualityTimeClass} from '@/lib/punctuality-color';
 import {mpkVehicleDisplayName} from '@/lib/mpk-stop-label';
 import {displayStopLabel} from '@/lib/stop-label';
-import {HorizonWindow} from './HorizonSky';
 
 interface BusDetailsPanelProps {
   preview?:boolean;
@@ -76,7 +75,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   transition={SHEET_SPRING}
                   className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
-                  <HorizonWindow/>
+
                   <motion.div 
                      ref={busHeaderRef}
                      role="button"
@@ -92,7 +91,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                      <div 
                         className="w-12 h-1.5 rounded-full bg-white/40 hover:bg-white/60 mx-auto mb-3 transition-colors"
                      />
-                     
+
                      <div className="flex items-baseline gap-2 mb-1 md:mb-1.5">
                         <span className="text-3xl md:text-5xl font-black tracking-tighter drop-shadow-sm">{selectedBus.routeShortName || '-'}</span>
                         <span className="uppercase tracking-widest text-[10px] md:text-xs font-bold text-white/90">{selectedVehicleIsTrain ? 'Pociag' : 'Linia'}</span>
@@ -140,7 +139,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                         )}
                      </h3>
                   </motion.div>
-                  
+
                   <AnimatePresence initial={false}>
                     {(isBusPanelExpanded || busDrag.dragging) && (
                       <motion.div
@@ -166,7 +165,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                                   : 'Brak danych'}
                            </span>
                         </div>
-                        
+
                         {!selectedBusIsWaitingForDeparture && (
                         <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard}`}>
                               <div className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5 md:mb-1 ${textSub}`}>
@@ -202,7 +201,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                            </div>
                         )}
                       </div>
-                      
+
                       {selectedBusTripFinished&&<div role="status" data-next-departure className={`p-3 rounded-xl border ${mapDetailCard}`}><div className={`flex items-center gap-2 text-sm ${textMain}`}><Clock size={17}/>{breakCountdownLabel?`Kolejny odjazd za ${breakCountdownLabel}`:'Obliczanie czasu do kolejnego odjazdu…'}</div></div>}
                       {!selectedBusTripFinished&&(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>

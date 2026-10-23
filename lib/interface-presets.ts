@@ -9,11 +9,6 @@ const appearance=(changes:Partial<InterfaceAppearance>):InterfaceAppearance=>({.
 
 export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   {
-    name:'Horyzont',description:'Góry i leśny horyzont, ruch słońca i aktualna faza księżyca',theme:'dark-horizon',accent:'#bda2ff',glass:true,glow:false,glowStrength:25,
-    appearance:appearance({glassOpacity:78,glassBlur:0,glassBlurEnabled:false,borderStrength:16,shadowStrength:15,navIndicator:'line',glowStyle:'accent',glowColor:'#a9ceff'}),
-    preview:{background:'#101334',surface:'#191e43',text:'#f1f0ff'},
-  },
-  {
     name:'Różowy',description:'Cukierkowy róż, malinowe akcenty i subtelne serduszka',theme:'light-pink',accent:'#c02674',glass:true,glow:false,glowStrength:40,
     appearance:appearance({}),
     preview:{background:'#ffd1e8',surface:'#ffd1e8',text:'#57153c'},
@@ -56,5 +51,5 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
 ];
 
 export function matchesInterfacePreset(preset:InterfacePreset,current:{appearance:InterfaceAppearance;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number}){
-  return current.theme===preset.theme&&(preset.theme==='dark-horizon'||current.accent.toLowerCase()===preset.accent)&&current.glass===preset.glass&&current.glow===preset.glow&&current.glowStrength===preset.glowStrength&&Object.entries(preset.appearance).every(([key,value])=>JSON.stringify(current.appearance[key as keyof InterfaceAppearance])===JSON.stringify(value));
+  return current.theme===preset.theme&&current.accent.toLowerCase()===preset.accent&&current.glass===preset.glass&&current.glow===preset.glow&&current.glowStrength===preset.glowStrength&&Object.entries(preset.appearance).every(([key,value])=>JSON.stringify(current.appearance[key as keyof InterfaceAppearance])===JSON.stringify(value));
 }

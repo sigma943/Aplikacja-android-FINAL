@@ -1,5 +1,4 @@
 import CosmicFilterEffects from '@/components/CosmicFilterEffects';
-import {HorizonWindow} from '@/components/HorizonSky';
 import {createStopSearchIndex,searchStops} from '@/lib/stop-search';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
@@ -289,7 +288,7 @@ export default function StopList({
 
   return (
     <motion.div key={isFullListOpen ? "full" : "preview"} initial={reduceMotion ? false : {opacity: 0, y: isFullListOpen ? 18 : -10}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.52, ease: [0.25, 0.1, 0.25, 1]}} data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
-      <HorizonWindow canvas/>
+
       <CosmicFilterEffects/>
       {!isFullListOpen && <>
       <div data-stop-list-header data-cosmic-panel className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>

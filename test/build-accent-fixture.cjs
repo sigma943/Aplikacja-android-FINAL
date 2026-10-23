@@ -3,7 +3,7 @@ const fs=require('node:fs');const path=require('node:path');const os=require('no
 // Render the real Home, stop views and settings without the authentication gate.
 // The production build and APK assets remain untouched. Requests are intercepted
 // by the browser test, so no device records are created in a live Firebase project.
-module.exports=function buildAccentFixture(configure=()=>{}){
+module.exports=function buildAccentFixture(){
   const source=process.cwd();const fixture=fs.mkdtempSync(path.join(os.tmpdir(),'pks-ui-'));
   fs.mkdirSync(path.join(fixture,'app'));
   const linkType=process.platform==='win32'?'junction':'dir';
@@ -120,7 +120,6 @@ export default function Route(){const [fixed,setFixed]=useState(true);const loca
   fs.writeFileSync(path.join(fixture,'app/layout.tsx'),`import UIMotionProvider from '@/components/UIMotionProvider';import {INITIAL_THEME_SCRIPT} from '@/lib/app-theme';export default function Layout({children}:{children:React.ReactNode}){return <html lang="pl"><head><script dangerouslySetInnerHTML={{__html:INITIAL_THEME_SCRIPT}}/><link rel="stylesheet" href="/production.css" /></head><body><UIMotionProvider>{children}</UIMotionProvider></body></html>}`);
   fs.writeFileSync(path.join(fixture,'next.config.mjs'),`export default {output:'export',trailingSlash:true,images:{unoptimized:true},eslint:{ignoreDuringBuilds:true},typescript:{ignoreBuildErrors:true},transpilePackages:['motion']};`);
   try{
-    configure(fixture);
     execFileSync(process.execPath,[require.resolve('next/dist/bin/next'),'build'],{cwd:fixture,env:{...process.env,NODE_ENV:'production'},stdio:'inherit'});
     const cssDir=path.join(source,'out/_next/static/css');
     fs.writeFileSync(path.join(fixture,'out/production.css'),fs.readdirSync(cssDir).filter(name=>name.endsWith('.css')).map(name=>fs.readFileSync(path.join(cssDir,name),'utf8')).join('\n'));

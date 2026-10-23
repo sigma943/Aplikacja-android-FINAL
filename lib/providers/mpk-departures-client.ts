@@ -78,6 +78,34 @@ async function mpkServiceIdsForDate(dateIso: string) {
   return promise;
 }
 
+// A failing SIP server affects every stop. Back off globally instead of issuing
+// the same failing request on each refresh, while continuing normal schedules.
+const realtimeBackoff=new Map<string,number>();
+const realtimeSources=[
+  (id:string)=>`http://84.38.160.220/myBusServices/SchedulesService.svc/GetTimeTableReal?${new URLSearchParams({nBusStopId:id})}`,
+  (id:string)=>`https://einfo.erzeszow.pl/Home/GetNextDepartues?${new URLSearchParams({busStopId:id})}`,
+];
+async function fetchRealtimeBoard(sipId:string,signal?:AbortSignal){
+  const {parseMybusDepartures}=await import('../mpk-mybus-departures');
+  let lastError:unknown;
+  for(const source of realtimeSources){
+    signal?.throwIfAborted();
+    const key=source('');
+    if((realtimeBackoff.get(key)||0)>Date.now())continue;
+    try{
+      const xml=await withRequestDeadline(activeSignal=>requestText(source(sipId),{signal:activeSignal}),signal,3000);
+      const rows=parseMybusDepartures(xml,sipId,Date.now());
+      realtimeBackoff.delete(key);return rows;
+    }catch(error){
+      if(signal?.aborted)throw new DOMException('Request aborted','AbortError');
+      const {isAppVisible}=await import('../app-activity');
+      if(!isAppVisible())throw error;
+      lastError=error;realtimeBackoff.set(key,Date.now()+60_000);
+    }
+  }
+  throw lastError||new Error('MPK: źródła prognoz chwilowo niedostępne; ponowna próba za minutę.');
+}
+
 export async function fetchMpkRzeszowDeparturesClient(
   stopId: string,
   dateIso: string,
@@ -111,10 +139,10 @@ export async function fetchMpkRzeszowDeparturesClient(
       const matches = Object.entries(mybusStopCatalogue).filter(([,entry]) => String(entry[0]) === stopId);
       if (matches.length !== 1) throw new Error('MPK stop has no unique SIP identity');
       const sipId = matches[0][0];
-      const xml = await requestText(`http://84.38.160.220/myBusServices/SchedulesService.svc/GetTimeTableReal?${new URLSearchParams({nBusStopId:sipId})}`, {signal:options?.signal});
-      const {parseMybusDepartures,mergeMybusDepartures} = await import('../mpk-mybus-departures');
-      const observedAt = Date.now();
-      values = mergeMybusDepartures(values,parseMybusDepartures(xml,sipId,observedAt),dateIso,observedAt);
+      const board=await fetchRealtimeBoard(sipId,options?.signal);
+      const {mergeMybusDepartures}=await import('../mpk-mybus-departures');
+      const observedAt=Date.now();
+      values=mergeMybusDepartures(values,board,dateIso,observedAt);
     } catch (error) {
       if (options?.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
       realtimeUnavailable = true;
@@ -123,7 +151,10 @@ export async function fetchMpkRzeszowDeparturesClient(
   const result = values as MpkRzeszowScheduleEntry[] & { warning?: string };
   if(schedule.status==='rejected' || board.status==='rejected') result.warning = 'MPK: nie wszystkie dane są dostępne; pokazano dostępny rozkład.';
   if(realtimeUnavailable && schedule.status === 'rejected' && board.status === 'rejected') throw schedule.reason;
-  if(realtimeUnavailable) result.warning = 'MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.';
+  // Forecasts are normally unavailable for courses hours away. Do not label
+  // a healthy distant timetable as a live-data failure.
+  const nearby=values.some(entry=>{const at=warsawTimeMs(dateIso,entry.departure_time);return Number.isFinite(at)&&at>=Date.now()-120_000&&at<=Date.now()+60*60_000;});
+  if(realtimeUnavailable&&nearby) result.warning = 'MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.';
   return result;
 }
 

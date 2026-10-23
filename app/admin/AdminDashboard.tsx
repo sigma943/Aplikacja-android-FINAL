@@ -14,7 +14,6 @@ import {X} from 'lucide-react';
 import {Sidebar} from './components/Sidebar';
 import {DeviceTable} from './components/DeviceTable';
 import {OperatorsView} from './components/OperatorsView';
-import {HorizonWindow} from '@/components/HorizonSky';
 import {LogsView} from './components/LogsView';
 import {BansView} from './components/BansView';
 import {StatisticsView} from './components/StatisticsView';
@@ -960,7 +959,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       data-glass={embedded && transparentUI ? 'on' : 'off'}
       data-panel-theme={isDarkTheme ? 'dark' : 'light'}
     >
-      <HorizonWindow canvas/>
+
       {!isDarkTheme && (
         <style>{`
           .admin-light,

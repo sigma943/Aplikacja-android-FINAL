@@ -31,7 +31,6 @@ import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterface
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops, upcomingTimedVehicleStops} from '@/lib/vehicle-stop-timing';
-import {HorizonWindow} from '@/components/HorizonSky';
 
 import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
 import dynamic from 'next/dynamic';
@@ -163,7 +162,7 @@ export default function Home() {
   const [isAppForeground, setIsAppForeground] = useState<boolean>(
     typeof document === 'undefined' ? true : document.visibilityState === 'visible',
   );
-  
+
   // Customization States
   const [themeColor, setThemeColor] = useState('#00A3A2');
   const [appearanceReady,setAppearanceReady]=useState(false);
@@ -374,11 +373,11 @@ export default function Home() {
     if (sTrans !== null) setTimeout(() => setTransparentUI(sTrans === 'true'), 0);
     const favs = localStorage.getItem('mks_fav_stops');
     if (favs) setTimeout(() => setFavsState(JSON.parse(favs)), 0);
-    
+
     // Check system preference
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     setSystemIsDark(mediaQuery.matches);
-    
+
     const handler = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
@@ -1108,7 +1107,7 @@ export default function Home() {
     setIsTransportPanelOpen(false);
     loadVehicleDetails(v);
   }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
-  
+
   const tabTransitionRef=useTabTransition(activeTab,!interfaceAppearance.reducedMotion);
 
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
@@ -1122,7 +1121,7 @@ export default function Home() {
         .dark-mode-map .leaflet-control-attribution {
           filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
         }
-        
+
         /* Warm (Piaskowy) Theme Overrides */
         .theme-warm .bg-slate-50:not(.mks-bus-marker *) { background-color: #f2ede1 !important; }
         .theme-warm .bg-white:not(.mks-bus-marker *) { background-color: #faf7ef !important; }
@@ -1196,7 +1195,7 @@ export default function Home() {
       {/* Main Content Area */}
       <div className={`flex-1 relative min-h-0 overflow-hidden ${isDark ? 'dark-mode-map' : ''}`}>
          <div ref={tabTransitionRef} data-tab-transition aria-hidden="true" className="pointer-events-none absolute inset-0 z-[90] opacity-0" style={{backgroundColor:'var(--ui-canvas,#040609)'}}/>
-         
+
          <BackScope enabled={activeTab === 'admin'}>
          <AnimatePresence mode="wait">
             {activeTab === 'admin' && canOpenAdminEmbed && (
@@ -1219,7 +1218,7 @@ export default function Home() {
          {/* ============== MAP VIEW ============== */}
          <div data-map-canvas className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
             <BusMap
-               active={(activeTab==='map'||(actualTheme!=='dark-cosmos'&&actualTheme!=='dark-horizon'))&&!(actualTheme==='dark-horizon'&&isSettingsOpen)}
+               active={activeTab==='map'||actualTheme!=='dark-cosmos'}
                clockMs={selectedBus?now:0}
                vehicles={filteredVehicles} 
                onVehicleClick={handleVehicleClick}
@@ -1240,7 +1239,7 @@ export default function Home() {
 
             {/* Overlays for Map */}
             <div data-map-toolbar data-map-detail={Boolean(selectedBus||selectedStopId)} className={`absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none ${activeTab === 'map' ? 'flex' : 'hidden'} flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
-              
+
               {/* Top Box Mobile / Desktop */}
               <MapHeader mapGlassPanel={mapGlassPanel} mapGlassInput={mapGlassInput} themeColor={themeColor} transparentUI={transparentUI} isDark={isDark} isManualRefreshing={isManualRefreshing} showAlertDot={showAlertDot} error={error} isOffline={isOffline} textSub={textSub} filterRoute={filterRoute} setFilterRoute={setFilterRoute} handleManualRefresh={handleManualRefresh} closeMapPanelsForSearch={closeMapPanelsForSearch}/>
 
@@ -1466,7 +1465,7 @@ export default function Home() {
             overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
-            <HorizonWindow canvas/>
+
             <OptionsContent journeysAllowed={!isJourneysTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed} chrome={optionsChrome} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={expandOptions} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>
           </OptionsSheet>
           </Suspense>
