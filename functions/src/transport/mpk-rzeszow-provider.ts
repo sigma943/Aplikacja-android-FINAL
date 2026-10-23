@@ -3,7 +3,7 @@ import {enrichMybusRoute} from './mpk-mybus-route';
 import {parseMybusTimetable} from './mpk-mybus-timetable';
 import { warsawDateIso, warsawTimeMs } from './transit-time';
 import { busOperatingState } from './bus-operating-state';
-import { mpkFeedVehicles, mpkSignalTime, mpkFirstText, mpkMybusDepartureTime, mpkVehicleLine, mpkVehicleDirection, mpkMybusCourseId } from './mpk-vehicle-feed';
+import { mpkFreshFeedVehicles, mpkFeedVehicles, mpkSignalTime, mpkFirstText, mpkMybusDepartureTime, mpkVehicleLine, mpkVehicleDirection, mpkMybusCourseId } from './mpk-vehicle-feed';
 import { getCachedValue } from './cache';
 import type { GetVehiclesOptions, ProviderVehiclesResult, TransportProvider, TransportStopSchedule, TransportVehicle } from './types';
 
@@ -171,7 +171,7 @@ async function loadRawVehicles() {
       ];
       for (const load of loaders) {
         try {
-          const rows = await load();
+          const rows = mpkFreshFeedVehicles(await load());
           if (rows.length > 0) return rows;
           emptyResponse = true;
         } catch (error) { lastError = error; }

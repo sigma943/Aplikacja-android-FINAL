@@ -54,3 +54,11 @@ export function mpkMybusCourseId(raw: Record<string, string>): string | undefine
   const id = mybusWaiting(raw) ? raw.nk : raw.ik;
   return Number(id) > 0 ? id : undefined;
 }
+
+/** A nonempty frozen feed must not prevent trying a healthy backup. */
+export function mpkFreshFeedVehicles(rows:Record<string,string>[],now=Date.now()) {
+  if(!rows.length)return rows;
+  const fresh=rows.filter(row=>now-mpkSignalTime(row,now)<=30*60_000);
+  if(!fresh.length)throw new Error('MPK: źródło pozycji zwraca wyłącznie nieaktualne dane GPS.');
+  return fresh;
+}

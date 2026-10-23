@@ -364,7 +364,7 @@ export function LogsView({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text" 
-              placeholder="Szukaj w logach aktywności..." 
+              placeholder="Szukaj..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-[#111623] border border-white/10 rounded-2xl py-3.5 pl-10 pr-4 text-sm font-medium text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-all shadow-inner"

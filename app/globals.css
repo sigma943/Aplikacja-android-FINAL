@@ -1,3 +1,4 @@
+@layer pks-performance;
 @import "tailwindcss";
 
 .pks-theme-root {
@@ -490,7 +491,7 @@ html:not([data-personal-nav='line']) .pks-navigation [data-nav-indicator] { disp
 html[data-personal-nav='pill'] .pks-navigation button[aria-current='page'] { isolation:isolate; }
 html[data-personal-nav='pill'] .pks-navigation button[aria-current='page']::before { content:''; position:absolute; inset:7px; background:var(--pks-accent-soft); border-radius:var(--personal-control-radius); z-index:-1; }
 html[data-personal-inactive='true'] .pks-navigation button:not([aria-current='page']):not(:disabled) { opacity:var(--personal-inactive-opacity); }
-html[data-personal-motion='reduced'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) *,html[data-personal-motion='reduced'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) *::before { animation-duration:.01ms !important; transition-duration:.01ms !important; }
+html[data-personal-motion='reduced'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) *:not(.leaflet-container,.leaflet-container *),html[data-personal-motion='reduced'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) *:not(.leaflet-container,.leaflet-container *)::before { animation-duration:.01ms !important; transition-duration:.01ms !important; }
 html[data-personal-motion='reduced'] .pks-theme-root button:active { scale:1; }
 html[data-personal-hover='false'] .transit-stop-card:hover:not(:focus-within) { border-color:var(--transit-border); }
 html[data-personal-text='true'] :is(.pks-theme-root,.transit-view,.pks-panel-scope,[data-carrier-sheet]) [class~='text-[9px]'] { font-size:var(--personal-text-9) !important; }
@@ -577,8 +578,9 @@ html[data-personal-control-radius='true'] .personal-preset { clip-path:inset(0 r
 .personal-profile-save input { padding:10px; border-radius:10px; border:1px solid var(--ui-edge); background:var(--ui-surface); color:var(--ui-text); }
 .pks-navigation [data-nav-item='map'] { order:var(--personal-nav-map,0); }
 .pks-navigation [data-nav-item='stops'] { order:var(--personal-nav-stops,1); }
-.pks-navigation [data-nav-item='admin'] { order:var(--personal-nav-admin,2); }
-.pks-navigation [data-nav-item='options'] { order:var(--personal-nav-options,3); }
+.pks-navigation [data-nav-item='journeys'] { order:var(--personal-nav-journeys,2); }
+.pks-navigation [data-nav-item='admin'] { order:var(--personal-nav-admin,3); }
+.pks-navigation [data-nav-item='options'] { order:var(--personal-nav-options,4); }
 html[data-personal-departures='simple'] [data-departure-extra] { display:none; }
 html[data-personal-departures='simple'] [data-departure-row] { padding-block:6px !important; gap:8px; }
 html[data-personal-departures='simple'] [data-departure-row].map-detail-row { margin-bottom:4px; }
@@ -1050,6 +1052,9 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 :is(.pks-theme-root,.pks-panel-scope) input:is([type='date'],[type='datetime-local'])::-webkit-calendar-picker-indicator { opacity:1; filter:var(--date-control-icon-filter,none); cursor:pointer; }
 /* Keep the native picker and its click target at the trailing edge of range fields. */
 .admin-range-date { display:block; position:relative; min-width:0; padding-inline-end:3rem; }
+.admin-date-field > svg { color:var(--ui-muted,#b9c6dd); }
+.admin-date-field .admin-date-input { padding-inline-end:3rem; min-width:0; max-width:100%; }
+:is(.pks-theme-root,.pks-panel-scope) .admin-date-input:is([type='date'],[type='datetime-local'])::-webkit-calendar-picker-indicator { opacity:0 !important; width:24px; height:24px; }
 .admin-range-date::-webkit-calendar-picker-indicator { position:absolute; right:1rem; top:50%; transform:translateY(-50%); margin:0; }
 
 /* Shared application colour editor; never delegates to the Android picker. */
@@ -1095,3 +1100,32 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 .journey-heading{display:flex;align-items:center;gap:15px}.journey-view h1{font-size:25px;font-weight:750;line-height:1.3}.journey-view h2{font-size:18px;font-weight:700;margin-bottom:12px}.journey-view h3{font-size:15px;font-weight:650}.journey-heading p,.journey-hint{font-size:12px;color:var(--journey-muted);line-height:1.65}.journey-icon{color:var(--pks-accent,#a78bfa);background:color-mix(in srgb,var(--pks-accent,#a78bfa) 12%,transparent);border:1px solid color-mix(in srgb,var(--pks-accent,#a78bfa) 28%,transparent);border-radius:16px;padding:12px;flex-shrink:0}.journey-view button,.journey-desktop-link{border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:14px;padding:12px 14px;background:color-mix(in srgb,var(--journey-ink,#e7eaf1) 4%,transparent);font-size:13px;min-height:44px;transition:background .15s;}
 .journey-view button:focus-visible,.journey-view input:focus-visible,.journey-view select:focus-visible{outline:2px solid var(--pks-accent,#a78bfa);outline-offset:3px}.journey-view button[aria-pressed=true]{color:var(--pks-accent,#a78bfa);border-color:var(--pks-accent,#a78bfa);background:color-mix(in srgb,var(--pks-accent,#a78bfa) 13%,transparent)}.journey-view button:disabled{opacity:.5}.journey-form{display:grid;gap:12px}.journey-location{display:flex;align-items:center;gap:13px;text-align:left;min-height:78px!important}.journey-location svg{color:var(--pks-accent,#a78bfa);flex-shrink:0}.journey-location span{overflow-wrap:anywhere}.journey-location small{display:block;font-size:10px;letter-spacing:1.5px;color:var(--journey-muted);margin-bottom:5px}.journey-swap{justify-self:end;margin:-24px 14px;z-index:2;background:var(--journey-panel)!important;padding:9px!important}.journey-row{display:flex;gap:8px;align-items:stretch;min-width:0}.journey-row>label,.journey-row>button{flex:1;min-width:0}.journey-row>label{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--journey-muted)}.journey-row button,.journey-primary,.journey-preferences{display:flex;align-items:center;justify-content:center;gap:8px}.journey-view input:not([type=checkbox]):not([type=range]),.journey-view select{width:100%;min-width:0;color:var(--journey-ink);background:color-mix(in srgb,var(--journey-panel) 90%,#000 10%);border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:12px;padding:12px;font-size:14px;min-height:44px;color-scheme:dark}.journey-view[data-panel-theme=light] input,.journey-view[data-panel-theme=light] select{color-scheme:light}.journey-view input[type=range],.journey-view input[type=checkbox]{accent-color:var(--pks-accent,#a78bfa)}.journey-primary{background:var(--pks-accent,#a78bfa)!important;color:var(--pks-accent-on,#08121d);border-color:transparent!important;font-weight:750!important}.journey-preferences{justify-content:space-between!important}.journey-preference-body{display:grid;gap:16px;padding:8px 0}.journey-preference-body>label{display:grid;gap:9px;font-size:13px}.journey-preference-body fieldset{border:0;display:grid;gap:10px}.journey-preference-body legend{font-size:13px;margin-bottom:10px}.journey-check{display:flex;gap:10px;align-items:center;font-size:13px}.journey-check input{width:18px;height:18px}.journey-error{display:flex;gap:8px;align-items:flex-start;color:#fb7185;font-size:13px}.journey-results{display:grid;gap:12px}.journey-result{display:grid!important;grid-template-columns:1fr auto;gap:10px!important;width:100%;text-align:left;border:0!important;background:transparent!important;padding:0!important}.journey-result strong{font-size:21px}.journey-result b{color:var(--pks-accent,#a78bfa)}.journey-result>span,.journey-badges{grid-column:1/-1}.journey-result>span{font-size:12px;color:var(--journey-muted)}.journey-badges{display:flex;flex-wrap:wrap;gap:7px}.journey-badges span{display:flex;align-items:center;gap:5px;background:#14b8a61a;color:#2dd4bf;border-radius:8px;padding:6px 8px;font-size:12px}.journey-badges [data-provider=mpk]{color:#fb923c;background:#f973161a}.journey-badges [data-provider=marcel]{color:#a3e635;background:#84cc161a}.journey-badges [data-provider=walk]{color:var(--journey-muted);background:#94a3b81a}.journey-timeline{margin-top:20px;border-top:1px solid #94a3b82a;padding-top:20px;display:grid;gap:14px}.journey-leg{position:relative;border-left:2px solid color-mix(in srgb,var(--pks-accent,#a78bfa) 40%,transparent);padding:0 0 15px 20px;margin-left:6px}.journey-leg small{color:var(--pks-accent,#a78bfa)}.journey-leg p{font-size:13px;line-height:1.8;color:var(--journey-muted)}.journey-timeline-dot{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--pks-accent,#a78bfa);left:-6px;top:4px}.journey-map{border-radius:16px;overflow:hidden}.journey-map>.journey-hint{padding:10px}.journey-picker{position:absolute;z-index:10;inset:12px 10px calc(82px + env(safe-area-inset-bottom));border:1px solid #94a3b850;border-radius:24px;background:var(--journey-panel);backdrop-filter:blur(40px);display:flex;flex-direction:column;padding:18px;box-shadow:0 0 0 50vmax #0008}.journey-picker-header{display:flex;justify-content:space-between;align-items:center;gap:8px}.journey-picker-header h2{margin:0}.journey-search{display:flex;align-items:center;gap:10px;margin:15px 0}.journey-stop-list{overflow:auto;min-height:0;display:grid;gap:9px}.journey-stop-list>button{display:flex;gap:12px;text-align:left;align-items:center}.journey-stop-list strong{display:block;font-size:14px}.journey-stop-list small{display:block;font-size:11px;color:var(--journey-muted);line-height:1.7}.journey-favorite{text-align:left;justify-content:flex-start!important;overflow-wrap:anywhere}.journey-desktop-link{background:#101827e8;color:#e7eaf1;backdrop-filter:blur(20px)}
 .pks-theme-root[data-ui-theme=dark-cosmos] .journey-view{background:linear-gradient(#060b1680,#060b1680),var(--theme-decoration);background-size:cover;background-attachment:local;}
+
+/* Shared stop lists use the active app artwork in both preview and full mode. */
+[data-stop-list-mode]{isolation:isolate}
+[data-stop-list-mode]>:not([data-filter-cosmos]){position:relative;z-index:1}
+html[data-cosmic-theme='on'] [data-stop-list-mode] [data-full-stop-list]{background:transparent!important}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-stop-list-mode]{background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-full-stop-list]{background:transparent!important}
+
+/* A reversible performance mode: keep saved visual preferences untouched. */
+/* Layered important overrides also win over the more specific cosmic glass rules. */
+@layer pks-performance {
+html[data-personal-light-effects='on'] body *,html[data-personal-light-effects='on'] body *::before,html[data-personal-light-effects='on'] body *::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;text-shadow:none!important}
+html[data-personal-light-effects='on'] :is(.mks-live-bus-body,.admin-device-card-glow){animation:none!important}
+html[data-personal-light-effects='on'] .admin-device-card-glow{display:none!important}
+html[data-personal-light-effects='on'] :is([data-cosmic-effects],[data-filter-cosmos],[data-cosmic-stage],[data-cosmic-transition],[data-cosmic-stars],[data-cosmic-meteor],[data-cosmic-comet],[data-cosmic-nav-stars]){display:none!important}
+html[data-personal-light-effects='on'] :is(.pks-glass,.pks-glass-frame,.pks-options-sheet,.map-detail-shell,.transit-surface,.transit-card,[data-cosmic-panel],.connections-card,.connections-map-sheet,.connections-picker){background-color:var(--personal-surface,#101a26)!important;background-image:none!important}
+html[data-personal-light-effects='on'] :is(.pks-navigation,.pks-map-search-panel){background-color:var(--personal-surface,#101a26)!important;background-image:none!important}
+/* Cover the sky behind transparent views and every journey portal, not only cards. */
+html[data-personal-light-effects='on'] :is(.pks-theme-root[data-ui-theme='dark-cosmos'],[data-cosmic-canvas],.connections-view,.journey-view){background-color:var(--ui-canvas,#080d1d)!important;background-image:none!important}
+html[data-personal-light-effects='on'] :is(.connections-map-modal,.connections-map-toolbar,.connections-place-confirm,.journey-picker){background-color:var(--personal-surface,#101a26)!important;background-image:none!important}
+html[data-personal-light-effects='on'] .pks-options-sheet::before{content:none!important}
+html[data-personal-light-effects='on'] .animate-spin{animation:spin 1s linear infinite!important}
+}
+
+/* Animate the wrapper, paint the complete card in a separate static rounded
+   surface. Explicit clipping keeps WebView's background and footer in one mask. */
+.admin-device-card{isolation:isolate;overflow:hidden;min-height:min-content}
+html[data-personal-light-effects='on'] .admin-device-card{overflow:clip;clip-path:inset(0 round 2rem)}
+html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-device-card{clip-path:inset(0 round var(--personal-card-radius))}

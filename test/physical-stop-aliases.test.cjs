@@ -99,3 +99,16 @@ test('Marcel fallback never borrows a numeric PKS ID, opposite direction, ambigu
   assert.equal(canonicalMapStopId([{...base,name:'Babica 45',code:'45'}],'36','marcel',{...point,n:'Babica - 53'}),'marcel:36');
   assert.equal(canonicalMapStopId([base],'36','marcel',{...point,lat:NaN}),'marcel:36');
 });
+test('Lisa-Kuli Jagiellonska 118 and Mochnackiego 440 stay separate on list, map and in line 35',()=>{
+ const ids=['118','186','440','187','50'];
+ const mpk=ids.map(id=>({id,...mpkAsset[id],lines:['35']})),pks=['11461','11462'].map(id=>({...pksAsset[id],id,name:pksAsset[id].n+' '+pksAsset[id].code,lines:[]}));
+ for(const physical of [false,true]){
+  const list=buildStopsCatalog(pks,mpk,[],'separate-lisa-platforms',physical),find=id=>list.find(s=>String(s.providerStopIds?.mpk_rzeszow).split(',').includes(id));
+  const jag=find('118'),moch=find('440');assert.notEqual(jag.id,moch.id);assert.equal(jag.providerStopIds.mpk_rzeszow,'118');assert.equal(moch.providerStopIds.mpk_rzeszow,'440');
+  assert.match(jag.name,/Jagiellońska/);assert.match(moch.name,/Mochnackiego/);
+  assert.equal(jag.lat,mpkAsset['118'].lat);assert.equal(moch.lon,mpkAsset['440'].lon);
+  const feed=JSON.parse(require('node:zlib').gunzipSync(require('node:fs').readFileSync('public/data/journeys/mpk.json.gz'))),{feedConnections}=load('lib/journey-timetable.ts');
+  const connections=feedConnections(feed,list,'2026-10-20',{at:0,arriveBy:false,maxTransfers:1,walkMeters:500,transferMinutes:5,providers:['mpk'],sort:'fastest',day:'2026-10-20'});
+  const leg=connections.find(c=>c.line==='35'&&c.from.providerStopIds?.mpk_rzeszow==='440');assert.ok(leg);assert.match(leg.from.name,/Mochnackiego/);assert.notEqual(leg.from.id,jag.id);
+ }
+});

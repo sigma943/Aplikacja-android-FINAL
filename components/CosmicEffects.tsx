@@ -24,7 +24,7 @@ export default function CosmicEffects(){
     let fading:Animation|null=null,parallax=false,lastTilt=0,origin:{beta:number;gamma:number}|null=null;
     let nativeActive=true,allowed=false,animation:Animation|null=null,cometAnimation:Animation|null=null,disposed=false;
     let region:HTMLElement|null=null,settle:ReturnType<typeof setTimeout>|null=null;
-    const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.pks-panel-scope[data-cosmic-view]';
+    const regionSelector='.pks-options-sheet,[data-carrier-sheet],.map-detail-shell,.transit-view,.connections-view,.pks-panel-scope[data-cosmic-view]';
     const session=visitSession??=cosmicScreenSession(crypto.getRandomValues(new Uint32Array(1))[0]);
     const write=(key:string,value:string)=>{if(root.style.getPropertyValue(key)!==value)root.style.setProperty(key,value);};
     const measure=()=>{
@@ -135,9 +135,9 @@ export default function CosmicEffects(){
       const previousTab=session.tab;
       const entered=session.enterTab(tab);
       const theme=resolveAppTheme(readAppTheme());
-      const nextRegion=theme==='dark-cosmos'?findRegion():null;
-      root.dataset.cosmicTheme=theme==='dark-cosmos'?'on':'off';
-      try{root.dataset.cosmicGlass=localStorage.getItem('mks_transparent')==='false'?'off':'on';}catch{root.dataset.cosmicGlass='on';}
+      const nextRegion=theme==='dark-cosmos'&&!light?findRegion():null;
+      root.dataset.cosmicTheme=theme==='dark-cosmos'&&!light?'on':'off';
+      try{root.dataset.cosmicGlass=light||localStorage.getItem('mks_transparent')==='false'?'off':'on';}catch{root.dataset.cosmicGlass='on';}
       let parallaxPreference=false;try{parallaxPreference=localStorage.getItem(COSMIC_PARALLAX_KEY)==='true';}catch{}
       write('--cosmos-clear-veil',!appearance.glassBlurEnabled||appearance.glassBlur===0?'rgba(4,8,22,.56)':'transparent');
       write('--cosmos-veil-alpha',String(appearance.glassOpacity/100*.42));

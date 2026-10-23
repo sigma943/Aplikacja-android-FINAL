@@ -26,13 +26,13 @@ export function orderedVehicleStops<T extends Stop>(stops: T[]): T[] {
   return stops.filter((_, i) => !removed.has(i));
 }
 /** Keep the ordered suffix after the last passed stop, including repeated stops on loops. */
-export function upcomingVehicleStops<T extends Stop>(stops: T[], nowMs: number, lastStopId?: number | string) {
+export function upcomingVehicleStops<T extends Stop>(stops: T[], nowMs: number | undefined, lastStopId?: number | string) {
   stops = orderedVehicleStops(stops);
   let lastPassed = -1;
   for (let index = 0; index < stops.length; index++) {
     const stop = stops[index];
     const time = Date.parse(stop.real || stop.planned || '');
-    if (stop.isPast || (Number.isFinite(time) && time < nowMs)) lastPassed = index;
+    if (stop.isPast || (nowMs != null && Number.isFinite(time) && time < nowMs)) lastPassed = index;
   }
   if (lastStopId != null) {
     // The first occurrence is the passed one; a later return on a loop stays.

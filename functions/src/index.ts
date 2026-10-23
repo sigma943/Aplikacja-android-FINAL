@@ -20,6 +20,7 @@ type DevicePermissions = {
   canChangeRoles: boolean;
   disableMap: boolean;
   disableStops: boolean;
+  disableJourneys?:boolean;
   globalSettings: boolean;
   globalSettingsEdit: boolean;
   canBan: boolean;
@@ -109,6 +110,7 @@ const PERMISSION_KEYS = [
   'canChangeRoles',
   'disableMap',
   'disableStops',
+  'disableJourneys',
   'globalSettings',
   'globalSettingsEdit',
   'canBan',
@@ -166,6 +168,7 @@ const sanitizePermissionsForRole = (
         ...base,
         disableMap: req.disableMap === true,
         disableStops: req.disableMap === true ? false : req.disableStops === true,
+        ...(req.disableJourneys===true?{disableJourneys:true}:{}),
       };
     }
     for (const key of Object.keys(req)) {
@@ -185,7 +188,7 @@ const sanitizePermissionsForRole = (
   };
 
   for (const key of PERMISSION_KEYS) {
-    if (key === 'monitor' || key === 'canViewList' || key === 'disableMap' || key === 'disableStops') continue;
+    if (key === 'monitor' || key === 'canViewList' || key === 'disableMap' || key === 'disableStops' || key==='disableJourneys') continue;
     if (typeof req[key] !== 'boolean') continue;
     if (caller?.role !== 'owner' && req[key] === true && !callerHasPermission(caller, key)) {
       throw new HttpsError('permission-denied', `Cannot grant permission above caller rights: ${key}`);

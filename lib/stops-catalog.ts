@@ -1,4 +1,5 @@
 import {mpkPassengerStop} from './mpk-passenger-lines';
+import {completeRzeszowTerminalPlatforms} from './rzeszow-terminal-platforms';
 import {sanitizeBusStop,readBusCoordinates} from './bus-coordinates';
 import {correctPksStop} from './pks-stop-corrections';
 import {mergePhysicalStopAliases} from './physical-stop-aliases';
@@ -6,6 +7,7 @@ import type { Carrier, Stop } from '@/Panel/src/types';
 import { getSimilarity } from '@/lib/rzeszow-stop-consolidation';
 import { RawStop, PKS_CARRIER, MARCEL_CARRIER, MPK_CARRIER, MarcelIndexedStop, InternalStop, MERGED_STOPS_RUNTIME_CACHE, MERGED_STOPS_RUNTIME_CACHE_LIMIT, stopDisplayName, ensureMpkCityPrefix, preferredStopDisplayName, stopBaseNameKey, mergeTokens, numericTokens, nameSimilarityScore, sharedStopTokenCount, hasConflictingCityToken, mergeCsvValues, mergeDebugNames, distanceMeters, geoBucketKeys, normalizeStopMergeName, hasConflictingStopNumbers, mergeStopsByGpsAndName, mergeMpkStopsForList, canExposeStandaloneMarcelStop, isWeakMarcelName, sortedLines } from '@/components/stops-panel/stop-domain';
 const stopOrderCollator = new Intl.Collator('en', {numeric:true});
+const stopNameCollator = new Intl.Collator('pl', {numeric:true});
 export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;name:string;lat?:number;lon?:number;lines:string[]}>,marcelStops:MarcelIndexedStop[],mergedStopsCacheKey:string,physicalPoints=false): Stop[] {
     // Callers already key the cache by all effective catalog inputs.
     const cacheKey = (physicalPoints ? 'physical:' : 'list:') + mergedStopsCacheKey;
@@ -183,7 +185,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     };
 
     const findSafeCrossProviderMatch = (
-      raw: { name: string; lat?: number; lon?: number },
+      raw: { name: string; lat?: number; lon?: number; provider?:string; id?:string },
       candidateProviders = new Set(['pks', 'mpk_rzeszow']),
       exactIdentity = false,
     ) => {
@@ -195,14 +197,14 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
           if (!(candidate.sourceProviderIds || []).some(provider => candidateProviders.has(provider))) continue;
           if (platformKey(candidate.name) !== platformKey(raw.name)) continue;
           const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
-          if (distance <= (sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8) && distance < bestDistance) {best = candidate; bestDistance = distance;}
+          if (distance <= (raw.provider==='mpk_rzeszow'&&candidateProviders.has('mpk_rzeszow')?90:sameNumberedPlatform(raw.name, candidate.name) ? 40 : 8) && distance < bestDistance) {best = candidate; bestDistance = distance;}
         }
         return best;
       }
       const latKey = Number.isFinite(raw.lat) ? Number(raw.lat).toFixed(4) : 'x';
       const lonKey = Number.isFinite(raw.lon) ? Number(raw.lon).toFixed(4) : 'x';
       const providerKey = [...candidateProviders].sort().join('+');
-      const cacheKey = `${providerKey}|${exactIdentity}|${normalizeStopMergeName(raw.name)}|${latKey}|${lonKey}`;
+      const cacheKey = `${raw.provider||''}|${providerKey}|${exactIdentity}|${normalizeStopMergeName(raw.name)}|${latKey}|${lonKey}`;
       // A same-provider lookup runs while its catalog is still growing. A miss
       // cannot be reused after another physical stop has been registered.
       if (!exactIdentity && crossMatchCache.has(cacheKey)) return crossMatchCache.get(cacheKey) || null;
@@ -242,6 +244,10 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
 
       for (const candidate of pool) {
         if (exactIdentity && platformKey(raw.name) !== platformKey(candidate.name)) continue;
+        // A shared PKS alias must not bridge two different MPK platforms.
+        const mpkIds=String(candidate.providerStopIds?.mpk_rzeszow||'').split(',').filter(Boolean);
+        if(raw.provider==='mpk_rzeszow'&&mpkIds.length&&!mpkIds.includes(raw.id||'')&&
+          platformKey(raw.name)!==platformKey(candidate.displayNamesByProvider?.mpk_rzeszow||candidate.name))continue;
         const distance = distanceMeters(raw.lat, raw.lon, candidate.lat, candidate.lon);
         const hasGeo = Number.isFinite(distance);
         // Reject a geographically impossible match before costly text scoring.
@@ -340,7 +346,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       };
       const matched =
         findSafeCrossProviderMatch(raw, new Set(['pks'])) ||
-        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']));
+        findSafeCrossProviderMatch(raw, new Set(['mpk_rzeszow']), true);
       const stop = matched ? matched : ensureTechnicalStop(raw);
       if (matched) {
         attachProvider(matched, raw);
@@ -413,7 +419,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       });
 
     const mergedMpkStops = mergeMpkStopsForList(mergePhysicalStopAliases(normalizedStops));
-    const mergedStops = mergeStopsByGpsAndName(mergedMpkStops).sort((left, right) => left.name.localeCompare(right.name, 'pl'));
+    const mergedStops = completeRzeszowTerminalPlatforms(mergeStopsByGpsAndName(mergedMpkStops)).sort((left, right) => stopNameCollator.compare(left.name,right.name));
 
     MERGED_STOPS_RUNTIME_CACHE.set(cacheKey, mergedStops);
     if (MERGED_STOPS_RUNTIME_CACHE.size > MERGED_STOPS_RUNTIME_CACHE_LIMIT) {

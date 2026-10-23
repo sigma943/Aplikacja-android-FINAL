@@ -41,7 +41,7 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
       cleanupAppearance=applyInterfaceAppearance(root,value,dark,accent,lightEffects,theme);
       void loadInterfaceGoogleFont(interfaceGoogleFont(value)).catch(()=>{/* The system font keeps the interface usable offline. */});
       const strength=panelGlowStrength(localStorage.getItem('mks_panel_glow_strength'));
-      root.dataset.panelGlow=localStorage.getItem('mks_panel_glow')==='true'&&strength>0?'on':'off';
+      root.dataset.panelGlow=!lightEffects&&localStorage.getItem('mks_panel_glow')==='true'&&strength>0?'on':'off';
       const variables=panelGlowVariables(value.glowColor,strength,dark,lightEffects,{style:value.glowStyle,spread:value.glowSpread,placement:value.glowPlacement});
       glowKeys=Object.keys(variables);
       for(const [key,next]of Object.entries(variables))root.style.setProperty(key,next);

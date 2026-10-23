@@ -52,3 +52,32 @@ test('a new course ID can find a unique road shape despite different metadata co
     assert.deepEqual(await officialBusRoute('pks','new',[30,20,10],[...road].reverse()),[]);
   }finally{global.fetch=previous;}
 });
+
+test('every packaged PKS variant validates its complete stop order offline',async()=>{
+ const index=require('../public/data/bus-routes/pks.json'),previous=global.fetch,checked=new Set();
+ global.fetch=async url=>new Response(fs.readFileSync('public'+url));
+ try{
+  const {officialBusRoute}=loadTs('lib/official-bus-routes.ts'),{roadRouteMatchesStops}=loadTs('lib/bus-road-geometry.ts');
+  for(const [trip,shape] of Object.entries(index.tripShapes)){
+   const pattern=index.patterns[index.tripPatterns[trip]],key=shape+':'+pattern.join(',');if(checked.has(key))continue;checked.add(key);
+   const coords=pattern.map(id=>[index.stops[id].lat,index.stops[id].lon]);
+   const route=await officialBusRoute('pks',trip,pattern,coords);
+   assert.ok(roadRouteMatchesStops(route,coords,180),`PKS trip ${trip}, shape ${shape}`);
+  }
+  assert.equal(checked.size,576);
+ }finally{global.fetch=previous;}
+});
+
+test('exact courses trim unused prefixes AND suffixes with changed live stop counts, while rejecting foreign stops',async()=>{
+ const previous=global.fetch,road=Array.from({length:21},(_,i)=>[50+i*.002,22]);
+ global.fetch=async url=>new Response(JSON.stringify(String(url).endsWith('/pks.json')?{tripShapes:{known:'shape'},tripPatterns:{known:0},patterns:[['1','2','3']],stopShapes:{},stops:{}}:road));
+ try{
+  const {officialBusRoute}=loadTs('lib/official-bus-routes.ts');
+  for(const [start,end] of [[1,18],[5,16],[9,20]]){
+   const stops=road.slice(start,end+1),ids=stops.map((_,i)=>100+i);
+   assert.deepEqual(await officialBusRoute('pks','known',ids,stops,{completePattern:true}),stops);
+   const invalid=stops.map(p=>p.slice());invalid[2][1]+=.02;
+   assert.deepEqual(await officialBusRoute('pks','known',ids,invalid,{completePattern:true}),[]);
+  }
+ }finally{global.fetch=previous;}
+});
