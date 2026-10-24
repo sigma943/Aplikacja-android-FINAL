@@ -24,6 +24,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     const renderer=new LandscapeRenderer(element),media=matchMedia('(prefers-reduced-motion: reduce)');
     const worker=new Worker(new URL('../lib/landscape.worker.ts',import.meta.url));
     let alive=true,nativeActive=true,limited=false,critical=false,requestId=0;
+    let solarDay:boolean|undefined;
     let samples:{a:AstronomyState;b:AstronomyState}|null=null;
     let events:Record<string,number|null>={},source='default-rzeszow';
     let drawTimer:ReturnType<typeof setTimeout>|undefined,modelTimer:ReturnType<typeof setTimeout>|undefined;
@@ -40,7 +41,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     const updatePalette=(state:AstronomyState)=>{
       let opacity=64;
       try{opacity=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).glassOpacity;}catch{}
-      for(const [key,value] of Object.entries(landscapePalette(state,glass?opacity:100)))root.style.setProperty(key,value);
+      for(const [key,value] of Object.entries(landscapePalette(state,glass?opacity:100,solarDay)))root.style.setProperty(key,value);
     };
     const updateModel=()=>{
       clearTimeout(modelTimer);if(!visible()||!alive)return;
@@ -99,8 +100,9 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     worker.onmessage=event=>{
       if(!alive||event.data.id!==requestId)return;
       samples=event.data;events=event.data.events;
+      solarDay=isLandscapeDay(samples!.a,solarDay);
       updatePalette(samples!.a);
-      const period=isLandscapeDay(samples!.a)?'day':'night';
+      const period=solarDay?'day':'night';
       if(root.dataset.landscapePeriod!==period){root.dataset.landscapePeriod=period;window.dispatchEvent(new Event('pks-landscape-period'));}
       draw();
     };
@@ -135,7 +137,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       for(const listener of listeners)void listener.then(handle=>handle.remove());
       delete debug.__landscapePreview;delete debug.__landscapeDiagnostics;
       delete debug.__landscapeTestPower;delete root.dataset.landscapeMotion;
-      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter','panel-scrim','panel-row','nav-top','nav-bottom','text-shadow','label-bg'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
+      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter','panel-scrim','panel-row','nav-top','nav-bottom','text-shadow','view-veil'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
     };
   },[active,glass]);
   return active?<canvas ref={canvas} data-landscape-stage aria-hidden="true"/>:null;

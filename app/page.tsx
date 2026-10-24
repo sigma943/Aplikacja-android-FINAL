@@ -1254,7 +1254,7 @@ export default function Home() {
                   onClick={openTransportPanel}
                   className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border shadow-lg transition-all active:scale-95 ${mapGlassPanel}`}
                   title="Przewoźnicy"
-                  aria-label="Przewoźnicy"
+                  data-map-control aria-label="Przewoźnicy"
                 >
                   <Bus className="h-5 w-5" />
                 </button>

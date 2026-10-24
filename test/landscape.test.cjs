@@ -104,8 +104,8 @@ test('solar glass stays translucent with restrained colours throughout dawn and 
   for(const key of ['field','panel-row'])assert.ok(numbers(p['--landscape-'+key])[3]<=.30,'nested surfaces do not accumulate opaque fills');
   assert.ok(ink.every(value=>Number.isFinite(value)));
   const values=['surface','field','panel-scrim','panel-row','nav-top','nav-bottom'].flatMap(key=>numbers(p['--landscape-'+key]));
-  if(previous)assert.ok(values.every((v,i)=>Math.abs(v-previous[i])<=2),'no palette jumps at '+altitude);
-  previous=values;
+  if(previous&&previous.day===p['--landscape-ink'])assert.ok(values.every((v,i)=>Math.abs(v-previous.values[i])<=2),'temperature stays continuous within each material at '+altitude);
+  previous={day:p['--landscape-ink'],values};
  }
  const sunset=palette({sun:{altitude:Math.PI/180}});
  const surface=numbers(sunset['--landscape-surface']);
@@ -115,16 +115,14 @@ test('solar glass stays translucent with restrained colours throughout dawn and 
  assert.ok(Math.max(...surface.slice(0,3))-Math.min(...surface.slice(0,3))<40,'sunset tint never becomes saturated pink or orange');
 });
 
-test('sunset darkens every surface stage and sunrise traverses the same palette in reverse',()=>{
+test('sunrise and sunset reuse the same two readable material families',()=>{
  const {landscapePalette:palette}=load('lib/landscape-palette.ts');
- const at=angle=>palette({sun:{altitude:angle*Math.PI/180}});
  const levels=[30,12,6,3,0,-2,-4,-6,-12,-18];
- const values=levels.map(angle=>at(angle)['--landscape-surface'].match(/[\d.]+/g).slice(0,3).map(Number).reduce((s,v)=>s+v,0));
- for(let i=1;i<values.length;i++)assert.ok(values[i]<=values[i-1],'glass darkens throughout sunset');
- const lightAt=hour=>palette(a.astronomyAt(Date.parse('2026-10-23T'+String(hour).padStart(2,'0')+':00:00Z'),place))['--landscape-surface'].match(/[\d.]+/g).slice(0,3).map(Number).reduce((s,v)=>s+v,0);
- for(const hours of [[2,4,6,8,10],[20,18,16,14,12]]){
-  const light=hours.map(lightAt);
-  for(let i=1;i<light.length;i++)assert.ok(light[i]>=light[i-1],'actual sunrise lightens the glass and sunset darkens it');
+ const values=levels.map(altitude=>palette({sun:{altitude:altitude*Math.PI/180}})['--landscape-surface']);
+ assert.deepEqual([...levels].reverse().map(altitude=>palette({sun:{altitude:altitude*Math.PI/180}})['--landscape-surface']),[...values].reverse());
+ for(const value of values){
+  const channels=value.match(/[\d.]+/g).slice(0,3).map(Number);
+  assert.ok(channels.every(v=>v>220)||channels.every(v=>v<50),'no grey intermediate material');
  }
 });
 
@@ -132,6 +130,32 @@ test('solar material uses the saved opacity across every period, including fully
  const {landscapePalette:p}=load('lib/landscape-palette.ts');
  for(const altitude of [-15,-3,0,5,30])for(const opacity of [20,40,64,85,100]){
   const value=p({sun:{altitude:altitude*Math.PI/180}},opacity);
-  for(const key of ['surface','panel-scrim','nav-top','nav-bottom'])assert.equal(Number(value['--landscape-'+key].match(/[\d.]+/g).pop()),opacity/100);
+  assert.equal(Number(value['--landscape-surface'].match(/[\d.]+/g).pop()),opacity/100);
+  for(const key of ['panel-scrim','nav-top','nav-bottom'])assert.ok(Number(value['--landscape-'+key].match(/[\d.]+/g).pop())>=Math.max(.88,opacity/100));
  }
+});
+
+
+test('solar foregrounds keep AA contrast over extreme scenery at every altitude and glass setting',()=>{
+ const {landscapePalette:p}=load('lib/landscape-palette.ts');
+ const numbers=c=>c.match(/[\d.]+/g).map(Number);
+ const lum=c=>c.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
+ for(let altitude=-18;altitude<=60;altitude+=.25)for(const opacity of [20,64,100]){
+  const palette=p({sun:{altitude:altitude*Math.PI/180}},opacity);
+  for(const material of ['view-veil','panel-scrim','nav-top','nav-bottom'])for(const background of [0,255]){
+   const rgba=numbers(palette['--landscape-'+material]);
+   const bg=lum(rgba.slice(0,3).map(v=>v*rgba[3]+background*(1-rgba[3])));
+   for(const foreground of ['ink','muted','accent']){
+    const fg=lum(numbers(palette['--landscape-'+foreground]));
+    assert.ok((Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)>=4.5,`${altitude} / ${opacity} / ${material} / ${foreground}`);
+   }
+  }
+ }
+});
+test('solar period dead band avoids flicker and handles direct clock jumps',()=>{
+ const {isLandscapeDay:day}=load('lib/landscape-palette.ts');
+ const state=degrees=>({sun:{altitude:degrees*Math.PI/180}});
+ assert.equal(day(state(-2),true),true);assert.equal(day(state(-2),false),false);
+ assert.equal(day(state(-3),true),false);assert.equal(day(state(-1),false),true);
+ assert.equal(day(state(30),false),true);assert.equal(day(state(-18),true),false);
 });

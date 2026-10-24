@@ -107,3 +107,30 @@ Preset description: “Żywa dolina, płynące chmury i blask na wodzie”. Fall
 Materiały UI zachowują czytelną jasną lub ciemną polaryzację; zmiana następuje przy wysokości Słońca −2° z przejściem CSS 1,8 s. Nie przetrzymujemy mapy przy invert(50%) przez środek zmierzchu, bo usuwa to kontrast dróg i etykiet. Ciepły odcień szkła i całe oświetlenie sceny pozostają ciągłe.
 
 `useLandscapeDay` przekazuje zmianę dnia/nocy do istniejących właściwości `isDark` głównej aplikacji, dzięki czemu także pozostałe komponenty wybierają własne jasne/ciemne warianty. Zdarzenie jest wysyłane wyłącznie po zmianie pory, bez aktualizowania React przy każdej klatce ani każdej próbce astronomii. Test mapy potwierdza synchronizację tej właściwości z paletą.
+
+
+## Solar materials: contrast repair (2026-10-24)
+
+This replaces the continuous dark-to-light panel interpolation described above.
+The scenery retains continuous solar illumination. UI materials use coordinated
+light and dark families: surface, ink, muted text and map polarity change in the
+same astronomy update. Temperature changes continuously within each family;
+there is no grey intermediate panel. A one-degree hysteresis band around -2°
+prevents repeated switches near the horizon (day enters above -1.5°, leaves
+below -2.5°; the initial result uses -2°).
+
+Saved glass opacity still controls decorative cards. Separate protective fills
+(minimum 88% for content and sheets, 94–96% for map chrome) protect controls and
+standalone headings against both white map tiles and black terrain. This is an
+intentional readability floor, including when the glass slider is set to 20%.
+Headings no longer have individual filled labels, padding, shadows or outlines.
+The artwork remains visible beneath a single content veil.
+
+Leaflet marker foregrounds are excluded from neutral solar text overrides;
+white cluster and train labels keep their own filled-marker contrast. The
+carrier shortcut receives a coordinated solar surface and foreground.
+
+Focused tests cover both palette families over the full solar elevation range,
+black/white backgrounds, 20/64/100% glass and all three foreground roles (WCAG
+contrast >= 4.5). Browser checks include unboxed headings, marker colour isolation,
+day/night map controls and existing scene lifecycle/animation checks.

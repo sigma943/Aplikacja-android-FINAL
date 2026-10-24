@@ -1176,7 +1176,7 @@ html[data-landscape-theme='on'] :is(.pks-theme-root,.pks-panel-scope,.pks-glass-
   --transit-text:var(--landscape-ink);--transit-muted:var(--landscape-muted);
   color:var(--landscape-ink);
 }
-html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-gray-100,.text-gray-200,.map-detail-title) { color:var(--landscape-ink)!important; }
+html[data-landscape-theme='on'] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-gray-100,.text-gray-200,.map-detail-title):not(.leaflet-marker-pane *) { color:var(--landscape-ink)!important; }
 html[data-landscape-theme='on'] :is(.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.text-gray-400,.text-gray-500,.map-detail-muted) { color:var(--landscape-muted)!important; }
 html[data-landscape-theme='on'] :is(.pks-map-search-panel input,.pks-options-sheet input,.pks-options-sheet select) { background-color:var(--landscape-field)!important;color:var(--landscape-ink)!important;border-color:var(--landscape-edge)!important; }
 html[data-landscape-theme='on'] .pks-map-search-panel [data-map-brand] { color:var(--landscape-accent)!important; }
@@ -1269,6 +1269,15 @@ html[data-landscape-theme='on'] [data-vehicle-header] { text-shadow:none; }
 }
 
 @layer landscape-materials {
- html[data-landscape-theme='on'] [data-scene-label] { display:inline-block;width:fit-content;padding:4px 8px;border-radius:8px;background:var(--landscape-label-bg)!important;color:var(--landscape-ink)!important; }
+ html[data-landscape-theme='on'] [data-scene-label] { color:var(--landscape-ink)!important; }
  html[data-landscape-theme='on'] .transit-view [role='alert'] { background:#fff3d6!important;color:#704309!important;border-color:#ba9655!important; }
+}
+
+/* One quiet veil behind the whole content view replaces individual label pills.
+   Maps keep their own opaque tiles; chrome has a protected material above them. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] :is(.transit-view,.connections-view,.journey-view,[data-statistics-view]) { background:linear-gradient(var(--landscape-view-veil),var(--landscape-view-veil))!important; }
+ html[data-landscape-theme='on'] :is(.pks-map-search-panel,.pks-navigation,[data-map-control]) { background-color:var(--landscape-nav-bottom)!important;color:var(--landscape-ink)!important; }
+ html[data-landscape-theme='on'] [data-landscape-chrome='filter']::after { background:var(--landscape-panel-scrim); }
+ html[data-landscape-theme='on'] [data-scene-label] { padding:0;border:0;border-radius:0;background:transparent!important;box-shadow:none!important; }
 }

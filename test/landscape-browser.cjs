@@ -61,6 +61,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   }
   await page.waitForFunction(()=>document.querySelector('[data-landscape-stage]')?.dataset.assetsReady==='true');
   assert.equal(await page.$eval('.transit-view',e=>getComputedStyle(e).textShadow),'none');
+  assert.ok(await page.$$eval('[data-scene-label]',labels=>labels.length>0&&labels.every(e=>{const s=getComputedStyle(e);return s.backgroundColor==='rgba(0, 0, 0, 0)'&&s.boxShadow==='none'&&parseFloat(s.paddingTop)===0;})),'scene labels have no individual boxes or outlines');
   assert.equal(await page.$eval('[data-fixture-blur-wrapper]',e=>getComputedStyle(e).backdropFilter),'none','fullscreen ancestor must not blur the scene');
   assert.ok(await page.$$eval('[data-departure-row]',rows=>rows.every(e=>parseFloat(getComputedStyle(e).borderBottomWidth)===0)),'departure rows have no bright separator lines');
   assert.ok(await page.$$eval('.pks-line-badge',badges=>badges.length>0&&badges.every(e=>getComputedStyle(e).backgroundColor.startsWith('rgb('))),'line badges have their own opaque contrast surface');
@@ -116,6 +117,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await new Promise(r=>setTimeout(r,150));
    assert.equal(await page.$eval('.leaflet-layer',e=>getComputedStyle(e).transitionDuration),'0s','map polarity never animates through washed-out grey');
    assert.ok(await page.$eval('.leaflet-layer',(e,n)=>getComputedStyle(e).filter.startsWith('invert('+n+')'),invert),'actual Leaflet layer changes with the Sun');
+   await page.evaluate(()=>{
+    let marker=document.querySelector('[data-solar-marker-probe]');
+    if(!marker){marker=document.createElement('span');marker.dataset.solarMarkerProbe='';marker.className='text-white';marker.textContent='9';document.querySelector('.leaflet-marker-pane').append(marker);}
+   });
+   assert.equal(await page.$eval('[data-solar-marker-probe]',e=>getComputedStyle(e).color),'rgb(255, 255, 255)','solar ink never leaks into filled map markers');
    const ink=await page.$eval('[data-map-search-panel] input',e=>getComputedStyle(e).color);
    assert.equal(ink,name==='day'?'rgb(11, 27, 38)':'rgb(244, 248, 252)');
    assert.equal(await page.$eval('[data-fixture-period]',e=>e.dataset.fixturePeriod),name,'solar mode reaches React component props as well as CSS');
@@ -156,7 +162,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).backgroundColor),'rgb(8, 13, 29)','daytime carrier header retains the dark cosmic base');
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)','header text stays light in solar day mode');
     assert.equal(await page.$eval('[data-vehicle-header] [class*="text-white"]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)');
-    assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])<=.65),'daytime route keeps the scenery visible through its glass');
+    assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])>=.88),'daytime route protects foreground contrast over the scenery');
    }
    const canvas=await page.$eval('[data-landscape-window=panel]',e=>{const d=e.getContext('2d').getImageData(0,0,e.width,e.height).data;const colors=new Set();for(let i=0;i<d.length;i+=16)colors.add(d[i]+','+d[i+1]+','+d[i+2]);return colors.size;});
    assert.ok(canvas>100,'expanded '+mode+' sheet contains detailed scenery, not a flat fill');
