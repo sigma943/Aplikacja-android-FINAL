@@ -1186,7 +1186,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  /* Artwork windows sit behind a single adjustable scrim on opaque map tiles. */
  html[data-landscape-theme='on'] [data-landscape-chrome] { display:block!important; }
  html[data-landscape-theme='on'] [data-landscape-chrome]::after { content:'';position:absolute;inset:0;background:var(--landscape-surface); }
- html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { z-index:-1;bottom:auto;height:calc(60svh - 32px); }
+ html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { z-index:-1!important;bottom:auto;height:calc(60svh - 32px); }
  html[data-landscape-theme='on'] .map-detail-shell { isolation:isolate; }
  html[data-landscape-theme='on'] .map-detail-shell:has([data-landscape-chrome='panel']),
  html[data-landscape-theme='on'] :is(.pks-map-search-panel,.pks-navigation):has([data-landscape-chrome]) { background-color:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important; }
