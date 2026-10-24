@@ -236,7 +236,8 @@ function inferVehicleStatus(v: any,ageSec: number,speed: number,now: number,hasL
   const pointNumber=Number(v.position?.last_stop_point_number);
   const distance=Number(v.position?.last_stop_point_distance);
   const atFirst=pointNumber===0 && distance<=150;
-  const atLast=path.length>1 && pointNumber>=path.length-1 && distance<=150;
+  // last_stop_point_number is one-based (the same convention as lastStopId below).
+  const atLast=path.length>1 && pointNumber>=path.length && distance<=150;
   const firstDepartureMs=v.journey?.departure_time ? warsawTimeMs(v.journey.vehicle_journey_date||warsawDateIso(),v.journey.departure_time) : transitTimestamp(schedule.find(stop=>stop.id===firstId)?.planned);
   const operating=busOperatingState({lat:Number(v.position?.lat),lon:Number(v.position?.long??v.position?.lon),speed,nowMs:now,stops:schedule,firstDepartureMs,firstStopId:firstId,atFirstStop:atFirst,atLastStop:atLast});
   return {...operating,nextTripStartAtMs:'nextTripStartAtMs' in operating ? operating.nextTripStartAtMs : undefined,nextTripFirstStopId:'nextTripFirstStopId' in operating ? Number(operating.nextTripFirstStopId) : undefined};
@@ -528,7 +529,7 @@ async function fetchRouteGeometryClientImpl(
       .map((stop) => [Number(stop.lat), Number(stop.lon)] as ShapePoint);
     const persist = (points: ShapePoint[]) => {
       void writePersistentRouteGeometry(routeGeometryKey(request.mode || 'road',request.carrier,
-        request.line,request.direction,request.stops),points,request.dataVersion||'');
+        request.line,request.direction,request.stops,request.variant||'default'),points,request.dataVersion||'');
     };
     const fallbackPoints = await fetchRoadRouteForStops(
       stopCoords,

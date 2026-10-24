@@ -11,10 +11,10 @@ export function vehicleHeaderStyle(color:string,glass:boolean,isDark=true){
   return {background:glass?`linear-gradient(135deg, ${withAlpha(color,0.48)}, ${withAlpha(color,0.28)})`:color};
 }
 
-export const NAV_ITEMS=['map','stops','admin','options'] as const;
+export const NAV_ITEMS=['map','stops','journeys','admin','options'] as const;
 export type NavItem=typeof NAV_ITEMS[number];
 export interface InterfaceAppearance {
-  startScreen:'map'|'stops'|'admin';navOrder:NavItem[];departureView:'simple'|'detailed';
+  startScreen:'map'|'journeys'|'stops'|'admin';navOrder:NavItem[];departureView:'simple'|'detailed';
   markerSize:number;markerLabel:'line'|'carrier'|'icon';
   panelRadius:number; cardRadius:number; controlRadius:number;
   borderStrength:number; shadowStrength:number;
@@ -42,6 +42,11 @@ export const DEFAULT_INTERFACE_APPEARANCE:InterfaceAppearance={
   glowStyle:'mixed',glowColor:'#00a3a2',glowSpread:75,glowPlacement:'corners',
 };
 export const INTERFACE_APPEARANCE_KEY='mks_interface_appearance_v1';
+export function normalizeNavOrder(value:unknown):NavItem[]{
+ const order=[...new Set(Array.isArray(value)?value.filter((id):id is NavItem=>NAV_ITEMS.includes(id as NavItem)):[])];
+ if(order.length&&!order.includes('journeys'))order.splice(Math.max(0,order.indexOf(order.includes('stops')?'stops':'map')+1),0,'journeys');
+ return [...order,...NAV_ITEMS].filter((id,index,all)=>all.indexOf(id)===index);
+}
 export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   const v=input&&typeof input==='object'?input as Record<string,unknown>:{};
   const d=DEFAULT_INTERFACE_APPEARANCE;
@@ -49,8 +54,8 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   const choice=<K extends keyof InterfaceAppearance>(key:K,values:readonly InterfaceAppearance[K][])=>values.includes(v[key] as InterfaceAppearance[K])?v[key] as InterfaceAppearance[K]:d[key];
   const flag=(key:keyof InterfaceAppearance)=>typeof v[key]==='boolean'?v[key] as boolean:d[key] as boolean;
   return {
-    startScreen:choice('startScreen',['map','stops','admin']),
-    navOrder:[...new Set(Array.isArray(v.navOrder)?v.navOrder.filter((item):item is NavItem=>NAV_ITEMS.includes(item as NavItem)):[]),...NAV_ITEMS].filter((item,index,items)=>items.indexOf(item)===index),
+    startScreen:choice('startScreen',['map','journeys','stops','admin']),
+    navOrder:normalizeNavOrder(v.navOrder),
     departureView:choice('departureView',['simple','detailed']),markerSize:n('markerSize',80,140),markerLabel:choice('markerLabel',['line','carrier','icon']),
     panelRadius:n('panelRadius',0,36),cardRadius:n('cardRadius',0,30),controlRadius:n('controlRadius',0,24),
     borderStrength:n('borderStrength',0,40),shadowStrength:n('shadowStrength',0,100),
@@ -83,15 +88,15 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
   const variables:Record<string,string>={
     '--personal-panel-radius':`${v.panelRadius}px`,'--personal-card-radius':`${v.cardRadius}px`,'--personal-control-radius':`${v.controlRadius}px`,
     '--personal-edge':`rgba(${dark?'255,255,255':'15,23,42'},${v.borderStrength/100})`,
-    '--personal-shadow':`0 8px ${12+v.shadowStrength*.3}px rgba(0,0,0,${Math.min(v.shadowStrength,lightEffects?15:100)/400})`,
-    '--personal-glass':`rgba(${bg.join(',')},${v.glassOpacity/100})`,
+    '--personal-shadow':lightEffects?'none':`0 8px ${12+v.shadowStrength*.3}px rgba(0,0,0,${Math.min(v.shadowStrength,lightEffects?15:100)/400})`,
+    '--personal-glass':`rgba(${bg.join(',')},${lightEffects?1:v.glassOpacity/100})`,
     '--personal-surface':`rgb(${bg.join(',')})`,
-    '--personal-blur':`${v.glassBlurEnabled?Math.min(v.glassBlur,lightEffects?6:28):0}px`,'--personal-saturation':`${v.glassSaturation}%`,
+    '--personal-blur':`${v.glassBlurEnabled&&!lightEffects?Math.min(v.glassBlur,28):0}px`,'--personal-saturation':`${v.glassSaturation}%`,
     '--personal-title-weight':`${v.titleWeight}`,'--personal-letter-spacing':`${v.letterSpacing}px`,
     '--personal-font':interfaceFontStack(v),
     '--personal-icon-size':`${v.iconSize}px`,'--personal-icon-stroke':`${v.iconStroke}`,'--personal-inactive-opacity':`${v.inactiveOpacity/100}`,
     '--personal-marker-scale':String(v.markerSize/100),
-    '--personal-nav-map':String(v.navOrder.indexOf('map')),'--personal-nav-stops':String(v.navOrder.indexOf('stops')),'--personal-nav-admin':String(v.navOrder.indexOf('admin')),'--personal-nav-options':String(v.navOrder.indexOf('options')),
+    '--personal-nav-map':String(v.navOrder.indexOf('map')),'--personal-nav-stops':String(v.navOrder.indexOf('stops')),'--personal-nav-journeys':String(v.navOrder.indexOf('journeys')),'--personal-nav-admin':String(v.navOrder.indexOf('admin')),'--personal-nav-options':String(v.navOrder.indexOf('options')),
     '--personal-muted':dark?'#dbe5ef':'#334155',
     '--personal-pattern-image':interfacePanelPattern(v,dark),
     '--personal-row-padding':v.density==='compact'?'8px':v.density==='spacious'?'18px':'12px',
@@ -106,10 +111,11 @@ export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,
   const attrs:Record<string,string>={
     radius:String(v.panelRadius!==defaults.panelRadius),cardRadius:String(v.cardRadius!==defaults.cardRadius),controlRadius:String(v.controlRadius!==defaults.controlRadius),
     border:String(v.borderStrength!==defaults.borderStrength),shadow:String(v.shadowStrength!==defaults.shadowStrength),
+    blurRadiusCustom:String(v.glassBlur!==defaults.glassBlur),
     glass:String(v.glassOpacity!==defaults.glassOpacity||v.surfaceTint!=='original'),blur:String(!v.glassBlurEnabled||v.glassBlur!==defaults.glassBlur||v.glassSaturation!==defaults.glassSaturation),frost:v.glassBlurEnabled&&v.glassBlur>0?'on':'off',
     cardStyle:v.cardStyle,buttonStyle:v.buttonStyle,surface:v.surfaceTint,text:String(v.textScale!==100),font:v.fontFamily,title:String(v.titleWeight!==700),spacing:String(v.letterSpacing!==0),
     numbers:v.tabularNumbers?'tabular':'proportional',density:v.density,icons:String(v.iconSize!==24||v.iconStroke!==2),
-    departures:v.departureView,marker:v.markerLabel,layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),motion:v.reducedMotion?'reduced':'normal',hover:String(v.hoverHighlight),
+    departures:v.departureView,marker:v.markerLabel,layout:v.navLayout,pattern:v.panelPattern,contrast:v.textContrast,labels:String(v.navLabels),nav:v.navIndicator,inactive:String(v.inactiveOpacity!==100),lightEffects:lightEffects?'on':'off',mapMotion:v.reducedMotion?'reduced':'normal',motion:v.reducedMotion?'reduced':'normal',hover:String(v.hoverHighlight),
   };
   for(const [key,value] of Object.entries(attrs))root.setAttribute('data-personal-'+key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value);
   const variables=interfaceAppearanceVariables(v,dark,accent,lightEffects,theme);

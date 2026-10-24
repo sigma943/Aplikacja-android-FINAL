@@ -7,10 +7,11 @@ test('damaged saved personalization cannot make panels unreadable or inject CSS'
  assert.equal(value.panelRadius,24);assert.equal(value.fontFamily,'system');assert.equal(value.density,'comfortable');assert.equal(value.navLabels,true);assert.match(value.glowColor,/^#[0-9a-f]{6}$/i);
  assert.equal(normalizeInterfaceAppearance(null).panelRadius,DEFAULT_INTERFACE_APPEARANCE.panelRadius);
 });
-test('lighter effects cap expensive blur and shadow while retaining selected transparency and text size',()=>{
+test('lighter effects disable glass, blur and shadows temporarily without overwriting saved preferences',()=>{
  const value=normalizeInterfaceAppearance({glassBlur:28,shadowStrength:100,glassOpacity:35,textScale:115});
  const vars=interfaceAppearanceVariables(value,true,'#3b82f6',true);
- assert.equal(vars['--personal-blur'],'6px');assert.match(vars['--personal-glass'],/,0.35\)$/);assert.equal(vars['--personal-text-base'],'18.4px');
+ assert.equal(vars['--personal-blur'],'0px');assert.match(vars['--personal-glass'],/,1\)$/);assert.equal(vars['--personal-shadow'],'none');
+ const restored=interfaceAppearanceVariables(value,true,'#3b82f6',false);assert.equal(restored['--personal-blur'],'28px');assert.match(restored['--personal-glass'],/,0.35\)$/);assert.equal(vars['--personal-text-base'],'18.4px');
  assert.equal(value.glassBlur,28,'performance mode does not overwrite the chosen setting');
 });
 

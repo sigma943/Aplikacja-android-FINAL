@@ -17,6 +17,7 @@ export interface Stop {
   lines: string[]; // For bus stops
   lineProviders?: Record<string, string[]>;
   isFavorite: boolean;
+  timetableNotice?: string;
   areaId?: string;
   code?: string;
   apiLat?: number | null;

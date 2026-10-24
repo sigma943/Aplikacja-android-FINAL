@@ -59,6 +59,23 @@ function MapStateTracker({
   return null;
 }
 
+/** Leaflet must remeasure after tab/sheet visibility and Android viewport changes. */
+function MapSizeSync({active}:{active:boolean}) {
+  const map=useMap();
+  useEffect(()=>{
+    if(!active)return;
+    let frame=0;
+    const container=map.getContainer();
+    const measure=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
+      if(container.clientWidth>0&&container.clientHeight>0)map.invalidateSize({pan:false,debounceMoveend:true});
+    });};
+    const observer=new ResizeObserver(measure);observer.observe(container);
+    window.addEventListener('orientationchange',measure);measure();
+    return()=>{cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener('orientationchange',measure);};
+  },[map,active]);
+  return null;
+}
+
 function MapCenterer({ center, onComplete }: { center: [number, number] | null, onComplete?: () => void }) {
   const map = useMap();
   useEffect(() => {
@@ -85,3 +102,5 @@ export {deferMapStorageWrite};
 export {MapStateTracker};
 export {MapCenterer};
 export {MapClickListener};
+
+export {MapSizeSync};

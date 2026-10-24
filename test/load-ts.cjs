@@ -26,6 +26,9 @@ module.exports = function loadTs(relativePath, overrides = {}, extraExports = ''
     if (Object.hasOwn(overrides, name)) return overrides[name];
     if (name.startsWith('.') || name.startsWith('@/')) {
       const resolved = name.startsWith('@/') ? name.slice(2) : path.relative(root, path.resolve(path.dirname(filename), name));
+      // Node unit tests exercise component behavior; styles are verified by
+      // the browser suite and have no CommonJS exports to evaluate here.
+      if(resolved.endsWith('.css')) return {};
       if(resolved.endsWith('.json')) return require(path.resolve(root,resolved));
       const dependency = ['.ts', '.tsx'].map(extension => `${resolved}${extension}`).find(file => fs.existsSync(path.resolve(root, file)));
       if (!dependency) throw new Error(`Missing local TypeScript module: ${resolved}`);

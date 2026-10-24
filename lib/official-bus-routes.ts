@@ -1,3 +1,4 @@
+import {sliceJourneyRoute} from './journey-route-geometry';
 import {withRequestDeadline} from './request-deadline';
 import {roadRouteMatchesStops,roadDistance} from './bus-road-geometry';
 
@@ -26,7 +27,7 @@ export async function officialBusStops(provider:string,tripId:unknown) {
   const pattern=index.patterns[index.tripPatterns[String(tripId)]];
   return pattern?.map(id=>index.stops[id])||[];
 }
-export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Array<number|string>,stopCoordinates?:Array<[number,number]>) {
+export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Array<number|string>,stopCoordinates?:Array<[number,number]>,options?:{completePattern?:boolean}) {
   if(provider!=='pks'&&provider!=='mpk_rzeszow')return [];
   const index=await routeIndex(provider);
   const trip=String(tripId||'');
@@ -80,15 +81,30 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
   // A complete live course can start later on its bundled GTFS shape. For
   // example, PKS 202 / trip 9078 starts ~685 m after shape 370's first point.
   // Remove only the unused prefix of this exact trip; never move stop pins,
-  // invent a connector, accept a partial stop list or relax route validation.
-  if (completeCoordinates && pattern?.length === expected.length && shape === index.tripShapes[trip] && stops.length > 1 && points.length > 1
-      && roadDistance(points[0],stops[0]) <= 1000) {
-    let nearest = 0;
-    for (let i = 1; i < points.length - 1; i++) {
-      if (roadDistance(points[i],stops[0]) < roadDistance(points[nearest],stops[0])) nearest = i;
-    }
-    const trimmed = points.slice(nearest);
+  // invent a connector or relax route validation. Changed complete live patterns
+  // are explicitly authorized below; ordinary partial stop lists stay rejected.
+  if (completeCoordinates && pattern?.length===expected.length && shape===index.tripShapes[trip] && roadDistance(points[0],stops[0])<=1000) {
+    let nearest=0;
+    for(let i=1;i<points.length-1;i++)if(roadDistance(points[i],stops[0])<roadDistance(points[nearest],stops[0]))nearest=i;
+    const trimmed=points.slice(nearest);
+    if(roadRouteMatchesStops(trimmed,stops,180))return trimmed;
+  }
+  // Only the caller with a full live route can authorize a changed stop count;
+  // an arbitrary partial list must never masquerade as the complete course.
+  if (options?.completePattern && completeCoordinates && shape === index.tripShapes[trip]) {
+    const trimmed=sliceJourneyRoute(points,stops,0,180);
     if (roadRouteMatchesStops(trimmed,stops,180)) return trimmed;
   }
+  // A known course with incompatible stops must not borrow the opposite
+  // direction's shape merely because its coordinates happen to fit. The
+  // caller can route this changed live course instead. Coordinate discovery
+  // is reserved for course IDs absent from this timetable snapshot.
+  if (index.tripShapes[trip]) return [];
   return findByCoordinates();
+}
+
+/** Platform pins embedded in shapes can belong to other courses on the same road. */
+export async function officialBusStopPoints(provider:string):Promise<Array<[number,number]>> {
+ const index=await routeIndex(provider);
+ return Object.values(index.stops).map(stop=>[stop.lat,stop.lon]);
 }

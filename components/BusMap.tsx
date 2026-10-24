@@ -18,6 +18,7 @@ import {officialBusRoute} from '@/lib/official-bus-routes';
 import {roadRouteMatchesStops, cleanRoadJunctionLoops} from '@/lib/bus-road-geometry';
 import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
+import {withRequestDeadline} from '@/lib/request-deadline';
 import {loadRouteWithRetry} from '@/lib/route-load-retry';
 
 import {fetchRouteGeometryClient, type RouteGeometryStop} from '@/lib/pks-client';
@@ -27,11 +28,11 @@ import {readPersistentRouteGeometry, writePersistentRouteGeometry} from '@/lib/m
 import {preferredLocalRoute} from '@/lib/map/preferred-route';
 import {simplifyRouteForPaint, dedupeStableStopIds, normalizeRouteCachePart, hashRouteGeometryStops} from '@/lib/map/route-presentation';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
-import {MapStateTracker, MapCenterer, MapClickListener} from '@/components/map/MapControls';
+import {MapSizeSync, MapStateTracker, MapCenterer, MapClickListener} from '@/components/map/MapControls';
 import {VehicleMarkerLayer} from '@/components/map/VehicleMarkers';
 import {SelectedStopPin, CatalogStopsLayer, RouteStopsLayer} from '@/components/map/StopLayers';
 
-const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v14-authoritative-shapes';
+const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v16-complete-course-recovery';
 
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 
@@ -110,6 +111,7 @@ function BusMap({
     void loadStopPlatforms().then(()=>{if(active)setPlatformRevision(v=>v+1);});
     return()=>{active=false;};
   },[needsPlatforms]);
+  const [routeError,setRouteError]=useState(''),[routeAttempt,setRouteAttempt]=useState(0);
   const [snappedRoute, setSnappedRoute] = useState<[number, number][]>([]);
   const refinedRouteCacheRef = useRef(new Map<string, [number, number][]>());
   const refinedRouteByVehicleRef = useRef(new Map<string, [number, number][]>());
@@ -185,10 +187,9 @@ function BusMap({
   const routeMode = selectedVehicle?.provider === 'pkp_intercity' ? 'rail' : 'road';
   const routeGeometryVersion = routeMode === 'rail' ? RAIL_ROUTE_GEOMETRY_CACHE_VERSION : ROAD_ROUTE_GEOMETRY_CACHE_VERSION;
   const routeKey = selectedVehicle
-    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops)
+    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops, String(selectedVehicle.tripId || selectedVehicle.journeyId || selectedVehicle.serviceId || selectedVehicle.brigadeName || selectedVehicle.routeId || 'default'))
     : '';
-  // The same stop pattern can have different official streets for another course.
-  // Keep the fallback cache shared, but resolve the official course again.
+  // Both the rendered identity and persisted geometry distinguish courses.
   const routeCourse = String(selectedVehicle?.tripId || selectedVehicle?.journeyId || '');
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
   const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
@@ -230,7 +231,7 @@ function BusMap({
       const loadBundledRoute = async()=>routeMode === 'road'
         ? selectedVehicle.provider==='marcel'
           ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon])).catch(()=>[])
-          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon])).catch(()=>[])
+          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon]),{completePattern:!!selectedVehicle.routePath?.length&&routeGeometryStops.length===routeStopIds.length}).catch(()=>[])
         : [];
       const localRoute = await preferredLocalRoute({
         mode: routeMode,
@@ -269,7 +270,7 @@ function BusMap({
         mode: routeMode,
         stops: routeGeometryStops,
       }, { signal: controller.signal });}, controller.signal, [1000, 3000, 10000, 30000], {
-        keepRetrying: true,
+        keepRetrying: false,
         isUsable: response => (response.geometry?.coordinates || [])
           .filter(([lon, lat]) => Number.isFinite(lat) && Number.isFinite(lon)).length > 1,
       });
@@ -299,22 +300,23 @@ function BusMap({
         }
     };
 
-    loadRoute().catch((error) => {
-      if ((error as any)?.name === 'AbortError') return;
+    withRequestDeadline(()=>loadRoute(),controller.signal,45000).catch((error) => {
       if (requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
-      // Keep the last good rendered route when a transient network/backend error happens.
+      // Keep any valid geometry and make failure recoverable without reselection.
+      setRouteError(currentIdentity);controller.abort();
     });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [routeKey, routeStopsHash, routeCourse, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.routeGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeAttempt,routeKey, routeStopsHash, routeCourse, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.routeGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!initMapState) return null;
 
   return (
     <div ref={mapContainerRef} className={`h-full w-full relative z-0 style-map ${vehicles.length > 35 ? 'is-high-volume' : ''}`}>
+      {routeError===routeIdentity&&selectedVehicle&&currentGeometry.length<2&&<div role="status" data-vehicle-route-error className="absolute top-40 left-3 right-3 z-[1000] rounded-xl border bg-slate-900 p-3 text-sm text-white">Nie udało się wczytać przebiegu trasy. Przystanki i pozycja autobusu pozostają dostępne.<button className="ml-2 underline" onClick={()=>{setRouteError('');setRouteAttempt(v=>v+1);}}>Ponów</button></div>}
       <style>{`
         /* Hide zoom controls on mobile */
         @media (max-width: 768px) {
@@ -378,11 +380,6 @@ function BusMap({
           transition-duration: 0s !important;
         }
 
-        .map-catalog-stop {background:transparent;border:0;display:flex;align-items:center;justify-content:center;}
-        .map-stop-ring {display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--stop-color);border-radius:50%;color:#fff;background:var(--stop-color);box-shadow:0 1px 5px #0006;transition:transform .24s ease,box-shadow .24s ease,background .24s ease;}
-        .map-stop-ring.is-selected {transform:scale(1.28);background:var(--stop-color);box-shadow:0 0 0 5px color-mix(in srgb,var(--stop-color) 22%,transparent),0 0 18px var(--stop-color);animation:map-stop-select .42s ease-out;}
-        @keyframes map-stop-select {from {transform:scale(.9);box-shadow:0 0 0 0 transparent;}to {transform:scale(1.28);}}
-        @media(prefers-reduced-motion:reduce){.map-stop-ring,.map-stop-ring.is-selected{transition:none;animation:none;}}
         .mks-route-stop-marker {
           filter: drop-shadow(0 0 7px rgba(255,255,255,0.62)) drop-shadow(0 2px 6px rgba(0,0,0,0.5));
         }
@@ -395,6 +392,7 @@ function BusMap({
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
       >
+        <MapSizeSync active={active}/>
         <MapStateTracker onInteraction={handleInteraction} onViewportChange={onViewportChange} />
         <MapClickListener onClick={onMapClick} />
         <MapCenterer center={forcedCenter} onComplete={onCenterComplete} />
