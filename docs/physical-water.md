@@ -46,7 +46,7 @@ subpixel carriers are filtered instead of producing unstable glints.
 
 Sky/terrain reflection is evaluated along reflect(-V,N). Atmospheric colours,
 source colour, occlusion and lunar phase all consume the existing interpolated
-lighting state. Radiance and exposure use relative artistic units, not measured
+lighting state. Shared display sRGB light colours are converted to linear before the BRDF; ACES/display conversion is applied at presentation. Radiance and exposure use relative artistic units, not measured
 lux or a spectrally calibrated camera.
 
 ## HDR, bloom and rays

@@ -29,6 +29,8 @@ export class LandscapeWaterGPU {
  private timer:{TIME_ELAPSED_EXT:number;GPU_DISJOINT_EXT:number}|null=null;
  private pendingQuery=false;
  private gpuMs=0;
+ private sunLinear=new Float32Array(3);
+ private moonLinear=new Float32Array(3);
  private loss=(event:Event)=>{event.preventDefault();this.lost=true;};
  private restore=()=>{this.lost=false;this.failed=false;this.programs=[];this.textures=[];this.buffers=[];this.targets=[];this.vao=null;this.query=null;this.meshQuality=null;this.initialize();};
  constructor(){
@@ -103,14 +105,17 @@ export class LandscapeWaterGPU {
    for(let i=0;i<2;i++){gl.activeTexture(gl.TEXTURE5+i);gl.bindTexture(gl.TEXTURE_2D,this.targets[i].texture);}
    let timing=false;
    if(this.timer&&this.query){if(this.pendingQuery&&gl.getQueryParameter(this.query,gl.QUERY_RESULT_AVAILABLE)){if(!gl.getParameter(this.timer.GPU_DISJOINT_EXT))this.gpuMs=gl.getQueryParameter(this.query,gl.QUERY_RESULT)/1e6;this.pendingQuery=false;}if(!this.pendingQuery){gl.beginQuery(this.timer.TIME_ELAPSED_EXT,this.query);timing=true;}}
+   // Shared palette colours are display sRGB. BRDF radiance must be linear;
+   // presentation rays retain display colour. Reuse the upload arrays.
+   for(let i=0;i<3;i++){this.sunLinear[i]=light.sun.color[i]**2.2;this.moonLinear[i]=light.moon.color[i]**2.2;}
    for(let pass=0;pass<3;pass++){
     const p=this.programs[pass],target=pass<2?this.targets[pass]:null,w=target?.width??width,h=target?.height??height,sx=w/frame.width,sy=h/frame.height;
     gl.bindFramebuffer(gl.FRAMEBUFFER,target?.framebuffer??null);gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(p.program);
     gl.uniform2f(this.uniform(p,'uResolution'),w,h);gl.uniform4f(this.uniform(p,'uFrame'),1000*frame.scale*sx,(1000*1850/850)*frame.scale*sy,frame.x*sx,frame.y*sy);
     gl.uniform1f(this.uniform(p,'uTime'),light.time);gl.uniform1f(this.uniform(p,'uQuality'),quality==='high'?2:quality==='medium'?1:0);gl.uniform1f(this.uniform(p,'uFrameInterval'),1/q.fps);gl.uniform1f(this.uniform(p,'uHdr'),this.hdr?1:0);
     gl.uniform1f(this.uniform(p,'uDay'),light.sky.day);gl.uniform1f(this.uniform(p,'uWarm'),light.sky.twilight);gl.uniform1f(this.uniform(p,'uMoonIllumination'),light.moon.illumination);gl.uniform2f(this.uniform(p,'uWaterResolution'),width,height);
-    gl.uniform2f(this.uniform(p,'uSunPosition'),light.sun.x,light.sun.y);gl.uniform1f(this.uniform(p,'uSunAltitude'),light.sun.altitude);gl.uniform3fv(this.uniform(p,'uSunColor'),light.sun.color);gl.uniform1f(this.uniform(p,'uSunIntensity'),light.sun.intensity);
-    gl.uniform2f(this.uniform(p,'uMoonPosition'),light.moon.x,light.moon.y);gl.uniform1f(this.uniform(p,'uMoonAltitude'),light.moon.altitude);gl.uniform3fv(this.uniform(p,'uMoonColor'),light.moon.color);gl.uniform1f(this.uniform(p,'uMoonIntensity'),light.moon.intensity);
+    gl.uniform2f(this.uniform(p,'uSunPosition'),light.sun.x,light.sun.y);gl.uniform1f(this.uniform(p,'uSunAltitude'),light.sun.altitude);gl.uniform3fv(this.uniform(p,'uSunColor'),pass===0?this.sunLinear:light.sun.color);gl.uniform1f(this.uniform(p,'uSunIntensity'),light.sun.intensity);
+    gl.uniform2f(this.uniform(p,'uMoonPosition'),light.moon.x,light.moon.y);gl.uniform1f(this.uniform(p,'uMoonAltitude'),light.moon.altitude);gl.uniform3fv(this.uniform(p,'uMoonColor'),pass===0?this.moonLinear:light.moon.color);gl.uniform1f(this.uniform(p,'uMoonIntensity'),light.moon.intensity);
     if(pass===0){gl.bindVertexArray(this.vao);gl.drawElements(gl.TRIANGLES,this.indices,gl.UNSIGNED_SHORT,0);gl.bindVertexArray(null);}else gl.drawArrays(gl.TRIANGLES,0,3);
    }
    if(timing&&this.timer){gl.endQuery(this.timer.TIME_ELAPSED_EXT);this.pendingQuery=true;}
