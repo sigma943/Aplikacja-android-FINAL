@@ -1149,12 +1149,12 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
    Customization is expressed here rather than overridden with fixed values. */
 @layer landscape-materials {
  html[data-landscape-theme='on'] :is(.pks-theme-root,.pks-panel-scope,.pks-glass-frame,.connections-view,.connections-map-modal) {
-  --ui-surface:var(--landscape-surface);--ui-glass:var(--landscape-surface);--ui-glass-row:var(--landscape-field);--ui-raised:var(--landscape-solid);
-  --ui-text:var(--landscape-ink);--ui-muted:var(--landscape-muted);--ui-edge:var(--landscape-edge);
-  --transit-canvas:transparent;--transit-surface:var(--landscape-surface);--transit-card:var(--landscape-field);--transit-text:var(--landscape-ink);--transit-muted:var(--landscape-muted);--transit-border:var(--landscape-edge);
-  --panel-solid:var(--landscape-surface);--panel-surface:var(--landscape-field);--panel-glass:var(--landscape-surface);--panel-edge:var(--landscape-edge);
-  --cn-surface:var(--landscape-surface);--cn-text:var(--landscape-ink);--cn-muted:var(--landscape-muted);--cn-edge:var(--landscape-edge);--cn-accent:var(--landscape-accent);
-  --pks-accent-text:var(--landscape-accent);
+  --ui-surface:var(--landscape-surface)!important;--ui-glass:var(--landscape-surface)!important;--ui-glass-row:var(--landscape-field)!important;--ui-raised:var(--landscape-solid)!important;
+  --ui-text:var(--landscape-ink)!important;--ui-muted:var(--landscape-muted)!important;--ui-edge:var(--landscape-edge)!important;
+  --transit-canvas:transparent!important;--transit-surface:var(--landscape-surface)!important;--transit-card:var(--landscape-field)!important;--transit-text:var(--landscape-ink)!important;--transit-muted:var(--landscape-muted)!important;--transit-border:var(--landscape-edge)!important;
+  --panel-solid:var(--landscape-surface)!important;--panel-surface:var(--landscape-field)!important;--panel-glass:var(--landscape-surface)!important;--panel-edge:var(--landscape-edge)!important;
+  --cn-surface:var(--landscape-surface)!important;--cn-text:var(--landscape-ink)!important;--cn-muted:var(--landscape-muted)!important;--cn-edge:var(--landscape-edge)!important;--cn-accent:var(--landscape-accent)!important;
+  --pks-accent-text:var(--landscape-accent)!important;
   color:var(--landscape-ink)!important;color-scheme:var(--landscape-color-scheme)!important;
  }
  html[data-landscape-theme='on'] :is(.pks-glass-frame,.pks-panel-scope,.transit-view,.connections-view,.journey-view,[data-statistics-view],[data-cosmic-canvas],[data-full-stop-list],[data-admin-viewport]) {
@@ -1184,7 +1184,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'] :is(.leaflet-layer,.leaflet-control-zoom-in,.leaflet-control-zoom-out,.leaflet-control-attribution) { filter:var(--landscape-map-filter)!important;transition:none!important; }
  html[data-landscape-theme='on'] [data-options-overlay] { -webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(2,10,20,.12)!important; }
  /* Artwork windows sit behind a single adjustable scrim on opaque map tiles. */
- html[data-landscape-theme='on'] [data-landscape-chrome] { display:block; }
+ html[data-landscape-theme='on'] [data-landscape-chrome] { display:block!important; }
  html[data-landscape-theme='on'] [data-landscape-chrome]::after { content:'';position:absolute;inset:0;background:var(--landscape-surface); }
  html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { z-index:-1;bottom:auto;height:calc(60svh - 32px); }
  html[data-landscape-theme='on'] .map-detail-shell { isolation:isolate; }
