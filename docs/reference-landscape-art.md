@@ -31,6 +31,9 @@ The golden-hour capture is before the new mountain ridge covers the Sun. The
 astronomical sunset capture intentionally has no direct solar reflection once
 the source is hidden. Midday specular exposure is restrained to avoid broad
 white clipping; warm tones remain continuous across the existing solar state.
+Cloud colour, water environment reflection and occlusion use the same mirrored
+repeat coordinate. Neighboring tiles share the same edge instead of fading to
+an empty vertical strip; the full tile is cached even when the viewport crops it.
 
 GPU rendering remains Gerstner displacement/analytic normals, GGX/Smith/Schlick,
 HDR where supported, ACES, restrained bloom and occluded screen-space scattering.

@@ -7,6 +7,13 @@ test('clouds continue their original steady drift',()=>{
  assert.ok(r.cloudOffset(3)-r.cloudOffset(0)>=12);
  assert.ok(Math.abs(r.cloudOffset(61)-r.cloudOffset(60))<=12);
 });
+test('mirrored cloud coverage is continuous at tile edges and through the complete drift cycle',()=>{
+ for(const x of [0,.2,.7,1])for(const seconds of [0,1000/12,2000/12]){
+  const before=r.cloudSampleX(x,r.cloudOffset(seconds-.0001)),after=r.cloudSampleX(x,r.cloudOffset(seconds+.0001));
+  assert.ok(Math.abs(before-after)<.00001,'no coverage jump at the loop seam');
+ }
+ for(const seam of [-1,0,1,2])assert.ok(Math.abs(r.cloudSampleX(seam-.00001,0)-r.cloudSampleX(seam+.00001,0))<1e-9);
+});
 test('power policy keeps a live world in saver mode and recovers from one expensive frame',()=>{
  const {landscapeMotionPolicy:p,landscapeFrameBudget:budget}=load('lib/landscape-motion.ts');
  const base={hidden:false,nativeActive:true,reduced:false,light:false,limited:false,critical:false,slow:false};

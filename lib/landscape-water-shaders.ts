@@ -120,8 +120,8 @@ vec3 skyRadiance(vec3 direction){
  horizon=mix(horizon,vec3(.80,.24,.075),uWarm*.84);
  vec3 sky=mix(horizon,zenith,smoothstep(0.,.75,elevation));
  vec2 reflected=vec2(.5+atan(direction.x,direction.z)/AZ_SPAN,.55-asin(clamp(direction.y,-1.,1.))/(PI*.5)*.49);
- vec2 cloudUV=vec2(fract(reflected.x-uTime*.012),reflected.y);vec4 cloud=texture(uClouds,cloudUV);
- float cloudAlpha=cloud.a*smoothstep(0.,.09,cloudUV.x)*(1.-smoothstep(.91,1.,cloudUV.x));
+ vec2 cloudUV=vec2(1.-abs(mod(reflected.x-uTime*.012,2.)-1.),reflected.y);vec4 cloud=texture(uClouds,cloudUV);
+ float cloudAlpha=cloud.a;
  vec3 cloudLinear=pow(cloud.rgb,vec3(2.2));
  vec3 cloudLit=cloudLinear*mix(vec3(.025,.045,.09),vec3(.8),uDay);
  cloudLit=mix(cloudLit,cloudLinear*vec3(1.15,.43,.13),uWarm*.7);
@@ -176,8 +176,8 @@ uniform float uQuality;
 uniform float uHdr;
 out vec4 fragColor;
 float visibility(vec2 uv){
- float terrain=texture(uTerrain,uv).a;vec2 cloudUV=vec2(fract(uv.x-uTime*.012),uv.y);
- float cloud=texture(uClouds,cloudUV).a*smoothstep(0.,.09,cloudUV.x)*(1.-smoothstep(.91,1.,cloudUV.x));
+ float terrain=texture(uTerrain,uv).a;vec2 cloudUV=vec2(1.-abs(mod(uv.x-uTime*.012,2.)-1.),uv.y);
+ float cloud=texture(uClouds,cloudUV).a;
  return (1.-terrain)*(1.-cloud*.94);
 }
 vec3 bright(vec2 uv){vec4 s=texture(uWater,uv);float lum=dot(s.rgb,vec3(.2126,.7152,.0722));float threshold=uHdr>.5?1.25:.86;return s.rgb*min(max(lum-threshold,0.),4.)/max(lum,.0001)*s.a;}

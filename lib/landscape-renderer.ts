@@ -6,7 +6,8 @@ export {mountainHorizon,discVisibility} from './landscape-lighting';
 const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
 const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
-export const cloudOffset=(seconds:number)=>((seconds*12)%WIDTH+WIDTH)%WIDTH;
+export const cloudOffset=(seconds:number)=>((seconds*12)%(2*WIDTH)+2*WIDTH)%(2*WIDTH);
+export const cloudSampleX=(x:number,shift:number)=>{const u=((x-shift/WIDTH)%2+2)%2;return 1-Math.abs(u-1);};
 export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
 /** One neutral illustrated terrain cutout, one cloud layer and a mask extracted from
  * the terrain's transparent river. All times use these SAME assets and geometry. */
@@ -42,9 +43,11 @@ export class LandscapeRenderer{
   resize(w:number,h:number,dpr:number){
     const density=Math.min(dpr,1.25,Math.sqrt(900000/(w*h)));
     this.width=this.canvas.width=Math.round(w*density);this.height=this.canvas.height=Math.round(h*density);
-    for(const layer of [this.terrain,this.clouds,this.water]){layer.width=this.width;layer.height=this.height;}
+    for(const layer of [this.terrain,this.water]){layer.width=this.width;layer.height=this.height;}
     // Uniform scale; phones crop at most a narrow edge instead of stretching artwork.
     this.scale=Math.max(this.width/WIDTH,this.height/HEIGHT);this.offsetX=(this.width-WIDTH*this.scale)/2;this.offsetY=this.height-HEIGHT*this.scale;this.lastLight='';this.fallbackKey='';this.lastBackground=-Infinity;
+    // Keep the complete cloud tile even on a cropped/rotated viewport.
+    this.clouds.width=Math.ceil(WIDTH*this.scale);this.clouds.height=this.height;
   }
   copyWindow(context:CanvasRenderingContext2D,sx:number,sy:number,sw:number,sh:number,width:number,height:number,waterFresh=false){
     context.drawImage(this.canvas,sx,sy,sw,sh,0,0,width,height);
@@ -60,7 +63,7 @@ export class LandscapeRenderer{
   private relight(day:number,warm:number,moon:number,sunX:number){
     if(!this.assets)return;
     for(const [canvas,image,isCloud]of [[this.terrain,this.assets.terrain,false],[this.clouds,this.assets.clouds,true]] as const){
-      const c=canvas.getContext('2d')!;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,this.width,this.height);this.coordinates(c);
+      const c=canvas.getContext('2d')!;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,canvas.width,canvas.height);c.setTransform(this.scale,0,0,this.scale,isCloud?0:this.offsetX,this.offsetY);
       c.drawImage(image,0,0,WIDTH,HEIGHT);
       c.globalCompositeOperation='source-atop';
       c.fillStyle=`rgba(2,14,48,${(1-day)*(isCloud?.92:.84)-moon*.05})`;c.fillRect(0,0,WIDTH,HEIGHT);
@@ -69,24 +72,16 @@ export class LandscapeRenderer{
         g.addColorStop(0,`rgba(255,159,81,${warm*(isCloud?.75:.42)})`);g.addColorStop(1,`rgba(170,78,93,${warm*.16})`);c.fillStyle=g;c.fillRect(0,0,WIDTH,HEIGHT);
       }
       c.globalCompositeOperation='source-over';
-      if(isCloud){
-        // The atlas is not painted as a seamless tile. Feather both ends before
-        // repeating it, so passing cloud groups never expose a vertical cut.
-        const edge=c.createLinearGradient(0,0,WIDTH,0);
-        edge.addColorStop(0,'transparent');edge.addColorStop(.09,'#000');edge.addColorStop(.91,'#000');edge.addColorStop(1,'transparent');
-        c.globalCompositeOperation='destination-in';c.fillStyle=edge;c.fillRect(0,0,WIDTH,HEIGHT);c.globalCompositeOperation='source-over';
-      }
     }
   }
   private cloudTransmission(x:number,y:number,shift:number){
     const alpha=this.assets?.cloudAlpha;if(!alpha)return 1;
-    const px=Math.floor((((x-shift/WIDTH)%1+1)%1)*850),py=Math.floor(y*1850);
+    const px=Math.min(849,Math.floor(cloudSampleX(x,shift)*850)),py=Math.floor(y*1850);
     if(py<0||py>=1850)return 1;
     // Average a small patch so fine cloud edges do not abruptly switch a reflection.
     let opacity=0;
-    for(const dx of [-4,0,4])for(const dy of [-4,0,4])opacity+=alpha[Math.max(0,Math.min(1849,py+dy))*850+(px+dx+850)%850];
-    const edge=smoothstep(0,.09,px/850)*(1-smoothstep(.91,1,px/850));
-    return 1-opacity/(9*255)*edge;
+    for(const dx of [-4,0,4])for(const dy of [-4,0,4])opacity+=alpha[Math.max(0,Math.min(1849,py+dy))*850+Math.max(0,Math.min(849,px+dx))];
+    return 1-opacity/(9*255);
   }
   private moon(c:CanvasRenderingContext2D,state:AstronomyState,x:number,y:number,radius:number){
     const f=state.illumination.fraction,opacity=c.globalAlpha;
@@ -143,9 +138,13 @@ export class LandscapeRenderer{
     }
     c.setTransform(1,0,0,1,0,0);
     const cloudShift=cloudOffset(seconds);
-    // Seamless, steady drift rather than oscillating the whole sky in place.
-    c.drawImage(this.clouds,cloudShift*this.scale,0);
-    c.drawImage(this.clouds,(cloudShift-WIDTH)*this.scale,0);c.drawImage(this.terrain,0,0);
+    // Adjacent tiles meet at the SAME image edge. Mirror-repeat keeps cloud
+    // colour/coverage continuous without the old empty vertical feather band.
+    for(let tile=-2;tile<=1;tile++){
+      const left=this.offsetX+(cloudShift+tile*WIDTH)*this.scale;
+      c.save();if(Math.abs(tile)%2){c.translate(left+WIDTH*this.scale,0);c.scale(-1,1);c.drawImage(this.clouds,0,0);}else c.drawImage(this.clouds,left,0);c.restore();
+    }
+    c.drawImage(this.terrain,0,0);
     if(!this.assets)return;
     if(gpuReady){if(!this.directWater)c.drawImage(this.gpu!.canvas,0,0,this.width,this.height);}else{
     // Explicit STATIC fallback when WebGL2/assets/context are unavailable.
