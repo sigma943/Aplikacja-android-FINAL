@@ -1222,3 +1222,42 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-navigation,.pks-map-search-panel,.map-detail-shell,input,textarea,select,[class*='text-slate-'],[class*='text-gray-'],[class*='text-white'],.map-detail-title,.map-detail-muted,[data-map-brand],[data-nav-item]) { transition-property:transform,opacity,scale,height!important; }
 }
 @media(min-width:768px) { html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { height:85svh; } }
+
+/* Solar chrome: shallow rounded glass, a restrained Fresnel rim, and space
+   around the navigation. No translucent dialog ever exposes another UI. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] .pks-theme-root[data-options-open='true'] :is([data-app-content],[data-app-navigation]) { visibility:hidden!important;pointer-events:none!important; }
+ html[data-landscape-theme='on'] { --landscape-user-glow:linear-gradient(transparent,transparent); }
+ html[data-landscape-theme='on'][data-panel-glow='on'] { --landscape-user-glow:var(--personal-glow-image); }
+ html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.connections-card,.pks-options-sheet,.map-detail-shell,.pks-map-search-panel,.pks-navigation) {
+  background-image:var(--landscape-reflection-image),var(--landscape-user-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent))!important;
+ }
+ html[data-landscape-theme='on'] [data-landscape-chrome]::after { background-image:var(--landscape-reflection-image); }
+ html[data-landscape-theme='on'] :is(.pks-options-sheet,.map-detail-shell,.pks-map-search-panel,.pks-navigation) {
+  box-shadow:var(--personal-shadow,0 8px 26px #07132126),inset 0 1px 0 var(--landscape-rim,transparent),inset 0 -1px 0 #0713210c!important;
+ }
+ html[data-landscape-theme='on'] [data-options-sheet] { isolation:isolate; }
+ html[data-landscape-theme='on'] .pks-navigation:not([data-navigation-preview]) {
+  width:calc(100% - 20px)!important;margin:0 10px 8px;
+  border:1px solid var(--landscape-edge)!important;border-radius:var(--personal-panel-radius,24px)!important;
+ }
+ html[data-landscape-theme='on'] .pks-navigation [data-nav-item] { padding-top:3px;gap:5px; }
+ html[data-landscape-theme='on'] .pks-navigation [data-nav-label] { font-weight:550;letter-spacing:.005em; }
+ html[data-landscape-theme='on'] .pks-navigation [data-nav-item][aria-current='page'] [data-nav-label] { font-weight:750; }
+ html[data-landscape-theme='on'][data-personal-nav='line'] .pks-navigation [data-nav-item][aria-current='page'] {
+  background:radial-gradient(ellipse at 50% 24%,var(--pks-accent-soft),transparent 70%);
+ }
+ html[data-landscape-theme='on'][data-personal-nav='line'] .pks-navigation [data-nav-indicator] { top:auto;bottom:3px;width:16px;height:3px;border-radius:5px; }
+ html[data-landscape-theme='on'] .map-detail-shell { border:1px solid var(--landscape-edge)!important;border-radius:var(--personal-panel-radius,24px) var(--personal-panel-radius,24px) 0 0; }
+ html[data-landscape-theme='on'] :is([data-map-bus-sheet],[data-map-stop-sheet]) { bottom:calc(80px + env(safe-area-inset-bottom)); }
+ html[data-landscape-theme='on'] [data-vehicle-header] { padding:16px 18px 20px;background:var(--landscape-reflection-image),var(--landscape-vehicle-header),#080d1d!important; }
+ html[data-landscape-theme='on'] [data-vehicle-header]>div:first-child { height:4px;width:36px;margin-bottom:14px;background:#ffffff55; }
+ html[data-landscape-theme='on'] .map-stop-handle { padding:17px 18px;background-image:var(--landscape-reflection-image); }
+ html[data-landscape-theme='on'] .map-detail-shell .map-detail-row { background-color:color-mix(in srgb,var(--landscape-surface) 65%,var(--landscape-field))!important;border-color:var(--landscape-edge)!important;border-radius:var(--personal-card-radius,18px); }
+ html[data-landscape-theme='on'][data-personal-card-style='flat'] :is(.map-detail-shell,.pks-options-sheet,.pks-navigation) { box-shadow:none!important; }
+ html[data-landscape-theme='on'][data-personal-card-style='outlined'] .map-detail-shell .map-detail-row { border-width:2px!important;border-color:var(--landscape-accent)!important;box-shadow:none!important; }
+ html[data-landscape-theme='on'][data-personal-card-style='flat'] .map-detail-shell .map-detail-row { border-color:transparent!important;box-shadow:none!important; }
+}
+@media(min-width:768px) {
+ html[data-landscape-theme='on'] :is([data-map-bus-sheet],[data-map-stop-sheet]) { bottom:16px;border-radius:var(--personal-panel-radius,24px); }
+}

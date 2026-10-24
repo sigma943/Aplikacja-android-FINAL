@@ -1,3 +1,4 @@
+import {solarShaftStrength} from './landscape-optics';
 import {projectCelestial,skyState,smoothstep,type AstronomyState} from './landscape-astronomy';
 import horizon from './landscape-horizon.json';
 const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
@@ -106,6 +107,31 @@ export class LandscapeRenderer{
       c.fillStyle='#e5efff';c.beginPath();c.arc(s.x*WIDTH,s.y*HEIGHT,s.size,0,TAU);c.fill();
     }c.globalAlpha=1;
     const sx=sun.x*WIDTH,sy=sun.y*HEIGHT,mx=moon.x*WIDTH,my=moon.y*HEIGHT;
+    // Crepuscular shafts: cloud gaps modulate a fan of perspective beams.
+    // The foreground terrain and cloud atlas are painted afterwards, so this
+    // light never washes over opaque mountains, controls or text.
+    const shafts=solarShaftStrength(state.sun.altitude);
+    if(shafts>.001){
+      c.save();c.globalCompositeOperation='screen';
+      for(let i=0;i<22;i++){
+        const angle=-Math.PI+.12+i*(Math.PI-.24)/21;
+        const gap=(this.cloudTransmission(sun.x+Math.cos(angle)*.35,sun.y+Math.sin(angle)*.28,cloudOffset(seconds))+this.cloudTransmission(sun.x+Math.cos(angle)*.65,sun.y+Math.sin(angle)*.45,cloudOffset(seconds)))/2;
+        const strength=shafts*(.10+.90*gap**3)*(.6+.4*Math.sin(i*2.37)**2);
+        const length=HEIGHT*.76,dx=Math.cos(angle)*length,dy=Math.sin(angle)*length;
+        const ray=c.createLinearGradient(sx,sy,sx+dx,sy+dy);
+        ray.addColorStop(0,'#ffe9b5');ray.addColorStop(.18,'#ffdca2');ray.addColorStop(1,'#ffc38300');
+        c.fillStyle=ray;
+        for(let edge=3;edge>=1;edge--){
+          const half=(.007+i%3*.002)*edge;
+          c.globalAlpha=strength*.026;
+          c.beginPath();c.moveTo(sx,sy);
+          c.lineTo(sx+Math.cos(angle-half)*length,sy+Math.sin(angle-half)*length);
+          c.lineTo(sx+Math.cos(angle+half)*length,sy+Math.sin(angle+half)*length);
+          c.closePath();c.fill();
+        }
+      }
+      c.restore();
+    }
     if(state.sun.altitude>-.06){
       const glow=c.createRadialGradient(sx,sy,10,sx,sy,190);glow.addColorStop(0,'#ffe3a688');glow.addColorStop(1,'#ffd98700');c.fillStyle=glow;c.fillRect(sx-190,sy-190,380,380);
       c.fillStyle=sky.twilight>.2?'#fff1b0':'#fff8d4';c.beginPath();c.arc(sx,sy,25,0,TAU);c.fill();

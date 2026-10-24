@@ -58,6 +58,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   for(const opacity of [1,.64]){
    await page.evaluate(()=>document.querySelector('[data-toggle-glass]').click());
    await page.waitForFunction(expected=>{const parts=getComputedStyle(document.querySelector('.transit-card')).backgroundColor.match(/[\d.]+/g).map(Number);return Math.abs((parts.length===3?1:parts[3])-expected)<.005;}, {},opacity);
+   if(opacity===1)assert.equal(await page.evaluate(()=>Number(document.documentElement.style.getPropertyValue('--landscape-reflection-strength'))),0,'glass off removes specular effects');
   }
   await page.waitForFunction(()=>document.querySelector('[data-landscape-stage]')?.dataset.assetsReady==='true');
   assert.equal(await page.$eval('.transit-view',e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','no white layer across scenery');
@@ -139,11 +140,40 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   assert.ok(transition.duration);
   for(const selector of ['[data-map-search-panel]','.pks-navigation'])assert.ok(await page.$eval(selector,e=>!getComputedStyle(e).transitionProperty.includes('color')));
   await page.screenshot({path:'test/ui-previews/landscape-map-sunset.png'});
+  // Reproduce Android IME resize at a fixed width. The stage and the filter's
+  // source frame stay unchanged even though the app viewport becomes shorter.
+  const beforeKeyboard=await page.$eval('[data-landscape-stage]',e=>({width:e.width,height:e.height}));
+  await page.focus('[data-map-search-panel] input');
+  await page.setViewport({width:393,height:500,deviceScaleFactor:1});
+  await page.waitForFunction(()=>document.querySelector('[data-landscape-stage]').dataset.keyboard==='true');
+  assert.deepEqual(await page.$eval('[data-landscape-stage]',e=>({width:e.width,height:e.height})),beforeKeyboard,'keyboard never reframes the sky into terrain');
+  await page.screenshot({path:'test/ui-previews/landscape-keyboard-stable.png'});
+  await page.evaluate(()=>document.activeElement.blur());
+  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+  await page.waitForFunction(()=>document.querySelector('[data-landscape-stage]').dataset.keyboard==='false');
   await page.type('[data-map-search-panel] input','108');
   assert.equal(await page.$eval('[data-map-search-panel] input',e=>e.value),'108');
   await page.click('[data-nav-item="stops"]');assert.equal(await page.$eval('[data-nav-item="stops"]',e=>e.getAttribute('aria-current')),'page');
   await page.click('[data-nav-item="map"]');
   await page.screenshot({path:'test/ui-previews/landscape-map-chrome.png'});
+  const nav=await page.$eval('.pks-navigation',e=>({width:e.getBoundingClientRect().width,radius:parseFloat(getComputedStyle(e).borderTopLeftRadius)}));
+  assert.ok(nav.width<393&&nav.radius>=20,'navigation has a rounded floating silhouette');
+  await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:20}));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  await page.click('[data-nav-item="options"]');await page.waitForSelector('[data-options-sheet]');
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-app-content]')).visibility==='hidden');
+  assert.ok(await page.$$eval('[data-app-content],[data-app-navigation]',nodes=>nodes.every(e=>getComputedStyle(e).visibility==='hidden')),'transparent options expose scenery, never the underlying UI');
+  await page.screenshot({path:'test/ui-previews/landscape-options-20.png'});
+  const reflection=()=>page.evaluate(()=>Number(getComputedStyle(document.documentElement).getPropertyValue('--landscape-reflection-strength')));
+  const strong=await reflection();
+  await page.$eval('[aria-label="Krycie testowe"]',e=>{e.value='80';e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));});
+  // Use the actual settings event too: React's range event implementation varies
+  // between Chrome versions when a value is assigned by script.
+  await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:80}));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  await page.waitForFunction(()=>document.documentElement.style.getPropertyValue('--landscape-surface').endsWith(',0.8)'));
+  assert.ok(await reflection()<strong,'reflective glints follow the opacity setting');
+  await page.click('[data-close-options]');
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-app-content]')).visibility==='visible');
+  await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1','{}');window.dispatchEvent(new Event('pks-interface-appearance'));});
   await page.goto(origin+'/landscape-journey-fixture/');
   await page.waitForSelector('input[type=date]');
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);

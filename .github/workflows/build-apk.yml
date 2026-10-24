@@ -80,7 +80,7 @@ jobs:
 
       - name: Verify living mountain astronomy and lifecycle
         run: |
-          node --test test/landscape.test.cjs test/app-theme.test.cjs test/interface-presets.test.cjs test/appearance-backup.test.cjs test/personalization-profiles.test.cjs test/journey-places.test.cjs
+          node --test test/landscape-optics.test.cjs test/landscape.test.cjs test/app-theme.test.cjs test/interface-presets.test.cjs test/appearance-backup.test.cjs test/personalization-profiles.test.cjs test/journey-places.test.cjs
           node test/landscape-browser.cjs
 
       - name: Verify removed theme migration and MPK recovery

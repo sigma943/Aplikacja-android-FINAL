@@ -140,3 +140,36 @@ Old version-1 backups remain compatible. The picker preview reads
 Tests cover opacity values, tint, native control color-scheme, theme/font backup
 round trips, admin day/night glass, journey controls and existing renderer
 lifecycle/animation behavior. Browser screenshots exercise the real components.
+
+
+## Sky shafts, glass response and overlays (2026-10-24)
+
+Sources used for the optical design:
+- NASA, Crepuscular Rays and Light Scattering:
+  https://science.nasa.gov/earth/earth-observatory/crepuscular-rays-and-light-scattering-150090/
+- Physically Based Rendering, Specular Reflection and Transmission:
+  https://www.pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission
+
+The effect is an artistic Canvas 2D approximation, not a volumetric renderer,
+physical camera or live weather simulation. Twenty-two perspective shafts use
+samples of the existing drifting cloud mask; three low-opacity wedges soften
+each shaft. Strength peaks near the horizon and fades below twilight or at high
+sun elevations. Clouds and opaque terrain are drawn over the shafts. No
+full-screen blur or extra worker/frame loop is introduced.
+
+UI glass uses a Schlick-style air/glass response with a nominal 4% normal
+reflectance. The viewing angle is artistic. Direction/temperature follow the
+projected Sun; glints scale with transmission (1 - user opacity). Glass disabled,
+100% opacity and performance mode suppress the reflective material. User blur,
+pattern, tint and glow settings remain in the shared material pipeline.
+
+Options hide only the application underlay and mobile navigation while leaving
+the single scenery canvas visible. Inert content stays laid out for a clean
+return after closing. Transparent options therefore cannot show overlapping
+admin, stop or map labels. There is no opacity floor or extra white page veil.
+
+The scene's portrait height is held while an editable field and a large viewport
+height reduction indicate an IME. Rotation resets the frame. Dismissal restores
+normal sizing; the filter copies the same sky crop throughout. The browser suite
+reproduces the narrow viewport resize and checks frame dimensions, options at
+20% opacity, glint strength, glass off, plus the existing real sheet animations.
