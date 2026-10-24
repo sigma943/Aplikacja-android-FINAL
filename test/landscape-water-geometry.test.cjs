@@ -31,3 +31,17 @@ test('relative observer distance decreases towards the foreground',()=>{
  const w=perspective.width,at=y=>perspective.data[(Math.floor(y*perspective.height)*w+Math.floor(w*.7))*4];
  assert.ok(at(.60)>at(.70)&&at(.70)>at(.83));
 });
+test('ray-tracing proxy has finite positive depth and places near banks above the water plane',()=>{
+ const depth=PNG.sync.read(fs.readFileSync('public/themes/mountains/scene-depth.png'));
+ assert.equal(depth.width,calibration.mapWidth);assert.equal(depth.height,calibration.mapHeight);
+ let terrain=0,empty=0;
+ for(let y=0;y<depth.height;y+=3)for(let x=0;x<depth.width;x+=3){
+  const i=(y*depth.width+x)*4,coverage=depth.data[i+2];if(coverage===0){empty++;continue;}
+  const radius=(depth.data[i]*256+depth.data[i+1])/65535*calibration.worldExtent;
+  assert.ok(radius>0&&radius<110.01);
+  const elevation=(calibration.horizon-(y+.5)/depth.height)/calibration.altitudeSpan*Math.PI/2;
+  const height=calibration.cameraHeight+radius*Math.tan(elevation);
+  assert.ok(height>.9,'opaque bank proxy cannot fall below the water');terrain++;
+ }
+ assert.ok(terrain>100&&empty>100);
+});

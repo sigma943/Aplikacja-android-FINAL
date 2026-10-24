@@ -15,9 +15,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   assert.equal(await page.$$eval('[data-landscape-water]',nodes=>nodes.length),1,'one visible GPU surface, no GPU-to-2D copy in the frame path');
   fs.mkdirSync('test/ui-previews',{recursive:true});
   await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}html[data-landscape-theme] *{transition-duration:0s!important}'});
-  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:30:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-27T01:30:00+01:00'],['cloudy-night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
+  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:20:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-27T01:30:00+01:00'],['cloudy-night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
    // Fix wave/cloud phase for repeatable coverage, while keeping both moving.
-   await page.evaluate(({iso,seconds})=>window.__landscapePreview({iso,rate:0,quality:'high',seconds}),{iso,seconds:name==='night'?30:0});
+   await page.evaluate(({iso,seconds})=>window.__landscapePreview({iso,rate:0,quality:'high',seconds}),{iso,seconds:name==='night'?30:name==='golden-hour'?20:0});
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
    await new Promise(r=>setTimeout(r,150));
    if(name==='cloudy-night')assert.ok(await page.evaluate(()=>window.__landscapeDiagnostics().renderer.lighting.moon.intensity<.03),'an opaque cloud suppresses direct moonlight');
@@ -25,11 +25,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    if(name==='night')assert.ok(await page.evaluate(()=>{const c=window.__landscapeCapture(),d=c.getContext('2d').getImageData(0,Math.floor(c.height*.6),c.width,Math.floor(c.height*.4)).data;let silver=0;for(let i=0;i<d.length;i+=4)if(d[i+2]>100&&d[i+2]>d[i]*1.03)silver++;return silver>100;}),'visible silver path follows the real Moon through the river bends');
    await page.screenshot({path:'test/ui-previews/landscape-'+name+'.png'});
   }
-  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T16:30:00+02:00',rate:0,seconds:0}));
+  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T16:20:00+02:00',rate:0,quality:'high',seconds:20}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
   // Record the actual live canvas with Chrome's own encoder, without depending
   // on an external ffmpeg executable being installed on every CI runner.
-  const recording=await page.evaluate(async()=>{
+  const record=()=>page.evaluate(async()=>{
    const stage=document.querySelector('[data-landscape-stage]');
    const composite=document.createElement('canvas');composite.width=stage.width;composite.height=stage.height;const ctx=composite.getContext('2d');
    const copy=()=>{ctx.drawImage(window.__landscapeCapture(),0,0);};copy();const capture=setInterval(copy,1000/24);
@@ -40,6 +40,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    stream.getTracks().forEach(track=>track.stop());const bytes=new Uint8Array(await new Blob(chunks).arrayBuffer());
    let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary);
   });
+  const highRecording=await record();
+  assert.ok(highRecording.length>10000,'high-quality recording contains encoded frames');
+  fs.writeFileSync('test/ui-previews/landscape-high.webm',Buffer.from(highRecording,'base64'));
+  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T16:20:00+02:00',rate:0,seconds:20}));
+  await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+  const recording=await record();
   assert.ok(recording.length>10000,'live recording contains encoded frames');
   fs.writeFileSync('test/ui-previews/landscape-live.webm',Buffer.from(recording,'base64'));
   // At a fixed astronomical instant, changes below the skyline must come from

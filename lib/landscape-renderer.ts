@@ -8,7 +8,7 @@ const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
 export const cloudOffset=(seconds:number)=>((seconds*12)%(2*WIDTH)+2*WIDTH)%(2*WIDTH);
 export const cloudSampleX=(x:number,shift:number)=>{const u=((x-shift/WIDTH)%2+2)%2;return 1-Math.abs(u-1);};
-export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
+export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;sceneDepth?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
 /** One neutral illustrated terrain cutout, one cloud layer and a mask extracted from
  * the terrain's transparent river. All times use these SAME assets and geometry. */
 export class LandscapeRenderer{

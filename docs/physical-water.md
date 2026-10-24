@@ -1,5 +1,9 @@
 # Water surface and scene lighting
 
+The subsequent ray-tracing and wave-packet revision is described in
+[`ray-traced-water.md`](ray-traced-water.md). It supersedes the baseline ray,
+wave-count and exposure details below.
+
 This revision replaces the earlier reflection corridor, crest sparkle mask, CSS
 solar glows and Canvas ray wedges. Astronomy, trajectory, theme selection,
 React layout and transport functions are retained. The follow-up reference-art

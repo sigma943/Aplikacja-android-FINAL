@@ -20,7 +20,7 @@ export function discVisibility(x:number,y:number,r:number,altitude:number){
 }
 /** Consume the existing interpolated ephemeris and projection; never compute a second orbit. */
 export function landscapeLighting(state:AstronomyState,time:number,sunTransmission=1,moonTransmission=1):LandscapeLightingState{
-  const sky=skyState(state),sun=projectCelestial(state.sun),moon=projectCelestial(state.moon);
+  const base=skyState(state),sky={...base,twilight:base.twilight*(2-base.twilight)},sun=projectCelestial(state.sun),moon=projectCelestial(state.moon);
   const warm=sky.twilight;
   return {time,sky,
     sun:{...sun,altitude:state.sun.altitude,intensity:sky.day*discVisibility(sun.x,sun.y,SUN_RADIUS/(1000*1850/850),state.sun.altitude)*sunTransmission,

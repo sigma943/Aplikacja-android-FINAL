@@ -130,13 +130,13 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     const image=(name:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{
       const value=new Image();value.onload=()=>resolve(value);value.onerror=()=>reject(new Error(name));value.src='/themes/mountains/'+name;
     });
-    void Promise.all([image('terrain.webp'),image('clouds.webp'),image('water-mask.png'),image('water-uv.png').catch(()=>undefined),image('water-perspective.png').catch(()=>undefined),image('moon.webp').catch(()=>undefined)]).then(([terrain,clouds,water,geometry,perspective,moon])=>{
+    void Promise.all([image('terrain.webp'),image('clouds.webp'),image('water-mask.png'),image('water-uv.png').catch(()=>undefined),image('water-perspective.png').catch(()=>undefined),image('moon.webp').catch(()=>undefined),image('scene-depth.png').catch(()=>undefined)]).then(([terrain,clouds,water,geometry,perspective,moon,sceneDepth])=>{
       if(!alive)return;
       const mask=document.createElement('canvas');mask.width=850;mask.height=1850;
       const context=mask.getContext('2d',{willReadFrequently:true})!;context.drawImage(clouds,0,0,850,1850);
       const rgba=context.getImageData(0,0,850,1850).data,alpha=new Uint8ClampedArray(850*1850);
       for(let i=0;i<alpha.length;i++)alpha[i]=rgba[i*4+3];
-      renderer.setAssets({terrain,clouds,water,geometry,perspective,moon,cloudAlpha:alpha});element.dataset.assetsReady='true';draw();
+      renderer.setAssets({terrain,clouds,water,geometry,perspective,moon,sceneDepth,cloudAlpha:alpha});element.dataset.assetsReady='true';draw();
     }).catch(()=>{if(alive)element.dataset.renderError='landscape-assets';});
     worker.onmessage=event=>{
       if(!alive||event.data.id!==requestId)return;

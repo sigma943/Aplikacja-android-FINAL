@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path'),ts=require('typescript'),puppeteer=require('puppeteer');
 (async()=>{
  let browser;const server=http.createServer((req,res)=>{
-  const name=path.basename(req.url);if(!['water-mask.png','terrain.webp','water-uv.png','water-perspective.png','clouds.webp'].includes(name)){res.end('<!doctype html>');return;}
+  const name=path.basename(req.url);if(!['water-mask.png','terrain.webp','water-uv.png','water-perspective.png','clouds.webp','scene-depth.png'].includes(name)){res.end('<!doctype html>');return;}
   res.end(fs.readFileSync(path.join('public/themes/mountains',name)));
  });
  try{
@@ -14,7 +14,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
   await page.addScriptTag({content:`(()=>{const calibration=${calibration};const spectrum=${spectrum};const shaders={};const requireShader=name=>{if(name.includes('calibration'))return calibration;if(name.includes('spectrum'))return spectrum;throw Error(name);};((exports,require)=>{${shaders}})(shaders,requireShader);const output={};const require=name=>name.includes('shaders')?shaders:calibration;((exports,require)=>{${gpuSource}})(output,require);window.WaterGPU=output.LandscapeWaterGPU;})();`});
   const result=await page.evaluate(async()=>{
    const image=name=>new Promise(resolve=>{const i=new Image();i.onload=()=>resolve(i);i.src='/'+name;});
-   const gpu=window.gpu=new window.WaterGPU();gpu.setAssets({water:await image('water-mask.png'),terrain:await image('terrain.webp'),geometry:await image('water-uv.png'),perspective:await image('water-perspective.png'),clouds:await image('clouds.webp')});
+   const gpu=window.gpu=new window.WaterGPU();gpu.setAssets({water:await image('water-mask.png'),terrain:await image('terrain.webp'),geometry:await image('water-uv.png'),perspective:await image('water-perspective.png'),clouds:await image('clouds.webp'),sceneDepth:await image('scene-depth.png')});
    const frame={width:425,height:925,scale:.425,x:0,y:0};
    const light={time:0,sky:{day:.6,twilight:1},sun:{x:.52,y:.5,altitude:.08,intensity:.7,color:[1,.7,.3]},moon:{x:.7,y:.3,altitude:.5,illumination:1,intensity:0,color:[.67,.81,1]}};
    const copy=()=>{const c=document.createElement('canvas');c.width=gpu.canvas.width;c.height=gpu.canvas.height;c.getContext('2d').drawImage(gpu.canvas,0,0);return c.getContext('2d').getImageData(0,0,c.width,c.height).data;};

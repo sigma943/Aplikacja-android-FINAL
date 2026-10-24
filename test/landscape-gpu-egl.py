@@ -86,8 +86,8 @@ def uniform(name, *values):
     function('glUniform' + str(len(values)) + 'f', None, integer, *([f] * len(values)))(location(program, name.encode()), *values)
 
 import numpy as np
-images = [Image.open('public/themes/mountains/' + name).convert('RGBA') for name in ['water-mask.png', 'terrain.webp', 'water-perspective.png', 'clouds.webp']]
-for index, image in zip([0, 1, 3, 4], images):
+images = [Image.open('public/themes/mountains/' + name).convert('RGBA') for name in ['water-mask.png', 'terrain.webp', 'water-perspective.png', 'clouds.webp', 'scene-depth.png']]
+for index, image in zip([0, 1, 3, 4, 7], images):
     texture = ui()
     function('glGenTextures', None, integer, C.POINTER(ui))(1, C.byref(texture))
     function('glActiveTexture', None, ui)(0x84C0 + index)
@@ -97,7 +97,7 @@ for index, image in zip([0, 1, 3, 4], images):
         param(0x0DE1, key, value)
     data = C.create_string_buffer(image.tobytes())
     function('glTexImage2D', None, ui, integer, integer, integer, integer, integer, ui, ui, ptr)(0x0DE1, 0, 0x1908, image.width, image.height, 0, 0x1908, 0x1401, data)
-    function('glUniform1i', None, integer, integer)(location(program, {0:'uMask',1:'uTerrain',3:'uPerspective',4:'uClouds'}[index].encode()), index)
+    function('glUniform1i', None, integer, integer)(location(program, {0:'uMask',1:'uTerrain',3:'uPerspective',4:'uClouds',7:'uSceneDepth'}[index].encode()), index)
 atlas=np.array(Image.open('public/themes/mountains/water-uv.png').convert('RGB'));mh,mw=atlas.shape[:2];mw//=2
 geometry=np.zeros((mh,mw,4),dtype=np.float32)
 for channel,offset in [(0,0),(1,mw)]:
@@ -119,6 +119,7 @@ for target,data in [(0x8892,vertices),(0x8893,indices)]:
  buffer=ui();function('glGenBuffers',None,integer,C.POINTER(ui))(1,C.byref(buffer));function('glBindBuffer',None,ui,ui)(target,buffer.value);function('glBufferData',None,ui,C.c_ssize_t,ptr,ui)(target,data.nbytes,data.ctypes.data,0x88E4)
 function('glEnableVertexAttribArray',None,ui)(0);function('glVertexAttribPointer',None,ui,integer,ui,C.c_ubyte,integer,ptr)(0,2,0x1406,0,0,None)
 uniform('uFrameInterval',1/30);uniform('uHdr',0)
+uniform('uSceneEnabled',1)
 uniform('uResolution', W, H)
 uniform('uFrame', W, H, 0, 0)
 uniform('uSunPosition', .52, .5)
@@ -145,6 +146,17 @@ def render(time=0, quality=2):
     return Image.frombytes('RGBA', (W, H), bytes(buffer)).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
 first, later = render(), render(4)
+uniform('uSceneEnabled',0)
+without_scene=render()
+uniform('uSceneEnabled',1)
+assert ImageChops.difference(first,without_scene).convert('RGB').getbbox(), 'finite scene intersections affect reflected radiance'
+# Large-area brightness must stay stable even as individual wave facets glint.
+means=[]
+for i in range(6):
+    pixels=np.asarray(render(i/30),dtype=np.float32)
+    covered=pixels[:,:,3]>180
+    means.append(float(pixels[:,:,:3][covered].mean()/255))
+assert max(abs(a-b) for a,b in zip(means,means[1:]))<.035, ('no full-river flashing',means)
 difference = ImageChops.difference(first, later)
 changed = sum(sum(pixel[:3]) > 2 for pixel in difference.getdata())
 assert changed > 500, ('wave motion', changed)
