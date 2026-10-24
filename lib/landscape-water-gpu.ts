@@ -41,19 +41,28 @@ vec3 waveField(vec2 p,float t){
   float dy=cos(a)*.50*aa.x+cos(b)*.49*aa.y+cos(c)*.57*aa.z;
   return vec3(height,dx*.18,dy*.45);
 }
-float reflection(vec2 uv,vec3 n,vec2 body,float altitude,float power,float crest){
+// Centre/span sampled offline from the unchanged water mask. The illustrated
+// river is a curved perspective projection, not a rectangular flat wallpaper.
+vec2 riverSection(float y){
+  const vec2 profile[48]=vec2[48](vec2(0.94176,0.11412),vec2(0.94176,0.11412),vec2(0.94176,0.11412),vec2(0.94176,0.11412),vec2(0.89529,0.10588),vec2(0.90118,0.03500),vec2(0.79318,0.10588),vec2(0.73941,0.10235),vec2(0.72294,0.03500),vec2(0.72294,0.03500),vec2(0.59833,0.04471),vec2(0.48837,0.12235),vec2(0.46068,0.08000),vec2(0.60248,0.28353),vec2(0.63549,0.24588),vec2(0.64412,0.17529),vec2(0.65699,0.10118),vec2(0.78324,0.27294),vec2(0.84159,0.32588),vec2(0.85588,0.28588),vec2(0.85529,0.28706),vec2(0.75537,0.41294),vec2(0.69673,0.37294),vec2(0.68170,0.29412),vec2(0.68190,0.21176),vec2(0.67442,0.15294),vec2(0.68367,0.07529),vec2(0.72856,0.10824),vec2(0.80861,0.20588),vec2(0.87309,0.26000),vec2(0.89033,0.23294),vec2(0.90095,0.20471),vec2(0.90882,0.17294),vec2(0.87424,0.20000),vec2(0.82384,0.23529),vec2(0.76549,0.22706),vec2(0.71996,0.28000),vec2(0.68834,0.29882),vec2(0.69456,0.22706),vec2(0.71125,0.22588),vec2(0.76754,0.24706),vec2(0.79455,0.24588),vec2(0.81565,0.20471),vec2(0.83962,0.22471),vec2(0.95000,0.03500),vec2(0.88000,0.03500),vec2(0.88000,0.03500),vec2(0.88000,0.03500));
+  float row=clamp((y-.58)/.32*47.,0.,47.);int i=int(floor(row));
+  return mix(profile[i],profile[min(47,i+1)],smoothstep(0.,1.,fract(row)));
+}
+float reflection(vec2 uv,vec3 n,vec2 body,float altitude,float power,float crest,float lunar){
   if(altitude<=0.||power<=.0001)return 0.;
   float depth=clamp((uv.y-.575)/.425,0.,1.);
-  vec3 view=normalize(vec3((.5-uv.x)*.35,.55,-1.6+depth*.7));
+  vec2 section=riverSection(uv.y);
+  vec3 view=normalize(vec3((section.x-uv.x)/max(.04,section.y)*.16,.55,-1.6+depth*.7));
   vec3 light=normalize(vec3((body.x-.5)*1.4,max(.035,sin(altitude)),.9));
   vec3 halfVector=normalize(view+light);
   float spec=pow(max(0.,dot(n,halfVector)),mix(32.,64.,uQuality*.5));
-  // Both endpoints follow the real projected body; no recentering at the horizon.
-  float axis=mix(body.x,.5+(body.x-.5)*1.35,depth);
-  float width=mix(.022,.19,depth);
+  // Project the light's lateral bearing into the river's authored perspective.
+  // This follows the bends; the exact alpha mask still rejects islands and banks.
+  float axis=section.x+(body.x-.5)*1.8*section.y;
+  float width=max(.009,section.y*mix(.22,.42,depth))*mix(1.,1.35,lunar);
   float corridor=exp(-pow((uv.x-axis)/width,2.));
   float low=1.-smoothstep(.05,.65,altitude);
-  return power*corridor*(spec*.45+crest*4.5)*mix(.28,4.,low)*smoothstep(.575,.60,uv.y);
+  return power*corridor*(spec*.45+crest*4.5)*mix(mix(.28,4.,low),1.8,lunar)*smoothstep(.575,.60,uv.y);
 }
 void main(){
   vec2 screen=vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y);
@@ -81,8 +90,8 @@ void main(){
   // Pale broken crests contrast with coloured troughs; never a full-width stripe.
   base+=vec3(.10,.17,.21)*crest*edge*(.20+.80*uDay);
   base+=vec3(.009,.018,.024)*waves.x*edge;
-  float sun=reflection(uv,normal,uSunPosition,uSunAltitude,uSunIntensity,crest);
-  float moon=reflection(uv,normal,uMoonPosition,uMoonAltitude,uMoonIntensity,crest)*smoothstep(0.,.04,uMoonIllumination);
+  float sun=reflection(uv,normal,uSunPosition,uSunAltitude,uSunIntensity,crest,0.);
+  float moon=reflection(uv,normal,uMoonPosition,uMoonAltitude,uMoonIntensity,crest,1.)*smoothstep(0.,.04,uMoonIllumination);
   vec3 color=base+uSunColor*sun*edge+uMoonColor*moon*edge;
   fragColor=vec4(clamp(color,0.,1.),mask);
 }`;

@@ -265,3 +265,11 @@ The browser test now asserts direct GPU presentation, no orphaned water canvas,
 bounded background repaint rate and at least ten water frames over 1.3 seconds
 in saver mode, rather than merely two frames. Hardware FPS, temperature and
 battery behavior still require measurement on the user's phone.
+
+Visual QA of the full Chrome screenshots caught a weak lunar reflection when the
+straight light axis crossed forest. The shader now uses a 48-section centre/span
+profile extracted offline from the unchanged water mask as the illustrated river's
+curved perspective projection. The projected body's bearing moves the specular
+axis within that projection; phase/horizon/cloud transmission and exact masking
+still apply. The lunar roughness lobe stays visible at high altitude. A pixel
+regression requires a visible silver path at the actual ephemeris test instant.

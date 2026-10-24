@@ -19,6 +19,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
    await new Promise(r=>setTimeout(r,150));
+   if(name==='night')assert.ok(await page.evaluate(()=>{const c=window.__landscapeCapture(),d=c.getContext('2d').getImageData(0,Math.floor(c.height*.6),c.width,Math.floor(c.height*.4)).data;let silver=0;for(let i=0;i<d.length;i+=4)if(d[i+2]>100&&d[i+2]>d[i]*1.03)silver++;return silver>100;}),'visible silver path follows the real Moon through the river bends');
    await page.screenshot({path:'test/ui-previews/landscape-'+name+'.png'});
   }
   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-26T23:00:00+01:00',rate:0}));

@@ -151,5 +151,7 @@ for scenario in scenarios:
         assert light['sun']['intensity'] == light['moon']['intensity'] == 0
     if scenario['name'] == 'moonlit':
         assert light['moon']['intensity'] > 0
+        bright = sum(pixel[3] > 180 and pixel[2] > 100 for pixel in result.getdata())
+        assert bright > 100, ('visible silver path for the actual projected Moon', bright)
 print('PASS: six shared-lighting scenarios:', ', '.join(row['name'] for row in scenarios))
 print('PASS: real GLES3 shader compile/link; moving water:', changed, 'pixels; exact water mask; solar motion; new/below-horizon moon; all quality branches. Software Mesa, not Android.')
