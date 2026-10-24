@@ -22,6 +22,8 @@ bump from image luminance. It writes opaque world-space `terrain-normal.png`.
 This is an explicit approximate camera-facing depth surface, not photogrammetry
 or a complete 3D scene recovered from a single image. No hidden terrain or accurate
 tree geometry is inferred. The source artwork also contains baked soft shading.
+The far shell and raised near surface use a positive smooth-minimum depth join,
+so the world normals do not jump along a horizontal shell/plane boundary.
 
 ## Deferred terrain material
 

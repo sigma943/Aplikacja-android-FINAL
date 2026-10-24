@@ -44,6 +44,11 @@ test('terrain material normals are opaque unit vectors with both slopes and upwa
   if(n[1]>.8)banks++;if(n[2]<-.5)walls++;
  }
  assert.ok(banks>100&&walls>100,'the material is not a flat painted tint');
+ const profile=[];
+ for(let y=Math.floor(normals.height*.51);y<normals.height*.65;y++){
+  let sum=0,count=0;for(let x=Math.floor(normals.width*.235);x<normals.width*.765;x++){sum+=normals.data[(y*normals.width+x)*4+1]/255*2-1;count++;}profile.push(sum/count);
+ }
+ for(let i=1;i<profile.length;i++)assert.ok(Math.abs(profile[i]-profile[i-1])<.30,'no horizontal shell/plane normal seam');
 });
 test('ray-tracing proxy has finite positive depth and places near banks above the water plane',()=>{
  const depth=PNG.sync.read(fs.readFileSync('public/themes/mountains/scene-depth.png'));

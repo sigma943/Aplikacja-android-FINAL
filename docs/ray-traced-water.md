@@ -1,5 +1,8 @@
 # One-bounce reflections, volumetric scattering and dispersive wave packets
 
+The later material and smooth depth-surface revision is documented in
+[`photographic-landscape.md`](photographic-landscape.md).
+
 This extends the existing renderer; it is not hardware ray tracing or full-scene
 path tracing. WebGL2 runs GLSL ray queries against a controlled 2.5D proxy of the
 existing illustration. No new engine, context, theme, orbit or React UI is added.

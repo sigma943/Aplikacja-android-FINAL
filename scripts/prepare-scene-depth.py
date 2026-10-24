@@ -17,7 +17,10 @@ w,h=c['mapWidth'],c['mapHeight']
 alpha=np.asarray(Image.open(folder/'terrain.webp').getchannel('A').resize((w,h),Image.Resampling.LANCZOS))
 elevation=(c['horizon']-(np.arange(h)+.5)/h)/c['altitudeSpan']*np.pi/2
 depression=np.maximum(.001,-elevation)
-radial=np.minimum(110.,(c['cameraHeight']-.96)/np.tan(depression))
+ground=(c['cameraHeight']-.96)/np.tan(depression)
+# Positive smooth minimum: a hard shell/plane minimum creates a full-width
+# normal discontinuity that becomes visible under material lighting.
+radial=(110.**-6+ground**-6)**(-1/6)
 q=np.rint(np.clip(radial/c['worldExtent'],0,1)*65535).astype(np.uint16)
 depth=np.zeros((h,w,4),dtype=np.uint8)
 depth[:,:,0]=(q>>8)[:,None];depth[:,:,1]=(q&255)[:,None]
