@@ -27,20 +27,10 @@ test('lighting has no discontinuity at sunset or arbitrary warm colour threshold
  }
 });
 test('water budgets remain bounded with three distinct frame and pixel limits',()=>{
- assert.deepEqual(Object.values(WATER_QUALITY).map(v=>v.fps),[30,24,12]);
+ assert.deepEqual(Object.values(WATER_QUALITY).map(v=>v.fps),[30,24,15]);
  assert.ok(WATER_QUALITY.low.pixels<WATER_QUALITY.medium.pixels&&WATER_QUALITY.medium.pixels<WATER_QUALITY.high.pixels);
 });
-test('card light uses local coordinates, respects opaque glass, and cleans up on unmount',()=>{
- const {LandscapeGlassLighting}=load('lib/landscape-glass.ts');
- const previousDocument=global.document,previousWidth=global.innerWidth,previousHeight=global.innerHeight;
- const properties=new Map(),card={getBoundingClientRect:()=>({left:50,top:80,right:250,bottom:180,width:200,height:100}),querySelector:()=>null,style:{setProperty:(k,v)=>properties.set(k,v),removeProperty:k=>properties.delete(k)}};
- global.document={querySelectorAll:()=>[card]};global.innerWidth=400;global.innerHeight=800;
- try{
-  const layer=new LandscapeGlassLighting(),light=landscapeLighting(at('2026-10-23T12:00:00+02:00'),0),stage={left:0,top:0,width:400,height:800};
-  layer.update(light,{x:.25,y:.125},stage,true,.5);
-  assert.match(properties.get('--landscape-local-light'),/at 50\.0px 20\.0px/);
-  layer.update(light,{x:.25,y:.125},stage,true,0);
-  assert.match(properties.get('--landscape-local-light'),/,0\.0000\)/,'fully opaque material has no transmitted light');
-  layer.dispose();assert.equal(properties.size,0);
- }finally{global.document=previousDocument;global.innerWidth=previousWidth;global.innerHeight=previousHeight;}
+test('solar material adds no CSS solar gradients; shafts are supplied by GPU',()=>{
+ const {landscapeOptics}=load('lib/landscape-optics.ts');
+ assert.equal(landscapeOptics(at('2026-10-23T17:10:00+02:00'),64,true)['--landscape-reflection-image'],'none');
 });

@@ -1,5 +1,4 @@
 import {paintSun,moonTexture,MOON_RADIUS} from './landscape-celestial';
-import {solarShaftStrength} from './landscape-optics';
 import {projectCelestial,smoothstep,type AstronomyState} from './landscape-astronomy';
 import {landscapeLighting,type LandscapeLightingState} from './landscape-lighting';
 import {LandscapeWaterGPU,type WaterQuality} from './landscape-water-gpu';
@@ -13,7 +12,7 @@ export function waterWave(x:number,y:number,seconds:number){
   const depth=smoothstep(.59,.94,y/HEIGHT);
   return Math.sin(x*.025+y*.052-seconds*1.2)*(2.8+depth*6.2)+Math.sin(x*.049-y*.019+seconds*.76)*(1.4+depth*3.2);
 }
-export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
+export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
 /** One neutral illustrated terrain cutout, one cloud layer and a mask extracted from
  * the terrain's transparent river. All times use these SAME assets and geometry. */
 export class LandscapeRenderer{
@@ -41,6 +40,7 @@ export class LandscapeRenderer{
   setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';this.lastBackground=-Infinity;this.gpu?.setAssets(assets);}
   suspend(){this.gpu?.suspend();}
   dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
+  getGpuMs(){return this.gpu?.getGpuMs()??0;}
   diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,gpu:this.gpu?.diagnostics()};}
   sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
   resize(w:number,h:number,dpr:number){
@@ -52,7 +52,7 @@ export class LandscapeRenderer{
   }
   copyWindow(context:CanvasRenderingContext2D,sx:number,sy:number,sw:number,sh:number,width:number,height:number){
     context.drawImage(this.canvas,sx,sy,sw,sh,0,0,width,height);
-    if(this.directWater&&this.gpu&&sy+sh>this.height*.57&&!this.gpu.diagnostics().lost){
+    if(this.directWater&&this.gpu&&this.gpu.diagnostics().available&&!this.gpu.diagnostics().lost){
       if(this.lighting)this.gpu.render(this.lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality);
       const gx=this.gpu.canvas.width/this.width,gy=this.gpu.canvas.height/this.height;
       context.drawImage(this.gpu.canvas,sx*gx,sy*gy,sw*gx,sh*gy,0,0,width,height);
@@ -136,31 +136,6 @@ export class LandscapeRenderer{
       c.fillStyle='#e5efff';c.beginPath();c.arc(s.x*WIDTH,s.y*HEIGHT,s.size,0,TAU);c.fill();
     }c.globalAlpha=1;
     const sx=sun.x*WIDTH,sy=sun.y*HEIGHT,mx=moon.x*WIDTH,my=moon.y*HEIGHT;
-    // Crepuscular shafts: cloud gaps modulate a fan of perspective beams.
-    // The foreground terrain and cloud atlas are painted afterwards, so this
-    // light never washes over opaque mountains, controls or text.
-    const shafts=solarShaftStrength(state.sun.altitude);
-    if(shafts>.001){
-      c.save();c.globalCompositeOperation='screen';
-      for(let i=0;i<22;i++){
-        const angle=-Math.PI+.12+(i+.28*Math.sin(i*2.11))*(Math.PI-.24)/21;
-        const gap=(this.cloudTransmission(sun.x+Math.cos(angle)*.35,sun.y+Math.sin(angle)*.28,cloudOffset(seconds))+this.cloudTransmission(sun.x+Math.cos(angle)*.65,sun.y+Math.sin(angle)*.45,cloudOffset(seconds)))/2;
-        const strength=shafts*(.08+.92*gap**3)*(.22+.78*(.5+.5*Math.sin(i*2.37))**3);
-        const length=HEIGHT*.76,dx=Math.cos(angle)*length,dy=Math.sin(angle)*length;
-        const ray=c.createLinearGradient(sx,sy,sx+dx,sy+dy);
-        ray.addColorStop(0,'#ffe9b5');ray.addColorStop(.18,'#ffdca2');ray.addColorStop(1,'#ffc38300');
-        c.fillStyle=ray;
-        for(let edge=3;edge>=1;edge--){
-          const half=(.004+.009*(.5+.5*Math.sin(i*3.67))**2)*edge;
-          c.globalAlpha=strength*.010;
-          c.beginPath();c.moveTo(sx,sy);
-          c.lineTo(sx+Math.cos(angle-half)*length,sy+Math.sin(angle-half)*length);
-          c.lineTo(sx+Math.cos(angle+half)*length,sy+Math.sin(angle+half)*length);
-          c.closePath();c.fill();
-        }
-      }
-      c.restore();
-    }
     if(state.sun.altitude>-.06){
       paintSun(c,sx,sy,sky.twilight);
     }
