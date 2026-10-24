@@ -20,7 +20,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    const ok=gpu.render(light,frame,'high'),before=copy();light.time=4;gpu.render(light,frame,'high');const after=copy();
    let changed=0,opaque=0,skyAlpha=0;for(let i=0;i<after.length;i+=4){if(Math.abs(after[i]-before[i])+Math.abs(after[i+1]-before[i+1])+Math.abs(after[i+2]-before[i+2])>2)changed++;if(after[i+3]>128)opaque++;if(i/4<gpu.canvas.width*gpu.canvas.height*.55)skyAlpha+=after[i+3];}
    const gl=gpu.canvas.getContext('webgl2'),error=gl.getError(),extension=gl.getExtension('WEBGL_lose_context');
-   window.gpuFrame=frame;window.gpuLight=light;window.gpuCopy=copy;
+   window.gpuFrame=frame;window.gpuLight=light;window.gpuCopy=copy;window.gpuLossExtension=extension;
    return {ok,changed,opaque,skyAlpha,error,diagnostics:gpu.diagnostics(),canLose:!!extension};
   });
   assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.equal(result.skyAlpha,0);assert.ok(result.diagnostics.pixels<=360000);
@@ -32,10 +32,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    for(let i=3;i<pixels.length;i+=4)if(mask[i]===0&&pixels[i]>20)escaped++;return escaped;
   });assert.equal(outside,0,'GPU light cannot reach opaque land');
   if(result.canLose){
-   await page.evaluate(()=>window.gpu.canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+   await page.evaluate(()=>window.gpuLossExtension.loseContext());
    await page.waitForFunction(()=>window.gpu.diagnostics().lost);
    assert.equal(await page.evaluate(()=>window.gpu.render(window.gpuLight,window.gpuFrame,'low')),false);
-   await page.evaluate(()=>window.gpu.canvas.getContext('webgl2').getExtension('WEBGL_lose_context').restoreContext());
+   await page.evaluate(()=>window.gpuLossExtension.restoreContext());
    await page.waitForFunction(()=>!window.gpu.diagnostics().lost);
    assert.equal(await page.evaluate(()=>window.gpu.render(window.gpuLight,window.gpuFrame,'medium')),true);
   }
