@@ -223,6 +223,15 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     assert.equal(await page.$eval('[data-vehicle-header] [class*="text-white"]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)');
     assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])<=.65),'daytime route uses saved translucent material');
    }
+   if(mode==='stop')assert.ok(await page.$$eval('[data-departure-row]>span:first-child',badges=>{
+    const parse=s=>s.match(/[\d.]+/g).map(Number),lum=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
+    const over=(a,b)=>a.slice(0,3).map((v,i)=>v*(a[3]??1)+b[i]*(1-(a[3]??1)));
+    const panel=parse(document.documentElement.style.getPropertyValue('--landscape-surface'));
+    return badges.length>0&&badges.every(e=>{
+     const s=getComputedStyle(e),fg=lum(parse(s.color)),badge=parse(s.backgroundColor),row=parse(getComputedStyle(e.parentElement).backgroundColor);
+     return [0,255].every(v=>{const bg=lum(over(badge,over(row,over(panel,[v,v,v]))));return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)>=4.5;});
+    });
+   }),'stop line numbers remain readable on the solar glass');
    const canvas=await page.$eval('[data-landscape-window=panel]',e=>{const d=e.getContext('2d').getImageData(0,0,e.width,e.height).data;const colors=new Set();for(let i=0;i<d.length;i+=16)colors.add(d[i]+','+d[i+1]+','+d[i+2]);return colors.size;});
    assert.ok(canvas>100,'expanded '+mode+' sheet contains detailed scenery, not a flat fill');
    await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-expanded.png'});

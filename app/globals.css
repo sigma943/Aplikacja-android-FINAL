@@ -1256,6 +1256,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'] .map-detail-shell .map-detail-row { background-color:color-mix(in srgb,var(--landscape-surface) 65%,var(--landscape-field))!important;border-color:var(--landscape-edge)!important;border-radius:var(--personal-card-radius,18px); }
  html[data-landscape-theme='on'][data-personal-card-style='flat'] :is(.map-detail-shell,.pks-options-sheet,.pks-navigation) { box-shadow:none!important; }
  html[data-landscape-theme='on'][data-personal-card-style='outlined'] .map-detail-shell .map-detail-row { border-width:2px!important;border-color:var(--landscape-accent)!important;box-shadow:none!important; }
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='stop'] [data-departure-row]>span:first-child { color:var(--landscape-ink)!important; }
  html[data-landscape-theme='on'][data-personal-card-style='flat'] .map-detail-shell .map-detail-row { border-color:transparent!important;box-shadow:none!important; }
 }
 @media(min-width:768px) {
