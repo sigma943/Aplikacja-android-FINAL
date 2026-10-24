@@ -1,8 +1,10 @@
 # Water surface and scene lighting
 
 This revision replaces the earlier reflection corridor, crest sparkle mask, CSS
-solar glows and Canvas ray wedges. Existing terrain/cloud images, astronomy,
-trajectory, theme selection, React layout and transport functions are retained.
+solar glows and Canvas ray wedges. Astronomy, trajectory, theme selection,
+React layout and transport functions are retained. The follow-up reference-art
+revision replaces terrain/cloud artwork with separately generated cutouts and
+adds a lunar surface texture, following the user's authorization to change art.
 
 ## Controlled geometry
 
@@ -23,7 +25,7 @@ existing horizon remain aligned. Relative camera height is 8 units.
   and a conservative shore-proximity ambient-occlusion estimate. This is not a
   fabricated tree-height field or a full 3D shadow map.
 
-The unchanged high-resolution water mask clips every water pass, including
+The registered high-resolution water mask clips every water pass, including
 bloom. It contains the banks, islands and trees. The existing horizon lookup
 removes direct solar/lunar light behind mountains; the drifting cloud alpha
 controls transmission. These are controlled 2.5D occlusion approximations.

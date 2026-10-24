@@ -5,7 +5,7 @@ const manifest=require('../public/themes/mountains/water-geometry.json');
 const uv=PNG.sync.read(fs.readFileSync('public/themes/mountains/water-uv.png'));
 const perspective=PNG.sync.read(fs.readFileSync('public/themes/mountains/water-perspective.png'));
 const mask=PNG.sync.read(fs.readFileSync('public/themes/mountains/water-mask.png'));
-test('reconstruction belongs to the unchanged illustration and supplies explicit UV/depth/shore data',()=>{
+test('reconstruction belongs to the registered illustration and supplies explicit UV/depth/shore data',()=>{
  assert.equal(manifest.maskSha256,crypto.createHash('sha256').update(fs.readFileSync('public/themes/mountains/water-mask.png')).digest('hex'));
  assert.equal(uv.width,calibration.mapWidth*2);assert.equal(uv.height,calibration.mapHeight);
  assert.equal(perspective.width,calibration.mapWidth);assert.equal(perspective.height,calibration.mapHeight);

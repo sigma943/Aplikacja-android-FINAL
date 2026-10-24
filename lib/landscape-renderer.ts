@@ -7,7 +7,7 @@ const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
 const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
 export const cloudOffset=(seconds:number)=>((seconds*12)%WIDTH+WIDTH)%WIDTH;
-export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
+export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
 /** One neutral illustrated terrain cutout, one cloud layer and a mask extracted from
  * the terrain's transparent river. All times use these SAME assets and geometry. */
 export class LandscapeRenderer{
@@ -19,7 +19,7 @@ export class LandscapeRenderer{
   private gpuAttempted=false;
   quality:WaterQuality='high';
   lighting:LandscapeLightingState|null=null;
-  private lunarTexture:HTMLCanvasElement;
+  private lunarTexture:CanvasImageSource;
   private lastBackground=-Infinity;
   private backgroundFrames=0;
   private lastAstronomy=-Infinity;
@@ -33,7 +33,7 @@ export class LandscapeRenderer{
     this.ctx=canvas.getContext('2d',{alpha:false})!;this.lunarTexture=moonTexture();
     this.terrain=document.createElement('canvas');this.clouds=document.createElement('canvas');this.water=document.createElement('canvas');
   }
-  setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';this.fallbackKey='';this.lastBackground=-Infinity;this.gpu?.setAssets(assets);}
+  setAssets(assets:LandscapeAssets){this.assets=assets;if(assets.moon)this.lunarTexture=assets.moon;this.lastLight='';this.fallbackKey='';this.lastBackground=-Infinity;this.gpu?.setAssets(assets);}
   suspend(){this.gpu?.suspend();}
   dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
   getGpuMs(){return this.gpu?.getGpuMs()??0;}
