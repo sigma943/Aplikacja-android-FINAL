@@ -15,9 +15,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   assert.equal(await page.$$eval('[data-landscape-water]',nodes=>nodes.length),1,'one visible GPU surface, no GPU-to-2D copy in the frame path');
   fs.mkdirSync('test/ui-previews',{recursive:true});
   await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}html[data-landscape-theme] *{transition-duration:0s!important}'});
-  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:20:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-27T01:30:00+01:00'],['cloudy-night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
+  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:20:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['phone-twilight-low','2026-10-24T18:11:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-27T01:30:00+01:00'],['cloudy-night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
    // Fix wave/cloud phase for repeatable coverage, while keeping both moving.
-   await page.evaluate(({iso,seconds})=>window.__landscapePreview({iso,rate:0,quality:'high',seconds}),{iso,seconds:name==='night'?30:name==='golden-hour'?20:0});
+   await page.evaluate(({iso,seconds,quality})=>window.__landscapePreview({iso,rate:0,quality,seconds}),{iso,quality:name==='phone-twilight-low'?'low':'high',seconds:name==='night'?30:name==='golden-hour'?20:0});
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
    await new Promise(r=>setTimeout(r,150));
    if(name==='cloudy-night')assert.ok(await page.evaluate(()=>window.__landscapeDiagnostics().renderer.lighting.moon.intensity<.03),'an opaque cloud suppresses direct moonlight');

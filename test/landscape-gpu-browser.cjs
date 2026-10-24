@@ -19,12 +19,13 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    const light={time:0,sky:{day:.6,twilight:1},sun:{x:.52,y:.5,altitude:.08,intensity:.7,color:[1,.7,.3]},moon:{x:.7,y:.3,altitude:.5,illumination:1,intensity:0,color:[.67,.81,1]}};
    const copy=()=>{const c=document.createElement('canvas');c.width=gpu.canvas.width;c.height=gpu.canvas.height;c.getContext('2d').drawImage(gpu.canvas,0,0);return c.getContext('2d').getImageData(0,0,c.width,c.height).data;};
    const ok=gpu.render(light,frame,'high'),before=copy();light.time=4;gpu.render(light,frame,'high');const after=copy();
-   let changed=0,opaque=0,skyAlpha=0;for(let i=0;i<after.length;i+=4){if(Math.abs(after[i]-before[i])+Math.abs(after[i+1]-before[i+1])+Math.abs(after[i+2]-before[i+2])>2)changed++;if(after[i+3]>128)opaque++;if(i/4<gpu.canvas.width*gpu.canvas.height*.55)skyAlpha+=after[i+3];}
+   const land=document.createElement('canvas');land.width=gpu.canvas.width;land.height=gpu.canvas.height;const lc=land.getContext('2d');lc.drawImage(gpu.assets.terrain,0,0,land.width,land.height);const landPixels=lc.getImageData(0,0,land.width,land.height).data;
+   let changed=0,opaque=0,skyAlpha=0,skyPixels=0;for(let i=0;i<after.length;i+=4){if(Math.abs(after[i]-before[i])+Math.abs(after[i+1]-before[i+1])+Math.abs(after[i+2]-before[i+2])>2)changed++;if(after[i+3]>128)opaque++;if(i/4<gpu.canvas.width*gpu.canvas.height*.55&&landPixels[i+3]<5){skyAlpha+=after[i+3];skyPixels++;}}
    const gl=gpu.canvas.getContext('webgl2'),error=gl.getError(),extension=gl.getExtension('WEBGL_lose_context');
    window.gpuFrame=frame;window.gpuLight=light;window.gpuCopy=copy;window.gpuLossExtension=extension;
-   return {ok,changed,opaque,skyAlpha,error,diagnostics:gpu.diagnostics(),canLose:!!extension};
+   return {ok,changed,opaque,skyAlpha,skyPixels,error,diagnostics:gpu.diagnostics(),canLose:!!extension};
   });
-  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.ok(result.skyAlpha<result.diagnostics.presentationPixels*255*.04,'god rays remain a subtle background effect');assert.equal(result.diagnostics.drawCalls,3);assert.ok(result.diagnostics.vertices>3000);assert.ok(result.diagnostics.pixels<=360000);
+  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.ok(result.skyAlpha<result.skyPixels*255*.08,'god rays remain a subtle background effect');assert.equal(result.diagnostics.drawCalls,3);assert.ok(result.diagnostics.vertices>3000);assert.ok(result.diagnostics.pixels<=360000);
   const material=await page.evaluate(()=>{
    const gpu=window.gpu,light=window.gpuLight,gl=gpu.canvas.getContext('webgl2');
    const measure=()=>{const t=gpu.targets[2],p=new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,gl.UNSIGNED_BYTE,p);gl.bindFramebuffer(gl.FRAMEBUFFER,null);let sum=0,n=0;for(let i=0;i<p.length;i+=4)if(p[i+3]>240){sum+=p[i]+p[i+1]+p[i+2];n++;}return sum/Math.max(n,1);};

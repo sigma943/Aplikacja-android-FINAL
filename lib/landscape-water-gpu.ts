@@ -25,6 +25,7 @@ export class LandscapeWaterGPU {
  private lastTerrainUpdate=-Infinity;
  private lastTerrainLight=[-1,-1,-1,-1,-1,-1,-1,-1];
  private terrainRelights=0;
+ private lastDrawCalls=0;
  private floatSupported=false;
  private hdrUnavailable=false;
  private lost=false;
@@ -123,6 +124,7 @@ export class LandscapeWaterGPU {
    let materialKey=this.terrainKey;
    if(this.targets[2]&&(!materialKey||major||wall-this.lastTerrainUpdate>1000))materialKey=`${light.sky.day.toFixed(2)}:${light.sky.twilight.toFixed(2)}:${light.sun.intensity.toFixed(2)}:${light.sun.x.toFixed(2)}:${light.sun.altitude.toFixed(2)}:${light.moon.intensity.toFixed(2)}:${light.moon.x.toFixed(2)}:${light.moon.altitude.toFixed(2)}`;
    const relight=!!this.targets[2]&&materialKey!==this.terrainKey;
+   this.lastDrawCalls=relight?4:3;
    for(let stage=relight?-1:0;stage<3;stage++){
     const pass=stage<0?3:stage;
     const p=this.programs[pass],target=pass===3?this.targets[2]:pass<2?this.targets[pass]:null,w=target?.width??this.canvas.width,h=target?.height??this.canvas.height,sx=w/frame.width,sy=h/frame.height;
@@ -145,5 +147,5 @@ export class LandscapeWaterGPU {
  private release(){const gl=this.gl;if(!gl)return;for(const p of this.programs)gl.deleteProgram(p.program);this.programs=[];for(const t of this.textures)gl.deleteTexture(t.texture);this.textures=[];for(const b of this.buffers)gl.deleteBuffer(b);this.buffers=[];if(this.vao)gl.deleteVertexArray(this.vao);this.vao=null;this.meshQuality=null;this.clearTargets();if(this.query)gl.deleteQuery(this.query);this.query=null;this.pendingQuery=false;this.gpuMs=0;}
  suspend(){this.release();this.canvas.width=this.canvas.height=1;}
  dispose(){this.release();this.canvas.removeEventListener('webglcontextlost',this.loss);this.canvas.removeEventListener('webglcontextrestored',this.restore);this.gl?.getExtension('WEBGL_lose_context')?.loseContext();this.gl=null;this.assets=null;this.canvas.width=this.canvas.height=1;this.canvas.remove();}
- diagnostics(){return {available:!!this.gl&&!this.failed,lost:this.lost,error:this.canvas.dataset.error,pixels:(this.targets[0]?.width??1)*(this.targets[0]?.height??1),presentationPixels:this.canvas.width*this.canvas.height,terrainRelights:this.terrainRelights,hdr:this.hdr,drawCalls:3,vertices:this.meshQuality?(WATER_QUALITY[this.meshQuality].columns+1)*(WATER_QUALITY[this.meshQuality].rows+1):0,gpuMs:this.timer?this.gpuMs:null,targetPixels:this.targets.reduce((sum,t)=>sum+t.width*t.height,0)};}
+ diagnostics(){return {available:!!this.gl&&!this.failed,lost:this.lost,error:this.canvas.dataset.error,pixels:(this.targets[0]?.width??1)*(this.targets[0]?.height??1),presentationPixels:this.canvas.width*this.canvas.height,terrainRelights:this.terrainRelights,hdr:this.hdr,drawCalls:this.lastDrawCalls,vertices:this.meshQuality?(WATER_QUALITY[this.meshQuality].columns+1)*(WATER_QUALITY[this.meshQuality].rows+1):0,gpuMs:this.timer?this.gpuMs:null,targetPixels:this.targets.reduce((sum,t)=>sum+t.width*t.height,0)};}
 }
