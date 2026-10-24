@@ -80,6 +80,7 @@ export const WATER_FRAGMENT=`#version 300 es
 precision highp float;
 uniform sampler2D uMask;
 uniform sampler2D uTerrain;
+uniform sampler2D uClouds;
 uniform sampler2D uPerspective;
 uniform vec2 uResolution;
 uniform vec4 uFrame;
@@ -110,6 +111,12 @@ vec3 skyRadiance(vec3 direction){
  horizon=mix(horizon,vec3(.80,.24,.075),uWarm*.84);
  vec3 sky=mix(horizon,zenith,smoothstep(0.,.75,elevation));
  vec2 reflected=vec2(.5+atan(direction.x,direction.z)/AZ_SPAN,.55-asin(clamp(direction.y,-1.,1.))/(PI*.5)*.49);
+ vec2 cloudUV=vec2(fract(reflected.x-uTime*.012),reflected.y);vec4 cloud=texture(uClouds,cloudUV);
+ float cloudAlpha=cloud.a*smoothstep(0.,.09,cloudUV.x)*(1.-smoothstep(.91,1.,cloudUV.x));
+ vec3 cloudLinear=pow(cloud.rgb,vec3(2.2));
+ vec3 cloudLit=cloudLinear*mix(vec3(.025,.045,.09),vec3(.8),uDay);
+ cloudLit=mix(cloudLit,cloudLinear*vec3(1.15,.43,.13),uWarm*.7);
+ sky=mix(sky,cloudLit,cloudAlpha);
  vec4 terrain=texture(uTerrain,reflected);vec3 terrainLinear=pow(terrain.rgb,vec3(2.2));
  vec3 shaded=terrainLinear*mix(vec3(.025,.045,.09),vec3(.6,.75,.85),uDay);
  return mix(sky,shaded,terrain.a);
@@ -136,6 +143,7 @@ void main(){
  radiance=mix(radiance,skyRadiance(vec3(0.,.06,1.))*.08,aerial);
  // Relative exposure is continuous through the existing solar state.
  radiance*=mix(2.4,1.10,uDay);
+ radiance=min(radiance,vec3(60000.));
  fragColor=vec4(uHdr>.5?radiance:displayColor(radiance),mask);
 }`;
 export const SCREEN_VERTEX=`#version 300 es

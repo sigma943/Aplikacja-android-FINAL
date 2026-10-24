@@ -30,7 +30,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    const gpu=window.gpu,c=document.createElement('canvas');c.width=gpu.canvas.width;c.height=gpu.canvas.height;
    const image=await new Promise(resolve=>{const i=new Image();i.onload=()=>resolve(i);i.src='/water-mask.png';});c.getContext('2d').drawImage(image,0,0,c.width,c.height);
    const mask=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
-   gpu.render(window.gpuLight,window.gpuFrame,'high');const gl=gpu.canvas.getContext('webgl2'),target=gpu.targets[0];
+   const previous=window.gpuLight.sun.intensity;window.gpuLight.sun.intensity=12;
+   gpu.render(window.gpuLight,window.gpuFrame,'high');window.gpuLight.sun.intensity=previous;const gl=gpu.canvas.getContext('webgl2'),target=gpu.targets[0];
    gl.bindFramebuffer(gl.FRAMEBUFFER,target.framebuffer);const hdr=gpu.diagnostics().hdr;
    const pixels=hdr?new Float32Array(c.width*c.height*4):new Uint8Array(c.width*c.height*4);
    gl.readPixels(0,0,c.width,c.height,gl.RGBA,hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
@@ -38,7 +39,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
     const a=mask[(y*c.width+x)*4+3],alpha=pixels[((c.height-1-y)*c.width+x)*4+3]*(hdr?255:1);if(a===0&&alpha>20)escaped++;
    }if(gl.getError()!==gl.NO_ERROR)throw Error('water FBO read failed');
    let maximum=0;for(let i=0;i<pixels.length;i+=4)maximum=Math.max(maximum,pixels[i],pixels[i+1],pixels[i+2]);return {escaped,hdr,maximum};
-  });assert.equal(outside.escaped,0,'GPU water cannot reach opaque land');if(outside.hdr)assert.ok(outside.maximum>1,'HDR target preserves highlight energy before tone mapping');
+  });assert.equal(outside.escaped,0,'GPU water cannot reach opaque land');if(outside.hdr)assert.ok(outside.maximum>1,'HDR target preserves highlight energy before tone mapping: '+JSON.stringify(outside));
   if(result.canLose){
    await page.evaluate(()=>window.gpuLossExtension.loseContext());
    await page.waitForFunction(()=>window.gpu.diagnostics().lost);
