@@ -168,6 +168,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   for(const [phase,iso] of [['day','2026-10-23T12:00:00+02:00'],['night','2026-10-26T23:00:00+01:00']]){
    await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+   assert.equal(await page.$eval('[data-landscape-heading] h1',e=>getComputedStyle(e).color),'rgb(244, 248, 252)','standalone admin heading stays visible on the artwork');
    for(const opacity of [20,85]){
     await page.evaluate(opacity=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:opacity,glassBlur:8,glassBlurEnabled:false}));window.dispatchEvent(new Event('pks-interface-appearance'));},opacity);
     await page.waitForFunction(opacity=>{const s=getComputedStyle(document.querySelector('.admin-device-card')),parts=s.backgroundColor.match(/[\d.]+/g).map(Number);return Math.abs(parts[3]-opacity/100)<.01&&s.backdropFilter.includes('0px');},{},opacity);
