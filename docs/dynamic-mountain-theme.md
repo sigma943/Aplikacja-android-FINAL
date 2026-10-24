@@ -173,3 +173,59 @@ height reduction indicate an IME. Rotation resets the frame. Dismissal restores
 normal sizing; the filter copies the same sky crop throughout. The browser suite
 reproduces the narrow viewport resize and checks frame dimensions, options at
 20% opacity, glint strength, glass off, plus the existing real sheet animations.
+
+## GPU water extension (2026-10-24)
+
+Baseline: `5d4d139eb7e881918d33ea56b0db84a9e3c841ca` on
+`feat/dynamic-mountain-theme-20261023`, not main (`b915457`). It descends
+from main and corresponds to successful Actions run 40071934541. That run
+assembled debug/release APKs, verified variants and produced nonexpired artifacts.
+The two release tags from October 5/6 predate the mountain theme.
+
+The original 2D renderer, artwork, clouds, shafts, astronomical worker, SunCalc
+projection, UI and theme selection remain. A single detached WebGL2 canvas
+(GLSL ES 3.00) supplies only the water to the existing main canvas. Existing
+sheet canvases still copy the completed scene; they own no GPU contexts.
+No dependency or additional animation loop was added.
+
+`landscape-lighting.ts` consumes interpolated astronomy, the original mountain
+horizon, lunar phase and cloud transmission. It provides both lights and
+ambient state to the renderer and local card lighting. Three crossing analytic
+wave trains supply height and analytic slopes. A perspective water plane,
+rough half-vector specular lobe and irregular wave-dependent highlights form
+both reflection paths. There is no day/night scene switch. The original alpha
+mask clips the entire result; neighbouring mask samples damp the waves and
+highlights near riverbanks, islands and trees. Terrain reflection samples the
+existing texture. The style is an artistic approximation, not physical ray tracing.
+
+Glass adds a capped (10%) radial background under existing text. Card-local
+coordinates include the stage's actual cover crop. Layout reads are batched at
+4 Hz; no overlays capture touch or modify card layout/radius. Existing global
+Fresnel material interpolates its warmth continuously and fades at night.
+
+High targets 30 fps/360k GPU pixels, medium 24 fps/210k, low 12 fps/110k.
+Actual bitmap scale also respects the original 900k scene pixel budget. A
+scissor skips the sky. Only two static textures are uploaded. Sustained expensive
+frames or delayed timer delivery lower quality; saver/light-effects modes retain
+the existing conservative 2 fps policy. Reduced motion freezes wave time.
+Visibility, native lifecycle and intersection stop rendering; backgrounding frees
+GPU textures/programs, unmount releases the context. Context loss uses the
+original CPU water fallback until restoration. WebGL unavailable/compile failure
+also retains that working fallback. Astronomy remains in the existing worker;
+React is never updated for wave frames.
+
+Validation scripts:
+- `node --test test/landscape-gpu.test.cjs test/landscape.test.cjs test/landscape-optics.test.cjs`
+- `node test/landscape-gpu-browser.cjs`: actual GLSL compilation, moving pixels,
+  water-mask containment, context loss/restoration, quality budgets, disposal.
+- `node test/landscape-browser.cjs`: real timetable, map, bus/stop sheets,
+  scrolling, navigation, theme switch, background/reduced motion and solar views.
+
+Physical Android thermal/battery/frame-time measurements remain necessary;
+headless/software GPU results are not evidence of hardware energy efficiency.
+
+Optional Linux fallback validation is available with
+`python3 test/landscape-gpu-egl.py` (Mesa EGL + Pillow). It compiles/links the
+actual GLSL in a GLES3 context and verifies pixels: moving waves, no sky or land
+leakage, moving solar reflection, new moon, below-horizon moon, all quality
+branches. This does not test browser composition, Android lifecycle or energy use.

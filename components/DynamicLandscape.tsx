@@ -5,6 +5,8 @@ import {Capacitor,registerPlugin,type PluginListenerHandle} from '@capacitor/cor
 import {LANDSCAPE_LOCATION_KEY,landscapeLocation,interpolateAstronomy,type AstronomyState} from '@/lib/landscape-astronomy';
 import {landscapeOptics,landscapeViewport,type LandscapeViewport} from '@/lib/landscape-optics';
 import {landscapePalette,isLandscapeDay} from '@/lib/landscape-palette';
+import {LandscapeGlassLighting} from '@/lib/landscape-glass';
+import {WATER_QUALITY,type WaterQuality} from '@/lib/landscape-water-gpu';
 import {LandscapeRenderer} from '@/lib/landscape-renderer';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {landscapeMotionPolicy,landscapeFrameBudget} from '@/lib/landscape-motion';
@@ -22,9 +24,11 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
   useEffect(()=>{
     if(!active||!canvas.current)return;
     const element=canvas.current,root=document.documentElement;
+    const glassLighting=new LandscapeGlassLighting();
     const renderer=new LandscapeRenderer(element),media=matchMedia('(prefers-reduced-motion: reduce)');
     const worker=new Worker(new URL('../lib/landscape.worker.ts',import.meta.url));
-    let alive=true,nativeActive=true,limited=false,critical=false,requestId=0;
+    let quality:WaterQuality=(navigator.hardwareConcurrency||4)<=4?'medium':'high',badFrames=0,lastQualityChange=0,lastGlass=0;
+    let alive=true,sceneVisible=true,nativeActive=true,limited=false,critical=false,requestId=0;
     let solarDay:boolean|undefined;
     let samples:{a:AstronomyState;b:AstronomyState}|null=null;
     let events:Record<string,number|null>={},source='default-rzeszow';
@@ -33,19 +37,19 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     let preview:Preview={},previewStart=0,previewMono=0;
     const previewEnabled=process.env.NODE_ENV==='development'||process.env.NEXT_PUBLIC_LANDSCAPE_PREVIEW==='true';
     const now=()=>preview.iso?previewStart+(performance.now()-previewMono)*(preview.rate??1):Date.now();
-    const visible=()=>!document.hidden&&nativeActive;
+    const visible=()=>!document.hidden&&nativeActive&&sceneVisible;
     const policy=()=>{
       let reduced=false,light=false;
       try{reduced=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;light=localStorage.getItem('mks_light_effects')==='true';}catch{}
       return landscapeMotionPolicy({hidden:document.hidden,nativeActive,reduced:media.matches||reduced,light,limited,critical,slow});
     };
-    let paletteKeys:string[]=[];
+    let paletteKeys:string[]=[],glassTransmission=0;
     const updatePalette=(state:AstronomyState)=>{
       let appearance=normalizeInterfaceAppearance(null),accent='#00a3a2',light=false;
       try{appearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));accent=localStorage.getItem('mks_theme')||accent;light=localStorage.getItem('mks_light_effects')==='true';}catch{}
       const transparent=glass&&!light;
       root.dataset.landscapeGlass=transparent?'on':'off';
-      const opacity=transparent?appearance.glassOpacity:100;
+      const opacity=transparent?appearance.glassOpacity:100;glassTransmission=1-opacity/100;
       const palette={...landscapePalette(state,opacity,solarDay,appearance,accent),...landscapeOptics(state,opacity,transparent)};
       paletteKeys=Object.keys(palette);
       for(const [key,value] of Object.entries(palette))root.style.setProperty(key,value);
@@ -57,7 +61,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       const ms=now();worker.postMessage({ms,location,id:++requestId,span:Math.max(30000,(preview.rate??1)*1000)});
       modelTimer=setTimeout(updateModel,preview.iso&&preview.rate!==1?500:15000);
     };
-    let lastWindows=0;
+    let lastWindows=0,lastDraw=performance.now();
     const paintWindows=(mono:number)=>{
       if(mono-lastWindows<100)return;lastWindows=mono;
       // Read layout before resizing any bitmap. Small copies preserve the same
@@ -86,12 +90,28 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       lastWall=wall;lastMono=mono;
       if(samples){
         const start=performance.now(),state=interpolateAstronomy(samples.a,samples.b,now());
+        renderer.quality=limited||slow||motionPolicy.reason==='light-effects'?'low':quality;
         renderer.render(state,mono/1000,motionPolicy.animate);
+        if(mono-lastGlass>=250&&renderer.lighting){
+          lastGlass=mono;updatePalette(state);
+          const sun=renderer.sunScreen();
+          if(sun)glassLighting.update(renderer.lighting,sun,element.getBoundingClientRect(),glass&&root.dataset.landscapeGlass==='on'&&renderer.quality!=='low',glassTransmission);
+        }
         paintWindows(mono);
         const cost=performance.now()-start;frames++;totalMs+=cost;maxMs=Math.max(maxMs,cost);
-        if(frames>10){frameCost=landscapeFrameBudget(frameCost,cost);if(frameCost>28)slow=true;else if(frameCost<18)slow=false;}
+        if(frames>10&&motionPolicy.reason==='active'){
+          frameCost=landscapeFrameBudget(frameCost,cost);
+          const budget=1000/WATER_QUALITY[renderer.quality].fps;
+          // Include late timer delivery: asynchronous GPU pressure may not show in JS draw cost.
+          badFrames=cost>budget*.8||mono-lastDraw>budget*1.65?badFrames+1:Math.max(0,badFrames-1);
+          if(badFrames>=18&&mono-lastQualityChange>5000){quality=quality==='high'?'medium':'low';lastQualityChange=mono;badFrames=0;}
+          slow=quality==='low';
+        }
       }
-      drawTimer=setTimeout(draw,Math.max(16,policy().interval-(performance.now()-mono)));
+      lastDraw=mono;
+      const next=policy();
+      const interval=next.reason==='active'?1000/WATER_QUALITY[renderer.quality].fps:next.interval;
+      drawTimer=setTimeout(draw,Math.max(16,interval-(performance.now()-mono)));
     };
     const image=(name:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{
       const value=new Image();value.onload=()=>resolve(value);value.onerror=()=>reject(new Error(name));value.src='/themes/mountains/'+name;
@@ -126,7 +146,8 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       }
       draw();
     };
-    const restart=()=>{if(samples)updatePalette(samples.a);clearTimeout(drawTimer);clearTimeout(modelTimer);root.dataset.landscapeMotion=visible()&&policy().animate?'on':'off';if(visible()){updateModel();draw();}};
+    const restart=()=>{if(samples)updatePalette(samples.a);clearTimeout(drawTimer);clearTimeout(modelTimer);root.dataset.landscapeMotion=visible()&&policy().animate?'on':'off';if(visible()){lastDraw=performance.now();lastGlass=0;updateModel();draw();}else renderer.suspend();};
+    const intersection=new IntersectionObserver(entries=>{const next=entries.some(entry=>entry.isIntersecting);if(next!==sceneVisible){sceneVisible=next;restart();}});intersection.observe(element);
     const observer=new ResizeObserver(resize);observer.observe(element.parentElement!);
     window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);
     document.addEventListener('focusin',resize);
@@ -146,12 +167,12 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     if(previewEnabled){
       debug.__landscapePreview=value=>{preview=value;previewStart=Date.parse(value.iso||'');previewMono=performance.now();if(value.iso&&!Number.isFinite(previewStart)){preview={};}samples=null;restart();};
       debug.__landscapeTestPower=(next,isCritical=false)=>{limited=next;critical=isCritical;restart();};
-      debug.__landscapeDiagnostics=()=>({frames,averageDrawMs:frames?totalMs/frames:0,maxDrawMs:maxMs,interval:policy().interval,motion:policy().reason,visible:visible(),source,events,samples,preview,viewport,canvasPixels:element.width*element.height});
+      debug.__landscapeDiagnostics=()=>({frames,averageDrawMs:frames?totalMs/frames:0,maxDrawMs:maxMs,smoothedDrawMs:frameCost,interval:policy().reason==='active'?1000/WATER_QUALITY[renderer.quality].fps:policy().interval,motion:policy().reason,visible:visible(),source,events,samples,preview,viewport,canvasPixels:element.width*element.height,renderer:renderer.diagnostics()});
     }
     root.dataset.landscapeTheme='on';resize();updateModel();
     return()=>{
       window.removeEventListener('pks-landscape-window',refreshWindows);
-      alive=false;clearTimeout(drawTimer);clearTimeout(modelTimer);worker.terminate();observer.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);document.removeEventListener('focusin',resize);
+      alive=false;renderer.dispose();glassLighting.dispose();clearTimeout(drawTimer);clearTimeout(modelTimer);worker.terminate();observer.disconnect();intersection.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);document.removeEventListener('focusin',resize);
       document.removeEventListener('visibilitychange',restart);window.removeEventListener('focus',restart);
       window.removeEventListener('pks-interface-appearance',restart);window.removeEventListener('storage',restart);window.removeEventListener('pks-landscape-location',restart);media.removeEventListener('change',restart);
       for(const listener of listeners)void listener.then(handle=>handle.remove());

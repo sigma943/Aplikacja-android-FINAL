@@ -1,6 +1,8 @@
 import {solarShaftStrength} from './landscape-optics';
-import {projectCelestial,skyState,smoothstep,type AstronomyState} from './landscape-astronomy';
-import horizon from './landscape-horizon.json';
+import {projectCelestial,smoothstep,type AstronomyState} from './landscape-astronomy';
+import {landscapeLighting,type LandscapeLightingState} from './landscape-lighting';
+import {LandscapeWaterGPU,type WaterQuality} from './landscape-water-gpu';
+export {mountainHorizon,discVisibility} from './landscape-lighting';
 const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
 const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
@@ -10,15 +12,6 @@ export function waterWave(x:number,y:number,seconds:number){
   const depth=smoothstep(.59,.94,y/HEIGHT);
   return Math.sin(x*.025+y*.052-seconds*1.2)*(2.8+depth*6.2)+Math.sin(x*.049-y*.019+seconds*.76)*(1.4+depth*3.2);
 }
-export function mountainHorizon(x:number){
-  const index=Math.max(0,Math.min(255,x*255)),i=Math.floor(index);
-  return horizon[i]+((horizon[Math.min(255,i+1)]??horizon[i])-horizon[i])*(index-i);
-}
-export function discVisibility(x:number,y:number,r:number,altitude:number){
-  if(altitude<=0||x<-.1||x>1.1)return 0;
-  const z=Math.max(-1,Math.min(1,(mountainHorizon(x)-y)/r));
-  return (.5+(Math.asin(z)+z*Math.sqrt(1-z*z))/Math.PI)*smoothstep(0,.003,altitude);
-}
 export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
 /** One neutral illustrated terrain cutout, one cloud layer and a mask extracted from
  * the terrain's transparent river. All times use these SAME assets and geometry. */
@@ -27,6 +20,10 @@ export class LandscapeRenderer{
   private terrain:HTMLCanvasElement;
   private clouds:HTMLCanvasElement;
   private water:HTMLCanvasElement;
+  private gpu:LandscapeWaterGPU|null=null;
+  private gpuAttempted=false;
+  quality:WaterQuality='high';
+  lighting:LandscapeLightingState|null=null;
   private lastLight='';
   private width=1;private height=1;private scale=1;private offsetX=0;private offsetY=0;
   private assets:LandscapeAssets|null=null;
@@ -36,7 +33,11 @@ export class LandscapeRenderer{
     this.ctx=canvas.getContext('2d',{alpha:false})!;
     this.terrain=document.createElement('canvas');this.clouds=document.createElement('canvas');this.water=document.createElement('canvas');
   }
-  setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';}
+  setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';this.gpu?.setAssets(assets);}
+  suspend(){this.gpu?.suspend();}
+  dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
+  diagnostics(){return {quality:this.quality,gpu:this.gpu?.diagnostics()};}
+  sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
   resize(w:number,h:number,dpr:number){
     const density=Math.min(dpr,1.25,Math.sqrt(900000/(w*h)));
     this.width=this.canvas.width=Math.round(w*density);this.height=this.canvas.height=Math.round(h*density);
@@ -92,7 +93,10 @@ export class LandscapeRenderer{
   render(state:AstronomyState,seconds:number,motion:boolean){
     if(motion)this.ambientSeconds=seconds;
     seconds=this.ambientSeconds;
-    const c=this.ctx,sky=skyState(state),sun=projectCelestial(state.sun),moon=projectCelestial(state.moon);
+    const sun=projectCelestial(state.sun),moon=projectCelestial(state.moon);
+    const shift=cloudOffset(seconds);
+    const lighting=this.lighting=landscapeLighting(state,seconds,this.cloudTransmission(sun.x,sun.y,shift),this.cloudTransmission(moon.x,moon.y,shift));
+    const c=this.ctx,sky=lighting.sky;
     const lightKey=[sky.day.toFixed(3),sky.twilight.toFixed(3),sky.moonlight.toFixed(2),sun.x.toFixed(2)].join(':');
     if(lightKey!==this.lastLight){this.relight(sky.day,sky.twilight,sky.moonlight,sun.x);this.lastLight=lightKey;}
     c.setTransform(1,0,0,1,0,0);
@@ -146,6 +150,9 @@ export class LandscapeRenderer{
     c.drawImage(this.clouds,cloudShift*this.scale,0);
     c.drawImage(this.clouds,(cloudShift-WIDTH)*this.scale,0);c.drawImage(this.terrain,0,0);
     if(!this.assets)return;
+    if(!this.gpuAttempted){this.gpuAttempted=true;this.gpu=new LandscapeWaterGPU();this.gpu.setAssets(this.assets);}
+    const gpuReady=this.gpu?.render(lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality);
+    if(gpuReady){c.drawImage(this.gpu!.canvas,0,0,this.width,this.height);}else{
     // Only the lower part of this persistent buffer is drawn. Alpha mask includes
     // the exact riverbanks and intervening trees; light can never land on the forest.
     const w=this.water.getContext('2d')!;w.setTransform(1,0,0,1,0,0);w.clearRect(0,0,this.width,this.height);this.coordinates(w);
@@ -166,8 +173,8 @@ export class LandscapeRenderer{
     // Small travelling wavelets provide visible relief even without a celestial
     // reflection. Batch crests/troughs by depth instead of shading 36k pixels
     // with seven trigonometric functions on the UI thread on every frame.
-    const sunPower=sky.day*discVisibility(sun.x,sun.y,25/HEIGHT,state.sun.altitude)*this.cloudTransmission(sun.x,sun.y,cloudShift);
-    const moonPower=state.illumination.fraction*(1-sky.day)*discVisibility(moon.x,moon.y,22/HEIGHT,state.moon.altitude)*this.cloudTransmission(moon.x,moon.y,cloudShift);
+    const sunPower=lighting.sun.intensity;
+    const moonPower=lighting.moon.intensity/.32;
     const light=moonPower>sunPower?moon:sun,power=Math.max(sunPower,moonPower),lunar=moonPower>sunPower;
     w.lineCap='round';
     for(let row=0;row<60;row++){
@@ -201,6 +208,7 @@ export class LandscapeRenderer{
     }
     w.globalAlpha=1;w.globalCompositeOperation='destination-in';w.drawImage(this.assets.water,0,0,WIDTH,HEIGHT);w.globalCompositeOperation='source-over';
     c.setTransform(1,0,0,1,0,0);c.drawImage(this.water,0,0);
+    }
     // Feathered valley mist, driven by the same light; no per-frame blur filters.
     this.coordinates(c);const mist=c.createLinearGradient(0,HEIGHT*.56,0,HEIGHT*.78);
     mist.addColorStop(0,'transparent');mist.addColorStop(.5,`rgba(185,204,220,${sky.fog*.15})`);mist.addColorStop(1,'transparent');c.fillStyle=mist;c.fillRect(0,HEIGHT*.56,WIDTH,HEIGHT*.22);

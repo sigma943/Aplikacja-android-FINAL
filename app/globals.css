@@ -1230,9 +1230,9 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'] { --landscape-user-glow:linear-gradient(transparent,transparent); }
  html[data-landscape-theme='on'][data-panel-glow='on'] { --landscape-user-glow:var(--personal-glow-image); }
  html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.connections-card,.pks-options-sheet,.map-detail-shell,.pks-map-search-panel,.pks-navigation) {
-  background-image:var(--landscape-reflection-image),var(--landscape-user-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent))!important;
+  background-image:var(--landscape-local-light,linear-gradient(transparent,transparent)),var(--landscape-reflection-image),var(--landscape-user-glow),var(--personal-pattern-image,linear-gradient(transparent,transparent))!important;
  }
- html[data-landscape-theme='on'] [data-landscape-chrome]::after { background-image:var(--landscape-reflection-image); }
+ html[data-landscape-theme='on'] [data-landscape-chrome]::after { background-image:var(--landscape-local-light,linear-gradient(transparent,transparent)),var(--landscape-reflection-image); }
  html[data-landscape-theme='on'] :is(.pks-options-sheet,.map-detail-shell,.pks-map-search-panel,.pks-navigation) {
   box-shadow:var(--personal-shadow,0 8px 26px #07132126),inset 0 1px 0 var(--landscape-rim,transparent),inset 0 -1px 0 #0713210c!important;
  }

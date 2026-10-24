@@ -10,8 +10,8 @@ export function landscapeOptics(state:AstronomyState,opacity:number,glass:boolea
  const sun=projectCelestial(state.sun),warm=solarShaftStrength(state.sun.altitude);
  const transmission=glass?1-Math.max(0,Math.min(100,opacity))/100:0;
  const fresnel=glassFresnel(Math.max(.12,Math.sin(Math.max(0,state.sun.altitude))));
- const strength=transmission*(.035+warm*.20)*(.4+fresnel);
- const rgb=warm>.15?'255,192,125':'201,229,255';
+ const strength=transmission*(.035+warm*.20)*(.4+fresnel)*smoothstep(-.04,.01,state.sun.altitude);
+ const rgb=[201+54*warm,229-37*warm,255-130*warm].map(Math.round).join(',');
  const angle=Math.round(110+(sun.x-.5)*90);
  return {
   '--landscape-reflection-image':`linear-gradient(${angle}deg,rgba(${rgb},${strength.toFixed(4)}) 0%,transparent 29%,transparent 68%,rgba(${rgb},${(strength*.55).toFixed(4)}) 100%)`,
