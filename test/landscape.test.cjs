@@ -131,18 +131,18 @@ test('solar material uses the saved opacity across every period, including fully
  for(const altitude of [-15,-3,0,5,30])for(const opacity of [20,40,64,85,100]){
   const value=p({sun:{altitude:altitude*Math.PI/180}},opacity);
   assert.equal(Number(value['--landscape-surface'].match(/[\d.]+/g).pop()),opacity/100);
-  for(const key of ['panel-scrim','nav-top','nav-bottom'])assert.ok(Number(value['--landscape-'+key].match(/[\d.]+/g).pop())>=Math.max(.88,opacity/100));
+  for(const key of ['panel-scrim','nav-top','nav-bottom'])assert.equal(Number(value['--landscape-'+key].match(/[\d.]+/g).pop()),opacity/100);
  }
 });
 
 
-test('solar foregrounds keep AA contrast over extreme scenery at every altitude and glass setting',()=>{
+test('solid solar materials keep AA contrast while translucent opacity remains user-controlled',()=>{
  const {landscapePalette:p}=load('lib/landscape-palette.ts');
- const numbers=c=>c.match(/[\d.]+/g).map(Number);
+ const numbers=c=>c.startsWith('#')?[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)):c.match(/[\d.]+/g).map(Number);
  const lum=c=>c.map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
- for(let altitude=-18;altitude<=60;altitude+=.25)for(const opacity of [20,64,100]){
+ for(let altitude=-18;altitude<=60;altitude+=.25)for(const opacity of [100]){
   const palette=p({sun:{altitude:altitude*Math.PI/180}},opacity);
-  for(const material of ['view-veil','panel-scrim','nav-top','nav-bottom'])for(const background of [0,255]){
+  for(const material of ['panel-scrim','nav-top','nav-bottom'])for(const background of [0,255]){
    const rgba=numbers(palette['--landscape-'+material]);
    const bg=lum(rgba.slice(0,3).map(v=>v*rgba[3]+background*(1-rgba[3])));
    for(const foreground of ['ink','muted','accent']){
@@ -158,4 +158,16 @@ test('solar period dead band avoids flicker and handles direct clock jumps',()=>
  assert.equal(day(state(-2),true),true);assert.equal(day(state(-2),false),false);
  assert.equal(day(state(-3),true),false);assert.equal(day(state(-1),false),true);
  assert.equal(day(state(30),false),true);assert.equal(day(state(-18),true),false);
+});
+
+test('mountain materials apply saved panel tint, border and native control colour scheme',()=>{
+ const {landscapePalette:p}=load('lib/landscape-palette.ts'),{normalizeInterfaceAppearance:n}=load('lib/interface-appearance.ts');
+ for(const day of [true,false]){
+  const state={sun:{altitude:(day?30:-18)*Math.PI/180}},a=p(state,35,day,n({surfaceTint:'custom',panelColor:'#ff0088',panelTintStrength:55,borderStrength:32}));
+  assert.equal(a['--landscape-color-scheme'],day?'light':'dark');
+  assert.notEqual(a['--landscape-surface'],p(state,35,day)['--landscape-surface']);
+  assert.match(a['--landscape-edge'],/0.32\)$/);
+  assert.equal(a['--landscape-view-veil'],undefined);
+  for(const key of ['surface','panel-scrim','nav-top','nav-bottom'])assert.match(a['--landscape-'+key],/0.35\)$/);
+ }
 });

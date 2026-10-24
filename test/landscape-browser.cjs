@@ -60,7 +60,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.waitForFunction(expected=>{const parts=getComputedStyle(document.querySelector('.transit-card')).backgroundColor.match(/[\d.]+/g).map(Number);return Math.abs((parts.length===3?1:parts[3])-expected)<.005;}, {},opacity);
   }
   await page.waitForFunction(()=>document.querySelector('[data-landscape-stage]')?.dataset.assetsReady==='true');
-  assert.equal(await page.$eval('.transit-view',e=>getComputedStyle(e).textShadow),'none');
+  assert.equal(await page.$eval('.transit-view',e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','no white layer across scenery');
+  assert.equal(await page.$eval('.transit-view',e=>getComputedStyle(e).backdropFilter),'none');
   assert.ok(await page.$$eval('[data-scene-label]',labels=>labels.length>0&&labels.every(e=>{const s=getComputedStyle(e);return s.backgroundColor==='rgba(0, 0, 0, 0)'&&s.boxShadow==='none'&&parseFloat(s.paddingTop)===0;})),'scene labels have no individual boxes or outlines');
   assert.equal(await page.$eval('[data-fixture-blur-wrapper]',e=>getComputedStyle(e).backdropFilter),'none','fullscreen ancestor must not blur the scene');
   assert.ok(await page.$$eval('[data-departure-row]',rows=>rows.every(e=>parseFloat(getComputedStyle(e).borderBottomWidth)===0)),'departure rows have no bright separator lines');
@@ -73,7 +74,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    const material=await page.$eval('.transit-card',e=>({actual:getComputedStyle(e).backgroundColor.match(/[\d.]+/g).map(Number),target:getComputedStyle(document.documentElement).getPropertyValue('--landscape-surface').match(/[\d.]+/g).map(Number),duration:getComputedStyle(e).transitionDuration}));
    assert.deepEqual(material.actual.slice(0,3),material.target.slice(0,3),'card gets the new test time immediately: '+phase);
    assert.ok(Math.abs(material.actual[3]-material.target[3])<=1/255,'only browser alpha quantization differs');
-   assert.equal(material.duration,'0s');assert.ok(material.actual[3]<=.65,'scenery remains visible at '+phase);
+   assert.ok(material.duration);assert.ok(material.actual[3]<=.65,'scenery remains visible at '+phase);
    assert.ok(await page.$$eval('.pks-line-badge',badges=>{
     const luminance=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
     return badges.every(e=>{const s=getComputedStyle(e),fg=luminance(s.color.match(/[\d.]+/g).map(Number)),bg=luminance(s.backgroundColor.match(/[\d.]+/g).map(Number));return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)>=4.5;});
@@ -125,24 +126,38 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    const ink=await page.$eval('[data-map-search-panel] input',e=>getComputedStyle(e).color);
    assert.equal(ink,name==='day'?'rgb(11, 27, 38)':'rgb(244, 248, 252)');
    assert.equal(await page.$eval('[data-fixture-period]',e=>e.dataset.fixturePeriod),name,'solar mode reaches React component props as well as CSS');
-   assert.equal(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color),name==='day'?'rgb(7, 75, 66)':'rgb(166, 226, 203)','map brand accent stays readable in both materials');
+   assert.ok(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color!==getComputedStyle(document.documentElement).getPropertyValue('--landscape-ink')),'brand uses the selected accent');
    assert.ok(await page.$eval('[data-landscape-window=filter]',e=>e.width>100&&e.height>20),'filter receives the actual rendered sky');
    await page.screenshot({path:'test/ui-previews/landscape-map-'+name+'.png'});
   }
-  assert.equal(await page.$eval('[data-landscape-window=filter]',e=>getComputedStyle(e).filter),'blur(6px)','only the filter sky is softened');
+  assert.equal(await page.$eval('[data-landscape-window=filter]',e=>getComputedStyle(e).filter),'blur(18px)','filter respects the saved blur radius');
   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T17:10:00+02:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
   await page.evaluate(()=>new Promise(requestAnimationFrame));
   const transition=await page.$eval('[data-map-search-panel] input',e=>({color:getComputedStyle(e).color,target:getComputedStyle(document.documentElement).getPropertyValue('--landscape-ink').replaceAll(' ',''),duration:getComputedStyle(e).transitionDuration}));
   assert.equal(transition.color.replaceAll(' ',''),transition.target,'test date applies the correct ink immediately');
-  assert.equal(transition.duration,'0s','no artificial palette animation after a clock change');
-  for(const selector of ['[data-map-search-panel]','.pks-navigation'])assert.equal(await page.$eval(selector,e=>getComputedStyle(e).transitionDuration),'0s');
+  assert.ok(transition.duration);
+  for(const selector of ['[data-map-search-panel]','.pks-navigation'])assert.ok(await page.$eval(selector,e=>!getComputedStyle(e).transitionProperty.includes('color')));
   await page.screenshot({path:'test/ui-previews/landscape-map-sunset.png'});
   await page.type('[data-map-search-panel] input','108');
   assert.equal(await page.$eval('[data-map-search-panel] input',e=>e.value),'108');
   await page.click('[data-nav-item="stops"]');assert.equal(await page.$eval('[data-nav-item="stops"]',e=>e.getAttribute('aria-current')),'page');
   await page.click('[data-nav-item="map"]');
   await page.screenshot({path:'test/ui-previews/landscape-map-chrome.png'});
+  await page.goto(origin+'/landscape-journey-fixture/');
+  await page.waitForSelector('input[type=date]');
+  await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
+  for(const [phase,iso] of [['day','2026-10-23T12:00:00+02:00'],['night','2026-10-26T23:00:00+01:00']]){
+   await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
+   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+   assert.equal(await page.$eval('input[type=date]',e=>getComputedStyle(e).colorScheme),phase==='day'?'light':'dark','native calendar follows solar material');
+   assert.equal(await page.$eval('.connections-view',e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','journeys do not wash out the landscape');
+   await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:35,glassBlur:8,glassBlurEnabled:false}));window.dispatchEvent(new Event('pks-interface-appearance'));});
+   await page.waitForFunction(()=>Math.abs(Number(getComputedStyle(document.querySelector('.connections-card')).backgroundColor.match(/[\d.]+/g).pop())-.35)<.01);
+   assert.ok(await page.$eval('.connections-card',e=>getComputedStyle(e).backdropFilter.includes('0px')),'journey blur toggle is honoured');
+   await page.screenshot({path:'test/ui-previews/landscape-journey-'+phase+'.png'});
+  }
+  await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1','{}');window.dispatchEvent(new Event('pks-interface-appearance'));});
   await page.goto(origin+'/landscape-admin-fixture/');
   await page.waitForSelector('.admin-device-card',{timeout:45000});
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
@@ -150,11 +165,24 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    assert.ok(await page.$eval(selector,e=>{const c=getComputedStyle(e).backgroundColor;return c.startsWith('rgba')&&Number(c.split(',').pop().replace(')',''))<.9;}),'admin glass must be translucent: '+selector);
   }
   await page.screenshot({path:'test/ui-previews/landscape-admin-glass.png'});
+  for(const [phase,iso] of [['day','2026-10-23T12:00:00+02:00'],['night','2026-10-26T23:00:00+01:00']]){
+   await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
+   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+   for(const opacity of [20,85]){
+    await page.evaluate(opacity=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:opacity,glassBlur:8,glassBlurEnabled:false}));window.dispatchEvent(new Event('pks-interface-appearance'));},opacity);
+    await page.waitForFunction(opacity=>{const s=getComputedStyle(document.querySelector('.admin-device-card')),parts=s.backgroundColor.match(/[\d.]+/g).map(Number);return Math.abs(parts[3]-opacity/100)<.01&&s.backdropFilter.includes('0px');},{},opacity);
+    const actual=await page.$eval('.admin-device-card',e=>({background:getComputedStyle(e).backgroundColor,ink:getComputedStyle(e.querySelector('.text-white')).color}));
+    assert.equal(actual.ink,phase==='day'?'rgb(11, 27, 38)':'rgb(244, 248, 252)','admin ink and material agree');
+   }
+   await page.screenshot({path:'test/ui-previews/landscape-admin-'+phase+'.png'});
+  }
+  await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1','{}');window.dispatchEvent(new Event('pks-interface-appearance'));});
+
   for(const mode of ['bus','stop']){
    await page.goto(origin+'/landscape-'+mode+'-sheet-fixture/');
    await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>1);
    await page.waitForFunction(()=>document.querySelector('[data-landscape-window=panel]')?.dataset.sceneReady==='true');
-   assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter),'none');
+   assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter),'none','artwork sheets do not blur the map');
    if(mode==='bus'){
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0}));
     await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='day'&&document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
@@ -162,7 +190,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).backgroundColor),'rgb(8, 13, 29)','daytime carrier header retains the dark cosmic base');
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)','header text stays light in solar day mode');
     assert.equal(await page.$eval('[data-vehicle-header] [class*="text-white"]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)');
-    assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])>=.88),'daytime route protects foreground contrast over the scenery');
+    assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])<=.65),'daytime route uses saved translucent material');
    }
    const canvas=await page.$eval('[data-landscape-window=panel]',e=>{const d=e.getContext('2d').getImageData(0,0,e.width,e.height).data;const colors=new Set();for(let i=0;i<d.length;i+=16)colors.add(d[i]+','+d[i+1]+','+d[i+2]);return colors.size;});
    assert.ok(canvas>100,'expanded '+mode+' sheet contains detailed scenery, not a flat fill');

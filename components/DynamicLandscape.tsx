@@ -38,10 +38,15 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       try{reduced=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;light=localStorage.getItem('mks_light_effects')==='true';}catch{}
       return landscapeMotionPolicy({hidden:document.hidden,nativeActive,reduced:media.matches||reduced,light,limited,critical,slow});
     };
+    let paletteKeys:string[]=[];
     const updatePalette=(state:AstronomyState)=>{
-      let opacity=64;
-      try{opacity=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).glassOpacity;}catch{}
-      for(const [key,value] of Object.entries(landscapePalette(state,glass?opacity:100,solarDay)))root.style.setProperty(key,value);
+      let appearance=normalizeInterfaceAppearance(null),accent='#00a3a2',light=false;
+      try{appearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));accent=localStorage.getItem('mks_theme')||accent;light=localStorage.getItem('mks_light_effects')==='true';}catch{}
+      const transparent=glass&&!light;
+      root.dataset.landscapeGlass=transparent?'on':'off';
+      const palette=landscapePalette(state,transparent?appearance.glassOpacity:100,solarDay,appearance,accent);
+      paletteKeys=Object.keys(palette);
+      for(const [key,value] of Object.entries(palette))root.style.setProperty(key,value);
     };
     const updateModel=()=>{
       clearTimeout(modelTimer);if(!visible()||!alive)return;
@@ -137,7 +142,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       for(const listener of listeners)void listener.then(handle=>handle.remove());
       delete debug.__landscapePreview;delete debug.__landscapeDiagnostics;
       delete debug.__landscapeTestPower;delete root.dataset.landscapeMotion;
-      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter','panel-scrim','panel-row','nav-top','nav-bottom','text-shadow','view-veil'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
+      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;delete root.dataset.landscapeGlass;for(const key of paletteKeys)root.style.removeProperty(key);
     };
   },[active,glass]);
   return active?<canvas ref={canvas} data-landscape-stage aria-hidden="true"/>:null;

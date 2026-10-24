@@ -20,7 +20,7 @@ const accents=[['Turkus','#00a3a2'],['Niebieski','#3b82f6'],['Fiolet','#8b5cf6']
 
 export default function InterfacePersonalization(p:Props){
   const {value:v,dark}=p,[query,setQuery]=useState('');
-  const frostEnabled=v.glassBlurEnabled&&(p.theme!=='dark-mountains'||v.glassBlur!==DEFAULT_INTERFACE_APPEARANCE.glassBlur);
+  const frostEnabled=v.glassBlurEnabled;
   const search=query.trim().toLocaleLowerCase('pl');
   const matches=(text:string)=>!search||text.toLocaleLowerCase('pl').includes(search);
   const cosmicVisible=p.theme==='dark-cosmos'&&matches('Głębia kosmosu Paralaksa kosmosu Ruch warstw przy przechyleniu telefonu mgławice planety kursor');
@@ -66,7 +66,7 @@ export default function InterfacePersonalization(p:Props){
     {cosmicVisible&&<CosmicThemeOptions searchOpen={Boolean(search)} disabled={p.lightEffects||v.reducedMotion}/>}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}
     {group('shapes' ,'Kształty i głębia','Rogi, obramowania i cienie',<Shapes size={19}/>,<>{slider('panelRadius','Zaokrąglenie paneli',0,36,2,' px')}{slider('cardRadius','Zaokrąglenie kart',0,30,2,' px')}{slider('controlRadius','Zaokrąglenie przycisków',0,24,2,' px')}{slider('borderStrength','Widoczność obramowań',0,40,2,'%')}{slider('shadowStrength','Siła cieni',0,100,5,'%')}</>,'zaokrąglenie paneli kart przycisków widoczność obramowań siła cieni')}
-    {group('glass','Szkło i przezroczystość','Przezroczyste lub pełne panele',<Layers size={19}/>,<>{toggle('Efekt szkła',p.glass,p.setGlass,'Przezroczyste panele z ochroną czytelności')}{p.glass&&<>{slider('glassOpacity','Krycie tła paneli',20,100,5,'%')}{toggle('Rozmycie tła paneli',frostEnabled,on=>p.onChange({...v,glassBlurEnabled:on,...(on&&p.theme==='dark-mountains'&&v.glassBlur===DEFAULT_INTERFACE_APPEARANCE.glassBlur?{glassBlur:6}:{})}),'Wyłącz, aby zachować ostre tło. Tekst nadal chroni ciemniejsza warstwa szkła.')}{frostEnabled&&slider('glassBlur','Rozmycie szkła',0,p.lightEffects?6:28,2,' px')}</>}{p.lightEffects&&<p className="personal-note">Lżejsze efekty są włączone. Szkło, rozmycie i animowane dekoracje są wyłączone; płynne przejścia interfejsu pozostają aktywne.</p>}</>,'efekt szkła krycie tła rozmycie przezroczystość')}
+    {group('glass','Szkło i przezroczystość','Przezroczyste lub pełne panele',<Layers size={19}/>,<>{toggle('Efekt szkła',p.glass,p.setGlass,'Przezroczyste panele z ochroną czytelności')}{p.glass&&<>{slider('glassOpacity','Krycie tła paneli',20,100,5,'%')}{toggle('Rozmycie tła paneli',frostEnabled,on=>p.onChange({...v,glassBlurEnabled:on}),'Wyłącz, aby zachować ostre tło. Tekst nadal chroni ciemniejsza warstwa szkła.')}{frostEnabled&&slider('glassBlur','Rozmycie szkła',0,p.lightEffects?6:28,2,' px')}</>}{p.lightEffects&&<p className="personal-note">Lżejsze efekty są włączone. Szkło, rozmycie i animowane dekoracje są wyłączone; płynne przejścia interfejsu pozostają aktywne.</p>}</>,'efekt szkła krycie tła rozmycie przezroczystość')}
     {group('glow','Miękka poświata','Kolor, siła i rozmieszczenie',<Sun size={19}/>,<>
       {toggle('Miękka poświata paneli',p.glow,p.setGlow)}
       {p.glow&&<>

@@ -453,7 +453,7 @@ export function DeviceTable({
         )}
       </AnimatePresence>
       <div className="flex flex-col gap-6 mb-8">
-        <div className="flex items-center justify-between gap-4">
+        <div data-landscape-heading className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button onClick={onMenuClick} className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer">
               <Menu size={20} />

@@ -109,28 +109,34 @@ Materiały UI zachowują czytelną jasną lub ciemną polaryzację; zmiana nast�
 `useLandscapeDay` przekazuje zmianę dnia/nocy do istniejących właściwości `isDark` głównej aplikacji, dzięki czemu także pozostałe komponenty wybierają własne jasne/ciemne warianty. Zdarzenie jest wysyłane wyłącznie po zmianie pory, bez aktualizowania React przy każdej klatce ani każdej próbce astronomii. Test mapy potwierdza synchronizację tej właściwości z paletą.
 
 
-## Solar materials: contrast repair (2026-10-24)
+## Solar materials and personalization (2026-10-24)
 
-This replaces the continuous dark-to-light panel interpolation described above.
-The scenery retains continuous solar illumination. UI materials use coordinated
-light and dark families: surface, ink, muted text and map polarity change in the
-same astronomy update. Temperature changes continuously within each family;
-there is no grey intermediate panel. A one-degree hysteresis band around -2°
-prevents repeated switches near the horizon (day enters above -1.5°, leaves
-below -2.5°; the initial result uses -2°).
+Scenery retains continuous solar illumination. UI materials use coordinated
+light and dark families; surface, ink, muted text and map polarity change in the
+same astronomy update. Temperature changes continuously within each family.
+A one-degree hysteresis band around -2° prevents repeated switches near the
+horizon (day enters above -1.5°, leaves below -2.5°).
 
-Saved glass opacity still controls decorative cards. Separate protective fills
-(minimum 88% for content and sheets, 94–96% for map chrome) protect controls and
-standalone headings against both white map tiles and black terrain. This is an
-intentional readability floor, including when the glass slider is set to 20%.
-Headings no longer have individual filled labels, padding, shadows or outlines.
-The artwork remains visible beneath a single content veil.
+Each panel now has one adjustable glass fill. The previous 88% full-screen veil
+and fixed 88–96% opacity floors have been removed. Glass opacity, blur toggle
+and radius, panel tint, borders, shadows, card style, pattern and glow follow
+the shared appearance settings. Full-screen ancestors remain transparent and
+unblurred. Labels have no word-sized pills or outlines; isolated headings over
+the scenery use a small text shadow. A deliberately low opacity can reduce
+text contrast; the user's chosen opacity is never silently raised.
 
-Leaflet marker foregrounds are excluded from neutral solar text overrides;
-white cluster and train labels keep their own filled-marker contrast. The
-carrier shortcut receives a coordinated solar surface and foreground.
+Legacy admin-light important backgrounds are overridden by the same scoped
+material layer as the rest of the theme. Native date/time controls explicitly
+use the current solar color-scheme. Filled map markers and carrier headers keep
+their own foregrounds. Solid journey search buttons use the accent-on pairing.
 
-Focused tests cover both palette families over the full solar elevation range,
-black/white backgrounds, 20/64/100% glass and all three foreground roles (WCAG
-contrast >= 4.5). Browser checks include unboxed headings, marker colour isolation,
-day/night map controls and existing scene lifecycle/animation checks.
+Appearance backup retains the full mountain configuration and all profile font
+selections/custom URLs. An explicit googleFonts manifest lists distinct family
+names and canonical Google stylesheet URLs, including dormant custom sources.
+Font binaries are not embedded; first-time font downloads require a connection.
+Old version-1 backups remain compatible. The picker preview reads
+“Przykładowy tekst”.
+
+Tests cover opacity values, tint, native control color-scheme, theme/font backup
+round trips, admin day/night glass, journey controls and existing renderer
+lifecycle/animation behavior. Browser screenshots exercise the real components.
