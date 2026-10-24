@@ -11,6 +11,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.evaluateOnNewDocument(()=>localStorage.setItem('mks_app_theme','dark-mountains'));
   await page.setRequestInterception(true);page.on('request',req=>req.url().startsWith('https://mt1.google.com/')?req.respond({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path fill="#eaf1e7" d="M0 0h256v256H0z"/><path d="M0 130h256M110 0v256" stroke="#fff" stroke-width="12"/><path d="M0 10q80 100 256 50" stroke="#afd7ee" stroke-width="20" fill="none"/><text x="125" y="115" fill="#526159" font-size="11">Rzeszów</text></svg>'}):req.url().startsWith(origin)||req.url().startsWith('data:')?req.continue():req.abort());
   await page.goto(origin+'/landscape-fixture/');await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0&&document.querySelector('[data-landscape-stage]')?.dataset.assetsReady==='true');
+  assert.equal(await page.evaluate(()=>window.__landscapeDiagnostics().renderer.presentation),'direct-gpu');
+  assert.equal(await page.$$eval('[data-landscape-water]',nodes=>nodes.length),1,'one visible GPU surface, no GPU-to-2D copy in the frame path');
   fs.mkdirSync('test/ui-previews',{recursive:true});
   await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}html[data-landscape-theme] *{transition-duration:0s!important}'});
   for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
@@ -24,10 +26,13 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   // Record the actual live canvas with Chrome's own encoder, without depending
   // on an external ffmpeg executable being installed on every CI runner.
   const recording=await page.evaluate(async()=>{
-   const stream=document.querySelector('[data-landscape-stage]').captureStream(24),chunks=[];
+   const stage=document.querySelector('[data-landscape-stage]');
+   const composite=document.createElement('canvas');composite.width=stage.width;composite.height=stage.height;const ctx=composite.getContext('2d');
+   const copy=()=>{ctx.drawImage(window.__landscapeCapture(),0,0);};copy();const capture=setInterval(copy,1000/24);
+   const stream=composite.captureStream(24),chunks=[];
    const recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp8',videoBitsPerSecond:1800000});
    const finished=new Promise(resolve=>recorder.onstop=resolve);recorder.ondataavailable=event=>chunks.push(event.data);
-   recorder.start();await new Promise(resolve=>setTimeout(resolve,6000));recorder.stop();await finished;
+   recorder.start();await new Promise(resolve=>setTimeout(resolve,6000));recorder.stop();await finished;clearInterval(capture);
    stream.getTracks().forEach(track=>track.stop());const bytes=new Uint8Array(await new Blob(chunks).arrayBuffer());
    let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary);
   });
@@ -35,9 +40,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   fs.writeFileSync('test/ui-previews/landscape-live.webm',Buffer.from(recording,'base64'));
   // At a fixed astronomical instant, changes below the skyline must come from
   // real water motion, not an advancing clock or a moving full-screen wallpaper.
-  await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),y=Math.floor(c.height*.6);window.__waterBefore=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;});
+  await page.evaluate(()=>{const c=window.__landscapeCapture();const y=Math.floor(c.height*.6);window.__waterBefore=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;});
   await new Promise(r=>setTimeout(r,1200));
-  assert.ok(await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),y=Math.floor(c.height*.6),after=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;let changed=0;for(let i=0;i<after.length;i+=4)if(Math.abs(after[i]-window.__waterBefore[i])+Math.abs(after[i+1]-window.__waterBefore[i+1])+Math.abs(after[i+2]-window.__waterBefore[i+2])>2)changed++;return changed>2500;}),'water visibly ripples at a fixed scene time');
+  assert.ok(await page.evaluate(()=>{const c=window.__landscapeCapture();const y=Math.floor(c.height*.6),after=c.getContext('2d').getImageData(0,y,c.width,c.height-y).data;let changed=0;for(let i=0;i<after.length;i+=4)if(Math.abs(after[i]-window.__waterBefore[i])+Math.abs(after[i+1]-window.__waterBefore[i+1])+Math.abs(after[i+2]-window.__waterBefore[i+2])>2)changed++;return changed>c.width*c.height*.005;}),'water visibly ripples at a fixed scene time');
   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
   await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]');window.__cloudBefore=c.getContext('2d').getImageData(0,0,c.width,Math.floor(c.height*.33)).data;});
@@ -86,6 +91,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.setViewport({width:320,height:640,deviceScaleFactor:2});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.screenshot({path:'test/ui-previews/landscape-small-phone.png'});
+  const cadence=await page.evaluate(()=>({frames:window.__landscapeDiagnostics().frames,background:window.__landscapeDiagnostics().renderer.backgroundFrames}));
+  await new Promise(r=>setTimeout(r,1400));
+  const cadenceAfter=await page.evaluate(()=>({frames:window.__landscapeDiagnostics().frames,background:window.__landscapeDiagnostics().renderer.backgroundFrames}));
+  assert.ok(cadenceAfter.frames-cadence.frames>=10,'water remains live');
+  assert.ok(cadenceAfter.background-cadence.background<=14,'the full landscape is cached rather than redrawn every water frame');
   await page.evaluate(()=>window.__landscapePreview({}));
   await new Promise(r=>setTimeout(r,2000));
   const metrics=await page.evaluate(()=>window.__landscapeDiagnostics());
@@ -93,9 +103,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   // Native saver/bridge fallback must remain live instead of freezing the world.
   await page.evaluate(()=>window.__landscapeTestPower(true));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().motion==='power-saving');
+  assert.ok(await page.evaluate(()=>window.__landscapeDiagnostics().interval<=1000/12),'power saving reduces resolution, never drops live water to 2 fps');
   const saverFrames=await page.evaluate(()=>window.__landscapeDiagnostics().frames);
   await new Promise(r=>setTimeout(r,1300));
-  assert.ok(await page.evaluate(n=>window.__landscapeDiagnostics().frames>=n+2,saverFrames));
+  assert.ok(await page.evaluate(n=>window.__landscapeDiagnostics().frames>=n+10,saverFrames));
   await page.evaluate(()=>window.__landscapeTestPower(false));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().interval<200);
   await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
@@ -106,7 +117,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
   await page.waitForFunction(n=>window.__landscapeDiagnostics().frames>n,{},paused);
   await page.evaluate(()=>document.querySelector('[data-toggle-scene]').click());
-  await page.waitForFunction(()=>!document.querySelector('[data-landscape-stage]')&&!window.__landscapeDiagnostics&&!document.documentElement.dataset.landscapeTheme);
+  await page.waitForFunction(()=>!document.querySelector('[data-landscape-stage]')&&!window.__landscapeDiagnostics&&!document.querySelector('[data-landscape-water]')&&!document.documentElement.dataset.landscapeTheme);
   await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}]);
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   await page.goto(origin+'/landscape-map-fixture/');

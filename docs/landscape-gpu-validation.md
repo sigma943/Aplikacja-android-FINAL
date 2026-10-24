@@ -1,5 +1,13 @@
 # Rozbudowa motywu PKS Live — wynik prac
 
+> Korekta po zgłoszeniu z urządzenia: najnowsze zmiany opisuje ostatnia sekcja
+> `docs/dynamic-mountain-theme.md` („Correction after device feedback”).
+> Usunięto limit 2 FPS i kopiowanie GPU do Canvas 2D z każdej klatki.
+> Wprowadzono bezpośrednią prezentację GPU, krótkie nieregularne fale,
+> mocniejsze refleksy oraz nowe tarcze Słońca/Księżyca.
+> Poniżej pozostawiono historyczny raport pierwszej implementacji.
+
+
 Implementacja znajduje się na lokalnej gałęzi `feat/landscape-gpu-lighting`.
 Nie zmieniono `main`, astronomii, trajektorii Słońca ani obrazów krajobrazu.
 Nie utworzono zdalnej gałęzi ani PR. Walidacja na Androidzie jest nieukończona.

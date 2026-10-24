@@ -1,3 +1,4 @@
+import {paintSun,moonTexture,MOON_RADIUS} from './landscape-celestial';
 import {solarShaftStrength} from './landscape-optics';
 import {projectCelestial,smoothstep,type AstronomyState} from './landscape-astronomy';
 import {landscapeLighting,type LandscapeLightingState} from './landscape-lighting';
@@ -24,26 +25,38 @@ export class LandscapeRenderer{
   private gpuAttempted=false;
   quality:WaterQuality='high';
   lighting:LandscapeLightingState|null=null;
+  private lunarTexture:HTMLCanvasElement;
+  private lastBackground=-Infinity;
+  private backgroundFrames=0;
+  private lastAstronomy=-Infinity;
   private lastLight='';
   private width=1;private height=1;private scale=1;private offsetX=0;private offsetY=0;
   private assets:LandscapeAssets|null=null;
   private ambientSeconds=0;
   private stars=Array.from({length:180},(_,i)=>{const r=(n:number)=>((Math.sin(n*127.1)*43758.5453)%1+1)%1;return{x:r(i+1),y:r(i+72)*.46,size:.4+r(i+17),brightness:r(i+45)};});
-  constructor(private canvas:HTMLCanvasElement){
-    this.ctx=canvas.getContext('2d',{alpha:false})!;
+  constructor(private canvas:HTMLCanvasElement,private directWater=false){
+    this.ctx=canvas.getContext('2d',{alpha:false})!;this.lunarTexture=moonTexture();
     this.terrain=document.createElement('canvas');this.clouds=document.createElement('canvas');this.water=document.createElement('canvas');
   }
-  setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';this.gpu?.setAssets(assets);}
+  setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';this.lastBackground=-Infinity;this.gpu?.setAssets(assets);}
   suspend(){this.gpu?.suspend();}
   dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
-  diagnostics(){return {quality:this.quality,gpu:this.gpu?.diagnostics()};}
+  diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,gpu:this.gpu?.diagnostics()};}
   sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
   resize(w:number,h:number,dpr:number){
     const density=Math.min(dpr,1.25,Math.sqrt(900000/(w*h)));
     this.width=this.canvas.width=Math.round(w*density);this.height=this.canvas.height=Math.round(h*density);
     for(const layer of [this.terrain,this.clouds,this.water]){layer.width=this.width;layer.height=this.height;}
     // Uniform scale; phones crop at most a narrow edge instead of stretching artwork.
-    this.scale=Math.max(this.width/WIDTH,this.height/HEIGHT);this.offsetX=(this.width-WIDTH*this.scale)/2;this.offsetY=this.height-HEIGHT*this.scale;this.lastLight='';
+    this.scale=Math.max(this.width/WIDTH,this.height/HEIGHT);this.offsetX=(this.width-WIDTH*this.scale)/2;this.offsetY=this.height-HEIGHT*this.scale;this.lastLight='';this.lastBackground=-Infinity;
+  }
+  copyWindow(context:CanvasRenderingContext2D,sx:number,sy:number,sw:number,sh:number,width:number,height:number){
+    context.drawImage(this.canvas,sx,sy,sw,sh,0,0,width,height);
+    if(this.directWater&&this.gpu&&sy+sh>this.height*.57&&!this.gpu.diagnostics().lost){
+      if(this.lighting)this.gpu.render(this.lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality);
+      const gx=this.gpu.canvas.width/this.width,gy=this.gpu.canvas.height/this.height;
+      context.drawImage(this.gpu.canvas,sx*gx,sy*gy,sw*gx,sh*gy,0,0,width,height);
+    }
   }
   private coordinates(c:CanvasRenderingContext2D){c.setTransform(this.scale,0,0,this.scale,this.offsetX,this.offsetY);}
   private relight(day:number,warm:number,moon:number,sunX:number){
@@ -86,8 +99,7 @@ export class LandscapeRenderer{
     c.fillStyle='#fff0cf';c.beginPath();
     for(let i=0;i<=64;i++){const v=-1+2*i/64;c.lineTo(radius*Math.sqrt(Math.max(0,1-v*v)),radius*v);}
     for(let i=64;i>=0;i--){const v=-1+2*i/64;c.lineTo(radius*(1-2*f)*Math.sqrt(Math.max(0,1-v*v)),radius*v);}
-    c.closePath();c.fill();c.clip();c.globalAlpha=opacity*.15;c.fillStyle='#66717b';
-    for(const [dx,dy,rr] of [[-.2,.3,.2],[.4,-.25,.24],[-.3,-.5,.13],[.3,.5,.1],[.1,-.05,.18]]){c.beginPath();c.arc(dx*radius,dy*radius,rr*radius,0,TAU);c.fill();}
+    c.closePath();c.clip();c.drawImage(this.lunarTexture,-radius,-radius,radius*2,radius*2);
     c.restore();
   }
   render(state:AstronomyState,seconds:number,motion:boolean){
@@ -97,6 +109,19 @@ export class LandscapeRenderer{
     const shift=cloudOffset(seconds);
     const lighting=this.lighting=landscapeLighting(state,seconds,this.cloudTransmission(sun.x,sun.y,shift),this.cloudTransmission(moon.x,moon.y,shift));
     const c=this.ctx,sky=lighting.sky;
+    if(this.assets&&!this.gpuAttempted){
+      this.gpuAttempted=true;this.gpu=new LandscapeWaterGPU();this.gpu.setAssets(this.assets);
+      if(this.directWater){this.gpu.canvas.dataset.landscapeWater='';this.gpu.canvas.setAttribute('aria-hidden','true');this.canvas.insertAdjacentElement('afterend',this.gpu.canvas);}
+    }
+    const gpuReady=this.gpu?.render(lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality)??false;
+    if(this.directWater&&this.gpu){
+      const style=`position:absolute;inset:0;width:100%;height:${this.canvas.style.height||'100%'};z-index:-1;pointer-events:none;visibility:${gpuReady?'visible':'hidden'}`;
+      if(this.gpu.canvas.getAttribute('style')!==style)this.gpu.canvas.setAttribute('style',style);
+      // The compositor presents water directly: no GPU -> 2D readback on the animation path.
+      const jumped=Math.abs(state.ms-this.lastAstronomy)>2000;
+      if(gpuReady&&!jumped&&seconds-this.lastBackground<1/8)return;
+    }
+    this.lastBackground=seconds;this.lastAstronomy=state.ms;this.backgroundFrames++;
     const lightKey=[sky.day.toFixed(3),sky.twilight.toFixed(3),sky.moonlight.toFixed(2),sun.x.toFixed(2)].join(':');
     if(lightKey!==this.lastLight){this.relight(sky.day,sky.twilight,sky.moonlight,sun.x);this.lastLight=lightKey;}
     c.setTransform(1,0,0,1,0,0);
@@ -127,7 +152,7 @@ export class LandscapeRenderer{
         c.fillStyle=ray;
         for(let edge=3;edge>=1;edge--){
           const half=(.004+.009*(.5+.5*Math.sin(i*3.67))**2)*edge;
-          c.globalAlpha=strength*.018;
+          c.globalAlpha=strength*.010;
           c.beginPath();c.moveTo(sx,sy);
           c.lineTo(sx+Math.cos(angle-half)*length,sy+Math.sin(angle-half)*length);
           c.lineTo(sx+Math.cos(angle+half)*length,sy+Math.sin(angle+half)*length);
@@ -137,12 +162,11 @@ export class LandscapeRenderer{
       c.restore();
     }
     if(state.sun.altitude>-.06){
-      const glow=c.createRadialGradient(sx,sy,10,sx,sy,190);glow.addColorStop(0,'#ffe3a688');glow.addColorStop(1,'#ffd98700');c.fillStyle=glow;c.fillRect(sx-190,sy-190,380,380);
-      c.fillStyle=sky.twilight>.2?'#fff1b0':'#fff8d4';c.beginPath();c.arc(sx,sy,25,0,TAU);c.fill();
+      paintSun(c,sx,sy,sky.twilight);
     }
     if(state.moon.altitude>0){
       const glow=c.createRadialGradient(mx,my,15,mx,my,100);glow.addColorStop(0,`rgba(222,229,245,${state.illumination.fraction*.2*(1-sky.day)})`);glow.addColorStop(1,'#cadfff00');c.fillStyle=glow;c.fillRect(mx-100,my-100,200,200);
-      c.save();c.globalAlpha=.25+.75*(1-sky.day);this.moon(c,state,mx,my,22);c.restore();
+      c.save();c.globalAlpha=.25+.75*(1-sky.day);this.moon(c,state,mx,my,MOON_RADIUS);c.restore();
     }
     c.setTransform(1,0,0,1,0,0);
     const cloudShift=cloudOffset(seconds);
@@ -150,9 +174,7 @@ export class LandscapeRenderer{
     c.drawImage(this.clouds,cloudShift*this.scale,0);
     c.drawImage(this.clouds,(cloudShift-WIDTH)*this.scale,0);c.drawImage(this.terrain,0,0);
     if(!this.assets)return;
-    if(!this.gpuAttempted){this.gpuAttempted=true;this.gpu=new LandscapeWaterGPU();this.gpu.setAssets(this.assets);}
-    const gpuReady=this.gpu?.render(lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality);
-    if(gpuReady){c.drawImage(this.gpu!.canvas,0,0,this.width,this.height);}else{
+    if(gpuReady){if(!this.directWater)c.drawImage(this.gpu!.canvas,0,0,this.width,this.height);}else{
     // Only the lower part of this persistent buffer is drawn. Alpha mask includes
     // the exact riverbanks and intervening trees; light can never land on the forest.
     const w=this.water.getContext('2d')!;w.setTransform(1,0,0,1,0,0);w.clearRect(0,0,this.width,this.height);this.coordinates(w);

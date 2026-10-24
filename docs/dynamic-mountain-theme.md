@@ -229,3 +229,39 @@ Optional Linux fallback validation is available with
 actual GLSL in a GLES3 context and verifies pixels: moving waves, no sky or land
 leakage, moving solar reflection, new moon, below-horizon moon, all quality
 branches. This does not test browser composition, Android lifecycle or energy use.
+
+## Correction after device feedback: visible ripples and cadence
+
+This section supersedes the initial GPU presentation and 2 FPS saver policy.
+The device screenshot showed broad diagonal waves, flat celestial discs and
+visible stepping. The old saver/bridge-fallback policy explicitly requested
+500 ms frames; the screenshot also showed 4% battery. That is a plausible
+trigger, not proof of the device's active Android power policy.
+
+Production now presents the SAME single WebGL2 context as a transparent DOM
+canvas over the original 2D scenery, below the React UI. There is no per-frame
+WebGL-to-Canvas2D copy. The existing sky/terrain renderer is cached at up to 8 Hz;
+water has an independent cadence within the same requestAnimationFrame owner
+loop: 30/24/12 FPS, or 15 FPS with the low-resolution buffer in power saving.
+Light-effects mode targets 12 FPS. Hidden/reduced-motion/thermal behavior remains.
+Sheet snapshots composite water only at the throttled 4 Hz window-copy rate.
+A preview-only capture function supports browser assertions and videos without
+adding readbacks to the production animation path. Diagnostics now report
+observed FPS and background repaint count.
+
+The wave field uses short, phase-modulated horizontal wavelets and spatial noise,
+without the original broad crossing sine bands. Perspective compresses distant
+crests. Local normals and irregular crests form a brighter warm/silver path,
+whose horizon position follows the projected body instead of being recentered.
+Low quality saves pixels while retaining fine ripple detail. The original exact
+river mask and shoreline damping are unchanged.
+
+Sunlight has a graduated bright core, soft bloom and atmospheric halo. The Moon
+uses a cached procedural surface with soft maria/crater rims, clipped to the
+original astronomical phase and orientation. Neither asset replaces the terrain
+or changes the Sun/Moon trajectories.
+
+The browser test now asserts direct GPU presentation, no orphaned water canvas,
+bounded background repaint rate and at least ten water frames over 1.3 seconds
+in saver mode, rather than merely two frames. Hardware FPS, temperature and
+battery behavior still require measurement on the user's phone.

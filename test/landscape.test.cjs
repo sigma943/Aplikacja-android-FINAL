@@ -17,8 +17,8 @@ test('power policy keeps a live world in saver mode and recovers from one expens
  const {landscapeMotionPolicy:p,landscapeFrameBudget:budget}=load('lib/landscape-motion.ts');
  const base={hidden:false,nativeActive:true,reduced:false,light:false,limited:false,critical:false,slow:false};
  assert.equal(p(base).animate,true);assert.ok(p(base).interval<100);
- assert.equal(p({...base,light:true}).animate,true);assert.equal(p({...base,light:true}).interval,500);
- assert.equal(p({...base,limited:true}).animate,true);assert.equal(p({...base,limited:true}).interval,500);
+ assert.equal(p({...base,light:true}).animate,true);assert.equal(p({...base,light:true}).interval,1000/12);
+ assert.equal(p({...base,limited:true}).animate,true);assert.equal(p({...base,limited:true}).interval,1000/15);
  for(const flags of [{critical:true},{reduced:true},{hidden:true},{nativeActive:false}])assert.equal(p({...base,...flags}).animate,false);
  let avg=budget(12,75);assert.ok(avg<28,'an isolated relight does not permanently select a low frame rate');
  for(let i=0;i<30;i++)avg=budget(avg,12);assert.ok(avg<18);
