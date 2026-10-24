@@ -22,7 +22,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    if(name==='night')assert.ok(await page.evaluate(()=>{const c=window.__landscapeCapture(),d=c.getContext('2d').getImageData(0,Math.floor(c.height*.6),c.width,Math.floor(c.height*.4)).data;let silver=0;for(let i=0;i<d.length;i+=4)if(d[i+2]>100&&d[i+2]>d[i]*1.03)silver++;return silver>100;}),'visible silver path follows the real Moon through the river bends');
    await page.screenshot({path:'test/ui-previews/landscape-'+name+'.png'});
   }
-  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-26T23:00:00+01:00',rate:0}));
+  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T17:10:00+02:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
   // Record the actual live canvas with Chrome's own encoder, without depending
   // on an external ffmpeg executable being installed on every CI runner.
@@ -92,10 +92,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.setViewport({width:320,height:640,deviceScaleFactor:2});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.screenshot({path:'test/ui-previews/landscape-small-phone.png'});
+  await new Promise(r=>setTimeout(r,2500)); // Let resize/shader warmup and the two-window quality controller settle.
   const cadence=await page.evaluate(()=>({frames:window.__landscapeDiagnostics().frames,background:window.__landscapeDiagnostics().renderer.backgroundFrames}));
   await new Promise(r=>setTimeout(r,1400));
   const cadenceAfter=await page.evaluate(()=>({frames:window.__landscapeDiagnostics().frames,background:window.__landscapeDiagnostics().renderer.backgroundFrames}));
-  assert.ok(cadenceAfter.frames-cadence.frames>=10,'water remains live');
+  assert.ok(cadenceAfter.frames-cadence.frames>=10,'water remains live: '+JSON.stringify({cadence,cadenceAfter,diagnostics:await page.evaluate(()=>window.__landscapeDiagnostics())}));
   assert.ok(cadenceAfter.background-cadence.background<=14,'the full landscape is cached rather than redrawn every water frame');
   await page.evaluate(()=>window.__landscapePreview({}));
   await new Promise(r=>setTimeout(r,2000));

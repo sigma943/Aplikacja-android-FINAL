@@ -25,7 +25,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     const element=canvas.current,root=document.documentElement;
     const renderer=new LandscapeRenderer(element,true),media=matchMedia('(prefers-reduced-motion: reduce)');
     const worker=new Worker(new URL('../lib/landscape.worker.ts',import.meta.url));
-    let quality:WaterQuality=(navigator.hardwareConcurrency||4)<=4?'medium':'high',badFrames=0,lastQualityChange=0,lastGlass=0;
+    let quality:WaterQuality=(navigator.hardwareConcurrency||4)<=4?'medium':'high',badFrames=0,slowWindows=0,lastQualityChange=0,lastGlass=0;
     let alive=true,sceneVisible=true,nativeActive=true,limited=false,critical=false,requestId=0;
     let solarDay:boolean|undefined;
     let samples:{a:AstronomyState;b:AstronomyState}|null=null;
@@ -96,7 +96,13 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
           lastGlass=mono;updatePalette(state);
         }
         paintWindows(mono);
-        const cost=performance.now()-start;frames++;fpsFrames++;if(mono-fpsStart>=1000){actualFps=fpsFrames*1000/(mono-fpsStart);fpsFrames=0;fpsStart=mono;}totalMs+=cost;maxMs=Math.max(maxMs,cost);
+        const cost=performance.now()-start;frames++;fpsFrames++;if(mono-fpsStart>=1000){
+          actualFps=fpsFrames*1000/(mono-fpsStart);fpsFrames=0;fpsStart=mono;
+          if(motionPolicy.reason==='active'&&frames>20){
+            slowWindows=actualFps<WATER_QUALITY[renderer.quality].fps*.72?slowWindows+1:Math.max(0,slowWindows-1);
+            if(slowWindows>=2&&mono-lastQualityChange>2000){quality=quality==='high'?'medium':'low';slow=quality==='low';lastQualityChange=mono;slowWindows=0;}
+          }
+        }totalMs+=cost;maxMs=Math.max(maxMs,cost);
         if(frames>10&&motionPolicy.reason==='active'){
           frameCost=landscapeFrameBudget(frameCost,cost);
           const budget=1000/WATER_QUALITY[renderer.quality].fps;

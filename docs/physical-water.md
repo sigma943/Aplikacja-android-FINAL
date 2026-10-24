@@ -33,7 +33,7 @@ controls transmission. These are controlled 2.5D occlusion approximations.
 The water pass draws an indexed mesh (96x128 / 64x96 / 48x64 cells). Three large
 Gerstner waves displace vertices horizontally and vertically. A deterministic
 24-component, multiscale directional spectrum supplies analytic tangents and
-normals; medium/low evaluate fewer resolved components. Dispersion follows
+normals; 18/12/8 components are resolved at high/medium/low; omitted components contribute their precomputed slope variance. Dispersion follows
 omega=sqrt(g*k). Transverse sidebands form curved wave groups; their derivatives
 are included in the normal. This is a Gerstner approximation, not a fluid solver.
 
@@ -73,8 +73,8 @@ longer used. Existing user-selected appearance patterns/glows are untouched.
 The directly presented GPU canvas remains in place; no per-frame GPU-to-2D copy
 was reintroduced. Background scenery is cached at up to 8 Hz; existing sheet
 snapshots are throttled. Quality targets are 30/24/15 FPS, with 15 FPS saver mode
-at the low pixel budget. Water targets retain 360k/210k/110k whole-frame pixel
-caps. Static textures and indexed meshes upload at initialization / quality
+at the low pixel budget. Water targets retain 360k/210k/80k whole-frame pixel
+caps. Wave calls are emitted as constants rather than dynamically indexed GLSL arrays. A two-window measured-FPS controller also lowers quality after sustained stalls. Static textures and indexed meshes upload at initialization / quality
 changes, not per frame. No wave animation updates React state.
 
 EXT_disjoint_timer_query_webgl2 is sampled asynchronously when available; its

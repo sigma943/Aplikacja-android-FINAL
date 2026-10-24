@@ -3,7 +3,7 @@ import type {LandscapeLightingState} from './landscape-lighting';
 import {WATER_VERTEX,WATER_FRAGMENT,SCREEN_VERTEX,LIGHT_FRAGMENT,PRESENT_FRAGMENT} from './landscape-water-shaders';
 export {WATER_VERTEX,WATER_FRAGMENT,SCREEN_VERTEX,LIGHT_FRAGMENT,PRESENT_FRAGMENT} from './landscape-water-shaders';
 export type WaterQuality='high'|'medium'|'low';
-export const WATER_QUALITY={high:{fps:30,pixels:360000,scale:.85,columns:96,rows:128},medium:{fps:24,pixels:210000,scale:.65,columns:64,rows:96},low:{fps:15,pixels:110000,scale:.45,columns:48,rows:64}} as const;
+export const WATER_QUALITY={high:{fps:30,pixels:360000,scale:.85,columns:96,rows:128},medium:{fps:24,pixels:210000,scale:.65,columns:64,rows:96},low:{fps:15,pixels:80000,scale:.40,columns:48,rows:64}} as const;
 export type WaterAssets={terrain:CanvasImageSource;water:CanvasImageSource;clouds:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource};
 type Frame={width:number;height:number;scale:number;x:number;y:number};
 type Target={framebuffer:WebGLFramebuffer;texture:WebGLTexture;width:number;height:number};

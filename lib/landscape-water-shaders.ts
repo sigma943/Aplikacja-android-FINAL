@@ -1,4 +1,5 @@
 import calibration from './landscape-water-calibration.json';
+import waves from './landscape-water-spectrum.json';
 /** GLSL ES 3.00. Relative coplanar reconstruction follows projectCelestial's
  * azimuth/elevation projection; no light corridor, animated texture or glitter mask. */
 const projection=`
@@ -10,31 +11,38 @@ vec2 unprojectWater(vec2 uv){float az=(uv.x-.5)*AZ_SPAN;float down=max(.012,(uv.
 vec3 lightDirection(vec2 projected,float altitude){float az=(projected.x-.5)*AZ_SPAN;return vec3(sin(az)*cos(altitude),sin(altitude),cos(az)*cos(altitude));}
 `;
 // direction, wavelength, amplitude; each oscillator has the deep-water dispersion omega=sqrt(g*k).
+// Emit explicit constant calls. Dynamic indexing of local GLSL arrays can spill
+// large wave tables per fragment on mobile/SwiftShader drivers.
+const number=(v:number)=>Number(v.toPrecision(10)).toString().includes('.')?v.toPrecision(10):v.toFixed(1);
+const energy=(from:number)=>waves.slice(from).reduce((sum,w)=>sum+.5*(2*Math.PI/w[2]*w[3])**2,0);
+const emit=(from:number,to:number)=>waves.slice(from,to).map((w,j)=>`addWave(rest,time,pixelDx,pixelDy,dt,bank,vec2(${number(w[0])},${number(w[1])}),${number(2*Math.PI/w[2])},${number(Math.sqrt(9.81*2*Math.PI/w[2]))},${number(w[3])},${number((from+j)*1.713)},${number((from+j)*3.477)},displacement,tangent,bitangent,variance);`).join('\n');
 const spectrum=`
-const vec4 WAVES[24]=vec4[24](vec4(0.810000,0.586000,5.300000,0.0150000),vec4(-0.290000,0.957000,2.130000,0.0100000),vec4(0.560000,0.828000,0.970000,0.0080000),vec4(0.120000,0.993000,0.530000,0.0080000),vec4(0.297018,0.954872,0.404754,0.0086287),vec4(-0.194010,0.981000,0.360410,0.0074322),vec4(-0.592307,0.805712,0.317489,0.0068812),vec4(-0.235285,0.971926,0.273392,0.0051557),vec4(0.135575,0.990767,0.223782,0.0044277),vec4(0.986896,0.161355,0.191303,0.0034828),vec4(-0.367398,0.930064,0.178533,0.0036564),vec4(0.871007,0.491271,0.149302,0.0034069),vec4(-0.462735,0.886497,0.124181,0.0025501),vec4(0.992628,0.121203,0.115517,0.0023474),vec4(0.295286,0.955409,0.095185,0.0016498),vec4(0.256914,0.966434,0.085229,0.0018933),vec4(0.941474,0.337085,0.073625,0.0012892),vec4(-0.721479,0.692436,0.062218,0.0013925),vec4(-0.225035,0.974351,0.055504,0.0009942),vec4(0.997656,-0.068435,0.047106,0.0009962),vec4(0.633985,0.773345,0.038421,0.0007220),vec4(-0.244595,0.969625,0.033971,0.0007109),vec4(0.935421,0.353536,0.028932,0.0006610),vec4(-0.633929,0.773391,0.026053,0.0005680));
+void addWave(vec2 rest,float time,vec2 pixelDx,vec2 pixelDy,float dt,float bank,vec2 d,float k,float omega,float amp0,float seed,float groupSeed,
+ inout vec3 displacement,inout vec3 tangent,inout vec3 bitangent,inout float variance){
+ float amp=amp0*bank,slope=amp*k;
+ float carrier=k*(abs(dot(d,pixelDx))+abs(dot(d,pixelDy)));
+ if(carrier>4.8||omega*dt>3.14){variance+=.5*slope*slope;return;}
+ vec2 crosswind=vec2(-d.y,d.x);
+ float group=k*.37*dot(crosswind,rest)-omega*.17*time+groupSeed;
+ float phase=k*dot(d,rest)-omega*time+seed+.9*sin(group);
+ vec2 gradient=k*d+k*.333*cos(group)*crosswind;
+ float footprint=abs(dot(gradient,pixelDx))+abs(dot(gradient,pixelDy));
+ float attenuation=(1.-smoothstep(1.2,3.14,footprint))*(1.-smoothstep(1.2,3.14,omega*dt));
+ variance+=.5*slope*slope*(1.-attenuation*attenuation);
+ amp*=attenuation;float q=.20,s=sin(phase),c=cos(phase);
+ displacement+=vec3(q*amp*d.x*c,amp*s,q*amp*d.y*c);
+ tangent+=vec3(-q*amp*d.x*s*gradient.x,amp*c*gradient.x,-q*amp*d.y*s*gradient.x);
+ bitangent+=vec3(-q*amp*d.x*s*gradient.y,amp*c*gradient.y,-q*amp*d.y*s*gradient.y);
+}
 void gerstner(vec2 rest,float time,int count,vec2 pixelDx,vec2 pixelDy,float dt,float bank,
  out vec3 displacement,out vec3 tangent,out vec3 bitangent,out float variance){
- displacement=vec3(0.);tangent=vec3(1.,0.,0.);bitangent=vec3(0.,0.,1.);variance=0.;
- for(int i=0;i<24;i++){
-  vec2 d=normalize(WAVES[i].xy);float k=2.*PI/WAVES[i].z,amp=WAVES[i].w*bank;
-  if(i>=count){variance+=.5*amp*amp*k*k;continue;}
-  float omega=sqrt(9.81*k);
-  float carrierFootprint=k*(abs(dot(d,pixelDx))+abs(dot(d,pixelDy)));
-  if(carrierFootprint>4.8||omega*dt>3.14){variance+=.5*amp*amp*k*k;continue;}
-  vec2 crosswind=vec2(-d.y,d.x);
-  // A transverse sideband forms finite curved wave groups. Its gradient is
-  // differentiated below, so normals still come from this displaced surface.
-  float group=k*.37*dot(crosswind,rest)-omega*.17*time+float(i)*3.477;
-  float phase=k*dot(d,rest)-omega*time+float(i)*1.713+.9*sin(group);
-  vec2 gradient=k*d+k*.333*cos(group)*crosswind;
-  float footprint=abs(dot(gradient,pixelDx))+abs(dot(gradient,pixelDy));
-  float attenuation=(1.-smoothstep(1.2,3.14,footprint))*(1.-smoothstep(1.2,3.14,omega*dt));
-  float slope=amp*k;variance+=.5*slope*slope*(1.-attenuation*attenuation);
-  amp*=attenuation;float q=.20,s=sin(phase),c=cos(phase);
-  displacement+=vec3(q*amp*d.x*c,amp*s,q*amp*d.y*c);
-  tangent+=vec3(-q*amp*d.x*s*gradient.x,amp*c*gradient.x,-q*amp*d.y*s*gradient.x);
-  bitangent+=vec3(-q*amp*d.x*s*gradient.y,amp*c*gradient.y,-q*amp*d.y*s*gradient.y);
- }
+ displacement=vec3(0.);tangent=vec3(1.,0.,0.);bitangent=vec3(0.,0.,1.);
+ variance=(count>=18?${number(energy(18))}:count>=12?${number(energy(12))}:count>=8?${number(energy(8))}:${number(energy(3))})*bank*bank;
+ if(bank<.001)return;
+ ${emit(0,3)}
+ if(count>=8){${emit(3,8)}}
+ if(count>=12){${emit(8,12)}}
+ if(count>=18){${emit(12,18)}}
 }
 `;
 const optics=`
@@ -126,12 +134,12 @@ void main(){
  vec2 rest=unprojectWater(uv),dx=dFdx(rest),dy=dFdy(rest);
  float mask=texture(uMask,uv).a;if(mask<.004){fragColor=vec4(0.);return;}
  vec3 perspective=texture(uPerspective,uv).rgb;
- vec3 disp,t,b;float variance;int count=uQuality>1.5?24:uQuality>.5?18:12;
+ vec3 disp,t,b;float variance;int count=uQuality>1.5?18:uQuality>.5?12:8;
  gerstner(rest,uTime,count,dx,dy,uFrameInterval,perspective.g,disp,t,b,variance);
  vec3 n=normalize(cross(b,t)),v=normalize(vec3(0.,CAMERA_HEIGHT,0.)-vPosition);
  float roughness=.10+.018*perspective.r+.035*(.5+.5*sin(dot(rest,vec2(.43,.71))));
  // Unresolved spatial/temporal slopes broaden the microfacet lobe instead of flickering.
- float alpha=sqrt(pow(roughness,4.)+variance*.10+.000022);
+ float alpha=sqrt(pow(roughness,4.)+variance*.035+.000022);
  float NoV=abs(dot(n,v))+.001;vec3 F=fresnelSchlick(NoV),r=reflect(-v,n);
  vec3 reflectedSky=skyRadiance(r)*F;
  vec3 body=mix(vec3(.001,.005,.012),vec3(.012,.095,.135),uDay);
@@ -168,7 +176,7 @@ float visibility(vec2 uv){
  float cloud=texture(uClouds,cloudUV).a*smoothstep(0.,.09,cloudUV.x)*(1.-smoothstep(.91,1.,cloudUV.x));
  return (1.-terrain)*(1.-cloud*.94);
 }
-vec3 bright(vec2 uv){vec4 s=texture(uWater,uv);float lum=dot(s.rgb,vec3(.2126,.7152,.0722));float threshold=uHdr>.5?1.25:.86;return s.rgb*max(lum-threshold,0.)/max(lum,.0001)*s.a;}
+vec3 bright(vec2 uv){vec4 s=texture(uWater,uv);float lum=dot(s.rgb,vec3(.2126,.7152,.0722));float threshold=uHdr>.5?1.25:.86;return s.rgb*min(max(lum-threshold,0.),4.)/max(lum,.0001)*s.a;}
 void main(){
  vec2 texUV=gl_FragCoord.xy/uResolution;
  vec2 pixel=vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y);
@@ -209,7 +217,7 @@ void main(){
  vec2 uv=(vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y)-uFrame.zw)/uFrame.xy;
  vec4 water=texture(uWater,texUV),light=texture(uLight,texUV);
  float mask=texture(uMask,uv).a,alpha=min(mask,water.a);
- vec3 color=uHdr>.5?displayColor(water.rgb+light.rgb*.075):clamp(water.rgb+light.rgb*.06,0.,1.);
+ vec3 color=uHdr>.5?displayColor(water.rgb+light.rgb*.025):clamp(water.rgb+light.rgb*.06,0.,1.);
  float shaftAlpha=light.a*(1.-texture(uTerrain,uv).a)*(1.-smoothstep(.56,.62,uv.y));
  float total=alpha+shaftAlpha*(1.-alpha);
  vec3 premult=color*alpha+clamp(uSunColor,0.,1.)*shaftAlpha*(1.-alpha);
