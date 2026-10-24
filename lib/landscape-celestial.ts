@@ -23,5 +23,5 @@ export function paintSun(c:CanvasRenderingContext2D,x:number,y:number,warm:numbe
   const halo=c.createRadialGradient(x,y,8,x,y,250);halo.addColorStop(0,'#fff8cfb0');halo.addColorStop(.14,'#ffe5a85c');halo.addColorStop(.42,`rgba(255,173,82,${.09+warm*.09})`);halo.addColorStop(1,'#ffaf5100');c.fillStyle=halo;c.fillRect(x-250,y-250,500,500);
   const bloom=c.createRadialGradient(x,y,15,x,y,75);bloom.addColorStop(0,'#fffdf1ff');bloom.addColorStop(.32,'#fff0c1a0');bloom.addColorStop(1,'#ffdb8a00');c.fillStyle=bloom;c.fillRect(x-75,y-75,150,150);
   c.globalCompositeOperation='source-over';
-  const disc=c.createRadialGradient(x-5,y-7,1,x,y,SUN_RADIUS);disc.addColorStop(0,'#fffef5');disc.addColorStop(.68,'#fff5cf');disc.addColorStop(1,'#ffe3a1');c.fillStyle=disc;c.beginPath();c.arc(x,y,SUN_RADIUS,0,Math.PI*2);c.fill();c.restore();
+  const disc=c.createRadialGradient(x-5,y-7,1,x,y,SUN_RADIUS);disc.addColorStop(0,'#fffef5');disc.addColorStop(.7,'#fff5cf');disc.addColorStop(.88,'#ffedbd');disc.addColorStop(1,'#ffdf8a00');c.fillStyle=disc;c.beginPath();c.arc(x,y,SUN_RADIUS,0,Math.PI*2);c.fill();c.restore();
 }

@@ -31,6 +31,20 @@ test('relative observer distance decreases towards the foreground',()=>{
  const w=perspective.width,at=y=>perspective.data[(Math.floor(y*perspective.height)*w+Math.floor(w*.7))*4];
  assert.ok(at(.60)>at(.70)&&at(.70)>at(.83));
 });
+test('terrain material normals are opaque unit vectors with both slopes and upward banks',()=>{
+ const normals=PNG.sync.read(fs.readFileSync('public/themes/mountains/terrain-normal.png'));
+ const depth=PNG.sync.read(fs.readFileSync('public/themes/mountains/scene-depth.png'));
+ assert.equal(normals.width,depth.width);assert.equal(normals.height,depth.height);
+ let banks=0,walls=0;
+ for(let i=0;i<normals.data.length;i+=4){
+  assert.equal(normals.data[i+3],255,'normal data cannot suffer alpha premultiplication');
+  if(depth.data[i+2]<220)continue;
+  const n=[0,1,2].map(j=>normals.data[i+j]/255*2-1);
+  assert.ok(Math.abs(Math.hypot(...n)-1)<.02,'valid world normal');
+  if(n[1]>.8)banks++;if(n[2]<-.5)walls++;
+ }
+ assert.ok(banks>100&&walls>100,'the material is not a flat painted tint');
+});
 test('ray-tracing proxy has finite positive depth and places near banks above the water plane',()=>{
  const depth=PNG.sync.read(fs.readFileSync('public/themes/mountains/scene-depth.png'));
  assert.equal(depth.width,calibration.mapWidth);assert.equal(depth.height,calibration.mapHeight);

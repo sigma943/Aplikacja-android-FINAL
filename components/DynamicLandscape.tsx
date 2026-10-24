@@ -15,7 +15,7 @@ const PowerPolicy=registerPlugin<{
   addListener(event:'powerPolicy',callback:(state:{limited:boolean;critical?:boolean})=>void):Promise<PluginListenerHandle>;
 }>('LandscapePowerPolicy');
 type Preview={iso?:string;rate?:number;quality?:WaterQuality;seconds?:number};
-type DebugWindow=Window&{__landscapeCapture?:()=>HTMLCanvasElement;__landscapePreview?:(value:Preview)=>void;__landscapeDiagnostics?:()=>unknown;__landscapeTestPower?:(limited:boolean,critical?:boolean)=>void};
+type DebugWindow=Window&{__landscapeCapture?:()=>HTMLCanvasElement;__landscapeRecording?:(active:boolean)=>HTMLCanvasElement|null;__landscapePreview?:(value:Preview)=>void;__landscapeDiagnostics?:()=>unknown;__landscapeTestPower?:(limited:boolean,critical?:boolean)=>void};
 
 /** This component owns its draw loop. Astronomy never updates application React state. */
 export default function DynamicLandscape({active,glass=true}:{active:boolean;glass?:boolean}){
@@ -34,6 +34,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     let drawTimer:ReturnType<typeof setTimeout>|undefined,modelTimer:ReturnType<typeof setTimeout>|undefined;
     let slow=false,frameCost=0,lastWall=Date.now(),lastMono=performance.now(),frames=0,totalMs=0,maxMs=0;
     let preview:Preview={},previewStart=0,previewMono=0;
+    let recordingCanvas:HTMLCanvasElement|null=null,recordingContext:CanvasRenderingContext2D|null=null;
     const previewEnabled=process.env.NODE_ENV==='development'||process.env.NEXT_PUBLIC_LANDSCAPE_PREVIEW==='true';
     const now=()=>preview.iso?previewStart+(performance.now()-previewMono)*(preview.rate??1):Date.now();
     const visible=()=>!document.hidden&&nativeActive&&sceneVisible;
@@ -98,6 +99,10 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
           lastGlass=mono;updatePalette(state);
         }
         paintWindows(mono,true);
+        if(recordingCanvas&&recordingContext){
+          if(recordingCanvas.width!==element.width||recordingCanvas.height!==element.height){recordingCanvas.width=element.width;recordingCanvas.height=element.height;}
+          renderer.copyWindow(recordingContext,0,0,element.width,element.height,element.width,element.height,true);
+        }
         const cost=performance.now()-start;frames++;fpsFrames++;if(mono-fpsStart>=1000){
           actualFps=fpsFrames*1000/(mono-fpsStart);fpsFrames=0;fpsStart=mono;
           if(motionPolicy.reason==='active'&&!preview.quality&&frames>20){
@@ -130,13 +135,13 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     const image=(name:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{
       const value=new Image();value.onload=()=>resolve(value);value.onerror=()=>reject(new Error(name));value.src='/themes/mountains/'+name;
     });
-    void Promise.all([image('terrain.webp'),image('clouds.webp'),image('water-mask.png'),image('water-uv.png').catch(()=>undefined),image('water-perspective.png').catch(()=>undefined),image('moon.webp').catch(()=>undefined),image('scene-depth.png').catch(()=>undefined)]).then(([terrain,clouds,water,geometry,perspective,moon,sceneDepth])=>{
+    void Promise.all([image('terrain.webp'),image('clouds.webp'),image('water-mask.png'),image('water-uv.png').catch(()=>undefined),image('water-perspective.png').catch(()=>undefined),image('moon.webp').catch(()=>undefined),image('scene-depth.png').catch(()=>undefined),image('terrain-normal.png').catch(()=>undefined)]).then(([terrain,clouds,water,geometry,perspective,moon,sceneDepth,terrainNormal])=>{
       if(!alive)return;
       const mask=document.createElement('canvas');mask.width=850;mask.height=1850;
       const context=mask.getContext('2d',{willReadFrequently:true})!;context.drawImage(clouds,0,0,850,1850);
       const rgba=context.getImageData(0,0,850,1850).data,alpha=new Uint8ClampedArray(850*1850);
       for(let i=0;i<alpha.length;i++)alpha[i]=rgba[i*4+3];
-      renderer.setAssets({terrain,clouds,water,geometry,perspective,moon,sceneDepth,cloudAlpha:alpha});element.dataset.assetsReady='true';draw();
+      renderer.setAssets({terrain,clouds,water,geometry,perspective,moon,sceneDepth,terrainNormal,cloudAlpha:alpha});element.dataset.assetsReady='true';draw();
     }).catch(()=>{if(alive)element.dataset.renderError='landscape-assets';});
     worker.onmessage=event=>{
       if(!alive||event.data.id!==requestId)return;
@@ -179,6 +184,11 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     }
     const debug=window as DebugWindow;
     if(previewEnabled){
+      debug.__landscapeRecording=active=>{
+        if(recordingCanvas){recordingCanvas.width=recordingCanvas.height=1;}recordingCanvas=null;recordingContext=null;
+        if(active){recordingCanvas=document.createElement('canvas');recordingCanvas.width=element.width;recordingCanvas.height=element.height;recordingContext=recordingCanvas.getContext('2d');if(recordingContext)renderer.copyWindow(recordingContext,0,0,element.width,element.height,element.width,element.height);}
+        return recordingCanvas;
+      };
       debug.__landscapeCapture=()=>{const target=document.createElement('canvas');target.width=element.width;target.height=element.height;renderer.copyWindow(target.getContext('2d')!,0,0,element.width,element.height,target.width,target.height);return target;};
       debug.__landscapePreview=value=>{preview=value;previewStart=Date.parse(value.iso||'');previewMono=performance.now();if(value.iso&&!Number.isFinite(previewStart)){preview={};}samples=null;restart();};
       debug.__landscapeTestPower=(next,isCritical=false)=>{limited=next;critical=isCritical;restart();};
@@ -191,7 +201,8 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       document.removeEventListener('visibilitychange',restart);window.removeEventListener('focus',restart);
       window.removeEventListener('pks-interface-appearance',restart);window.removeEventListener('storage',restart);window.removeEventListener('pks-landscape-location',restart);media.removeEventListener('change',restart);
       for(const listener of listeners)void listener.then(handle=>handle.remove());
-      delete debug.__landscapeCapture;delete debug.__landscapePreview;delete debug.__landscapeDiagnostics;
+      if(recordingCanvas)recordingCanvas.width=recordingCanvas.height=1;recordingCanvas=null;recordingContext=null;
+      delete debug.__landscapeRecording;delete debug.__landscapeCapture;delete debug.__landscapePreview;delete debug.__landscapeDiagnostics;
       delete debug.__landscapeTestPower;delete root.dataset.landscapeMotion;
       delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;delete root.dataset.landscapeGlass;for(const key of paletteKeys)root.style.removeProperty(key);
     };

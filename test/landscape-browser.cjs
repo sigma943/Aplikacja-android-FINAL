@@ -30,14 +30,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   // Record the actual live canvas with Chrome's own encoder, without depending
   // on an external ffmpeg executable being installed on every CI runner.
   const record=()=>page.evaluate(async()=>{
-   const stage=document.querySelector('[data-landscape-stage]');
-   const composite=document.createElement('canvas');composite.width=stage.width;composite.height=stage.height;const ctx=composite.getContext('2d');
-   const copy=()=>{ctx.drawImage(window.__landscapeCapture(),0,0);};copy();const capture=setInterval(copy,1000/24);
+   const composite=window.__landscapeRecording(true);
    const stream=composite.captureStream(24),chunks=[];
    const recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp8',videoBitsPerSecond:1800000});
    const finished=new Promise(resolve=>recorder.onstop=resolve);recorder.ondataavailable=event=>chunks.push(event.data);
-   recorder.start();await new Promise(resolve=>setTimeout(resolve,6000));recorder.stop();await finished;clearInterval(capture);
-   stream.getTracks().forEach(track=>track.stop());const bytes=new Uint8Array(await new Blob(chunks).arrayBuffer());
+   recorder.start();await new Promise(resolve=>setTimeout(resolve,6000));recorder.stop();await finished;
+   stream.getTracks().forEach(track=>track.stop());window.__landscapeRecording(false);const bytes=new Uint8Array(await new Blob(chunks).arrayBuffer());
    let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary);
   });
   const highRecording=await record();

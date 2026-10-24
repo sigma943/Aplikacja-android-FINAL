@@ -197,8 +197,9 @@ void main(){
  float alpha=sqrt(pow(roughness,4.)+variance*.035+.000022);
  float NoV=abs(dot(n,v))+.001;vec3 F=fresnelSchlick(NoV),r=reflect(-v,n);
  vec3 reflectedSky=tracedRadiance(position+n*.04,r)*F;
- vec3 body=mix(vec3(.001,.005,.012),vec3(.012,.095,.135),uDay);
- body=mix(body,vec3(.075,.025,.016),uWarm*.75);
+ // Water absorbs light; sunset colour belongs to reflected sky/light, never
+ // an emissive red fill. This remains blue-black when direct sources vanish.
+ vec3 body=mix(vec3(.0005,.0015,.004),vec3(.003,.022,.035),uDay);
  vec3 radiance=(body*(1.-F)+reflectedSky)*perspective.b;
  // Keep midday highlights restrained; preserve warm detail around the sunset
  // core instead of clipping entire wave fronts to tone-mapped white.
@@ -214,6 +215,53 @@ void main(){
 }`;
 export const SCREEN_VERTEX=`#version 300 es
 void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}`;
+/** Cached deferred lighting of the camera-registered 3D depth surface. Material
+ * normals retain photographic texture contrast instead of painting a colour veil. */
+export const TERRAIN_FRAGMENT=`#version 300 es
+precision highp float;
+uniform sampler2D uTerrain;
+uniform sampler2D uTerrainNormal;
+uniform vec2 uResolution;
+uniform vec4 uFrame;
+uniform float uDay;
+uniform float uWarm;
+uniform float uQuality;
+uniform vec2 uSunPosition;
+uniform float uSunAltitude;
+uniform vec3 uSunColor;
+uniform float uSunIntensity;
+uniform vec2 uMoonPosition;
+uniform float uMoonAltitude;
+uniform vec3 uMoonColor;
+uniform float uMoonIntensity;
+out vec4 fragColor;
+${projection}
+${optics}
+${rayScene}
+void main(){
+ vec2 uv=(vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y)-uFrame.zw)/uFrame.xy;
+ vec4 art=texture(uTerrain,uv);if(art.a<.004){fragColor=vec4(0.);return;}
+ vec3 albedo=pow(art.rgb,vec3(2.2));
+ vec3 n=normalize(texture(uTerrainNormal,uv).rgb*2.-1.+vec3(0.,.0001,0.));
+ float radius=sceneRadius(texture(uSceneDepth,uv));
+ float az=(uv.x-.5)*AZ_SPAN,el=clamp((.55-uv.y)/.49*(PI*.5),-1.45,1.45);
+ vec3 position=vec3(radius*sin(az),CAMERA_HEIGHT+radius*tan(el),radius*cos(az));
+ vec3 ambient=mix(vec3(.018,.028,.065),vec3(.55,.65,.82),uDay);
+ ambient=mix(ambient,vec3(.40,.20,.30),uWarm*.15)*(.55+.45*max(n.y,0.));
+ vec3 lighting=ambient;
+ if(uSunAltitude>0.&&uSunIntensity>.001){
+  vec3 l=lightDirection(uSunPosition,uSunAltitude);float NoL=max(dot(n,l),0.);
+  float shadow=uQuality>.5&&NoL>0.?rayShadow(position+n*.12,l,3):1.;
+  lighting+=uSunColor*uSunIntensity*NoL*1.8*shadow;
+ }
+ if(uMoonAltitude>0.)lighting+=uMoonColor*uMoonIntensity*max(dot(n,lightDirection(uMoonPosition,uMoonAltitude)),0.)*.20;
+ vec3 radiance=albedo*lighting;
+ float haze=1.-exp(-radius*(.0008+.002*uWarm));
+ vec3 air=mix(vec3(.005,.013,.035),vec3(.36,.49,.62),uDay);
+ air=mix(air,vec3(.65,.28,.18),uWarm*.7);
+ radiance=mix(radiance,air,haze*.6);
+ fragColor=vec4(displayColor(radiance),art.a);
+}`;
 export const LIGHT_FRAGMENT=`#version 300 es
 precision highp float;
 uniform sampler2D uWater;
@@ -272,6 +320,8 @@ void main(){
 }`;
 export const PRESENT_FRAGMENT=`#version 300 es
 precision highp float;
+uniform sampler2D uLitTerrain;
+uniform float uTerrainEnabled;
 uniform sampler2D uWater;
 uniform sampler2D uLight;
 uniform sampler2D uMask;
@@ -291,7 +341,9 @@ void main(){
  vec3 color=uHdr>.5?displayColor(water.rgb+light.rgb*.065):clamp(water.rgb+light.rgb*.06,0.,1.);
  float shaftAlpha=light.a;
  color=mix(color,uSunColor,shaftAlpha*.25);
- float total=alpha+shaftAlpha*(1.-alpha);
- vec3 premult=color*alpha+clamp(uSunColor,0.,1.)*shaftAlpha*(1.-alpha);
+ vec4 terrain=texture(uLitTerrain,texUV);terrain.a*=uTerrainEnabled;
+ float surface=min(1.,alpha+terrain.a);
+ float total=surface+shaftAlpha*(1.-surface);
+ vec3 premult=(color*alpha+terrain.rgb*terrain.a)*(1.-shaftAlpha)+clamp(uSunColor,0.,1.)*shaftAlpha;
  fragColor=total>.00001?vec4(premult/total,total):vec4(0.);
 }`;

@@ -43,7 +43,7 @@ shader_source = function('glShaderSource', None, ui, integer, C.POINTER(C.c_char
 compile_shader = function('glCompileShader', None, ui)
 get_shader = function('glGetShaderiv', None, ui, ui, C.POINTER(integer))
 get_log = function('glGetShaderInfoLog', None, ui, integer, ptr, ptr)
-source = json.loads(subprocess.check_output(['node', '-e', "const x=require('./test/load-ts.cjs')('lib/landscape-water-shaders.ts');console.log(JSON.stringify({vertex:x.WATER_VERTEX,fragment:x.WATER_FRAGMENT,screen:x.SCREEN_VERTEX,light:x.LIGHT_FRAGMENT,present:x.PRESENT_FRAGMENT}));"], text=True))
+source = json.loads(subprocess.check_output(['node', '-e', "const x=require('./test/load-ts.cjs')('lib/landscape-water-shaders.ts');console.log(JSON.stringify({vertex:x.WATER_VERTEX,fragment:x.WATER_FRAGMENT,screen:x.SCREEN_VERTEX,light:x.LIGHT_FRAGMENT,present:x.PRESENT_FRAGMENT,terrain:x.TERRAIN_FRAGMENT}));"], text=True))
 shaders = []
 for kind, code in [(0x8B31, source['vertex']), (0x8B30, source['fragment'])]:
     shader = create_shader(kind)
@@ -66,7 +66,7 @@ status = integer()
 function('glGetProgramiv', None, ui, ui, C.POINTER(integer))(program, 0x8B82, C.byref(status))
 assert status.value, 'shader link'
 # Compile and link the low-resolution light and ACES presentation stages too.
-for fragment in [source['light'],source['present']]:
+for fragment in [source['light'],source['present'],source['terrain']]:
     extra=[]
     for kind,code in [(0x8B31,source['screen']),(0x8B30,fragment)]:
         sh=create_shader(kind);encoded=C.c_char_p(code.encode());shader_source(sh,1,C.byref(encoded),None);compile_shader(sh);st=integer();get_shader(sh,0x8B81,C.byref(st))
@@ -201,4 +201,10 @@ for scenario in scenarios:
         bright = sum(pixel[3] > 180 and pixel[2] > 100 for pixel in result.getdata())
         assert bright>100, ('actual GGX lunar reflection',bright)
 print('PASS: six shared-lighting scenarios:', ', '.join(row['name'] for row in scenarios))
+uniform('uDay',.05);uniform('uWarm',.8);uniform('uSunIntensity',0);uniform('uMoonIntensity',0)
+dusk=np.asarray(render(0,0),dtype=float)
+near=dusk[int(H*.8):];water=near[:,:,3]>180
+average=near[:,:,:3][water].mean(axis=0)
+assert average[0]<average[2]*1.2, ('unlit near water must not turn into a red emissive plate',average)
+print('PASS: unlit low-quality twilight stays cool:',average)
 print('PASS: real GLES3 shader compile/link; moving water:', changed, 'pixels; exact water mask; solar motion; new/below-horizon moon; all quality branches. Software Mesa, not Android.')

@@ -14,7 +14,7 @@
     "note": "Controlled local water camera; projected astronomical screen positions are mapped into this camera. Relative dimensions are not recovered survey geometry. River visibility comes from the original mask.",
     "astronomyAzimuthSpanDegrees": 260
   },
-  "maskSha256": "331a2cb45dcdd7f1bb48623650a78f4bb4c0b06a5c7f089a203b3fdf091f9608",
+  "maskSha256": "e536425aa8a028c8d28ba62eff465078f556b0f718f0134fecf9cb0967eb5460",
   "uvBytes": 109895,
-  "perspectiveBytes": 16402
+  "perspectiveBytes": 15205
 }

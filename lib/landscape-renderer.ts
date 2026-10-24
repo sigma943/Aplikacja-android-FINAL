@@ -8,7 +8,7 @@ const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
 export const cloudOffset=(seconds:number)=>((seconds*12)%(2*WIDTH)+2*WIDTH)%(2*WIDTH);
 export const cloudSampleX=(x:number,shift:number)=>{const u=((x-shift/WIDTH)%2+2)%2;return 1-Math.abs(u-1);};
-export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;sceneDepth?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
+export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;sceneDepth?:CanvasImageSource;terrainNormal?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
 /** One neutral illustrated terrain cutout, one cloud layer and a mask extracted from
  * the terrain's transparent river. All times use these SAME assets and geometry. */
 export class LandscapeRenderer{
@@ -65,12 +65,17 @@ export class LandscapeRenderer{
     for(const [canvas,image,isCloud]of [[this.terrain,this.assets.terrain,false],[this.clouds,this.assets.clouds,true]] as const){
       const c=canvas.getContext('2d')!;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,canvas.width,canvas.height);c.setTransform(this.scale,0,0,this.scale,isCloud?0:this.offsetX,this.offsetY);
       c.drawImage(image,0,0,WIDTH,HEIGHT);
-      c.globalCompositeOperation='source-atop';
-      c.fillStyle=`rgba(2,14,48,${(1-day)*(isCloud?.92:.84)-moon*.05})`;c.fillRect(0,0,WIDTH,HEIGHT);
-      if(warm>0){
-        const g=c.createLinearGradient(sunX*WIDTH,0,(1-sunX)*WIDTH,HEIGHT);
-        g.addColorStop(0,`rgba(255,159,81,${warm*(isCloud?.75:.42)})`);g.addColorStop(1,`rgba(170,78,93,${warm*.16})`);c.fillStyle=g;c.fillRect(0,0,WIDTH,HEIGHT);
+      // Multiplication preserves photographic shading. Reapply original alpha
+      // after tinting, so transparent sky/river holes never become coloured plates.
+      c.globalCompositeOperation='multiply';
+      const shade=blend([12+moon*5,20+moon*7,44+moon*10],[245,250,255],day);
+      c.fillStyle=css(blend(shade,[255,180,126],warm*(isCloud?.65:.35)));c.fillRect(0,0,WIDTH,HEIGHT);
+      if(isCloud&&warm>0){
+        const rim=c.createRadialGradient(sunX*WIDTH,HEIGHT*.48,10,sunX*WIDTH,HEIGHT*.48,WIDTH*.65);
+        rim.addColorStop(0,`rgba(255,175,70,${warm*.28})`);rim.addColorStop(1,'transparent');
+        c.globalCompositeOperation='screen';c.fillStyle=rim;c.fillRect(0,0,WIDTH,HEIGHT);
       }
+      c.globalCompositeOperation='destination-in';c.drawImage(image,0,0,WIDTH,HEIGHT);
       c.globalCompositeOperation='source-over';
     }
   }
@@ -152,8 +157,8 @@ export class LandscapeRenderer{
     if(this.fallbackKey!==lightKey){
       const w=this.water.getContext('2d')!;w.setTransform(1,0,0,1,0,0);w.clearRect(0,0,this.width,this.height);this.coordinates(w);
       const fill=w.createLinearGradient(0,HEIGHT*.57,0,HEIGHT);
-      fill.addColorStop(0,css(blend(blend([13,35,69],[113,179,199],sky.day),[201,133,143],sky.twilight*.55)));
-      fill.addColorStop(1,css(blend(blend([9,28,58],[48,123,155],sky.day),[177,124,135],sky.twilight*.4)));
+      fill.addColorStop(0,css(blend(blend([13,35,69],[113,179,199],sky.day),[90,112,150],sky.twilight*.35)));
+      fill.addColorStop(1,css(blend(blend([9,28,58],[48,123,155],sky.day),[65,81,123],sky.twilight*.3)));
       w.fillStyle=fill;w.fillRect(0,HEIGHT*.57,WIDTH,HEIGHT);w.globalCompositeOperation='destination-in';w.drawImage(this.assets.water,0,0,WIDTH,HEIGHT);w.globalCompositeOperation='source-over';this.fallbackKey=lightKey;
     }
     c.drawImage(this.water,0,0);

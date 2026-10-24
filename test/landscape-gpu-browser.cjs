@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path'),ts=require('typescript'),puppeteer=require('puppeteer');
 (async()=>{
  let browser;const server=http.createServer((req,res)=>{
-  const name=path.basename(req.url);if(!['water-mask.png','terrain.webp','water-uv.png','water-perspective.png','clouds.webp','scene-depth.png'].includes(name)){res.end('<!doctype html>');return;}
+  const name=path.basename(req.url);if(!['water-mask.png','terrain.webp','water-uv.png','water-perspective.png','clouds.webp','scene-depth.png','terrain-normal.png'].includes(name)){res.end('<!doctype html>');return;}
   res.end(fs.readFileSync(path.join('public/themes/mountains',name)));
  });
  try{
@@ -14,7 +14,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
   await page.addScriptTag({content:`(()=>{const calibration=${calibration};const spectrum=${spectrum};const shaders={};const requireShader=name=>{if(name.includes('calibration'))return calibration;if(name.includes('spectrum'))return spectrum;throw Error(name);};((exports,require)=>{${shaders}})(shaders,requireShader);const output={};const require=name=>name.includes('shaders')?shaders:calibration;((exports,require)=>{${gpuSource}})(output,require);window.WaterGPU=output.LandscapeWaterGPU;})();`});
   const result=await page.evaluate(async()=>{
    const image=name=>new Promise(resolve=>{const i=new Image();i.onload=()=>resolve(i);i.src='/'+name;});
-   const gpu=window.gpu=new window.WaterGPU();gpu.setAssets({water:await image('water-mask.png'),terrain:await image('terrain.webp'),geometry:await image('water-uv.png'),perspective:await image('water-perspective.png'),clouds:await image('clouds.webp'),sceneDepth:await image('scene-depth.png')});
+   const gpu=window.gpu=new window.WaterGPU();gpu.setAssets({water:await image('water-mask.png'),terrain:await image('terrain.webp'),geometry:await image('water-uv.png'),perspective:await image('water-perspective.png'),clouds:await image('clouds.webp'),sceneDepth:await image('scene-depth.png'),terrainNormal:await image('terrain-normal.png')});
    const frame={width:425,height:925,scale:.425,x:0,y:0};
    const light={time:0,sky:{day:.6,twilight:1},sun:{x:.52,y:.5,altitude:.08,intensity:.7,color:[1,.7,.3]},moon:{x:.7,y:.3,altitude:.5,illumination:1,intensity:0,color:[.67,.81,1]}};
    const copy=()=>{const c=document.createElement('canvas');c.width=gpu.canvas.width;c.height=gpu.canvas.height;c.getContext('2d').drawImage(gpu.canvas,0,0);return c.getContext('2d').getImageData(0,0,c.width,c.height).data;};
@@ -24,10 +24,19 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    window.gpuFrame=frame;window.gpuLight=light;window.gpuCopy=copy;window.gpuLossExtension=extension;
    return {ok,changed,opaque,skyAlpha,error,diagnostics:gpu.diagnostics(),canLose:!!extension};
   });
-  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.ok(result.skyAlpha<result.diagnostics.pixels*255*.04,'god rays remain a subtle background effect');assert.equal(result.diagnostics.drawCalls,3);assert.ok(result.diagnostics.vertices>3000);assert.ok(result.diagnostics.pixels<=360000);
+  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.ok(result.skyAlpha<result.diagnostics.presentationPixels*255*.04,'god rays remain a subtle background effect');assert.equal(result.diagnostics.drawCalls,3);assert.ok(result.diagnostics.vertices>3000);assert.ok(result.diagnostics.pixels<=360000);
+  const material=await page.evaluate(()=>{
+   const gpu=window.gpu,light=window.gpuLight,gl=gpu.canvas.getContext('webgl2');
+   const measure=()=>{const t=gpu.targets[2],p=new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,gl.UNSIGNED_BYTE,p);gl.bindFramebuffer(gl.FRAMEBUFFER,null);let sum=0,n=0;for(let i=0;i<p.length;i+=4)if(p[i+3]>240){sum+=p[i]+p[i+1]+p[i+2];n++;}return sum/Math.max(n,1);};
+   const before=gpu.diagnostics().terrainRelights,day=measure();light.time+=.1;gpu.render(light,window.gpuFrame,'high');const same=gpu.diagnostics().terrainRelights;
+   const saved={day:light.sky.day,warm:light.sky.twilight,sun:light.sun.intensity};light.sky.day=0;light.sky.twilight=0;light.sun.intensity=0;gpu.render(light,window.gpuFrame,'high');const night=measure();
+   light.sky.day=saved.day;light.sky.twilight=saved.warm;light.sun.intensity=saved.sun;gpu.render(light,window.gpuFrame,'high');
+   return {before,same,day,night,pixels:gpu.diagnostics().presentationPixels};
+  });
+  assert.ok(material.before>0);assert.equal(material.same,material.before,'wave time alone never rerenders the terrain material');assert.ok(material.day>material.night*1.15,'the material responds to solar lighting');assert.equal(material.pixels,425*925,'presentation remains sharp independently of water resolution');
   // Test every pixel against the actual water mask, not a rectangular bounding box.
   const outside=await page.evaluate(async()=>{
-   const gpu=window.gpu,c=document.createElement('canvas');c.width=gpu.canvas.width;c.height=gpu.canvas.height;
+   const gpu=window.gpu,c=document.createElement('canvas');c.width=gpu.targets[0].width;c.height=gpu.targets[0].height;
    const image=await new Promise(resolve=>{const i=new Image();i.onload=()=>resolve(i);i.src='/water-mask.png';});c.getContext('2d').drawImage(image,0,0,c.width,c.height);
    const mask=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
    const previous=window.gpuLight.sun.intensity;window.gpuLight.sun.intensity=12;
