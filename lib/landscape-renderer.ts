@@ -37,7 +37,7 @@ export class LandscapeRenderer{
   suspend(){this.gpu?.suspend();}
   dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
   getGpuMs(){return this.gpu?.getGpuMs()??0;}
-  diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,gpu:this.gpu?.diagnostics()};}
+  diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
   sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
   resize(w:number,h:number,dpr:number){
     const density=Math.min(dpr,1.25,Math.sqrt(900000/(w*h)));
@@ -46,10 +46,12 @@ export class LandscapeRenderer{
     // Uniform scale; phones crop at most a narrow edge instead of stretching artwork.
     this.scale=Math.max(this.width/WIDTH,this.height/HEIGHT);this.offsetX=(this.width-WIDTH*this.scale)/2;this.offsetY=this.height-HEIGHT*this.scale;this.lastLight='';this.fallbackKey='';this.lastBackground=-Infinity;
   }
-  copyWindow(context:CanvasRenderingContext2D,sx:number,sy:number,sw:number,sh:number,width:number,height:number){
+  copyWindow(context:CanvasRenderingContext2D,sx:number,sy:number,sw:number,sh:number,width:number,height:number,waterFresh=false){
     context.drawImage(this.canvas,sx,sy,sw,sh,0,0,width,height);
     if(this.directWater&&this.gpu&&this.gpu.diagnostics().available&&!this.gpu.diagnostics().lost){
-      if(this.lighting)this.gpu.render(this.lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality);
+      // Within the draw task the freshly rendered GPU buffer is still valid.
+      // Sheet snapshots share it instead of issuing three extra passes per card.
+      if(!waterFresh&&this.lighting)this.gpu.render(this.lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality);
       const gx=this.gpu.canvas.width/this.width,gy=this.gpu.canvas.height/this.height;
       context.drawImage(this.gpu.canvas,sx*gx,sy*gy,sw*gx,sh*gy,0,0,width,height);
     }
@@ -64,7 +66,7 @@ export class LandscapeRenderer{
       c.fillStyle=`rgba(2,14,48,${(1-day)*(isCloud?.92:.84)-moon*.05})`;c.fillRect(0,0,WIDTH,HEIGHT);
       if(warm>0){
         const g=c.createLinearGradient(sunX*WIDTH,0,(1-sunX)*WIDTH,HEIGHT);
-        g.addColorStop(0,`rgba(255,159,81,${warm*(isCloud?.75:.25)})`);g.addColorStop(1,`rgba(170,78,93,${warm*.12})`);c.fillStyle=g;c.fillRect(0,0,WIDTH,HEIGHT);
+        g.addColorStop(0,`rgba(255,159,81,${warm*(isCloud?.75:.42)})`);g.addColorStop(1,`rgba(170,78,93,${warm*.16})`);c.fillStyle=g;c.fillRect(0,0,WIDTH,HEIGHT);
       }
       c.globalCompositeOperation='source-over';
       if(isCloud){
@@ -122,9 +124,9 @@ export class LandscapeRenderer{
     if(lightKey!==this.lastLight){this.relight(sky.day,sky.twilight,sky.moonlight,sun.x);this.lastLight=lightKey;}
     c.setTransform(1,0,0,1,0,0);
     const gradient=c.createLinearGradient(0,0,0,this.height*.61);
-    gradient.addColorStop(0,css(blend(blend([2,9,31],[28,114,204],sky.day),[51,45,105],sky.twilight*.55)));
-    gradient.addColorStop(.6,css(blend(blend([8,21,51],[88,172,231],sky.day),[196,107,142],sky.twilight*.8)));
-    gradient.addColorStop(1,css(blend(blend([22,34,66],[200,222,226],sky.day),[255,168,88],sky.twilight)));
+    gradient.addColorStop(0,css(blend(blend([2,9,31],[28,114,204],sky.day),[92,47,102],sky.twilight*.8)));
+    gradient.addColorStop(.6,css(blend(blend([8,21,51],[88,172,231],sky.day),[224,107,128],sky.twilight*.9)));
+    gradient.addColorStop(1,css(blend(blend([22,34,66],[200,222,226],sky.day),[255,148,64],sky.twilight)));
     c.fillStyle=gradient;c.fillRect(0,0,this.width,this.height);this.coordinates(c);
     for(const s of this.stars){const opacity=smoothstep(s.brightness*.5,.65+s.brightness*.35,sky.stars);if(opacity<=0)continue;
       const distance=Math.hypot(s.x-moon.x,s.y-moon.y);

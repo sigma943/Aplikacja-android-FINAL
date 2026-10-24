@@ -14,7 +14,7 @@ const PowerPolicy=registerPlugin<{
   getStatus():Promise<{limited:boolean;critical?:boolean}>;
   addListener(event:'powerPolicy',callback:(state:{limited:boolean;critical?:boolean})=>void):Promise<PluginListenerHandle>;
 }>('LandscapePowerPolicy');
-type Preview={iso?:string;rate?:number;quality?:WaterQuality};
+type Preview={iso?:string;rate?:number;quality?:WaterQuality;seconds?:number};
 type DebugWindow=Window&{__landscapeCapture?:()=>HTMLCanvasElement;__landscapePreview?:(value:Preview)=>void;__landscapeDiagnostics?:()=>unknown;__landscapeTestPower?:(limited:boolean,critical?:boolean)=>void};
 
 /** This component owns its draw loop. Astronomy never updates application React state. */
@@ -62,7 +62,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       modelTimer=setTimeout(updateModel,preview.iso&&preview.rate!==1?500:15000);
     };
     let lastWindows=0,lastDraw=performance.now(),fpsStart=performance.now(),fpsFrames=0,actualFps=0;
-    const paintWindows=(mono:number)=>{
+    const paintWindows=(mono:number,waterFresh=false)=>{
       if(mono-lastWindows<250)return;lastWindows=mono;
       // Read layout before resizing any bitmap. Small copies preserve the same
       // sky/water and solar lighting without another animated scene per sheet.
@@ -75,7 +75,8 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
         const kind=target.dataset.landscapeWindow;
         const sw=Math.min(element.width,element.height*width/height),sh=sw*height/width;
         const top=kind==='filter'?.07:kind==='navigation'?.20:.34;
-        renderer.copyWindow(context,(element.width-sw)/2,Math.min(element.height-sh,element.height*top),sw,sh,width,height);
+        renderer.copyWindow(context,(element.width-sw)/2,Math.min(element.height-sh,element.height*top),sw,sh,width,height,waterFresh);
+        waterFresh=true;
         target.dataset.sceneReady=element.dataset.assetsReady==='true'?'true':'false';
       }
     };
@@ -91,11 +92,12 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       if(samples){
         const start=performance.now(),state=interpolateAstronomy(samples.a,samples.b,now());
         renderer.quality=preview.quality??(limited||slow||motionPolicy.reason==='light-effects'?'low':quality);
-        renderer.render(state,mono/1000,motionPolicy.animate);
+        const sceneSeconds=preview.seconds===undefined?mono/1000:preview.seconds+(mono-previewMono)/1000;
+        renderer.render(state,sceneSeconds,motionPolicy.animate);
         if(mono-lastGlass>=250&&renderer.lighting){
           lastGlass=mono;updatePalette(state);
         }
-        paintWindows(mono);
+        paintWindows(mono,true);
         const cost=performance.now()-start;frames++;fpsFrames++;if(mono-fpsStart>=1000){
           actualFps=fpsFrames*1000/(mono-fpsStart);fpsFrames=0;fpsStart=mono;
           if(motionPolicy.reason==='active'&&!preview.quality&&frames>20){

@@ -74,7 +74,8 @@ longer used. Existing user-selected appearance patterns/glows are untouched.
 
 The directly presented GPU canvas remains in place; no per-frame GPU-to-2D copy
 was reintroduced. Background scenery is cached at up to 8 Hz; existing sheet
-snapshots are throttled. Quality targets are 30/24/15 FPS, with 15 FPS saver mode
+snapshots are throttled and share the fresh GPU buffer within each capture batch,
+instead of repeating all three GPU passes for every sheet. Quality targets are 30/24/15 FPS, with 15 FPS saver mode
 at the low pixel budget. Water targets retain 360k/210k/80k whole-frame pixel
 caps. Wave calls are emitted as constants rather than dynamically indexed GLSL arrays. A two-window measured-FPS controller also lowers quality after sustained stalls. Static textures and indexed meshes upload at initialization / quality
 changes, not per frame. No wave animation updates React state.

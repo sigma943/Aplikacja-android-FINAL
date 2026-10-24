@@ -22,6 +22,16 @@ The existing coplanar perspective map stays valid because the camera is unchange
 Node/Sharp integration tests compare alpha coverage and sampled occlusion against
 the actual decoded WebP, rather than merely checking a manually drawn polygon.
 
+The browser fixture fixes the shared wave/cloud clock through a development-only
+preview parameter, so cloud coverage is reproducible across fast/slow CI runners.
+The moonlit scene uses 27 October at 01:30, when the real reflected direction
+intersects visible water; a separate cloudy scene uses 26 October at 23:00 and
+asserts suppressed direct moonlight. Production animation has no clock override.
+The golden-hour capture is before the new mountain ridge covers the Sun. The
+astronomical sunset capture intentionally has no direct solar reflection once
+the source is hidden. Midday specular exposure is restrained to avoid broad
+white clipping; warm tones remain continuous across the existing solar state.
+
 GPU rendering remains Gerstner displacement/analytic normals, GGX/Smith/Schlick,
 HDR where supported, ACES, restrained bloom and occluded screen-space scattering.
 No sun, moon or water reflection is baked into the terrain. UI layout, saved glass

@@ -115,6 +115,7 @@ ${spectrum}
 ${optics}
 vec3 skyRadiance(vec3 direction){
  float elevation=max(direction.y,0.);vec3 zenith=mix(vec3(.0018,.004,.012),vec3(.11,.31,.64),uDay);
+ zenith=mix(zenith,vec3(.20,.045,.13),uWarm*.65);
  vec3 horizon=mix(vec3(.006,.012,.03),vec3(.60,.78,.91),uDay);
  horizon=mix(horizon,vec3(.80,.24,.075),uWarm*.84);
  vec3 sky=mix(horizon,zenith,smoothstep(0.,.75,elevation));
@@ -145,7 +146,10 @@ void main(){
  vec3 body=mix(vec3(.001,.005,.012),vec3(.012,.095,.135),uDay);
  body=mix(body,vec3(.045,.018,.015),uWarm*.30);
  vec3 radiance=(body*(1.-F)+reflectedSky)*perspective.b;
- if(uSunAltitude>0.&&uSunIntensity>.00001)radiance+=evaluateLight(n,v,lightDirection(uSunPosition,uSunAltitude),uSunColor*uSunIntensity*36.,alpha);
+ // Keep midday highlights restrained; preserve warm detail around the sunset
+ // core instead of clipping entire wave fronts to tone-mapped white.
+ float solarExposure=mix(.15,1.,1.-smoothstep(.08,.45,uSunAltitude));
+ if(uSunAltitude>0.&&uSunIntensity>.00001)radiance+=evaluateLight(n,v,lightDirection(uSunPosition,uSunAltitude),uSunColor*uSunIntensity*12.*solarExposure,alpha);
  if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateLight(n,v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*3.,alpha);
  float aerial=perspective.r*.07;
  radiance=mix(radiance,skyRadiance(vec3(0.,.06,1.))*.08,aerial);
