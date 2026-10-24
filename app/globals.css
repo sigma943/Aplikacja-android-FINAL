@@ -1219,6 +1219,6 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'][data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-solid) { background:transparent!important;color:var(--landscape-accent)!important;border:1px solid var(--landscape-accent)!important; }
  html[data-landscape-theme='on'][data-personal-nav='block'] [data-nav-item][aria-current='page'] { color:var(--pks-accent-on)!important; }
  html[data-landscape-theme='on'][data-personal-contrast='strong'] { --landscape-muted:var(--landscape-ink)!important; }
- html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-navigation,.pks-map-search-panel,.map-detail-shell,input,textarea,select) { transition-property:transform,opacity,scale!important; }
+ html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-navigation,.pks-map-search-panel,.map-detail-shell,input,textarea,select,[class*='text-slate-'],[class*='text-gray-'],[class*='text-white'],.map-detail-title,.map-detail-muted,[data-map-brand],[data-nav-item]) { transition-property:transform,opacity,scale!important; }
 }
 @media(min-width:768px) { html[data-landscape-theme='on'] [data-landscape-chrome='panel'] { height:85svh; } }
