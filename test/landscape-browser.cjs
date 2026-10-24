@@ -224,7 +224,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])<=.65),'daytime route uses saved translucent material');
    }
    if(mode==='stop')assert.ok(await page.$$eval('[data-departure-row]>span:first-child',badges=>{
-    const parse=s=>s.match(/[\d.]+/g).map(Number),lum=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
+    const colorCanvas=document.createElement('canvas');colorCanvas.width=colorCanvas.height=1;const colorContext=colorCanvas.getContext('2d');
+    const parse=s=>{colorContext.clearRect(0,0,1,1);colorContext.fillStyle=s;colorContext.fillRect(0,0,1,1);const c=colorContext.getImageData(0,0,1,1).data;return [c[0],c[1],c[2],c[3]/255];},lum=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
     const over=(a,b)=>a.slice(0,3).map((v,i)=>v*(a[3]??1)+b[i]*(1-(a[3]??1)));
     const panel=parse(document.documentElement.style.getPropertyValue('--landscape-surface'));
     return badges.length>0&&badges.every(e=>{
