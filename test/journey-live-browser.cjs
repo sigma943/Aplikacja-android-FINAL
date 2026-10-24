@@ -179,6 +179,20 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   // Let the 380 ms header anchor finish before scrolling to the map control.
   await new Promise(resolve=>setTimeout(resolve,450));
   await checkPlain('.connections-card');await page.$eval('.connections-map-button',n=>n.scrollIntoView({behavior:'instant',block:'center'}));await page.waitForFunction(()=>{const n=document.querySelector('.connections-map-button'),r=n.getBoundingClientRect();return n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));});await page.click('.connections-map-button');await page.waitForSelector('.connections-walking-path');
+  // Inline map entry animates its height. Click only after the real control
+  // stops moving; otherwise CI can click its previous screen position.
+  await page.$eval('[aria-label="Powiększ mapę"]',button=>button.scrollIntoView({behavior:'instant',block:'center'}));
+  assert.ok(await page.evaluate(async()=>{
+   let previous=null,stable=0;const start=performance.now();
+   while(performance.now()-start<5000){
+    await new Promise(requestAnimationFrame);
+    const button=document.querySelector('[aria-label="Powiększ mapę"]');if(!button){stable=0;continue;}
+    const r=button.getBoundingClientRect(),position=[r.x,r.y,r.width,r.height];
+    const hit=button.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+    stable=hit&&previous&&position.every((v,i)=>Math.abs(v-previous[i])<.25)?stable+1:0;
+    if(stable>=4)return true;previous=position;
+   }return false;
+  }),'map enlarge control is visible and stationary before clicking');
   await page.click('[aria-label="Powiększ mapę"]');await checkPlain('.connections-map-modal');await checkPlain('.connections-map-toolbar');await checkPlain('.connections-map-sheet');
   assert.ok(await page.$('.connections-map-modal .leaflet-tile-pane'),'functional map remains present');
   assert.ok(await page.$$eval('[data-filter-cosmos]',nodes=>nodes.every(n=>getComputedStyle(n).display==='none')),'cosmic effects are hidden in all journey portals');
