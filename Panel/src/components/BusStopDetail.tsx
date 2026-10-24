@@ -221,7 +221,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                 if (idxB === -1) return -1;
                 return idxA - idxB;
               }).map((c) => (
-                <div key={c.id} className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider uppercase border ${c.bgClass} ${c.colorClass} ${c.borderClass}`}>
+                <div key={c.id} data-carrier-id={c.id} className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider uppercase border ${c.bgClass} ${c.colorClass} ${c.borderClass}`}>
                   {c.name}
                 </div>
               ))}
@@ -270,7 +270,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Line Filter */}
           <div className="relative">
-            <h3 className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie</h3>
+            <h3 data-scene-label className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie</h3>
             <div role="group" aria-label="Filtr linii odjazdów — można wybrać kilka" className="flex gap-1.5 overflow-x-auto no-scrollbar pb-2 px-1 snap-x">
                {lines.map(line => {
                  const value = (line === 'Wszystkie' ? 'all' : line) as string;
@@ -303,7 +303,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
              {warnings.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{warnings.join(' ')}</div>}
              <div className="flex flex-col gap-2.5 mb-3 px-1">
                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                 <div className="text-xs font-medium text-slate-400">
+                 <div data-scene-label className="text-xs font-medium text-slate-400">
                    {days.find(d => d.key === selectedDay)?.weekday}, {days.find(d => d.key === selectedDay)?.dayNum} {days.find(d => d.key === selectedDay)?.monthName}
                  </div>
 
@@ -420,7 +420,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Lines serving stop */}
           <div data-stop-lines>
-             <h3 className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie obsługujące przystanek</h3>
+             <h3 data-scene-label className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie obsługujące przystanek</h3>
              <div className="flex flex-wrap gap-2">
                {combinedLines.map(line => (
                   <div key={line} className={`px-4 py-2 rounded-xl border font-bold text-[13px] transition-all duration-300 hover:opacity-80 ${getLineStyle(line, lineProviderIds.get(line))}`}>

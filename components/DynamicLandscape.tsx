@@ -16,7 +16,7 @@ type Preview={iso?:string;rate?:number};
 type DebugWindow=Window&{__landscapePreview?:(value:Preview)=>void;__landscapeDiagnostics?:()=>unknown;__landscapeTestPower?:(limited:boolean,critical?:boolean)=>void};
 
 /** This component owns its draw loop. Astronomy never updates application React state. */
-export default function DynamicLandscape({active}:{active:boolean}){
+export default function DynamicLandscape({active,glass=true}:{active:boolean;glass?:boolean}){
   const canvas=useRef<HTMLCanvasElement>(null);
   useEffect(()=>{
     if(!active||!canvas.current)return;
@@ -36,6 +36,11 @@ export default function DynamicLandscape({active}:{active:boolean}){
       let reduced=false,light=false;
       try{reduced=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).reducedMotion;light=localStorage.getItem('mks_light_effects')==='true';}catch{}
       return landscapeMotionPolicy({hidden:document.hidden,nativeActive,reduced:media.matches||reduced,light,limited,critical,slow});
+    };
+    const updatePalette=(state:AstronomyState)=>{
+      let opacity=64;
+      try{opacity=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}')).glassOpacity;}catch{}
+      for(const [key,value] of Object.entries(landscapePalette(state,glass?opacity:100)))root.style.setProperty(key,value);
     };
     const updateModel=()=>{
       clearTimeout(modelTimer);if(!visible()||!alive)return;
@@ -94,14 +99,14 @@ export default function DynamicLandscape({active}:{active:boolean}){
     worker.onmessage=event=>{
       if(!alive||event.data.id!==requestId)return;
       samples=event.data;events=event.data.events;
-      for(const [key,value] of Object.entries(landscapePalette(samples!.a)))root.style.setProperty(key,value);
+      updatePalette(samples!.a);
       const period=isLandscapeDay(samples!.a)?'day':'night';
       if(root.dataset.landscapePeriod!==period){root.dataset.landscapePeriod=period;window.dispatchEvent(new Event('pks-landscape-period'));}
       draw();
     };
     worker.onerror=()=>{element.dataset.renderError='astronomy-worker';};
     const resize=()=>{const rect=element.getBoundingClientRect();if(rect.width&&rect.height)renderer.resize(rect.width,rect.height,devicePixelRatio||1);draw();};
-    const restart=()=>{clearTimeout(drawTimer);clearTimeout(modelTimer);root.dataset.landscapeMotion=visible()&&policy().animate?'on':'off';if(visible()){updateModel();draw();}};
+    const restart=()=>{if(samples)updatePalette(samples.a);clearTimeout(drawTimer);clearTimeout(modelTimer);root.dataset.landscapeMotion=visible()&&policy().animate?'on':'off';if(visible()){updateModel();draw();}};
     const observer=new ResizeObserver(resize);observer.observe(element);
     document.addEventListener('visibilitychange',restart);
     window.addEventListener('focus',restart);window.addEventListener('pks-interface-appearance',restart);
@@ -130,8 +135,8 @@ export default function DynamicLandscape({active}:{active:boolean}){
       for(const listener of listeners)void listener.then(handle=>handle.remove());
       delete debug.__landscapePreview;delete debug.__landscapeDiagnostics;
       delete debug.__landscapeTestPower;delete root.dataset.landscapeMotion;
-      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter','panel-scrim','panel-row','nav-top','nav-bottom','text-shadow'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
+      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;for(const key of ['surface','ink','muted','accent','edge','field','chrome-light','map-filter','panel-scrim','panel-row','nav-top','nav-bottom','text-shadow','label-bg'].map(key=>'--landscape-'+key))root.style.removeProperty(key);
     };
-  },[active]);
+  },[active,glass]);
   return active?<canvas ref={canvas} data-landscape-stage aria-hidden="true"/>:null;
 }

@@ -82,7 +82,7 @@ test('solar palette makes daytime maps light and night maps dark with readable i
  const noon=palette(at('2026-10-23T10:00:00Z')),night=palette(at('2026-10-26T22:00:00Z'));
  assert.match(noon['--landscape-map-filter'],/^invert\(0\.000%\)/);
  assert.match(night['--landscape-map-filter'],/^invert\(100\.000%\)/);
- assert.equal(noon['--landscape-ink'],'rgb(20,45,57)');assert.equal(night['--landscape-ink'],'rgb(244,248,252)');
+ assert.equal(noon['--landscape-ink'],'rgb(11,27,38)');assert.equal(night['--landscape-ink'],'rgb(244,248,252)');
  // Across a whole twilight, only readable map endpoints are targeted.
  // Map filters switch directly so roads never pass through a grey midpoint.
  const sunset=a.solarEvents(Date.parse('2026-10-23T12:00:00Z'),place).sunset;
@@ -100,7 +100,7 @@ test('solar glass stays translucent with restrained colours throughout dawn and 
  let previous;
  for(let altitude=-18;altitude<=60;altitude+=.01){
   const p=palette({sun:{altitude:altitude*Math.PI/180}}),surface=numbers(p['--landscape-surface']),ink=numbers(p['--landscape-ink']);
-  assert.ok(surface[3]>=.50&&surface[3]<=.56,'artwork remains visible at solar altitude '+altitude);
+  assert.ok(surface[3]===.64,'artwork remains visible at solar altitude '+altitude);
   for(const key of ['field','panel-row'])assert.ok(numbers(p['--landscape-'+key])[3]<=.30,'nested surfaces do not accumulate opaque fills');
   assert.ok(ink.every(value=>Number.isFinite(value)));
   const values=['surface','field','panel-scrim','panel-row','nav-top','nav-bottom'].flatMap(key=>numbers(p['--landscape-'+key]));
@@ -125,5 +125,13 @@ test('sunset darkens every surface stage and sunrise traverses the same palette 
  for(const hours of [[2,4,6,8,10],[20,18,16,14,12]]){
   const light=hours.map(lightAt);
   for(let i=1;i<light.length;i++)assert.ok(light[i]>=light[i-1],'actual sunrise lightens the glass and sunset darkens it');
+ }
+});
+
+test('solar material uses the saved opacity across every period, including fully opaque mode',()=>{
+ const {landscapePalette:p}=load('lib/landscape-palette.ts');
+ for(const altitude of [-15,-3,0,5,30])for(const opacity of [20,40,64,85,100]){
+  const value=p({sun:{altitude:altitude*Math.PI/180}},opacity);
+  for(const key of ['surface','panel-scrim','nav-top','nav-bottom'])assert.equal(Number(value['--landscape-'+key].match(/[\d.]+/g).pop()),opacity/100);
  }
 });
