@@ -114,16 +114,16 @@ export class LandscapeRenderer{
     if(shafts>.001){
       c.save();c.globalCompositeOperation='screen';
       for(let i=0;i<22;i++){
-        const angle=-Math.PI+.12+i*(Math.PI-.24)/21;
+        const angle=-Math.PI+.12+(i+.28*Math.sin(i*2.11))*(Math.PI-.24)/21;
         const gap=(this.cloudTransmission(sun.x+Math.cos(angle)*.35,sun.y+Math.sin(angle)*.28,cloudOffset(seconds))+this.cloudTransmission(sun.x+Math.cos(angle)*.65,sun.y+Math.sin(angle)*.45,cloudOffset(seconds)))/2;
-        const strength=shafts*(.10+.90*gap**3)*(.6+.4*Math.sin(i*2.37)**2);
+        const strength=shafts*(.08+.92*gap**3)*(.22+.78*(.5+.5*Math.sin(i*2.37))**3);
         const length=HEIGHT*.76,dx=Math.cos(angle)*length,dy=Math.sin(angle)*length;
         const ray=c.createLinearGradient(sx,sy,sx+dx,sy+dy);
         ray.addColorStop(0,'#ffe9b5');ray.addColorStop(.18,'#ffdca2');ray.addColorStop(1,'#ffc38300');
         c.fillStyle=ray;
         for(let edge=3;edge>=1;edge--){
-          const half=(.007+i%3*.002)*edge;
-          c.globalAlpha=strength*.026;
+          const half=(.004+.009*(.5+.5*Math.sin(i*3.67))**2)*edge;
+          c.globalAlpha=strength*.018;
           c.beginPath();c.moveTo(sx,sy);
           c.lineTo(sx+Math.cos(angle-half)*length,sy+Math.sin(angle-half)*length);
           c.lineTo(sx+Math.cos(angle+half)*length,sy+Math.sin(angle+half)*length);
