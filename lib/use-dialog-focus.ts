@@ -11,7 +11,12 @@ export function useDialogFocus(ref:RefObject<HTMLElement|null>,enabled:boolean,o
     dialogs.push(root);
     const previous=document.activeElement as HTMLElement|null;
     const focusables=()=>Array.from(root.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]')).filter(element=>element.getClientRects().length>0);
-    const first=focusables()[0];first?.focus({preventScroll:true});
+    // Opening a surface must not summon the phone keyboard. Text entry begins
+    // when the user taps a field or reaches it with Tab.
+    const initial=focusables().find(element=>!element.matches('input,textarea,select,[contenteditable]'));
+    const previousTabIndex=root.getAttribute('tabindex');
+    if(!initial)root.setAttribute('tabindex','-1');
+    (initial||root).focus({preventScroll:true});
     const key=(event:KeyboardEvent)=>{
       if(dialogs.at(-1)!==root)return;
       if(event.key==='Escape'&&close.current){event.preventDefault();event.stopPropagation();close.current();}
@@ -22,6 +27,6 @@ export function useDialogFocus(ref:RefObject<HTMLElement|null>,enabled:boolean,o
       else if(!event.shiftKey&&(document.activeElement===last||!root.contains(document.activeElement))){event.preventDefault();first.focus();}
     };
     document.addEventListener('keydown',key,true);
-    return()=>{document.removeEventListener('keydown',key,true);const wasTop=dialogs.at(-1)===root;const index=dialogs.lastIndexOf(root);if(index>=0)dialogs.splice(index,1);if(wasTop&&previous?.isConnected)previous.focus({preventScroll:true});};
+    return()=>{document.removeEventListener('keydown',key,true);if(!initial){if(previousTabIndex===null)root.removeAttribute('tabindex');else root.setAttribute('tabindex',previousTabIndex);}const wasTop=dialogs.at(-1)===root;const index=dialogs.lastIndexOf(root);if(index>=0)dialogs.splice(index,1);if(wasTop&&previous?.isConnected)previous.focus({preventScroll:true});};
   },[ref,enabled]);
 }

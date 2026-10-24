@@ -1,4 +1,5 @@
 import type {Stop} from '@/Panel/src/types';
+import {loadStopPlatforms,platformPosition} from './stop-platform-position';
 import {readStopsCatalogCache} from './stops-catalog-cache';
 import {buildStopsCatalogAsync} from './stops-catalog-async';
 import {pksLinesForStop,sortedLines,stopCollectionSignature,getMarcelStopsIndex} from '@/components/stops-panel/stop-domain';
@@ -15,6 +16,7 @@ export async function loadJourneyCatalog(input:Raw[],includeMarcel=false):Promis
    return Object.entries(formatPksStops({items},snapshot)).map(([id,s])=>({...s,id,name:s.n}));
   }),
   cached?.mpk?.length?cached.mpk:json('/data/mpk-stop-points.json').then(snapshot=>snapshot.stops.map((s:Record<string,unknown>)=>({id:String(s.stop_id),name:String(s.stop_name),lat:Number(s.stop_lat),lon:Number(s.stop_lon),lines:String(s.lines||'').split(',').filter(Boolean)}))),
+  loadStopPlatforms(),
  ]);
  const marcel=includeMarcel?await getMarcelStopsIndex(warsawDateIso()).catch(()=>cached?.marcel||[]):cached?.marcel||[];
  const key='journeys:v2:'+stopCollectionSignature(pks)+':'+stopCollectionSignature(mpk)+':'+stopCollectionSignature(marcel);
@@ -25,6 +27,6 @@ export async function loadJourneyCatalog(input:Raw[],includeMarcel=false):Promis
   const pksStopLines=pksLinesForStop(stop,cached?.lines||pksLines.lines);pksStopLines.forEach(line=>add(line,'pks'));
   for(const id of String(stop.providerStopIds?.mpk_rzeszow||'').split(','))mpkLines.get(id)?.forEach(line=>add(line,'mpk'));
   if(stop.sourceProviderIds?.includes('marcel'))add('M','marcel');
-  return {...stop,lines:sortedLines(Object.keys(lineProviders)),lineProviders,providerStopIds:{...stop.providerStopIds,pksLines:pksStopLines.join(',')}};
+  return {...stop,...platformPosition(stop),lines:sortedLines(Object.keys(lineProviders)),lineProviders,providerStopIds:{...stop.providerStopIds,pksLines:pksStopLines.join(',')}};
  });
 }

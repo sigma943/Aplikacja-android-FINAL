@@ -1,4 +1,5 @@
 'use client';
+import './stop-markers.css';
 import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
 
 import {displayStopCatalogLabel} from '@/lib/stop-label';

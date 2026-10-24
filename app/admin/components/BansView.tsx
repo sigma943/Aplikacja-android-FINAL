@@ -1,6 +1,6 @@
 import {useAppBack} from '@/lib/use-app-back';
 ﻿import { useState, useMemo } from 'react';
-import { Search, Filter, Lock, LockOpen, Smartphone, ChevronDown, Menu, Calendar, Info, MapPin } from 'lucide-react';
+import { Search, Filter, Lock, LockOpen, Smartphone, ChevronDown, Menu, Calendar, Info, MapPin, Pencil } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Ban } from '../types';
@@ -17,6 +17,7 @@ export function BansView({
   stats,
   canBan = true,
   onUnblock,
+  onEdit,
   onMenuClick,
 }: {
   bans: Ban[];
@@ -24,6 +25,7 @@ export function BansView({
   /** Odblokowanie wymaga uprawnienia ban (jak przy banowaniu). */
   canBan?: boolean;
   onUnblock: (id: string) => void;
+  onEdit?: (id:string)=>void;
   onMenuClick: () => void;
 }) {
   const [search, setSearch] = useState('');
@@ -146,7 +148,7 @@ export function BansView({
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: idx * 0.05 }}
                 >
-                  <BanCard ban={ban} canBan={canBan} onUnblock={() => onUnblock(ban.id)} />
+                  <BanCard ban={ban} canBan={canBan} onUnblock={() => onUnblock(ban.id)} onEdit={onEdit?()=>onEdit(ban.id):undefined} />
                 </motion.div>
               ))
             )}
@@ -183,7 +185,7 @@ function StatCard({ title, value, subtitle, icon, color }: any) {
   );
 }
 
-function BanCard({ ban, canBan, onUnblock }: { ban: Ban; canBan: boolean; onUnblock: () => void }) {
+function BanCard({ ban, canBan, onUnblock, onEdit }: { ban: Ban; canBan: boolean; onUnblock: () => void; onEdit?:()=>void }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -248,7 +250,8 @@ function BanCard({ ban, canBan, onUnblock }: { ban: Ban; canBan: boolean; onUnbl
           )}
         </AnimatePresence>
 
-        <div className="mt-4 pt-4 border-t border-white/5 flex gap-3">
+        <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-2">
+          {onEdit&&<button type="button" disabled={!canBan} onClick={()=>canBan&&onEdit()} aria-label={`Edytuj blokadę: ${ban.deviceName}`} className="ui-accent-soft flex flex-1 items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide disabled:cursor-not-allowed disabled:opacity-40"><Pencil size={14}/>Edytuj</button>}
           <button
             type="button"
             disabled={!canBan}

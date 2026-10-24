@@ -1,0 +1,170 @@
+{
+  "node": "v24.19.0",
+  "method": "Three sequential runs per case; 45s total deadline per isolated child; raw timetable search, no HTTP or pedestrian refinement.",
+  "rows": [
+    {
+      "name": "regional-direct",
+      "baseline": {
+        "name": "regional-direct",
+        "connections": 72771,
+        "milliseconds": [
+          87,
+          69,
+          75
+        ],
+        "medianMs": 75,
+        "results": 15,
+        "best": {
+          "arrival": 1792484100000,
+          "departure": 1792482000000,
+          "transfers": 0,
+          "walking": 0
+        },
+        "feedSha256": {
+          "pks": "267a97be5100303349ab10360d19dfe0671ad79bf20d07a1e274f44157045ec7",
+          "mpk": "6191db47e27779d99c02e7d7fbfddb19d0cd2660ecf75ddcba17ca076aa0771f"
+        }
+      },
+      "current": {
+        "name": "regional-direct",
+        "connections": 72771,
+        "milliseconds": [
+          163,
+          49,
+          38
+        ],
+        "medianMs": 49,
+        "results": 15,
+        "best": {
+          "arrival": 1792484100000,
+          "departure": 1792482000000,
+          "transfers": 0,
+          "walking": 0
+        },
+        "feedSha256": {
+          "pks": "267a97be5100303349ab10360d19dfe0671ad79bf20d07a1e274f44157045ec7",
+          "mpk": "6191db47e27779d99c02e7d7fbfddb19d0cd2660ecf75ddcba17ca076aa0771f"
+        }
+      }
+    },
+    {
+      "name": "mixed-carrier",
+      "baseline": {
+        "name": "mixed-carrier",
+        "connections": 72771,
+        "milliseconds": [
+          1282,
+          1056,
+          1047
+        ],
+        "medianMs": 1056,
+        "results": 7,
+        "best": {
+          "arrival": 1792488480000,
+          "departure": 1792483200000,
+          "transfers": 1,
+          "walking": 29
+        },
+        "feedSha256": {
+          "pks": "267a97be5100303349ab10360d19dfe0671ad79bf20d07a1e274f44157045ec7",
+          "mpk": "6191db47e27779d99c02e7d7fbfddb19d0cd2660ecf75ddcba17ca076aa0771f"
+        }
+      },
+      "current": {
+        "name": "mixed-carrier",
+        "connections": 72771,
+        "milliseconds": [
+          237,
+          105,
+          84
+        ],
+        "medianMs": 105,
+        "results": 6,
+        "best": {
+          "arrival": 1792488480000,
+          "departure": 1792483200000,
+          "transfers": 1,
+          "walking": 29
+        },
+        "feedSha256": {
+          "pks": "267a97be5100303349ab10360d19dfe0671ad79bf20d07a1e274f44157045ec7",
+          "mpk": "6191db47e27779d99c02e7d7fbfddb19d0cd2660ecf75ddcba17ca076aa0771f"
+        }
+      }
+    },
+    {
+      "name": "full-network-two-transfers",
+      "baseline": {
+        "name": "full-network-two-transfers",
+        "connections": 60849,
+        "milliseconds": [
+          5291,
+          5385,
+          5139
+        ],
+        "medianMs": 5291,
+        "results": 23,
+        "best": {
+          "arrival": 1792495620000,
+          "departure": 1792490640000,
+          "transfers": 0,
+          "walking": 1542
+        },
+        "feedSha256": {
+          "pks": "267a97be5100303349ab10360d19dfe0671ad79bf20d07a1e274f44157045ec7",
+          "mpk": "6191db47e27779d99c02e7d7fbfddb19d0cd2660ecf75ddcba17ca076aa0771f"
+        }
+      },
+      "current": {
+        "name": "full-network-two-transfers",
+        "connections": 60849,
+        "milliseconds": [
+          1142,
+          953,
+          1192
+        ],
+        "medianMs": 1142,
+        "results": 23,
+        "best": {
+          "arrival": 1792495620000,
+          "departure": 1792491960000,
+          "transfers": 0,
+          "walking": 93
+        },
+        "feedSha256": {
+          "pks": "267a97be5100303349ab10360d19dfe0671ad79bf20d07a1e274f44157045ec7",
+          "mpk": "6191db47e27779d99c02e7d7fbfddb19d0cd2660ecf75ddcba17ca076aa0771f"
+        }
+      }
+    },
+    {
+      "name": "full-network-unlimited",
+      "baseline": {
+        "timeoutMs": 45000
+      },
+      "current": {
+        "name": "full-network-unlimited",
+        "connections": 60849,
+        "milliseconds": [
+          1145,
+          1071,
+          1054
+        ],
+        "medianMs": 1071,
+        "results": 23,
+        "best": {
+          "arrival": 1792495620000,
+          "departure": 1792491960000,
+          "transfers": 0,
+          "walking": 93
+        },
+        "feedSha256": {
+          "pks": "267a97be5100303349ab10360d19dfe0671ad79bf20d07a1e274f44157045ec7",
+          "mpk": "6191db47e27779d99c02e7d7fbfddb19d0cd2660ecf75ddcba17ca076aa0771f"
+        }
+      }
+    }
+  ],
+  "baselineCommit": "34f13aaabfb057237bec112d8a227538f12646e7",
+  "measurementDate": "2026-10-20"
+}

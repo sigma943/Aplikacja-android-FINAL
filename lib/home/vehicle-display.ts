@@ -62,8 +62,23 @@ const vehicleRouteDetailsCacheKey = (vehicle: Vehicle, provider: TransportProvid
     vehicle.routeShortName ??
     'current',
   ).trim();
-  return [provider, vehicle.id, routeIdentity || 'current', includeInactive ? 'inactive' : 'active'].join(':');
+  const identity = [provider, vehicle.id, routeIdentity || 'current', includeInactive ? 'inactive' : 'active'];
+  // PKS details contain next_stop_points as well as the static route. Refresh
+  // the remaining sequence when live telemetry reports another stop passage.
+  if (provider === 'pks') identity.push(String(vehicle.lastStopId ?? 'before-first-stop'));
+  return identity.join(':');
 };
+
+/** A shorter PKS next_stop_points list means progress, not poorer route data. */
+export function latestPksRemainingSchedule(base: Vehicle, details: Vehicle) {
+  const hasSchedule = (vehicle: Vehicle) => Boolean(vehicle.schedule?.length || vehicle.routeStops?.length);
+  if (!hasSchedule(details)) return base.schedule || [];
+  if (!hasSchedule(base)) return details.schedule || [];
+  const baseSignal = Date.parse(base.lastSignalTime || '');
+  const detailSignal = Date.parse(details.lastSignalTime || '');
+  return Number.isFinite(baseSignal) && Number.isFinite(detailSignal) && baseSignal > detailSignal
+    ? base.schedule || [] : details.schedule || [];
+}
 
 const withAlpha = (hex: string, alpha: number) => {
   const clean = hex.replace('#', '');

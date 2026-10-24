@@ -19,3 +19,19 @@ test('storage failure reverts a partially imported appearance',t=>{
  const {items,events}=setup(t),before=[...items];const original=global.localStorage.setItem;let once=true;global.localStorage.setItem=(key,value)=>{if(key==='mks_theme'&&once){once=false;throw Error('Full');}original(key,value);};
  assert.throws(()=>restoreAppearanceBackup(exportAppearanceBackup(profile,[],{},false)));assert.deepEqual([...items],before);assert.deepEqual(events,[]);
 });
+
+test('mountain appearance and Google Fonts survive export, clean storage and import',t=>{
+ const {items}=setup(t),{normalizeInterfaceAppearance}=load('lib/interface-appearance.ts');
+ const appearance=normalizeInterfaceAppearance({glassOpacity:35,glassBlur:8,glassBlurEnabled:false,surfaceTint:'custom',panelColor:'#687cab',panelTintStrength:25,fontFamily:'custom',customFontUrl:'https://fonts.google.com/specimen/Plus+Jakarta+Sans',cardStyle:'outlined',panelPattern:'dots',navIndicator:'pill',textScale:110});
+ const current={...profile,theme:'dark-mountains',glass:true,appearance};
+ const saved={...current,id:'saved',appearance:{...appearance,fontFamily:'Inter'}};
+ const content=exportAppearanceBackup(current,[saved],{},false),raw=JSON.parse(content);
+ assert.deepEqual(raw.googleFonts.map(f=>f.family),['Plus Jakarta Sans','Inter']);
+ assert.ok(raw.googleFonts.every(f=>f.url.startsWith('https://fonts.googleapis.com/css2?family=')));
+ const restored=restoreAppearanceBackup(content);
+ assert.equal(restored.current.theme,'dark-mountains');assert.equal(restored.current.glass,true);
+ assert.deepEqual(restored.current.appearance,appearance);
+ assert.deepEqual(JSON.parse(items.get('mks_interface_appearance_v1')),appearance);
+ assert.equal(restored.profiles[0].appearance.fontFamily,'Inter');
+ assert.equal(restored.profiles[0].appearance.customFontUrl,appearance.customFontUrl);
+});

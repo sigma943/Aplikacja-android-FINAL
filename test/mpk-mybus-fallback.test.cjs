@@ -42,3 +42,17 @@ test('backend uses the same fallback after an empty primary',async()=>{
  const result=await api.loadRawVehicles();assert.equal(result.value.length,1);assert.equal(result.value[0].nb,'811');assert.equal(calls.at(-1),backup);
  }finally{global.fetch=previous;}
 });
+
+test('nonempty but frozen primary does not hide the live backup',async()=>{
+ const stale={...raw,timestamp:String(Math.floor(Date.now()/1000)-7200)};
+ const {api,calls}=client([stale],{[legacy]:new Error('HTTP 404'),[backup]:xml});
+ const rows=await api.fetchMpkVehicleFeed();assert.equal(rows[0].feedSource,'mybus');assert.equal(calls.at(-1),backup);
+});
+test('stale feeds are not presented as successful current GPS',()=>{
+ for(const root of ['lib','functions/src/transport']){
+  const {mpkFreshFeedVehicles}=load(root+'/mpk-vehicle-feed.ts');
+  const now=Date.now(),stale={...raw,timestamp:String(Math.floor(now/1000)-7200)},fresh={...raw,timestamp:String(Math.floor(now/1000)-5)};
+  assert.throws(()=>mpkFreshFeedVehicles([stale],now),/nieaktualne/);
+  assert.deepEqual(mpkFreshFeedVehicles([stale,fresh],now),[fresh]);
+ }
+});

@@ -1,0 +1,682 @@
+{
+  "success": true,
+  "items": [
+    {
+      "description": "Czudec, Dwór",
+      "line_name": "210",
+      "vias": "",
+      "journeys": [
+        {
+          "journey_id": 23274,
+          "time": "06:10",
+          "legends": [
+            "D",
+            "[P]"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23271,
+          "time": "08:45",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23276,
+          "time": "11:40",
+          "legends": [
+            "D",
+            "[W]"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23278,
+          "time": "15:20",
+          "legends": [
+            "D",
+            "[W]"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23270,
+          "time": "21:25",
+          "legends": [
+            "D",
+            "[W]"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        }
+      ]
+    },
+    {
+      "description": "Czudec, Zajezdnia Rzeszowska",
+      "line_name": "210",
+      "vias": "",
+      "journeys": [
+        {
+          "journey_id": 23277,
+          "time": "14:15",
+          "legends": [
+            "D",
+            "[W]"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        }
+      ]
+    },
+    {
+      "description": "Kamień",
+      "line_name": "215",
+      "vias": "",
+      "journeys": [
+        {
+          "journey_id": 21796,
+          "time": "04:05",
+          "legends": [
+            "+",
+            "b",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21790,
+          "time": "04:05",
+          "legends": [
+            "6ś",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21784,
+          "time": "07:05",
+          "legends": [
+            "+",
+            "_CT"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21812,
+          "time": "07:05",
+          "legends": [
+            "D",
+            "l",
+            "_CT"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21788,
+          "time": "07:05",
+          "legends": [
+            "6ś",
+            "_CT"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21771,
+          "time": "09:05",
+          "legends": [
+            "D",
+            "_CT"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21778,
+          "time": "11:45",
+          "legends": [
+            "D",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21786,
+          "time": "12:40",
+          "legends": [
+            "6ś",
+            "_CT",
+            "_ŁW"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21798,
+          "time": "13:55",
+          "legends": [
+            "+",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21781,
+          "time": "14:20",
+          "legends": [
+            "D",
+            "_LC",
+            "_ŁW"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21792,
+          "time": "15:40",
+          "legends": [
+            "6ś",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21806,
+          "time": "15:45",
+          "legends": [
+            "D",
+            "pEx",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21773,
+          "time": "16:30",
+          "legends": [
+            "D",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21775,
+          "time": "17:15",
+          "legends": [
+            "D",
+            "l",
+            "_CT",
+            "_ŁW"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21776,
+          "time": "18:40",
+          "legends": [
+            "D",
+            "l",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21794,
+          "time": "19:15",
+          "legends": [
+            "6ś",
+            "l",
+            "T",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21800,
+          "time": "20:15",
+          "legends": [
+            "D",
+            "l",
+            "_LC"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        }
+      ]
+    },
+    {
+      "description": "Kamień, Podlesie",
+      "line_name": "215",
+      "vias": "",
+      "journeys": [
+        {
+          "journey_id": 21810,
+          "time": "12:35",
+          "legends": [
+            "D",
+            "_PD"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21809,
+          "time": "15:10",
+          "legends": [
+            "D",
+            "_PD"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        }
+      ]
+    },
+    {
+      "description": "Łowisko",
+      "line_name": "215",
+      "vias": "",
+      "journeys": [
+        {
+          "journey_id": 21802,
+          "time": "06:25",
+          "legends": [
+            "D",
+            "_ŁW"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21805,
+          "time": "08:25",
+          "legends": [
+            "D",
+            "_ŁW"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        },
+        {
+          "journey_id": 21782,
+          "time": "13:10",
+          "legends": [
+            "S",
+            "_ŁW"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "0"
+        }
+      ]
+    },
+    {
+      "description": "Niechobrz, pętla",
+      "line_name": "210",
+      "vias": "",
+      "journeys": [
+        {
+          "journey_id": 23282,
+          "time": "12:40",
+          "legends": [
+            "S",
+            "kdN"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        }
+      ]
+    },
+    {
+      "description": "Nosówka, pętla",
+      "line_name": "228",
+      "vias": "",
+      "journeys": [
+        {
+          "journey_id": 23253,
+          "time": "04:55",
+          "legends": [
+            "6ś"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23239,
+          "time": "05:05",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23241,
+          "time": "06:14",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23255,
+          "time": "07:05",
+          "legends": [
+            "6ś"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23243,
+          "time": "07:30",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23265,
+          "time": "09:30",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23251,
+          "time": "11:40",
+          "legends": [
+            "D",
+            "dWZ"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23257,
+          "time": "12:25",
+          "legends": [
+            "6ś"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23261,
+          "time": "14:05",
+          "legends": [
+            "+"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23245,
+          "time": "14:15",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23259,
+          "time": "15:30",
+          "legends": [
+            "6ś",
+            "dWZ"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23247,
+          "time": "16:00",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23263,
+          "time": "17:00",
+          "legends": [
+            "+"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23267,
+          "time": "19:30",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23249,
+          "time": "21:00",
+          "legends": [
+            "D"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        }
+      ]
+    },
+    {
+      "description": "Straszydle",
+      "line_name": "251",
+      "vias": "",
+      "journeys": [
+        {
+          "journey_id": 23221,
+          "time": "05:30",
+          "legends": [
+            "D",
+            "_sk"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23225,
+          "time": "07:20",
+          "legends": [
+            "D",
+            "_sk"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23237,
+          "time": "09:05",
+          "legends": [
+            "D",
+            "_sk",
+            "pBa"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23230,
+          "time": "09:50",
+          "legends": [
+            "D",
+            "_sk"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23232,
+          "time": "13:20",
+          "legends": [
+            "D",
+            "_sk"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23222,
+          "time": "15:10",
+          "legends": [
+            "D",
+            "_sk"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23234,
+          "time": "16:10",
+          "legends": [
+            "S",
+            "_le"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        },
+        {
+          "journey_id": 23223,
+          "time": "17:25",
+          "legends": [
+            "S",
+            "_sk"
+          ],
+          "operator": "RZE",
+          "stop_point_code": "1"
+        }
+      ]
+    }
+  ],
+  "legends": {
+    "#": "kurs do Straszydle, Leśniczówka bez wjazdu do Sołonki",
+    "+": "kursuje w dni wolne od pracy (niedziele i święta)",
+    "(1)": "kurs skomunkowany z linią 303 do Wysokiej Gł, 304 do Bud Głog. oraz 306 do Huciska",
+    "(2)": "kurs skomunkowany z liniami 303 do Wysokiej Gł. oraz 306 do Huciska",
+    "(3)": "kurs skomunikowany z linią 303 Głogów Młp. - Wysoka Głog. - Tajęcina",
+    "(4)": "kurs skomunikowany z linią 304 Głogów Młp. - Budy Głog.",
+    "(5)": "kurs przez Rogoźnicę, Lipie, Niwę",
+    "(6)": "kurs skomunikowany z linią 306 Głogów Młp. - Hucisko",
+    "6ś": "kursuje w soboty (nie kursuje w święta ustawowo wolne)",
+    "(7)": "kurs do Głogów Osiedle Słoneczne",
+    "(9)": "kurs przez Budy Głogowskie, Szkoła , Klub",
+    "a": "nie kursuje w pierwszy dzień Świąt Wielkanocnych oraz w dniu 25 XII",
+    "b": "nie kursuje w dniu 1.I, w pierwszy dzień Świąt Wielkanocnych i w dniu 25 XII",
+    "(b)": "kurs do przystanku Pstrągowa, Budzisz 01",
+    "_Bg": "kurs do Głogów Młp. Bugaj",
+    "_bL": "kurs bez wjazdu do przystanku Lutoryż pętla",
+    "_CT": "kurs do Kamień Centrum",
+    "d": "nie kursuje w dniu 1.I, w pierwszy i drugi dzień Świąt Wielkanocnych oraz w dniach 25 i 26 XII",
+    "D": "kursuje od poniedziałku do piątku oprócz świąt",
+    "dCZ": "kurs do Czarnej Sędziszowskiej skrzyżowanie",
+    "dDn": "kurs do Dynowa",
+    "_dN": "kurs wykonywany do Nowa Wieś Zaczerska, Pętla",
+    "dWZ": "kurs skomunikowany z kursem do Woli Zgłobieńskiej",
+    "_dZ": "kurs wykonywany  do Trzebownisko, Zakład Ogrodniczy",
+    "e": "nie kursuje w okresie ferii letnich",
+    "(F)": "kurs do Futomy",
+    "_FG": "kurs wykonywany przez ul.Fabryczą i ul.Gajową",
+    "g": "nie kursuje w dniu 24.XII",
+    "_Ga": "kurs przez ul. Gajową",
+    "_GÓ": "kurs do Górna",
+    "Grz": "kurs do przystanku Grzegorzówka, Kanada pętla przez Wolę Rafałowską",
+    "_gs": "kurs do Czarna GS",
+    "h": "nie kursuje w Wielką Sobotę oraz w dniu 24.XII",
+    "HpR": "kurs do przystanku Hyżne, Nowa Wieś skrzyżowanie przez Wolę Rafałowską",
+    "_Hu": "kurs do Huciska",
+    "HyN": "kurs do Hyżne, Nowa Wieś",
+    "(J)": "kurs z wjazdem do Jawornika Niebyleckiego pętla",
+    "_JN": "kurs do Jawornika Niebyleckiego",
+    "(k)": "kurs do przystanku Konieczkowa, Szkoła",
+    "kdD": "kurs do Dąbrowy",
+    "kdN": "kurs do Niechobrz pętla",
+    "kdO": "kurs do Olchowej",
+    "_KL": "kurs do Kielnarowej, Obszary",
+    "_KM": "kurs wykonywany przez Stobierna, Krzywe pętla, i  Wólkę Podleśną do Medynii Głog. Zadwór",
+    "kmk": "kurs przez Krasne, Mała Kolonia",
+    "l": "nie kursuje w dniu w dniu 31.XII",
+    "(L)": "kurs z wjazdem do przystanku Lecka, pętla",
+    "_LC": "kurs do Kamień Lecznica",
+    "_le": "kurs do przystanku Straszydle, Leśniczówka",
+    "(Ł)": "kurs przez Łąkę",
+    "_ŁC": "kurs wykonywany do przystanku Łukawiec pętla przez Łąka, Caritas",
+    "_ŁS": "kurs wykonywany do przystanku Łukawiec, pętla przez Trzebownisko, Spiny",
+    "_ŁW": "kurs do Łowiska lub z podjazdem do Łowiska",
+    "m": "nie kursuje w dniach 24 i 31.XII",
+    "mk": "kurs wykonywany przez Malawę, Kolonię",
+    "_ML": "kurs przez Mogielnica, Pętla i Lutoryż, Pętla",
+    "_MP": "kurs wykonywany do przystanku Medynia Głogowska, Pawilon",
+    "n": "nie kursuje w Wielką Sobotę oraz w dniach 24 i 31.XII",
+    "[P]": "kurs wykonywany z wjazdem do przystanku Czudec Kolejowa",
+    "pBa": "kurs wykonywany przez  Babica Przystanek Kolejowy",
+    "pBG": "kurs wykonywany przez Boguchwałę",
+    "_PD": "kurs do Kamień Podlesie",
+    "pEx": "kurs przez drogę S19 na odcinku Rzeszów - Sokołów Młp.",
+    "pG": "kurs wykonywany z wjazdem do przystanku Grzegorzówka, Kanada",
+    "_PH": "kurs skomunikowany z linią 306 z wjazdem do Głogów Os. Słoneczne",
+    "pKW": "kurs przez Krasne, Wólka",
+    "_PL": "kurs przez Jasionka Port Lotniczy",
+    "pNK": "kurs z wjazdem do przystanku Nieborów, Kościół",
+    "pNS": "kurs z wjazdem do przystanku Nosówka, pętla",
+    "pNW": "kurs przez Nowa Wieś Zaczerska, pętla",
+    "pPP": "kurs przez Palikówka Przycznia",
+    "pRC": "kurs wykonywany przez Racławówkę",
+    "_PS": "kurs wykonywany przez przystanek Stobierna, Krzywe pętla do Medynia Głogowska, Pawilon",
+    "pSK": "kurs przez Krasne, Wólka oraz przez Strażów",
+    "pSt": "kurs przez Strażów, Pętla",
+    "pWP": "kurs wykonywany przez Wólkę Podleśną z pominięciem przystanków w Tajęcinie",
+    "(R)": "kurs do Raniżowa",
+    "[R]": "kurs wykonywany przez Wolę Rafałowską",
+    "S": "kursuje w dni nauki szkolnej",
+    "_sk": "kurs do przystanku Straszydle Sklep",
+    "_Sp": "kurs przez Trzebownisko, Spiny",
+    "_st": "kurs z wjazdem do przystanku Straszydle, Stadnina",
+    "T": "nie kursuje w Wielką Sobotę",
+    "_TB": "kurs wykonywany przez Trzeboś",
+    "_TR": "kurs wykonywany przez Trzebuskę do Sokołowa Młp.",
+    "(U)": "kurs do Ulanicy",
+    "_ug": "kurs wykonywany do przystanku Czarna, UG",
+    "_UZ": "kurs wydłużony do Kąkolówka, Ujazdy",
+    "(w)": "kurs przez Woliczkę",
+    "(W)": "kurs do Woli Raniżowskiej",
+    "[W]": "kurs wykonywany przez przystanki Przedmieście Czudeckie Podzamcze - Wyżne, Rędziny",
+    "_WK": "kurs do Wólki Niedźwiedzkiej przez Sokołów Młp.",
+    "_WL": "przez Wysoka Głog. Leśniczówka",
+    "_WN": "kurs do Wólki Niedźwiedzkiej przez Trzeboś",
+    "(Z)": "kurs przez Zalesie",
+    "[Z]": "kurs do Szklar, Potok",
+    "Za": "kurs do przystanku Zabratówka, Dom Strażaka",
+    "_ZO": "kurs wykonywany przez Trzebownisko, Zakład Ogrodniczy"
+  },
+  "total": 88,
+  "source": "http://einfo.zgpks.rzeszow.pl/api/stop-point-timetable/1937?day=2026-10-20",
+  "date": "2026-10-20"
+}

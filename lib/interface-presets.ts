@@ -9,6 +9,11 @@ const appearance=(changes:Partial<InterfaceAppearance>):InterfaceAppearance=>({.
 
 export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   {
+    name:'Żywy Krajobraz – Dynamiczne Góry',description:'Żywa woda i niebo. Dzień i noc.',theme:'dark-mountains',accent:'#a6e2cb',glass:true,glow:false,glowStrength:25,
+    appearance:appearance({glassOpacity:62,glassBlur:5,borderStrength:16,shadowStrength:15,navIndicator:'line'}),
+    preview:{background:'#40799a',surface:'#142d40',text:'#f4f8fc'},
+  },
+  {
     name:'Różowy',description:'Cukierkowy róż, malinowe akcenty i subtelne serduszka',theme:'light-pink',accent:'#c02674',glass:true,glow:false,glowStrength:40,
     appearance:appearance({}),
     preview:{background:'#ffd1e8',surface:'#ffd1e8',text:'#57153c'},

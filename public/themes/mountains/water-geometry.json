@@ -1,0 +1,20 @@
+{
+  "calibration": {
+    "model": "controlled-coplanar-reconstruction",
+    "sourceWidth": 850,
+    "sourceHeight": 1850,
+    "mapWidth": 425,
+    "mapHeight": 925,
+    "horizon": 0.55,
+    "azimuthSpanDegrees": 78,
+    "altitudeSpan": 0.49,
+    "cameraHeight": 8,
+    "worldExtent": 128,
+    "waterTop": 0.575,
+    "note": "Controlled local water camera; projected astronomical screen positions are mapped into this camera. Relative dimensions are not recovered survey geometry. River visibility comes from the original mask.",
+    "astronomyAzimuthSpanDegrees": 260
+  },
+  "maskSha256": "e536425aa8a028c8d28ba62eff465078f556b0f718f0134fecf9cb0967eb5460",
+  "uvBytes": 109895,
+  "perspectiveBytes": 15205
+}
