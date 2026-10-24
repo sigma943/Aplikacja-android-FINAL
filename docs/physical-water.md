@@ -103,3 +103,9 @@ Implementation references (primary):
 - https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models
 - https://google.github.io/filament/Filament.html
 - https://registry.khronos.org/webgl/extensions/EXT_color_buffer_float/
+
+The first four solar/lunar scene screenshots explicitly request High quality for
+visual comparison. The animation/performance run releases that override and
+uses the real adaptive controller. These two results must not be conflated.
+Without WebGL2, missing map assets or during context loss, the fallback water is
+static and cached; the old CPU strip/crest animation has been removed.

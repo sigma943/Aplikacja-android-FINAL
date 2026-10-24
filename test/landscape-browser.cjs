@@ -15,14 +15,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   assert.equal(await page.$$eval('[data-landscape-water]',nodes=>nodes.length),1,'one visible GPU surface, no GPU-to-2D copy in the frame path');
   fs.mkdirSync('test/ui-previews',{recursive:true});
   await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}html[data-landscape-theme] *{transition-duration:0s!important}'});
-  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
-   await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
+  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:45:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
+   await page.evaluate(iso=>window.__landscapePreview({iso,rate:0,quality:'high'}),iso);
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
    await new Promise(r=>setTimeout(r,150));
    if(name==='night')assert.ok(await page.evaluate(()=>{const c=window.__landscapeCapture(),d=c.getContext('2d').getImageData(0,Math.floor(c.height*.6),c.width,Math.floor(c.height*.4)).data;let silver=0;for(let i=0;i<d.length;i+=4)if(d[i+2]>100&&d[i+2]>d[i]*1.03)silver++;return silver>100;}),'visible silver path follows the real Moon through the river bends');
    await page.screenshot({path:'test/ui-previews/landscape-'+name+'.png'});
   }
-  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T17:10:00+02:00',rate:0}));
+  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T16:45:00+02:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
   // Record the actual live canvas with Chrome's own encoder, without depending
   // on an external ffmpeg executable being installed on every CI runner.

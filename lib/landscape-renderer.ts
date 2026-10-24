@@ -7,11 +7,6 @@ const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
 const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
 export const cloudOffset=(seconds:number)=>((seconds*12)%WIDTH+WIDTH)%WIDTH;
-/** Two gentle crossing wave trains; dimensions increase towards the viewer. */
-export function waterWave(x:number,y:number,seconds:number){
-  const depth=smoothstep(.59,.94,y/HEIGHT);
-  return Math.sin(x*.025+y*.052-seconds*1.2)*(2.8+depth*6.2)+Math.sin(x*.049-y*.019+seconds*.76)*(1.4+depth*3.2);
-}
 export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
 /** One neutral illustrated terrain cutout, one cloud layer and a mask extracted from
  * the terrain's transparent river. All times use these SAME assets and geometry. */
@@ -29,6 +24,7 @@ export class LandscapeRenderer{
   private backgroundFrames=0;
   private lastAstronomy=-Infinity;
   private lastLight='';
+  private fallbackKey='';
   private width=1;private height=1;private scale=1;private offsetX=0;private offsetY=0;
   private assets:LandscapeAssets|null=null;
   private ambientSeconds=0;
@@ -37,7 +33,7 @@ export class LandscapeRenderer{
     this.ctx=canvas.getContext('2d',{alpha:false})!;this.lunarTexture=moonTexture();
     this.terrain=document.createElement('canvas');this.clouds=document.createElement('canvas');this.water=document.createElement('canvas');
   }
-  setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';this.lastBackground=-Infinity;this.gpu?.setAssets(assets);}
+  setAssets(assets:LandscapeAssets){this.assets=assets;this.lastLight='';this.fallbackKey='';this.lastBackground=-Infinity;this.gpu?.setAssets(assets);}
   suspend(){this.gpu?.suspend();}
   dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
   getGpuMs(){return this.gpu?.getGpuMs()??0;}
@@ -48,7 +44,7 @@ export class LandscapeRenderer{
     this.width=this.canvas.width=Math.round(w*density);this.height=this.canvas.height=Math.round(h*density);
     for(const layer of [this.terrain,this.clouds,this.water]){layer.width=this.width;layer.height=this.height;}
     // Uniform scale; phones crop at most a narrow edge instead of stretching artwork.
-    this.scale=Math.max(this.width/WIDTH,this.height/HEIGHT);this.offsetX=(this.width-WIDTH*this.scale)/2;this.offsetY=this.height-HEIGHT*this.scale;this.lastLight='';this.lastBackground=-Infinity;
+    this.scale=Math.max(this.width/WIDTH,this.height/HEIGHT);this.offsetX=(this.width-WIDTH*this.scale)/2;this.offsetY=this.height-HEIGHT*this.scale;this.lastLight='';this.fallbackKey='';this.lastBackground=-Infinity;
   }
   copyWindow(context:CanvasRenderingContext2D,sx:number,sy:number,sw:number,sh:number,width:number,height:number){
     context.drawImage(this.canvas,sx,sy,sw,sh,0,0,width,height);
@@ -119,7 +115,7 @@ export class LandscapeRenderer{
       if(this.gpu.canvas.getAttribute('style')!==style)this.gpu.canvas.setAttribute('style',style);
       // The compositor presents water directly: no GPU -> 2D readback on the animation path.
       const jumped=Math.abs(state.ms-this.lastAstronomy)>2000;
-      if(gpuReady&&!jumped&&seconds-this.lastBackground<1/8)return;
+      if(!jumped&&seconds-this.lastBackground<1/8)return;
     }
     this.lastBackground=seconds;this.lastAstronomy=state.ms;this.backgroundFrames++;
     const lightKey=[sky.day.toFixed(3),sky.twilight.toFixed(3),sky.moonlight.toFixed(2),sun.x.toFixed(2)].join(':');
@@ -150,61 +146,16 @@ export class LandscapeRenderer{
     c.drawImage(this.clouds,(cloudShift-WIDTH)*this.scale,0);c.drawImage(this.terrain,0,0);
     if(!this.assets)return;
     if(gpuReady){if(!this.directWater)c.drawImage(this.gpu!.canvas,0,0,this.width,this.height);}else{
-    // Only the lower part of this persistent buffer is drawn. Alpha mask includes
-    // the exact riverbanks and intervening trees; light can never land on the forest.
-    const w=this.water.getContext('2d')!;w.setTransform(1,0,0,1,0,0);w.clearRect(0,0,this.width,this.height);this.coordinates(w);
-    const water=w.createLinearGradient(0,HEIGHT*.6,0,HEIGHT);
-    water.addColorStop(0,css(blend(blend([13,35,69],[113,179,199],sky.day),[201,133,143],sky.twilight*.55)));
-    water.addColorStop(1,css(blend(blend([9,28,58],[48,123,155],sky.day),[177,124,135],sky.twilight*.4)));
-    w.fillStyle=water;w.fillRect(0,HEIGHT*.57,WIDTH,HEIGHT);
-    // Ripple the reflected terrain in narrow strips, reusing the existing texture.
-    w.globalAlpha=.40;
-    for(let i=0;i<64;i++){
-      const y=HEIGHT*(.59+i*.0066),band=HEIGHT*.0066;
-      const sourceY=HEIGHT*1.30-y-band+waterWave(300,y,seconds)*1.5;
-      if(sourceY<0)continue;
-      w.save();w.translate(waterWave(480,y,seconds)*2.2,y+band);w.scale(1,-1);
-      const sy=(sourceY*this.scale+this.offsetY)/this.height*this.terrain.height;
-      w.drawImage(this.terrain,0,Math.max(0,sy),this.width,Math.max(1,band*this.scale),0,0,WIDTH,band);w.restore();
+    // Explicit STATIC fallback when WebGL2/assets/context are unavailable.
+    // No CPU reflection strips or alternate wave simulation runs here.
+    if(this.fallbackKey!==lightKey){
+      const w=this.water.getContext('2d')!;w.setTransform(1,0,0,1,0,0);w.clearRect(0,0,this.width,this.height);this.coordinates(w);
+      const fill=w.createLinearGradient(0,HEIGHT*.57,0,HEIGHT);
+      fill.addColorStop(0,css(blend(blend([13,35,69],[113,179,199],sky.day),[201,133,143],sky.twilight*.55)));
+      fill.addColorStop(1,css(blend(blend([9,28,58],[48,123,155],sky.day),[177,124,135],sky.twilight*.4)));
+      w.fillStyle=fill;w.fillRect(0,HEIGHT*.57,WIDTH,HEIGHT);w.globalCompositeOperation='destination-in';w.drawImage(this.assets.water,0,0,WIDTH,HEIGHT);w.globalCompositeOperation='source-over';this.fallbackKey=lightKey;
     }
-    // Small travelling wavelets provide visible relief even without a celestial
-    // reflection. Batch crests/troughs by depth instead of shading 36k pixels
-    // with seven trigonometric functions on the UI thread on every frame.
-    const sunPower=lighting.sun.intensity;
-    const moonPower=lighting.moon.intensity/.32;
-    const light=moonPower>sunPower?moon:sun,power=Math.max(sunPower,moonPower),lunar=moonPower>sunPower;
-    w.lineCap='round';
-    for(let row=0;row<60;row++){
-      const depth=row/59,y=HEIGHT*(.585+.415*depth*depth),size=2+depth*13;
-      // Short, irregular arcs, never straight stripes across the whole river.
-      for(const trough of [true,false]){
-        w.beginPath();
-        for(let col=0;col<18;col++){
-          const seed=row*13.37+col*7.91;
-          const x=((col*61+Math.sin(seed)*23+seconds*(3+depth*8))%1100+1100)%1100-50;
-          const wave=waterWave(x,y,seconds),yy=y+wave*(.25+depth*.25)+(trough?size*.3:0);
-          const half=size*(.6+.4*Math.sin(seed+1));
-          w.moveTo(x-half,yy);w.quadraticCurveTo(x,yy-size*.22,x+half,yy+size*.08);
-        }
-        w.lineWidth=.6+depth*1.5;
-        w.strokeStyle=trough?'#03172e':'#c3e7ed';
-        w.globalAlpha=trough?.10+depth*.08:.16+sky.day*.10+depth*.10;w.stroke();
-      }
-      // Glints sit on the same travelling crests and narrow with distance.
-      if(power>.001){
-        const axis=500+(light.x-.5)*(150+depth*1250);
-        w.beginPath();
-        for(let i=0;i<7;i++){
-          const x=axis+(i-3)*(10+depth*36)+Math.sin(row*4.1+i)*size;
-          const yy=y+waterWave(x,y,seconds)*(.25+depth*.25);
-          const glint=size*(.3+.7*Math.max(0,Math.sin(row*2.8+i*1.7-seconds*1.4)));
-          w.moveTo(x-glint,yy);w.lineTo(x+glint,yy);
-        }
-        w.strokeStyle=lunar?'#e1efff':'#fff1c6';w.globalAlpha=power*(.18+.44*Math.max(0,Math.sin(row*1.7-seconds*1.3)));w.stroke();
-      }
-    }
-    w.globalAlpha=1;w.globalCompositeOperation='destination-in';w.drawImage(this.assets.water,0,0,WIDTH,HEIGHT);w.globalCompositeOperation='source-over';
-    c.setTransform(1,0,0,1,0,0);c.drawImage(this.water,0,0);
+    c.drawImage(this.water,0,0);
     }
     // Feathered valley mist, driven by the same light; no per-frame blur filters.
     this.coordinates(c);const mist=c.createLinearGradient(0,HEIGHT*.56,0,HEIGHT*.78);

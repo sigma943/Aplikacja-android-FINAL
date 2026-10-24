@@ -3,14 +3,8 @@ const load=require('./load-ts.cjs');
 const a=load('lib/landscape-astronomy.ts'),r=load('lib/landscape-renderer.ts');
 const place=a.DEFAULT_LANDSCAPE_LOCATION;
 const at=iso=>a.astronomyAt(Date.parse(iso),place);
-test('water crests move gently and clouds drift steadily across the seamless tile',()=>{
- const values=[];
- for(const y of [1350,1600,2000])for(let x=0;x<1000;x+=71){
-  const first=r.waterWave(x,y,0),later=r.waterWave(x,y,2);
-  assert.ok(Math.abs(first)<14&&Math.abs(later)<14,'wave displacement remains bounded');values.push(Math.abs(first-later));
- }
- assert.ok(values.some(value=>value>.5),'crests move rather than drawing static full-width lines');
- assert.ok(r.cloudOffset(3)-r.cloudOffset(0)>=12,'cloud movement is visible within seconds');
+test('clouds continue their original steady drift',()=>{
+ assert.ok(r.cloudOffset(3)-r.cloudOffset(0)>=12);
  assert.ok(Math.abs(r.cloudOffset(61)-r.cloudOffset(60))<=12);
 });
 test('power policy keeps a live world in saver mode and recovers from one expensive frame',()=>{

@@ -14,7 +14,7 @@ const PowerPolicy=registerPlugin<{
   getStatus():Promise<{limited:boolean;critical?:boolean}>;
   addListener(event:'powerPolicy',callback:(state:{limited:boolean;critical?:boolean})=>void):Promise<PluginListenerHandle>;
 }>('LandscapePowerPolicy');
-type Preview={iso?:string;rate?:number};
+type Preview={iso?:string;rate?:number;quality?:WaterQuality};
 type DebugWindow=Window&{__landscapeCapture?:()=>HTMLCanvasElement;__landscapePreview?:(value:Preview)=>void;__landscapeDiagnostics?:()=>unknown;__landscapeTestPower?:(limited:boolean,critical?:boolean)=>void};
 
 /** This component owns its draw loop. Astronomy never updates application React state. */
@@ -90,7 +90,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       lastWall=wall;lastMono=mono;
       if(samples){
         const start=performance.now(),state=interpolateAstronomy(samples.a,samples.b,now());
-        renderer.quality=limited||slow||motionPolicy.reason==='light-effects'?'low':quality;
+        renderer.quality=preview.quality??(limited||slow||motionPolicy.reason==='light-effects'?'low':quality);
         renderer.render(state,mono/1000,motionPolicy.animate);
         if(mono-lastGlass>=250&&renderer.lighting){
           lastGlass=mono;updatePalette(state);
@@ -98,12 +98,12 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
         paintWindows(mono);
         const cost=performance.now()-start;frames++;fpsFrames++;if(mono-fpsStart>=1000){
           actualFps=fpsFrames*1000/(mono-fpsStart);fpsFrames=0;fpsStart=mono;
-          if(motionPolicy.reason==='active'&&frames>20){
+          if(motionPolicy.reason==='active'&&!preview.quality&&frames>20){
             slowWindows=actualFps<WATER_QUALITY[renderer.quality].fps*.72?slowWindows+1:Math.max(0,slowWindows-1);
             if(slowWindows>=2&&mono-lastQualityChange>2000){quality=quality==='high'?'medium':'low';slow=quality==='low';lastQualityChange=mono;slowWindows=0;}
           }
         }totalMs+=cost;maxMs=Math.max(maxMs,cost);
-        if(frames>10&&motionPolicy.reason==='active'){
+        if(frames>10&&motionPolicy.reason==='active'&&!preview.quality){
           frameCost=landscapeFrameBudget(frameCost,cost);
           const budget=1000/WATER_QUALITY[renderer.quality].fps;
           // Include late timer delivery: asynchronous GPU pressure may not show in JS draw cost.
