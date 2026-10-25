@@ -152,7 +152,7 @@ export class LandscapeWaterGPU {
     this.configure(p,light,frame,quality,w,h,width,height,pass===0||pass===3||pass===4);
     if(pass===4){gl.uniform1f(this.uniform(p,'uMirror'),1);gl.uniform1f(this.uniform(p,'uSceneHdr'),1);this.solid!.draw(this.uniform(p,'uTree'));gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,this.targets[3].texture);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);this.reflectionUpdates++;}
     else if(pass===0){gl.bindVertexArray(this.vao);gl.drawElements(gl.TRIANGLES,this.indices,gl.UNSIGNED_SHORT,0);gl.bindVertexArray(null);}
-    else {gl.drawArrays(gl.TRIANGLES,0,3);if(pass===3&&this.solid){const mesh=this.programs[4];gl.useProgram(mesh.program);this.configure(mesh,light,frame,quality,w,h,width,height,true);gl.uniform1f(this.uniform(mesh,'uMirror'),0);gl.uniform1f(this.uniform(mesh,'uSceneHdr'),0);this.solid.draw(this.uniform(mesh,'uTree'));}}
+    else {gl.drawArrays(gl.TRIANGLES,0,3);if(pass===3&&this.solid){const mesh=this.programs[4];gl.useProgram(mesh.program);this.configure(mesh,light,frame,quality,w,h,width,height,true);gl.uniform1f(this.uniform(mesh,'uMirror'),0);gl.uniform1f(this.uniform(mesh,'uSceneHdr'),0);this.solid.draw(this.uniform(mesh,'uTree'),true);}}
    }
    if(relight){this.terrainKey=materialKey;this.lastTerrainUpdate=wall;previous[0]=light.sky.day;previous[1]=light.sky.twilight;previous[2]=light.sun.intensity;previous[3]=light.moon.intensity;previous[4]=light.sun.x;previous[5]=light.sun.altitude;previous[6]=light.moon.x;previous[7]=light.moon.altitude;this.terrainRelights++;}
    if(timing&&this.timer){gl.endQuery(this.timer.TIME_ELAPSED_EXT);this.pendingQuery=true;}

@@ -15,6 +15,7 @@ def newbuffer(target,values,dtype):
 
 vao=ui();function('glGenVertexArrays',None,integer,C.POINTER(ui))(1,C.byref(vao));function('glBindVertexArray',None,ui)(vao.value)
 newbuffer(0x8892,scene['positions'],np.float32);function('glEnableVertexAttribArray',None,ui)(0);function('glVertexAttribPointer',None,ui,integer,ui,C.c_ubyte,integer,ptr)(0,3,0x1406,0,0,None);newbuffer(0x8893,scene['indices'],np.uint32)
+newbuffer(0x8892,scene['normals'],np.float32);function('glEnableVertexAttribArray',None,ui)(1);function('glVertexAttribPointer',None,ui,integer,ui,C.c_ubyte,integer,ptr)(1,3,0x1406,0,0,None)
 tex=ui();function('glGenTextures',None,integer,C.POINTER(ui))(1,C.byref(tex));function('glActiveTexture',None,ui)(0x84C0+11);function('glBindTexture',None,ui,ui)(0x0DE1,tex.value)
 for key,value in [(0x2801,0x2600),(0x2800,0x2600),(0x2802,0x812F),(0x2803,0x812F)]:param(0x0DE1,key,value)
 heights=np.array(scene['heights'],dtype=np.float32);function('glTexImage2D',None,ui,integer,integer,integer,integer,integer,ui,ui,ptr)(0x0DE1,0,0x822E,97,129,0,0x1903,0x1406,heights.ctypes.data)

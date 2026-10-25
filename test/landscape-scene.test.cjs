@@ -13,7 +13,8 @@ test('terrain is a closed volumetric mesh with a river bed, ridges and hidden ba
   volume+=(ax*(by*cz-bz*cy)+ay*(bz*cx-bx*cz)+az*(bx*cy-by*cx))/6;
  }
  assert.ok([...edges.values()].every(n=>n===2),'every edge belongs to exactly two faces');assert.ok(volume>10000,'consistent winding encloses positive volume');
- assert.ok([...p].every(Number.isFinite));
+ assert.ok([...p].every(Number.isFinite));assert.equal(scene.normals.length,p.length);
+ for(let i=0;i<scene.normals.length;i+=3)assert.ok(Math.abs(Math.hypot(...scene.normals.slice(i,i+3))-1)<.0001);
  const middle=Math.floor(SCENE_GRID.columns/2),stride=SCENE_GRID.columns+1;
  assert.ok(scene.heights[115*stride+middle]<scene.heights[88*stride+middle],'the far side descends behind the ridge');
 });

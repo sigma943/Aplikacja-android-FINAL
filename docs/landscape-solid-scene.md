@@ -16,7 +16,10 @@ walls are checked for manifold edges and positive signed volume.
 
 704 conifers use a shared mesh of four six-sided whorls and true three-dimensional
 instance positions/scales. This is an instanced draw, not 704 renderers or React
-components. Main-view photographic detail uses projective albedo mapping; the
+components. Main-view photographic detail uses exact camera-registered albedo sampling and
+area-weighted smooth vertex normals; the mirror uses world-projective materials.
+The geometry fades into the retained soft photographic foreground, so blurred
+leaves are not overwritten by hard-edged terrain/trees; the
 foreground foliage and sky retain their existing artwork. The scene is authored
 for the fixed panoramic camera, not for arbitrary close-up exploration. Unseen
 materials and tree forms are approximations and need artistic refinement if a
@@ -58,7 +61,7 @@ The stationary scene and its mirror are cached with the existing quantized
 lighting key. Wave time does not redraw them. Ordinary animation remains three
 draws; a material/mirror refresh uses eight draws. The mirror uses the same
 360k/210k/80k maximum pixel budgets as water. The mirror mip chain is rebuilt only on a cached scene refresh. Static geometry is uploaded once.
-The scene adds about 1 MB of mesh data and at most approximately 9 MB of colour
+The scene adds about 1.3 MB of mesh data and at most approximately 9 MB of colour
 and depth targets at the existing caps, depending on HDR and presentation size.
 
 No React animation state is added. Quality adaptation, background/native pause,

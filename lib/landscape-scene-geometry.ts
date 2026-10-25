@@ -5,7 +5,7 @@ import skyline from './landscape-horizon.json';
  * The river footprint registers the sculpture to the existing photographic art.
  * Hidden slopes are deliberately authored, not claimed to be recovered from a photo. */
 export const SCENE_GRID={columns:96,rows:128,near:2.2,far:1100,span:1.65};
-export type SceneGeometry={positions:Float32Array;indices:Uint32Array;heights:Float32Array;trees:Float32Array;treePositions:Float32Array;treeNormals:Float32Array};
+export type SceneGeometry={positions:Float32Array;normals:Float32Array;indices:Uint32Array;heights:Float32Array;trees:Float32Array;treePositions:Float32Array;treeNormals:Float32Array};
 const mix=(a:number,b:number,t:number)=>a+(b-a)*t;
 const smooth=(a:number,b:number,x:number)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
 const random=(i:number)=>{const n=Math.sin(i*127.1+78.233)*43758.5453;return n-Math.floor(n);};
@@ -37,6 +37,9 @@ export function buildLandscapeScene(mask:Uint8Array|Uint8ClampedArray,width:numb
  const wall=(a:number,b:number)=>{face(b,a,a+n);face(b,a+n,b+n);};
  for(let c=0;c<columns;c++){wall(c+1,c);wall(rows*(columns+1)+c,rows*(columns+1)+c+1);}
  for(let r=0;r<rows;r++){wall(r*(columns+1),(r+1)*(columns+1));wall((r+1)*(columns+1)+columns,r*(columns+1)+columns);}
+ const normals=new Float32Array(positions.length);
+ for(let i=0;i<triangles.length;i+=3){const a=triangles[i]*3,b=triangles[i+1]*3,c=triangles[i+2]*3,ux=positions[b]-positions[a],uy=positions[b+1]-positions[a+1],uz=positions[b+2]-positions[a+2],vx=positions[c]-positions[a],vy=positions[c+1]-positions[a+1],vz=positions[c+2]-positions[a+2];const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;for(const j of [a,b,c]){normals[j]+=nx;normals[j+1]+=ny;normals[j+2]+=nz;}}
+ for(let i=0;i<normals.length;i+=3){const n=Math.hypot(normals[i],normals[i+1],normals[i+2])||1;normals[i]/=n;normals[i+1]/=n;normals[i+2]/=n;}
  const trees:number[]=[];
  for(let i=0;i<2000;i++){
   const col=2+Math.floor(random(i+1)*(columns-4)),row=5+Math.floor(random(i+5000)*Math.floor(rows*.68)),j=row*(columns+1)+col;
@@ -55,5 +58,5 @@ export function buildLandscapeScene(mask:Uint8Array|Uint8ClampedArray,width:numb
   treePositions.push(0,bottom,0,Math.cos(a)*radius,bottom,Math.sin(a)*radius,Math.cos(b)*radius,bottom,Math.sin(b)*radius);
   for(let k=0;k<3;k++)treeNormals.push(0,-1,0);
  }
- return {positions,indices:new Uint32Array(triangles),heights,trees:new Float32Array(trees),treePositions:new Float32Array(treePositions),treeNormals:new Float32Array(treeNormals)};
+ return {positions,normals,indices:new Uint32Array(triangles),heights,trees:new Float32Array(trees),treePositions:new Float32Array(treePositions),treeNormals:new Float32Array(treeNormals)};
 }

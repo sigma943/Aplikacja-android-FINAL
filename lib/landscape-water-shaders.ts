@@ -415,6 +415,9 @@ void main(){
 export const SCENE_FRAGMENT=`#version 300 es
 precision highp float;
 uniform sampler2D uTerrain;
+uniform vec2 uResolution;
+uniform vec4 uFrame;
+uniform vec3 uCameraOffset;
 uniform float uTree;
 uniform float uDebug;
 uniform float uMirror;
@@ -438,11 +441,15 @@ ${optics}
 ${solidScene}
 void main(){
  if(uMirror>.5&&vWorld.y<.015)discard;
- vec2 uv=projectWater(vWorld);vec4 art=texture(uTerrain,uv);
+ vec2 uv=projectWater(vWorld);
+ // Exact inverse image coordinates avoid triangulation seams in the fixed
+ // main camera. The mirror keeps projective world-material coordinates.
+ if(uMirror<.5&&dot(uCameraOffset,uCameraOffset)<.001)uv=(vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y)-uFrame.zw)/uFrame.xy;
+ vec4 art=texture(uTerrain,uv);
  if(uDebug<.5&&uMirror<.5&&(art.a<.03||any(lessThan(uv,vec2(0.)))||any(greaterThan(uv,vec2(1.)))))discard;
  vec3 albedo=pow(art.rgb,vec3(2.2));
  if(art.a<.03)albedo=vec3(.035,.068,.037);
- vec3 n=normalize(cross(dFdy(vWorld),dFdx(vWorld)));if(n.y<0.)n=-n;
+ vec3 n=normalize(vNormal);if(uTree<.5&&n.y<0.)n=-n;
  if(uDebug>.5){fragColor=vec4(n*.5+.5,1.);return;}
  if(uTree>.5){n=normalize(vNormal);albedo=mix(albedo,vec3(.018,.055,.025),.55);}
  vec3 ambient=mix(vec3(.018,.028,.065),vec3(.55,.65,.82),uDay);
@@ -453,5 +460,5 @@ void main(){
  float haze=1.-exp(-length(vWorld.xz)*(.0008+.002*uWarm));
  vec3 air=mix(vec3(.005,.013,.035),vec3(.36,.49,.62),uDay);air=mix(air,vec3(.65,.28,.18),uWarm*.7);
  radiance=mix(radiance,air,haze*.6);
- fragColor=vec4(uSceneHdr>.5?radiance:displayColor(radiance),1.);
+ fragColor=vec4(uSceneHdr>.5?radiance:displayColor(radiance),uMirror>.5?1.:1.-smoothstep(.70,.82,uv.y));
 }`;
