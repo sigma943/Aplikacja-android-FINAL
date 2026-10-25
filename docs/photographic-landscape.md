@@ -43,11 +43,13 @@ so the world normals do not jump along a horizontal shell/plane boundary.
 
 ## Natural wave direction
 
-The medium and micro-wave bands use a common directional wind spectrum with
-spread instead of mutually crossing wave trains. Analytic crosswind phase
+The medium and micro-wave bands use a directional wind spectrum with
+spread and weaker crosswind components instead of an interference grid. Analytic crosswind phase
 sidebands bend the wave crests; their derivatives are included in the surface
 normal. Dispersion, packet envelopes, spatial/temporal filtering and the existing
 GGX/Fresnel lighting remain shared across qualities and celestial sources.
+Stronger independent packet/phase modulation breaks the long regular crests;
+reduced direct-source exposure preserves more highlight shape and colour.
 This removes the pronounced diamond/grid appearance without a reflection texture.
 
 ## Deferred terrain material

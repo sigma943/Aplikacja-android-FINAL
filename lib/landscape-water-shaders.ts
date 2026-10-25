@@ -29,15 +29,15 @@ void addWave(vec2 rest,float time,vec2 pixelDx,vec2 pixelDy,float dt,float bank,
  // long parallel fronts. Different frequencies never share an artificial pulse.
  float group=k*.19*dot(d,rest)-omega*.095*time+groupSeed;
  float lateral=k*.23*dot(crosswind,rest)+seed;
- float envelope=.72+.20*sin(group)+.08*sin(lateral);
- vec2 ampGradient=amp*(.038*k*cos(group)*d+.0184*k*cos(lateral)*crosswind);
+ float envelope=.60+.28*sin(group)+.12*sin(lateral);
+ vec2 ampGradient=amp*(.0532*k*cos(group)*d+.0276*k*cos(lateral)*crosswind);
  amp*=envelope;
  // Low-frequency crosswind sidebands bend the crests and break up parallel
  // interference grids. Different packets retain their own dispersive speed.
  float bend=k*.31*dot(crosswind,rest)-omega*.13*time+groupSeed;
  float bend2=k*.17*dot(d,rest)-omega*.07*time+seed;
- float phase=k*dot(d,rest)-omega*time+seed+.65*sin(bend)+.28*sin(bend2);
- vec2 gradient=k*d+.2015*k*cos(bend)*crosswind+.0476*k*cos(bend2)*d;
+ float phase=k*dot(d,rest)-omega*time+seed+2.1*sin(bend)+.65*sin(bend2);
+ vec2 gradient=k*d+.651*k*cos(bend)*crosswind+.1105*k*cos(bend2)*d;
  float footprint=abs(dot(gradient,pixelDx))+abs(dot(gradient,pixelDy));
  float attenuation=(1.-smoothstep(1.2,3.14,footprint))*(1.-smoothstep(1.2,3.14,omega*dt));
  variance+=.5*slope*slope*(1.-attenuation*attenuation);
@@ -210,8 +210,8 @@ void main(){
  // Keep midday highlights restrained; preserve warm detail around the sunset
  // core instead of clipping entire wave fronts to tone-mapped white.
  float solarExposure=mix(.15,1.,1.-smoothstep(.08,.45,uSunAltitude));
- if(uSunAltitude>0.&&uSunIntensity>.00001)radiance+=evaluateDisc(n,v,lightDirection(uSunPosition,uSunAltitude),uSunColor*uSunIntensity*22.*solarExposure,alpha,uQuality,.009);
- if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(n,v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*3.2,alpha,uQuality,.008);
+ if(uSunAltitude>0.&&uSunIntensity>.00001)radiance+=evaluateDisc(n,v,lightDirection(uSunPosition,uSunAltitude),uSunColor*uSunIntensity*8.*solarExposure,alpha,uQuality,.009);
+ if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(n,v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*1.2,alpha,uQuality,.008);
  float aerial=perspective.r*.07;
  radiance=mix(radiance,skyRadiance(vec3(0.,.06,1.))*.08,aerial);
  // Relative exposure is continuous through the existing solar state.
