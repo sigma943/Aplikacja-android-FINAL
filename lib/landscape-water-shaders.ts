@@ -85,12 +85,16 @@ uniform float uScene3D;
 float solidHeight(vec2 p){
  float r=length(p);vec2 uv=vec2(.5+atan(p.x,p.y)/${SCENE_GRID.span.toFixed(8)},log(max(r,.001)/${SCENE_GRID.near.toFixed(8)})/${Math.log(SCENE_GRID.far/SCENE_GRID.near).toFixed(10)});
  if(any(lessThan(uv,vec2(0.)))||any(greaterThan(uv,vec2(1.))))return -8.;
- return textureLod(uSceneHeight,uv,0.).r;
+ vec2 grid=uv*vec2(textureSize(uSceneHeight,0)-1);ivec2 a=ivec2(floor(grid)),last=textureSize(uSceneHeight,0)-1;vec2 f=fract(grid);
+ float h00=texelFetch(uSceneHeight,clamp(a,ivec2(0),last),0).r,h10=texelFetch(uSceneHeight,clamp(a+ivec2(1,0),ivec2(0),last),0).r;
+ float h01=texelFetch(uSceneHeight,clamp(a+ivec2(0,1),ivec2(0),last),0).r,h11=texelFetch(uSceneHeight,clamp(a+1,ivec2(0),last),0).r;
+ return mix(mix(h00,h10,f.x),mix(h01,h11,f.x),f.y);
 }
 float solidShadow(vec3 p,vec3 direction,int count){
  if(uScene3D<.5||direction.y<=0.)return 1.;
- for(int i=0;i<4;i++){if(i>=count)break;float t=1.5*exp2(float(i)*1.9);vec3 q=p+direction*t;if(q.y<solidHeight(q.xz)-.10)return .12;}
- return 1.;
+ float visibility=1.;
+ for(int i=0;i<4;i++){if(i>=count)break;float t=1.5*exp2(float(i)*1.9);vec3 q=p+direction*t;visibility=min(visibility,mix(.12,1.,smoothstep(-.18,.35,q.y-solidHeight(q.xz))));}
+ return visibility;
 }
 `;
 /** One-bounce screen-space ray tracing against an explicitly approximate depth
@@ -201,7 +205,7 @@ vec3 skyRadiance(vec3 direction){
  sky=mix(sky,cloudLit,cloudAlpha);
  return sky;
 }
-vec3 tracedRadiance(vec3 origin,vec3 direction){
+vec3 tracedRadiance(vec3 origin,vec3 direction,float roughness){
  vec3 sky=skyRadiance(direction);
  if(uScene3D>.5){
   // Virtual objects are mirrored about Y=0. The reflected ray samples a
@@ -210,7 +214,9 @@ vec3 tracedRadiance(vec3 origin,vec3 direction){
   vec2 screen=uv*uFrame.xy+uFrame.zw;
   vec2 sampleUV=vec2(screen.x/uResolution.x,1.-screen.y/uResolution.y);
   if(any(lessThan(sampleUV,vec2(0.)))||any(greaterThan(sampleUV,vec2(1.))))return sky;
-  vec4 reflected=texture(uPlanar,sampleUV);return mix(sky,reflected.rgb,reflected.a);
+  vec2 dx=dFdx(sampleUV)*vec2(textureSize(uPlanar,0)),dy=dFdy(sampleUV)*vec2(textureSize(uPlanar,0));
+  float lod=max(.8+roughness*8.,.5*log2(max(1.,max(dot(dx,dx),dot(dy,dy)))));
+  vec4 reflected=textureLod(uPlanar,sampleUV,lod);return mix(sky,reflected.rgb,reflected.a);
  }
  if(uSceneEnabled<.5||uQuality<.5)return sky;
  vec2 hit;float weight=traceScene(origin,direction,uQuality>1.5?12:6,hit);
@@ -232,7 +238,7 @@ void main(){
  // Unresolved spatial/temporal slopes broaden the microfacet lobe instead of flickering.
  float alpha=sqrt(pow(roughness,4.)+variance*.035+.000022);
  float NoV=abs(dot(n,v))+.001;vec3 F=fresnelSchlick(NoV),r=reflect(-v,n);
- vec3 reflectedSky=tracedRadiance(position+n*.04,r)*F;
+ vec3 reflectedSky=tracedRadiance(position+n*.04,r,roughness)*F;
  // Water absorbs light; sunset colour belongs to reflected sky/light, never
  // an emissive red fill. This remains blue-black when direct sources vanish.
  vec3 body=mix(vec3(.0005,.0015,.004),vec3(.003,.022,.035),uDay);

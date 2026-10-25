@@ -150,7 +150,7 @@ export class LandscapeWaterGPU {
     const p=this.programs[pass],target=pass===4?this.targets[3]:pass===3?this.targets[2]:pass<2?this.targets[pass]:null,w=target?.width??this.canvas.width,h=target?.height??this.canvas.height;
     gl.bindFramebuffer(gl.FRAMEBUFFER,target?.framebuffer??null);gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clearDepth(1);gl.clear(gl.COLOR_BUFFER_BIT|(target?.depth?gl.DEPTH_BUFFER_BIT:0));gl.useProgram(p.program);
     this.configure(p,light,frame,quality,w,h,width,height,pass===0||pass===3||pass===4);
-    if(pass===4){gl.uniform1f(this.uniform(p,'uMirror'),1);gl.uniform1f(this.uniform(p,'uSceneHdr'),1);this.solid!.draw(this.uniform(p,'uTree'));this.reflectionUpdates++;}
+    if(pass===4){gl.uniform1f(this.uniform(p,'uMirror'),1);gl.uniform1f(this.uniform(p,'uSceneHdr'),1);this.solid!.draw(this.uniform(p,'uTree'));gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,this.targets[3].texture);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);this.reflectionUpdates++;}
     else if(pass===0){gl.bindVertexArray(this.vao);gl.drawElements(gl.TRIANGLES,this.indices,gl.UNSIGNED_SHORT,0);gl.bindVertexArray(null);}
     else {gl.drawArrays(gl.TRIANGLES,0,3);if(pass===3&&this.solid){const mesh=this.programs[4];gl.useProgram(mesh.program);this.configure(mesh,light,frame,quality,w,h,width,height,true);gl.uniform1f(this.uniform(mesh,'uMirror'),0);gl.uniform1f(this.uniform(mesh,'uSceneHdr'),0);this.solid.draw(this.uniform(mesh,'uTree'));}}
    }

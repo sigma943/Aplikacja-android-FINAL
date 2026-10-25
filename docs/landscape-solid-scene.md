@@ -38,10 +38,12 @@ near banks occlude distant slopes in the reflected view. Reflection colour is
 linear radiance, HDR where the existing extension permits it.
 
 The water shader projects its wave-reflected view ray into this mirror texture,
-mixes missing/out-of-frame data with atmospheric radiance, and applies the
+uses footprint/roughness-filtered mip levels, mixes missing/out-of-frame data
+with atmospheric radiance, and applies the
 existing Fresnel/GGX/ACES model. It no longer relies on screen-space depth hits
 when the solid scene is available. Terrain, water and volumetric-light queries
-share the authored heightfield for direct-light shadow tests. Tree geometry is
+share the authored heightfield with bilinear sampling and softened visibility
+for direct-light shadow tests. Tree geometry is
 present in the mirror; the inexpensive heightfield shadows approximate terrain
 occlusion, rather than claiming per-branch shadow accuracy.
 
@@ -55,8 +57,8 @@ tracing. It does not require a new graphics engine or npm dependency.
 The stationary scene and its mirror are cached with the existing quantized
 lighting key. Wave time does not redraw them. Ordinary animation remains three
 draws; a material/mirror refresh uses eight draws. The mirror uses the same
-360k/210k/80k maximum pixel budgets as water. Static geometry is uploaded once.
-The scene adds about 1 MB of mesh data and at most approximately 8 MB of colour
+360k/210k/80k maximum pixel budgets as water. The mirror mip chain is rebuilt only on a cached scene refresh. Static geometry is uploaded once.
+The scene adds about 1 MB of mesh data and at most approximately 9 MB of colour
 and depth targets at the existing caps, depending on HDR and presentation size.
 
 No React animation state is added. Quality adaptation, background/native pause,
