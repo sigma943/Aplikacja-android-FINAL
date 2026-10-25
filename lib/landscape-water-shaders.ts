@@ -32,8 +32,12 @@ void addWave(vec2 rest,float time,vec2 pixelDx,vec2 pixelDy,float dt,float bank,
  float envelope=.72+.20*sin(group)+.08*sin(lateral);
  vec2 ampGradient=amp*(.038*k*cos(group)*d+.0184*k*cos(lateral)*crosswind);
  amp*=envelope;
- float phase=k*dot(d,rest)-omega*time+seed;
- vec2 gradient=k*d;
+ // Low-frequency crosswind sidebands bend the crests and break up parallel
+ // interference grids. Different packets retain their own dispersive speed.
+ float bend=k*.31*dot(crosswind,rest)-omega*.13*time+groupSeed;
+ float bend2=k*.17*dot(d,rest)-omega*.07*time+seed;
+ float phase=k*dot(d,rest)-omega*time+seed+.65*sin(bend)+.28*sin(bend2);
+ vec2 gradient=k*d+.2015*k*cos(bend)*crosswind+.0476*k*cos(bend2)*d;
  float footprint=abs(dot(gradient,pixelDx))+abs(dot(gradient,pixelDy));
  float attenuation=(1.-smoothstep(1.2,3.14,footprint))*(1.-smoothstep(1.2,3.14,omega*dt));
  variance+=.5*slope*slope*(1.-attenuation*attenuation);

@@ -41,6 +41,15 @@ tree geometry is inferred. The source artwork also contains baked soft shading.
 The far shell and raised near surface use a positive smooth-minimum depth join,
 so the world normals do not jump along a horizontal shell/plane boundary.
 
+## Natural wave direction
+
+The medium and micro-wave bands use a common directional wind spectrum with
+spread instead of mutually crossing wave trains. Analytic crosswind phase
+sidebands bend the wave crests; their derivatives are included in the surface
+normal. Dispersion, packet envelopes, spatial/temporal filtering and the existing
+GGX/Fresnel lighting remain shared across qualities and celestial sources.
+This removes the pronounced diamond/grid appearance without a reflection texture.
+
 ## Deferred terrain material
 
 The existing WebGL2 context adds a cached terrain-lighting pass. It evaluates
