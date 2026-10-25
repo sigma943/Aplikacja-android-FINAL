@@ -200,8 +200,8 @@ test('both bodies rise vertically at their actual apparent horizon and stay insi
   for(let h=0;h<24;h++){const body=a.astronomyAt(ms+h*3600000,place)[kind];if(a.apparentLandscapeAltitude(body,kind)>0){const p=a.projectCelestial(body,kind);assert.equal(p.x,.5);assert.ok(p.y>.06);}}
  }
 });
-test('cloud thinning creates soft openings and roughly a quarter less coverage',()=>{
- const {cloudDensity}=load('lib/landscape-clouds.ts');let sum=0,open=0;
- for(let y=0;y<50;y++)for(let x=0;x<100;x++){const n=cloudDensity(x/100,y/100);assert.ok(n>=0&&n<=1);sum+=n;if(n<.2)open++;}
- assert.ok(sum/5000>.65&&sum/5000<.8);assert.ok(open>200);
+test('cloud thinning preserves silhouettes with roughly a quarter less coverage',()=>{
+ const {cloudDensity}=load('lib/landscape-clouds.ts');let sum=0,min=1,max=0;
+ for(let y=0;y<50;y++)for(let x=0;x<100;x++){const n=cloudDensity(x/100,y/100);assert.ok(n>=0&&n<=1);sum+=n;min=Math.min(min,n);max=Math.max(max,n);}
+ assert.ok(sum/5000>.70&&sum/5000<.8);assert.ok(min>=.66&&max<=.84,'never carve a new edge through a cloud');assert.ok(max-min>.1);
 });
