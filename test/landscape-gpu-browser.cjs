@@ -10,8 +10,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader']});
   const page=await browser.newPage();await page.goto('http://127.0.0.1:'+server.address().port);
   const transpile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
-  const shaders=transpile('lib/landscape-water-shaders.ts'),gpuSource=transpile('lib/landscape-water-gpu.ts'),calibration=fs.readFileSync('lib/landscape-water-calibration.json','utf8'),spectrum=fs.readFileSync('lib/landscape-water-spectrum.json','utf8');
-  await page.addScriptTag({content:`(()=>{const calibration=${calibration};const spectrum=${spectrum};const shaders={};const requireShader=name=>{if(name.includes('calibration'))return calibration;if(name.includes('spectrum'))return spectrum;throw Error(name);};((exports,require)=>{${shaders}})(shaders,requireShader);const output={};const require=name=>name.includes('shaders')?shaders:calibration;((exports,require)=>{${gpuSource}})(output,require);window.WaterGPU=output.LandscapeWaterGPU;})();`});
+  const files=['landscape-scene-geometry','landscape-scene-gpu','landscape-water-shaders','landscape-water-gpu'];
+  const modules=Object.fromEntries(files.map(f=>['./'+f,transpile('lib/'+f+'.ts')]));
+  const data=Object.fromEntries(['landscape-water-calibration','landscape-water-spectrum','landscape-horizon'].map(f=>['./'+f+'.json',JSON.parse(fs.readFileSync('lib/'+f+'.json','utf8'))]));
+  await page.addScriptTag({content:`(()=>{const sources=${JSON.stringify(modules)},data=${JSON.stringify(data)},cache={};function require(name){if(data[name])return data[name];if(cache[name])return cache[name];if(!sources[name])throw Error(name);const out=cache[name]={};new Function('exports','require',sources[name])(out,require);return out;}window.WaterGPU=require('./landscape-water-gpu').LandscapeWaterGPU;})();`});
   const result=await page.evaluate(async()=>{
    const image=name=>new Promise(resolve=>{const i=new Image();i.onload=()=>resolve(i);i.src='/'+name;});
    const gpu=window.gpu=new window.WaterGPU();gpu.setAssets({water:await image('water-mask.png'),terrain:await image('terrain.webp'),geometry:await image('water-uv.png'),perspective:await image('water-perspective.png'),clouds:await image('clouds.webp'),sceneDepth:await image('scene-depth.png'),terrainNormal:await image('terrain-normal.png')});
@@ -25,7 +27,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    window.gpuFrame=frame;window.gpuLight=light;window.gpuCopy=copy;window.gpuLossExtension=extension;
    return {ok,changed,opaque,skyAlpha,skyPixels,error,diagnostics:gpu.diagnostics(),canLose:!!extension};
   });
-  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.ok(result.skyAlpha<result.skyPixels*255*.08,'god rays remain a subtle background effect');assert.equal(result.diagnostics.drawCalls,3);assert.ok(result.diagnostics.vertices>3000);assert.ok(result.diagnostics.pixels<=360000);
+  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.ok(result.skyAlpha<result.skyPixels*255*.08,'god rays remain a subtle background effect');assert.equal(result.diagnostics.drawCalls,3);assert.equal(result.diagnostics.scene3D,true);assert.ok(result.diagnostics.sceneVertices>20000);assert.ok(result.diagnostics.treeInstances>100);assert.ok(result.diagnostics.reflectionUpdates>0);assert.ok(result.diagnostics.vertices>3000);assert.ok(result.diagnostics.pixels<=360000);
   const material=await page.evaluate(()=>{
    const gpu=window.gpu,light=window.gpuLight,gl=gpu.canvas.getContext('webgl2');
    const measure=()=>{const t=gpu.targets[2],p=new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,gl.UNSIGNED_BYTE,p);gl.bindFramebuffer(gl.FRAMEBUFFER,null);let sum=0,n=0;for(let i=0;i<p.length;i+=4)if(p[i+3]>240){sum+=p[i]+p[i+1]+p[i+2];n++;}return sum/Math.max(n,1);};
@@ -35,6 +37,19 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    return {before,same,day,night,pixels:gpu.diagnostics().presentationPixels};
   });
   assert.ok(material.before>0);assert.equal(material.same,material.before,'wave time alone never rerenders the terrain material');assert.ok(material.day>material.night*1.15,'the material responds to solar lighting');assert.equal(material.pixels,425*925,'presentation remains sharp independently of water resolution');
+  const spatial=await page.evaluate(()=>{
+   const gpu=window.gpu,light=window.gpuLight,gl=gpu.canvas.getContext('webgl2'),p=gpu.programs[4];
+   const reflection=()=>{const t=gpu.targets[3],pixels=gpu.diagnostics().hdr?new Float32Array(t.width*t.height*4):new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,gpu.diagnostics().hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return pixels;};
+   const before=reflection(),updates=gpu.diagnostics().reflectionUpdates;
+   light.time+=.1;gpu.render(light,window.gpuFrame,'high');const cached=gpu.diagnostics().reflectionUpdates;
+   gl.useProgram(p.program);gl.uniform3f(gl.getUniformLocation(p.program,'uCameraOffset'),7,4,-5);gl.uniform1f(gl.getUniformLocation(p.program,'uDebug'),1);gpu.terrainKey='';gpu.render(light,window.gpuFrame,'high');
+   const after=reflection();let changed=0,covered=0;for(let i=0;i<before.length;i+=4){if(before[i+3]>.5)covered++;if(Math.abs(before[i]-after[i])+Math.abs(before[i+1]-after[i+1])+Math.abs(before[i+2]-after[i+2])>.02)changed++;}
+   const c=document.createElement('canvas');c.width=gpu.canvas.width;c.height=gpu.canvas.height;c.getContext('2d').drawImage(gpu.canvas,0,0);const oblique=c.toDataURL('image/png').split(',')[1];
+   gl.useProgram(p.program);gl.uniform3f(gl.getUniformLocation(p.program,'uCameraOffset'),0,0,0);gl.uniform1f(gl.getUniformLocation(p.program,'uDebug'),0);gpu.terrainKey='';gpu.render(light,window.gpuFrame,'high');
+   return {covered,changed,updates,cached,oblique,error:gl.getError()};
+  });
+  assert.equal(spatial.error,0);assert.ok(spatial.covered>1000,'the mirror target contains actual opaque scene geometry');assert.ok(spatial.changed>1000,'a translated camera produces geometry parallax in the reflection');assert.equal(spatial.cached,spatial.updates,'wave time does not redraw the stationary scene');
+  fs.mkdirSync('test/ui-previews',{recursive:true});fs.writeFileSync('test/ui-previews/landscape-scene-oblique.png',Buffer.from(spatial.oblique,'base64'));
   // Test every pixel against the actual water mask, not a rectangular bounding box.
   const outside=await page.evaluate(async()=>{
    const gpu=window.gpu,c=document.createElement('canvas');c.width=gpu.targets[0].width;c.height=gpu.targets[0].height;

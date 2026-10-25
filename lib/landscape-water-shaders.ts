@@ -1,5 +1,6 @@
 import calibration from './landscape-water-calibration.json';
 import waves from './landscape-water-spectrum.json';
+import {SCENE_GRID} from './landscape-scene-geometry';
 /** GLSL ES 3.00. Relative coplanar reconstruction follows projectCelestial's
  * azimuth/elevation projection; no light corridor, animated texture or glitter mask. */
 const projection=`
@@ -77,9 +78,25 @@ vec3 evaluateDisc(vec3 n,vec3 v,vec3 l,vec3 radiance,float alpha,float quality,f
 vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
 vec3 displayColor(vec3 hdr){return pow(aces(max(hdr,0.)),vec3(1./2.2));}
 `;
+/** The same solid heightfield drives direct-light occlusion and the mesh. */
+const solidScene=`
+uniform sampler2D uSceneHeight;
+uniform float uScene3D;
+float solidHeight(vec2 p){
+ float r=length(p);vec2 uv=vec2(.5+atan(p.x,p.y)/${SCENE_GRID.span.toFixed(8)},log(max(r,.001)/${SCENE_GRID.near.toFixed(8)})/${Math.log(SCENE_GRID.far/SCENE_GRID.near).toFixed(10)});
+ if(any(lessThan(uv,vec2(0.)))||any(greaterThan(uv,vec2(1.))))return -8.;
+ return textureLod(uSceneHeight,uv,0.).r;
+}
+float solidShadow(vec3 p,vec3 direction,int count){
+ if(uScene3D<.5||direction.y<=0.)return 1.;
+ for(int i=0;i<4;i++){if(i>=count)break;float t=1.5*exp2(float(i)*1.9);vec3 q=p+direction*t;if(q.y<solidHeight(q.xz)-.10)return .12;}
+ return 1.;
+}
+`;
 /** One-bounce screen-space ray tracing against an explicitly approximate depth
  * proxy. Offscreen/missing geometry falls back to the atmosphere, not fake hits. */
 const rayScene=`
+${solidScene}
 uniform sampler2D uSceneDepth;
 uniform float uSceneEnabled;
 float sceneRadius(vec4 s){return dot(s.rg,vec2(65280.,255.))/65535.*${calibration.sceneDepthExtent.toFixed(1)};}
@@ -105,6 +122,7 @@ float traceScene(vec3 origin,vec3 direction,int steps,out vec2 hit){
  return 0.;
 }
 float rayShadow(vec3 origin,vec3 direction,int steps){
+ if(uScene3D>.5)return solidShadow(origin,direction,steps);
  for(int i=0;i<4;i++){if(i>=steps)break;vec2 uv;float d;float t=2.*exp2(float(i)*1.7);if(scenePoint(origin+direction*t,uv,d))return .08;}
  return 1.;
 }
@@ -114,6 +132,7 @@ precision highp float;
 layout(location=0) in vec2 aUV;
 uniform sampler2D uGeometry;
 uniform sampler2D uPerspective;
+uniform sampler2D uPlanar;
 uniform vec2 uResolution;
 uniform vec4 uFrame;
 uniform float uTime;
@@ -142,6 +161,7 @@ uniform sampler2D uMask;
 uniform sampler2D uTerrain;
 uniform sampler2D uClouds;
 uniform sampler2D uPerspective;
+uniform sampler2D uPlanar;
 uniform vec2 uResolution;
 uniform vec4 uFrame;
 uniform float uTime;
@@ -182,7 +202,17 @@ vec3 skyRadiance(vec3 direction){
  return sky;
 }
 vec3 tracedRadiance(vec3 origin,vec3 direction){
- vec3 sky=skyRadiance(direction);if(uSceneEnabled<.5||uQuality<.5)return sky;
+ vec3 sky=skyRadiance(direction);
+ if(uScene3D>.5){
+  // Virtual objects are mirrored about Y=0. The reflected ray samples a
+  // second camera render of actual meshes, including occluded back slopes.
+  vec2 uv=vec2(.5+atan(direction.x,direction.z)/AZ_SPAN,HORIZON+asin(clamp(direction.y,-1.,1.))/(PI*.5)*ALT_SPAN);
+  vec2 screen=uv*uFrame.xy+uFrame.zw;
+  vec2 sampleUV=vec2(screen.x/uResolution.x,1.-screen.y/uResolution.y);
+  if(any(lessThan(sampleUV,vec2(0.)))||any(greaterThan(sampleUV,vec2(1.))))return sky;
+  vec4 reflected=texture(uPlanar,sampleUV);return mix(sky,reflected.rgb,reflected.a);
+ }
+ if(uSceneEnabled<.5||uQuality<.5)return sky;
  vec2 hit;float weight=traceScene(origin,direction,uQuality>1.5?12:6,hit);
  vec3 terrain=pow(textureLod(uTerrain,hit,0.).rgb,vec3(2.2));
  vec3 tint=mix(vec3(.025,.045,.09),vec3(.6,.75,.85),uDay);
@@ -210,8 +240,8 @@ void main(){
  // Keep midday highlights restrained; preserve warm detail around the sunset
  // core instead of clipping entire wave fronts to tone-mapped white.
  float solarExposure=mix(.15,1.,1.-smoothstep(.08,.45,uSunAltitude));
- if(uSunAltitude>0.&&uSunIntensity>.00001)radiance+=evaluateDisc(n,v,lightDirection(uSunPosition,uSunAltitude),uSunColor*uSunIntensity*8.*solarExposure,alpha,uQuality,.009);
- if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(n,v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*1.2,alpha,uQuality,.008);
+ if(uSunAltitude>0.&&uSunIntensity>.00001)radiance+=evaluateDisc(n,v,lightDirection(uSunPosition,uSunAltitude),uSunColor*uSunIntensity*8.*solarExposure*solidShadow(position+n*.04,lightDirection(uSunPosition,uSunAltitude),uQuality>.5?4:2),alpha,uQuality,.009);
+ if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(n,v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*1.2*solidShadow(position+n*.04,lightDirection(uMoonPosition,uMoonAltitude),uQuality>.5?4:2),alpha,uQuality,.008);
  float aerial=perspective.r*.07;
  radiance=mix(radiance,skyRadiance(vec3(0.,.06,1.))*.08,aerial);
  // Relative exposure is continuous through the existing solar state.
@@ -352,4 +382,70 @@ void main(){
  float total=surface+shaftAlpha*(1.-surface);
  vec3 premult=(color*alpha+terrain.rgb*terrain.a)*(1.-shaftAlpha)+clamp(uSunColor,0.,1.)*shaftAlpha;
  fragColor=total>.00001?vec4(premult/total,total):vec4(0.);
+}`;
+
+/** Closed terrain and instanced conifers, rendered twice with real depth tests. */
+export const SCENE_VERTEX=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPosition;
+layout(location=1) in vec3 aNormal;
+layout(location=2) in vec4 aInstance;
+uniform vec2 uResolution;
+uniform vec4 uFrame;
+uniform float uMirror;
+uniform float uTree;
+uniform vec3 uCameraOffset;
+out vec3 vWorld;
+out vec3 vNormal;
+${projection}
+void main(){
+ vWorld=uTree>.5?aPosition*aInstance.w+aInstance.xyz:aPosition;
+ vNormal=aNormal;
+ vec3 p=vWorld;p.y*=1.-2.*uMirror;p-=uCameraOffset;
+ vec2 screen=projectWater(p)*uFrame.xy+uFrame.zw;
+ float distanceToCamera=length(p-vec3(0.,CAMERA_HEIGHT,0.));
+ gl_Position=vec4(screen.x/uResolution.x*2.-1.,1.-screen.y/uResolution.y*2.,distanceToCamera/(distanceToCamera+64.)*2.-1.,1.);
+}`;
+export const SCENE_FRAGMENT=`#version 300 es
+precision highp float;
+uniform sampler2D uTerrain;
+uniform float uTree;
+uniform float uDebug;
+uniform float uMirror;
+uniform float uSceneHdr;
+uniform float uDay;
+uniform float uWarm;
+uniform float uQuality;
+uniform vec2 uSunPosition;
+uniform float uSunAltitude;
+uniform float uSunIntensity;
+uniform vec3 uSunColor;
+uniform vec2 uMoonPosition;
+uniform float uMoonAltitude;
+uniform float uMoonIntensity;
+uniform vec3 uMoonColor;
+in vec3 vWorld;
+in vec3 vNormal;
+out vec4 fragColor;
+${projection}
+${optics}
+${solidScene}
+void main(){
+ if(uMirror>.5&&vWorld.y<.015)discard;
+ vec2 uv=projectWater(vWorld);vec4 art=texture(uTerrain,uv);
+ if(uDebug<.5&&uMirror<.5&&(art.a<.03||any(lessThan(uv,vec2(0.)))||any(greaterThan(uv,vec2(1.)))))discard;
+ vec3 albedo=pow(art.rgb,vec3(2.2));
+ if(art.a<.03)albedo=vec3(.035,.068,.037);
+ vec3 n=normalize(cross(dFdy(vWorld),dFdx(vWorld)));if(n.y<0.)n=-n;
+ if(uDebug>.5){fragColor=vec4(n*.5+.5,1.);return;}
+ if(uTree>.5){n=normalize(vNormal);albedo=mix(albedo,vec3(.018,.055,.025),.55);}
+ vec3 ambient=mix(vec3(.018,.028,.065),vec3(.55,.65,.82),uDay);
+ ambient=mix(ambient,vec3(.40,.20,.30),uWarm*.15)*(.55+.45*max(n.y,0.));
+ vec3 radiance=albedo*ambient;
+ if(uSunAltitude>0.){vec3 l=lightDirection(uSunPosition,uSunAltitude);radiance+=albedo*uSunColor*uSunIntensity*max(dot(n,l),0.)*1.8*solidShadow(vWorld+n*.16,l,uQuality>.5?4:2);}
+ if(uMoonAltitude>0.){vec3 l=lightDirection(uMoonPosition,uMoonAltitude);radiance+=albedo*uMoonColor*uMoonIntensity*max(dot(n,l),0.)*.2*solidShadow(vWorld+n*.16,l,2);}
+ float haze=1.-exp(-length(vWorld.xz)*(.0008+.002*uWarm));
+ vec3 air=mix(vec3(.005,.013,.035),vec3(.36,.49,.62),uDay);air=mix(air,vec3(.65,.28,.18),uWarm*.7);
+ radiance=mix(radiance,air,haze*.6);
+ fragColor=vec4(uSceneHdr>.5?radiance:displayColor(radiance),1.);
 }`;
