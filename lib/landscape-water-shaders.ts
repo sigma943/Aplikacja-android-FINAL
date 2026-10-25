@@ -13,12 +13,13 @@ vec2 projectWater(vec3 p){float az=atan(p.x,p.z);float el=atan(p.y-CAMERA_HEIGHT
 vec2 unprojectWater(vec2 uv){float az=(uv.x-.5)*AZ_SPAN;float down=max(.012,(uv.y-HORIZON)/ALT_SPAN*(PI*.5));float r=CAMERA_HEIGHT/tan(down);return r*vec2(sin(az),cos(az));}
 vec3 lightDirection(vec2 projected,float altitude){float az=(projected.x-.5)*AZ_SPAN;float apparent=clamp((HORIZON-projected.y)/ALT_SPAN*(PI*.5),.001,PI*.5-.005);return vec3(sin(az)*cos(apparent),sin(apparent),cos(az)*cos(apparent));}
 `;
-// direction, wavelength, amplitude; each oscillator has the deep-water dispersion omega=sqrt(g*k).
+// Sheltered river: low swell, short crossed ripples, no dominant ocean-scale wave.
+// direction, wavelength, amplitude; dispersion follows sqrt(g*k) with a cinematic time scale.
 // Emit explicit constant calls. Dynamic indexing of local GLSL arrays can spill
 // large wave tables per fragment on mobile/SwiftShader drivers.
 const number=(v:number)=>Number(v.toPrecision(10)).toString().includes('.')?v.toPrecision(10):v.toFixed(1);
 const energy=(from:number)=>waves.slice(from).reduce((sum,w)=>sum+.5*(2*Math.PI/w[2]*w[3])**2,0);
-const emit=(from:number,to:number)=>waves.slice(from,to).map((w,j)=>`addWave(rest,time,pixelDx,pixelDy,dt,bank,vec2(${number(w[0])},${number(w[1])}),${number(2*Math.PI/w[2])},${number(.65*Math.sqrt(9.81*2*Math.PI/w[2]))},${number(w[3])},${number((from+j)*1.713)},${number((from+j)*3.477)},displacement,tangent,bitangent,variance);`).join('\n');
+const emit=(from:number,to:number)=>waves.slice(from,to).map((w,j)=>`addWave(rest,time,pixelDx,pixelDy,dt,bank,vec2(${number(w[0])},${number(w[1])}),${number(2*Math.PI/w[2])},${number(.48*Math.sqrt(9.81*2*Math.PI/w[2]))},${number(w[3])},${number((from+j)*1.713)},${number((from+j)*3.477)},displacement,tangent,bitangent,variance);`).join('\n');
 const spectrum=`
 void addWave(vec2 rest,float time,vec2 pixelDx,vec2 pixelDy,float dt,float bank,vec2 d,float k,float omega,float amp0,float seed,float groupSeed,
  inout vec3 displacement,inout vec3 tangent,inout vec3 bitangent,inout float variance){
@@ -37,8 +38,8 @@ void addWave(vec2 rest,float time,vec2 pixelDx,vec2 pixelDy,float dt,float bank,
  // interference grids. Different packets retain their own dispersive speed.
  float bend=k*.31*dot(crosswind,rest)-omega*.13*time+groupSeed;
  float bend2=k*.17*dot(d,rest)-omega*.07*time+seed;
- float phase=k*dot(d,rest)-omega*time+seed+2.1*sin(bend)+.65*sin(bend2);
- vec2 gradient=k*d+.651*k*cos(bend)*crosswind+.1105*k*cos(bend2)*d;
+ float phase=k*dot(d,rest)-omega*time+seed+.75*sin(bend)+.35*sin(bend2);
+ vec2 gradient=k*d+.2325*k*cos(bend)*crosswind+.0595*k*cos(bend2)*d;
  float footprint=abs(dot(gradient,pixelDx))+abs(dot(gradient,pixelDy));
  float attenuation=(1.-smoothstep(1.2,3.14,footprint))*(1.-smoothstep(1.2,3.14,omega*dt));
  variance+=.5*slope*slope*(1.-attenuation*attenuation);
