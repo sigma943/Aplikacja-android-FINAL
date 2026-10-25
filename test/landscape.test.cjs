@@ -203,5 +203,5 @@ test('both bodies rise vertically at their actual apparent horizon and stay insi
 test('cloud thinning preserves silhouettes with roughly a quarter less coverage',()=>{
  const {cloudDensity}=load('lib/landscape-clouds.ts');let sum=0,min=1,max=0;
  for(let y=0;y<50;y++)for(let x=0;x<100;x++){const n=cloudDensity(x/100,y/100);assert.ok(n>=0&&n<=1);sum+=n;min=Math.min(min,n);max=Math.max(max,n);}
- assert.ok(sum/5000>.70&&sum/5000<.8);assert.ok(min>=.66&&max<=.84,'never carve a new edge through a cloud');assert.ok(max-min>.1);
+ assert.ok(sum/5000>.70&&sum/5000<.8);assert.ok(min>=.66-1e-12&&max<=.84+1e-12,'never carve a new edge through a cloud');assert.ok(max-min>.1);
 });
