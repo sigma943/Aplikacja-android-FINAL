@@ -177,7 +177,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.click('[data-nav-item="map"]');
   await page.screenshot({path:'test/ui-previews/landscape-map-chrome.png'});
   const nav=await page.$eval('.pks-navigation',e=>({width:e.getBoundingClientRect().width,radius:parseFloat(getComputedStyle(e).borderTopLeftRadius)}));
-  assert.ok(nav.width<393&&nav.radius>=20,'navigation has a rounded floating silhouette');
+  assert.equal(nav.width,393,'navigation keeps the shared full-width layout');assert.equal(nav.radius,0,'navigation keeps the shared square corners');
   await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:20}));window.dispatchEvent(new Event('pks-interface-appearance'));});
   await page.click('[data-nav-item="options"]');await page.waitForSelector('[data-options-sheet]');
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-app-content]')).visibility==='hidden');
