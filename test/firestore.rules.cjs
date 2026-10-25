@@ -504,3 +504,40 @@ test('API reports survive device deduplication and a reinstall cannot overwrite 
   await assertFails(setDoc(doc(other,'api_statistics',id),apiReport('user','user-install',report.stream,100)));
   await env.withSecurityRulesDisabled(async context=>assert.equal((await getDoc(doc(context.firestore(),'devices','prior-api-user'))).exists(),false));
 });
+test('only owner can change journeys restriction; self updates and delegated admins cannot remove it',async()=>{
+ const owner=env.authenticatedContext('owner').firestore(),admin=env.authenticatedContext('admin').firestore(),user=env.authenticatedContext('user').firestore();
+ const restricted=buildDevicePermissions('user',{disableJourneys:true});
+ await assertSucceeds(updateDoc(doc(owner,'devices','user'),{permissions:restricted}));
+ await assertFails(updateDoc(doc(user,'devices','user'),{permissions:buildDevicePermissions('user')}));
+ await assertFails(updateDoc(doc(admin,'devices','user'),{permissions:buildDevicePermissions('user')}));
+ await assertSucceeds(updateDoc(doc(owner,'devices','user'),{permissions:buildDevicePermissions('user')}));
+});
+
+test('an authorised ban editor can change details and mirror the profile without unbanning; users and denied admins cannot',async()=>{
+ const original={reason:'original',expiresAt:'2026-10-20T12:00:00Z',gifUrl:'https://example.com/old.png',bannedAt:'2026-10-17T12:00:00Z',bannedBy:'First admin'};
+ await env.withSecurityRulesDisabled(async context=>{
+  const db=context.firestore();await updateDoc(doc(db,'devices','user'),{status:'banned',banDetails:original});
+  await setDoc(doc(db,'installations','user-install'),{...device('user','user-install'),status:'banned',banDetails:original});
+  await setDoc(doc(db,'devices','no-ban'),device('admin','no-ban-install',buildDevicePermissions('admin',{ban:false,canBan:false})));
+ });
+ const details={...original,reason:'updated',expiresAt:'',gifUrl:''};
+ for(const uid of ['user','no-ban'])await assertFails(updateDoc(doc(env.authenticatedContext(uid).firestore(),'devices','user'),{banDetails:details}));
+ const db=env.authenticatedContext('admin').firestore(),batch=writeBatch(db);
+ batch.update(doc(db,'devices','user'),{banDetails:details});batch.set(doc(db,'installations','user-install'),{banDetails:details,status:'banned',updatedBy:'admin'},{merge:true});await assertSucceeds(batch.commit());
+ const stored=(await getDoc(doc(db,'devices','user'))).data();assert.equal(stored.status,'banned');assert.deepEqual(stored.banDetails,details);assert.equal(stored.verified,false);
+});
+
+test('journeys opt-in is owner-managed and cannot be self-granted or delegated',async()=>{
+ const owner=env.authenticatedContext('owner').firestore(),user=env.authenticatedContext('user').firestore(),admin=env.authenticatedContext('admin').firestore();
+ const granted=buildDevicePermissions('user',{journeys:true});
+ await assertFails(updateDoc(doc(user,'devices','user'),{permissions:granted}));
+ await assertFails(updateDoc(doc(admin,'devices','user'),{permissions:granted}));
+ const batch=writeBatch(owner);batch.update(doc(owner,'devices','user'),{permissions:granted});batch.set(doc(owner,'installations','user-install'),{installationId:'user-install',role:'user',permissions:granted,status:'active',verified:false,updatedBy:'owner'});await assertSucceeds(batch.commit());
+ await assertSucceeds(updateDoc(doc(user,'devices','user'),{deviceInfo:'Keep granted access'}));
+ await assertSucceeds(updateDoc(doc(owner,'devices','user'),{permissions:buildDevicePermissions('user')}));
+ await assertFails(updateDoc(doc(user,'devices','user'),{permissions:granted}));
+ const fresh=env.authenticatedContext('fresh-user').firestore();
+ await assertFails(setDoc(doc(fresh,'devices','fresh-user'),device('user','fresh-install',granted)));
+ await assertFails(setDoc(doc(fresh,'installations','fresh-install'),{installationId:'fresh-install',role:'user',permissions:granted,status:'active',verified:false,updatedBy:'fresh-user'}));
+ const adminGrant=buildDevicePermissions('admin',{journeys:true});await assertFails(updateDoc(doc(admin,'devices','admin'),{permissions:adminGrant}));await assertSucceeds(updateDoc(doc(owner,'devices','admin'),{permissions:adminGrant}));
+});

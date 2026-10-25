@@ -23,7 +23,7 @@ test('an empty successful keyed MPK feed is visible as zero vehicles, not an HTT
  const mocks={'@capacitor/core':{Capacitor:{isNativePlatform:()=>true},CapacitorHttp:{request:async()=>({status:200,data:{}})}}};
  const http=load('lib/transport/http.ts',mocks,'',cache),diagnostics=load('lib/transport-diagnostics.ts',mocks,'',cache);
  assert.deepEqual(await http.requestJson(jsonUrl),{});
- const row=diagnostics.getTransportDiagnostics()[0];assert.equal(row.count,0);assert.equal(row.source,jsonUrl);assert.equal(row.error,undefined);
+ const row=diagnostics.getTransportDiagnostics()[0];assert.equal(row.count,0);assert.equal(row.source,jsonUrl.replace('www.mpkrzeszow.pl','kmrzeszow.live'));assert.equal(row.error,undefined);
 });
 test('empty MPK success is not retried against an undeployed default backend; failed direct reads still try fallback',async()=>{
  let directCalls=0,backendCalls=0,fail=false;
@@ -34,4 +34,13 @@ test('empty MPK success is not retried against an undeployed default backend; fa
  },'\nexport {fetchMpkRzeszowVehiclesClient};');
  assert.deepEqual(await api.fetchMpkRzeszowVehiclesClient(false),[]);assert.equal(directCalls,1);assert.equal(backendCalls,0);
  fail=true;await assert.rejects(api.fetchMpkRzeszowVehiclesClient(false),/offline/);assert.equal(backendCalls,1);
+});
+
+test('legacy MPK site URLs use the new live host on Android, including source diagnostics',async()=>{
+ const calls=[],cache=new Map();const mocks={'@capacitor/core':{Capacitor:{isNativePlatform:()=>true},CapacitorHttp:{request:async options=>{calls.push(options.url);return {status:200,data:options.url.includes('type=mpk')?{811:{x:'22',y:'50'}}:'<Departures i="100"/>'};}}}};
+ const http=load('lib/transport/http.ts',mocks,'',cache),diagnostics=load('lib/transport-diagnostics.ts',mocks,'',cache);
+ await http.requestJson(jsonUrl);await http.requestText('https://www.mpkrzeszow.pl/przystanki/departures.php?stopId=256');
+ assert.deepEqual(calls,['https://kmrzeszow.live/ztm/new/api.php?type=mpk','https://kmrzeszow.live/przystanki/departures.php?stopId=256']);
+ assert.ok(diagnostics.getTransportDiagnostics().every(row=>row.source.startsWith('https://kmrzeszow.live')));
+ const {currentMpkSource}=load('lib/transport/mpk-source.ts');assert.equal(currentMpkSource('http://84.38.160.220/myBusServices/test'),'http://84.38.160.220/myBusServices/test');assert.equal(currentMpkSource('/api/pks/vehicles'),'/api/pks/vehicles');
 });

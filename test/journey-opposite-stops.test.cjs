@@ -23,7 +23,7 @@ test('same departure does not produce a terminal return when alighting nearby an
 test('PKS GTFS names and platform codes prevent matching an opposite stop by coordinates alone',()=>{
  const left=stop('live13',50.0002,22,'Wieś SKR 13'),right=stop('live14',50.00001,22,'Wieś SKR 14');left.code='13';right.code='14';
  const feed={version:1,provider:'pks',stops:{x:{name:'Wieś SKR 13',lat:50,lon:22},y:{name:'Inna wieś 2',lat:50.02,lon:22}},calendars:{s:{start:'20261001',end:'20261231',days:'1111111'}},exceptions:{},patterns:[[['x',0,0,0,0],['y',600,600,0,0]]],trips:[['1','108','s',12*3600,0]]};
- const con=feedConnections(feed,[left,right],'2026-10-19',{...options,at:warsawTimeMs('2026-10-19','11:30')});assert.equal(con[0].from.id,'live13');assert.equal(con[0].from.lat,50);
+ const con=feedConnections(feed,[left,right],'2026-10-19',{...options,at:warsawTimeMs('2026-10-19','11:30')});assert.equal(con[0].from.id,'live13');assert.equal(con[0].from.lat,left.lat,'matched platform retains its catalog position');
 });
 test('real Gwoznica SKR 13 and 14 do not require the 15:52 return from the terminal',()=>{
  const f=JSON.parse(z.gunzipSync(fs.readFileSync('public/data/journeys/pks.json.gz'))),o={...options,at:warsawTimeMs('2026-10-19','12:11')};

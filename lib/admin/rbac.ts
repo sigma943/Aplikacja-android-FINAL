@@ -10,6 +10,9 @@ export interface AdminPermissions {
   canChangeRoles: boolean;
   disableMap: boolean;
   disableStops: boolean;
+  disableJourneys?: boolean;
+  /** Explicit device opt-in; absence never grants the journeys tab. */
+  journeys?: boolean;
   /** Widoczność sekcji ustawień globalnych (operatorzy). */
   globalSettings: boolean;
   /** Zapis ustawień globalnych (Firestore admin_settings). */
@@ -79,6 +82,10 @@ export const toLegacyPermissions = (permissions: StoredPermissions): Required<Le
   canChangeRoles: Boolean(permissions?.canChangeRoles),
 });
 
+export function canUseJourneys(role:DeviceRole|undefined,permissions:StoredPermissions):boolean {
+ return role==='owner'||Boolean(role&&permissions?.journeys===true&&permissions.disableJourneys!==true);
+}
+
 export const normalizeAdminPermissions = (
   permissions: StoredPermissions,
   role: DeviceRole,
@@ -98,6 +105,8 @@ export const normalizeAdminPermissions = (
     canChangeRoles: role === 'owner' ? true : Boolean(permissions.canChangeRoles ?? base.canChangeRoles),
     disableMap: Boolean(permissions.disableMap ?? base.disableMap),
     disableStops: !permissions.disableMap ? Boolean(permissions.disableStops ?? base.disableStops) : false,
+    ...(role!=='owner'&&permissions.disableJourneys?{disableJourneys:true}:{}),
+    ...(role!=='owner'&&permissions.journeys===true&&!permissions.disableJourneys?{journeys:true}:{}),
     globalSettings: role === 'owner' ? true : Boolean(permissions.globalSettings ?? base.globalSettings),
     globalSettingsEdit: role === 'owner' ? true : Boolean(permissions.globalSettingsEdit ?? base.globalSettingsEdit),
   };
@@ -114,7 +123,7 @@ export const effectiveAdminPermissionsForDisplay = (
 export const buildDevicePermissions = (role: DeviceRole, permissions?: StoredPermissions) => {
   const admin = normalizeAdminPermissions(permissions, role);
   const legacy = toLegacyPermissions({ ...permissions, ...admin });
-  return { ...admin, ...legacy };
+  return storedAdminPermissions({ ...admin, ...legacy });
 };
 
 /** Dostęp do panelu admina: właściciel albo administrator z prawem podglądu listy urządzeń (monitor / canViewList). */
@@ -123,3 +132,9 @@ export const canAccessAdminDashboard = (role: DeviceRole, permissions: StoredPer
   if (role === 'admin') return effectiveAdminPermissionsForDisplay(role, permissions).monitor;
   return false;
 };
+
+/** False is the absent legacy default; do not add a new storage key to unrelated edits. */
+export function storedAdminPermissions<T extends {disableJourneys?:boolean}>(value:T):T{
+ if(value.disableJourneys)return value;
+ const copy={...value};delete copy.disableJourneys;return copy;
+}

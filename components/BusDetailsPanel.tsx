@@ -1,6 +1,9 @@
 'use client';
 
+import {useLayoutEffect,useRef} from 'react';
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
+import LandscapeChrome from './LandscapeChrome';
+import {vehicleHeaderStyle} from '@/lib/interface-appearance';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {motion, AnimatePresence, type MotionStyle} from 'motion/react';
 import {Navigation, Clock, MapPin} from 'lucide-react';
@@ -15,6 +18,8 @@ import {displayStopLabel} from '@/lib/stop-label';
 
 interface BusDetailsPanelProps {
   preview?:boolean;
+  onHeaderSize?:(height:number)=>void;
+  selectedBusTripFinished?:boolean;
   mpkStopNames?:ReadonlyMap<string,string>;
   selectedBus: Vehicle;
   busDrag: ReturnType<typeof useSheetGesture>;
@@ -45,7 +50,17 @@ interface BusDetailsPanelProps {
   formatScheduleStopName: (name: string) => string;
 }
 
-export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+  // A removed motion element can interrupt its shared height animation. A new
+  // panel must start from its requested size, not that intermediate value.
+  const initialSync=useRef(busDrag.syncHeight);
+  useLayoutEffect(()=>{initialSync.current();},[]);
+  useLayoutEffect(()=>{
+    const header=busHeaderRef.current;if(!header||!onHeaderSize)return;
+    const measure=()=>onHeaderSize(header.offsetHeight);
+    const observer=new ResizeObserver(measure);observer.observe(header);window.addEventListener('resize',measure);measure();
+    return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
+  },[busHeaderRef,onHeaderSize]);
   return (
     <motion.div
                   key="bus-panel-map"
@@ -62,6 +77,8 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                   transition={SHEET_SPRING}
                   className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
+
+                  <LandscapeChrome variant="panel"/>
                   <motion.div 
                      ref={busHeaderRef}
                      role="button"
@@ -71,13 +88,13 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                      onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();setIsBusPanelExpanded(value => !value);}}}
                      data-vehicle-header data-ui-mode={isDark ? 'dark' : 'light'}
                      className="p-3 pb-5 md:p-6 md:pb-8 text-white relative shrink-0 cursor-pointer touch-none overflow-hidden" 
-                     style={selectedBusHeaderStyle}
+                     style={{...selectedBusHeaderStyle,'--landscape-vehicle-header':vehicleHeaderStyle(selectedVehicleColor,true,true).background} as CSSProperties}
                      {...busDrag.handle}
                   >
                      <div 
                         className="w-12 h-1.5 rounded-full bg-white/40 hover:bg-white/60 mx-auto mb-3 transition-colors"
                      />
-                     
+
                      <div className="flex items-baseline gap-2 mb-1 md:mb-1.5">
                         <span className="text-3xl md:text-5xl font-black tracking-tighter drop-shadow-sm">{selectedBus.routeShortName || '-'}</span>
                         <span className="uppercase tracking-widest text-[10px] md:text-xs font-bold text-white/90">{selectedVehicleIsTrain ? 'Pociag' : 'Linia'}</span>
@@ -125,7 +142,7 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                         )}
                      </h3>
                   </motion.div>
-                  
+
                   <AnimatePresence initial={false}>
                     {(isBusPanelExpanded || busDrag.dragging) && (
                       <motion.div
@@ -151,7 +168,7 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                                   : 'Brak danych'}
                            </span>
                         </div>
-                        
+
                         {!selectedBusIsWaitingForDeparture && (
                         <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard}`}>
                               <div className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5 md:mb-1 ${textSub}`}>
@@ -187,8 +204,9 @@ export default function BusDetailsPanel({preview=false,mpkStopNames,selectedBus,
                            </div>
                         )}
                       </div>
-                      
-                      {(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
+
+                      {selectedBusTripFinished&&<div role="status" data-next-departure className={`p-3 rounded-xl border ${mapDetailCard}`}><div className={`flex items-center gap-2 text-sm ${textMain}`}><Clock size={17}/>{breakCountdownLabel?`Kolejny odjazd za ${breakCountdownLabel}`:'Obliczanie czasu do kolejnego odjazdu…'}</div></div>}
+                      {!selectedBusTripFinished&&(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
                        <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
                             <MapPin className="w-4 h-4" /> {selectedVehicleIsTrain ? 'Wszystkie przystanki trasy' : 'Następne przystanki'}

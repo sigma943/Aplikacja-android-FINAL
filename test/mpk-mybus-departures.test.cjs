@@ -40,7 +40,7 @@ test('midnight rollover, exact seconds, at-stop status and scheduled-only rows r
 function api(primary,offline,backup){
  const calls=[];const client=load('lib/providers/mpk-departures-client.ts',{'../transit-time':{...load('lib/transit-time.ts'),warsawDateIso:(offset=0)=>load('lib/transit-time.ts').warsawDateIso(offset,new Date(now))},'../transport/http':{
  requestJson:async url=>{calls.push(url);if(url.includes('get_current_service'))return {service_ids:[2],date_used:date.replaceAll('-','')};if(url.includes('departures.php')){if(primary instanceof Error)throw primary;return primary;}if(offline instanceof Error)throw offline;return {schedule:{15:offline}};},
- requestText:async url=>{calls.push(url);if(backup instanceof Error)throw backup;return backup;}
+ requestText:async url=>{calls.push(url);if(backup instanceof Error)throw backup;if(typeof backup==='function')return backup(url);return backup;}
  }});return {client,calls};
 }
 // The public API chooses "today" by Warsaw; fake the clock only within these sequential tests.
@@ -64,5 +64,31 @@ test('healthy primary, cancellation and unmapped stops do not query an unrelated
   const rows=await healthy.client.fetchMpkRzeszowDeparturesClient('256',date);assert.equal(rows[0].real_departure_time,'05:39');assert.ok(!healthy.calls.some(url=>url.includes('GetTimeTableReal')));
   const unknown=api([],planned,xml);assert.match((await unknown.client.fetchMpkRzeszowDeparturesClient('999999',date)).warning,/niedostępne/);assert.ok(!unknown.calls.some(url=>url.includes('GetTimeTableReal')));
   const aborted=new AbortController();aborted.abort();await assert.rejects(healthy.client.fetchMpkRzeszowDeparturesClient('256',date,{signal:aborted.signal}),{name:'AbortError'});
+ }finally{Date.now=original;}
+});
+
+test('HTTPS e-info recovers forecasts when the direct SIP service fails',async()=>{
+ const original=Date.now;Date.now=()=>now;
+ try{
+  const {client,calls}=api([],planned,url=>{if(url.startsWith('http:'))throw Error('HTTP 503');return xml;});
+  const rows=await client.fetchMpkRzeszowDeparturesClient('256',date);
+  assert.ok(rows.some(row=>row.real_departure_at_ms));assert.equal(rows.warning,undefined);
+  assert.ok(calls.includes('https://einfo.erzeszow.pl/Home/GetNextDepartues?busStopId=100'));
+ }finally{Date.now=original;}
+});
+test('failing real-time sources back off for a minute, while timetables keep refreshing',async()=>{
+ const original=Date.now;let time=now;Date.now=()=>time;
+ try{
+  const {client,calls}=api([],planned,Error('HTTP 503'));
+  await client.fetchMpkRzeszowDeparturesClient('256',date);const first=calls.filter(u=>u.includes('GetTimeTableReal')||u.includes('GetNextDepartues')).length;assert.equal(first,2);
+  const again=await client.fetchMpkRzeszowDeparturesClient('256',date);assert.equal(again.length,1);assert.equal(calls.filter(u=>u.includes('GetTimeTableReal')||u.includes('GetNextDepartues')).length,first);
+  time+=61_000;await client.fetchMpkRzeszowDeparturesClient('256',date);assert.equal(calls.filter(u=>u.includes('GetTimeTableReal')||u.includes('GetNextDepartues')).length,first+2);
+ }finally{Date.now=original;}
+});
+test('distant planned service stays usable without a misleading forecast failure banner',async()=>{
+ const original=Date.now;Date.now=()=>now;
+ try{
+  const {client,calls}=api([],[{...planned[0],departure_time:'08:33:00'}],Error('HTTP 503'));const rows=await client.fetchMpkRzeszowDeparturesClient('256',date);
+  assert.ok(!calls.some(url=>url.includes('GetTimeTableReal')||url.includes('GetNextDepartues')));assert.equal(rows.length,1);assert.equal(rows.warning,undefined);assert.equal(rows[0].real_departure_at_ms,undefined);
  }finally{Date.now=original;}
 });

@@ -1,9 +1,18 @@
+import {interfaceGoogleFont,googleFontUrl,parseGoogleFontLink} from './interface-fonts';
 import {INTERFACE_APPEARANCE_KEY} from './interface-appearance';
 import {PROFILES_KEY,SCHEDULE_KEY,normalizeProfiles,normalizeSchedule,activateProfile,type VisualProfile} from './personalization-profiles';
 export const APPEARANCE_BACKUP_LIMIT=262144;
 const keys=[INTERFACE_APPEARANCE_KEY,PROFILES_KEY,SCHEDULE_KEY,'mks_app_theme','mks_theme','mks_transparent','mks_panel_glow','mks_panel_glow_strength','mks_light_effects','mks_visual_schedule_applied'];
 export function exportAppearanceBackup(current:VisualProfile,profiles:VisualProfile[],schedule:unknown,lightEffects:boolean){
- return JSON.stringify({format:'pks-live-appearance',version:1,current,profiles,schedule,lightEffects},null,2);
+ // Keep an explicit list of Google sources as well as each profile's selection.
+ // Includes a saved custom source even when a built-in font is currently active.
+ const families=new Set<string>();
+ for(const profile of [current,...profiles]){
+  const selected=interfaceGoogleFont(profile.appearance),custom=parseGoogleFontLink(profile.appearance.customFontUrl)?.family;
+  if(selected)families.add(selected);if(custom)families.add(custom);
+ }
+ const googleFonts=[...families].map(family=>({family,url:googleFontUrl(family)}));
+ return JSON.stringify({format:'pks-live-appearance',version:1,current,profiles,schedule,lightEffects,googleFonts},null,2);
 }
 export function parseAppearanceBackup(content:string){
  if(new TextEncoder().encode(content).length>APPEARANCE_BACKUP_LIMIT)throw Error('Plik jest za duży (maksymalnie 256 KB).');
