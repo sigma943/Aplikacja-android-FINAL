@@ -37,6 +37,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    return {before,same,day,night,pixels:gpu.diagnostics().presentationPixels};
   });
   assert.ok(material.before>0);assert.equal(material.same,material.before,'wave time alone never rerenders the terrain material');assert.ok(material.day>material.night*1.15,'the material responds to solar lighting');assert.equal(material.pixels,425*925,'presentation remains sharp independently of water resolution');
+  const coverage=await page.evaluate(()=>{
+   const gpu=window.gpu,gl=gpu.canvas.getContext('webgl2'),scene=gpu.solid,draw=scene.draw;
+   const alpha=()=>{const t=gpu.targets[2],p=new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,gl.UNSIGNED_BYTE,p);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return p;};
+   const geometry=alpha();let baseline;
+   try{scene.draw=()=>{};gpu.terrainKey='';gpu.render(window.gpuLight,window.gpuFrame,'high');baseline=alpha();}finally{scene.draw=draw;gpu.terrainKey='';gpu.render(window.gpuLight,window.gpuFrame,'high');}
+   let excess=0,difference=0;for(let i=3;i<geometry.length;i+=4){excess=Math.max(excess,geometry[i]-baseline[i]);difference=Math.max(difference,Math.abs(geometry[i]-baseline[i]));}return {excess,difference,error:gl.getError()};
+  });
+  assert.equal(coverage.error,0);assert.equal(coverage.excess,0,'3D material passes cannot grow opaque fringes around the river or tree silhouettes');assert.equal(coverage.difference,0,'the main scene preserves the authored coverage mask');
   const spatial=await page.evaluate(()=>{
    const gpu=window.gpu,light=window.gpuLight,gl=gpu.canvas.getContext('webgl2'),p=gpu.programs[4];
    const reflection=()=>{const t=gpu.targets[3],pixels=gpu.diagnostics().hdr?new Float32Array(t.width*t.height*4):new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,gpu.diagnostics().hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return pixels;};

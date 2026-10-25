@@ -36,7 +36,8 @@ in a 3D editor independently of the application.
 The existing WebGL2 context owns the scene. A depth attachment is added to the
 cached main material target and a bounded reflection target. The reflection pass
 mirrors geometry about the Y=0 water plane, keeps the original material/light
-coordinates, clips underwater geometry, and uses depth testing. Consequently
+coordinates, clips underwater geometry, and uses depth testing. Main-view material blending preserves the original coverage alpha,
+so the additional 3D pass cannot grow opaque shore/leaf fringes. Consequently
 near banks occlude distant slopes in the reflected view. Reflection colour is
 linear radiance, HDR where the existing extension permits it.
 
