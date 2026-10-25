@@ -65,11 +65,11 @@ export class LandscapeWaterGPU {
   try{
    this.programs.push(this.compile(WATER_VERTEX,WATER_FRAGMENT));this.programs.push(this.compile(SCREEN_VERTEX,LIGHT_FRAGMENT));this.programs.push(this.compile(SCREEN_VERTEX,PRESENT_FRAGMENT));this.programs.push(this.compile(SCREEN_VERTEX,TERRAIN_FRAGMENT));
    this.texture(0,this.assets.water);this.texture(1,this.assets.terrain);
-   // Decode the opaque 16-bit UV atlas once. Float filtering is performed in the vertex shader.
+   // Decode the opaque 24-bit UV atlas once. Float filtering is performed in the vertex shader.
    const atlas=document.createElement('canvas'),image=this.assets.geometry as HTMLImageElement;
    atlas.width=image.width;atlas.height=image.height;const c=atlas.getContext('2d',{willReadFrequently:true})!;c.drawImage(image,0,0);
    const pixels=c.getImageData(0,0,atlas.width,atlas.height).data,w=atlas.width/2,h=atlas.height,positions=new Float32Array(w*h*2);
-   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const a=(y*atlas.width+x)*4,b=a+w*4,i=(y*w+x)*2;positions[i]=((pixels[a]*256+pixels[a+1])/65535-.5)*(2*calibration.worldExtent);positions[i+1]=((pixels[b]*256+pixels[b+1])/65535-.5)*(2*calibration.worldExtent);}
+   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const a=(y*atlas.width+x)*4,b=a+w*4,i=(y*w+x)*2;positions[i]=((pixels[a]*65536+pixels[a+1]*256+pixels[a+2])/16777215-.5)*(2*calibration.worldExtent);positions[i+1]=((pixels[b]*65536+pixels[b+1]*256+pixels[b+2])/16777215-.5)*(2*calibration.worldExtent);}
    const geometry=gl.createTexture();if(!geometry)throw Error('geometry allocation');this.textures.push({unit:2,texture:geometry});gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,geometry);this.parameters(gl.NEAREST);gl.texImage2D(gl.TEXTURE_2D,0,gl.RG32F,w,h,0,gl.RG,gl.FLOAT,positions);atlas.width=atlas.height=1;
    this.texture(3,this.assets.perspective);this.texture(4,this.assets.clouds);
    const empty=document.createElement('canvas');empty.width=empty.height=1;

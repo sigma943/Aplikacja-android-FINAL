@@ -1,4 +1,5 @@
 import * as SunCalc from 'suncalc';
+import camera from './landscape-water-calibration.json';
 
 // SunCalc 1.9.0 uses RADIANS and azimuth clockwise from SOUTH (v2 differs).
 // Offline, low precision ephemerides for a decorative scene, not navigation.
@@ -42,9 +43,9 @@ export function skyState(state:AstronomyState){
   const moonlight=state.illumination.fraction*smoothstep(0,.25,state.moon.altitude)*(1-day);
   return {day,twilight,moonlight,stars:1-smoothstep(-16,-4,altitude),fog:.16+.28*twilight+.07*(1-day)};
 }
-/** Fixed south-facing 260° artistic panorama. Mountains are NOT the local horizon.
+/** Fixed scene-camera projection of the existing ephemeris. Mountains are NOT the local horizon.
  * North passes behind the viewer, outside the image, so azimuth wrap is offscreen. */
 export function projectCelestial(body:{altitude:number;azimuth:number}){
-  const azimuth=Math.atan2(Math.sin(body.azimuth),Math.cos(body.azimuth));
-  return {x:.5+azimuth/(260*Math.PI/180),y:.55-body.altitude/(Math.PI/2)*.49};
+  const azimuth=Math.atan2(Math.sin(body.azimuth-camera.cameraYawRadians),Math.cos(body.azimuth-camera.cameraYawRadians));
+  return {x:.5+azimuth/(camera.astronomyAzimuthSpanDegrees*Math.PI/180),y:camera.horizon-body.altitude/(Math.PI/2)*camera.altitudeSpan};
 }

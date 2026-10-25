@@ -8,7 +8,7 @@ test('clouds continue their original steady drift',()=>{
  assert.ok(Math.abs(r.cloudOffset(61)-r.cloudOffset(60))<=12);
 });
 test('mirrored cloud coverage is continuous at tile edges and through the complete drift cycle',()=>{
- for(const x of [0,.2,.7,1])for(const seconds of [0,1000/12,2000/12]){
+ for(const x of [0,.2,.7,1])for(const seconds of [0,1000/require('../lib/landscape-water-calibration.json').cloudSpeed,2000/require('../lib/landscape-water-calibration.json').cloudSpeed]){
   const before=r.cloudSampleX(x,r.cloudOffset(seconds-.0001)),after=r.cloudSampleX(x,r.cloudOffset(seconds+.0001));
   assert.ok(Math.abs(before-after)<.00001,'no coverage jump at the loop seam');
  }

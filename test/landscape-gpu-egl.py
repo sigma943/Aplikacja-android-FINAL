@@ -98,17 +98,18 @@ for index, image in zip([0, 1, 3, 4, 7], images):
     data = C.create_string_buffer(image.tobytes())
     function('glTexImage2D', None, ui, integer, integer, integer, integer, integer, ui, ui, ptr)(0x0DE1, 0, 0x1908, image.width, image.height, 0, 0x1908, 0x1401, data)
     function('glUniform1i', None, integer, integer)(location(program, {0:'uMask',1:'uTerrain',3:'uPerspective',4:'uClouds',7:'uSceneDepth'}[index].encode()), index)
+calibration=json.load(open('lib/landscape-water-calibration.json'))
 atlas=np.array(Image.open('public/themes/mountains/water-uv.png').convert('RGB'));mh,mw=atlas.shape[:2];mw//=2
 geometry=np.zeros((mh,mw,4),dtype=np.float32)
 for channel,offset in [(0,0),(1,mw)]:
-    q=atlas[:,offset:offset+mw,0].astype(np.uint16)*256+atlas[:,offset:offset+mw,1]
-    geometry[:,:,channel]=(q.astype(np.float32)/65535-.5)*256
+    q=atlas[:,offset:offset+mw,0].astype(np.uint32)*65536+atlas[:,offset:offset+mw,1].astype(np.uint32)*256+atlas[:,offset:offset+mw,2]
+    geometry[:,:,channel]=(q.astype(np.float32)/16777215-.5)*(2*calibration['worldExtent'])
 texture=ui();function('glGenTextures',None,integer,C.POINTER(ui))(1,C.byref(texture));function('glActiveTexture',None,ui)(0x84C0+2);function('glBindTexture',None,ui,ui)(0x0DE1,texture.value)
 for key,value in [(0x2801,0x2600),(0x2800,0x2600),(0x2802,0x812F),(0x2803,0x812F)]:param(0x0DE1,key,value)
 function('glTexImage2D',None,ui,integer,integer,integer,integer,integer,ui,ui,ptr)(0x0DE1,0,0x8814,mw,mh,0,0x1908,0x1406,geometry.ctypes.data)
 function('glUniform1i',None,integer,integer)(location(program,b'uGeometry'),2)
 columns,rows=96,128
-vertices=np.array([(x/columns,.575+y/rows*.425) for y in range(rows+1) for x in range(columns+1)],dtype=np.float32)
+vertices=np.array([(x/columns,calibration['waterTop']+y/rows*(1-calibration['waterTop'])) for y in range(rows+1) for x in range(columns+1)],dtype=np.float32)
 indices=[]
 for y in range(rows):
  for x in range(columns):
@@ -160,7 +161,7 @@ assert max(abs(a-b) for a,b in zip(means,means[1:]))<.035, ('no full-river flash
 difference = ImageChops.difference(first, later)
 changed = sum(sum(pixel[:3]) > 2 for pixel in difference.getdata())
 assert changed > 500, ('wave motion', changed)
-assert first.getchannel('A').crop((0, 0, W, int(H * .55))).getextrema() == (0, 0), 'no sky lighting'
+assert first.getchannel('A').crop((0, 0, W, int(H * calibration['waterMaskTop']))).getextrema() == (0, 0), 'no sky lighting'
 mask = images[0].resize((W, H), Image.Resampling.BILINEAR).getchannel('A')
 escaped = sum(a == 0 and pixel[3] > 20 for a, pixel in zip(mask.getdata(), first.getdata()))
 assert escaped == 0, ('mask containment', escaped)

@@ -9,12 +9,28 @@ unlit, low-quality, near-foreground twilight water specifically.
 
 ## Artwork and registration
 
-Built-in imagegen created a more photographic terrain cutout using the supplied
-day/twilight reference frames. Production `terrain.webp` is 850x1850, registered
-240 pixels downward against the unchanged astronomical camera. It has transparent
-sky and water, detailed fir silhouettes, broader river turns and foreground
-foliage. All water/shore/depth masks and the mountain horizon were regenerated
-from its actual alpha. The original camera, ephemeris and theme identity remain.
+Built-in imagegen reconstructs a neutral full photographic source frame from the
+references, then extracts terrain and thin cloud layers. The production layers
+are 850x1850 without vertical cropping. The river covers about 18% of the frame,
+with an open foreground and broad natural bends, rather than a small zigzag chain.
+Sky, Sun/Moon and water are rendered dynamically; the source image's water is NOT
+used as a reflected-light texture. Actual alpha controls all regenerated masks.
+
+The fixed camera is now aligned southwest (0.75 radians west of south), with a
+0.45 horizon and 0.65 vertical altitude span. This is a VIEW calibration: SunCalc
+altitude/azimuth, events, lunar phase and continuous orbital calculations remain
+unchanged. Screen positions consequently change to match the new valley. No Sun
+is made to follow a hand-drawn river path. The same projection data controls sky,
+water rays, occlusion and the terrain material. The Moon's decorative radius is
+36 relative units; its phase/orientation stay astronomical.
+
+The water UV atlas now uses opaque 24-bit RGB coordinate halves and a 1024-unit
+extent so distant creek openings remain representable without losing foreground
+precision. The terrain depth proxy retains its separate 128-unit packing range.
+Assets use a versioned URL to avoid interpreting an older 16-bit cached UV image.
+Cloud drift is reduced to four relative pixels per second, shared by the visible
+clouds, light transmission and reflected cloud lookup. Preview clock jumps also
+invalidate the cached background to keep clouds and water synchronized.
 
 `prepare-terrain-normal.py` reconstructs relative world positions from the existing
 controlled depth proxy, differentiates that surface and adds restrained material
@@ -63,4 +79,4 @@ native GLSL compilation and water pixels, browser lifecycle/material-cache check
 web compilation and the signed Android quick build. The known local keytool issue
 and unrelated global lint errors must be reported separately from these checks.
 
-The exact image-generation prompt is recorded in `photographic-terrain-prompt.txt`.
+The original material prompt is in `photographic-terrain-prompt.txt`; the selected full-frame reconstruction and extraction prompts are in `hero-landscape-prompts.md`.

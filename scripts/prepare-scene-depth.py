@@ -21,7 +21,7 @@ ground=(c['cameraHeight']-.96)/np.tan(depression)
 # Positive smooth minimum: a hard shell/plane minimum creates a full-width
 # normal discontinuity that becomes visible under material lighting.
 radial=(110.**-6+ground**-6)**(-1/6)
-q=np.rint(np.clip(radial/c['worldExtent'],0,1)*65535).astype(np.uint16)
+q=np.rint(np.clip(radial/c['sceneDepthExtent'],0,1)*65535).astype(np.uint16)
 depth=np.zeros((h,w,4),dtype=np.uint8)
 depth[:,:,0]=(q>>8)[:,None];depth[:,:,1]=(q&255)[:,None]
 depth[:,:,2]=np.where(alpha>16,alpha,0);depth[:,:,3]=255

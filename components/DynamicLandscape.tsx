@@ -133,7 +133,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       if(mono+.5>=nextFrame)draw();else frameRequest=requestAnimationFrame(tick);
     };
     const image=(name:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{
-      const value=new Image();value.onload=()=>resolve(value);value.onerror=()=>reject(new Error(name));value.src='/themes/mountains/'+name;
+      const value=new Image();value.onload=()=>resolve(value);value.onerror=()=>reject(new Error(name));value.src='/themes/mountains/'+name+'?v=photographic-camera-2';
     });
     void Promise.all([image('terrain.webp'),image('clouds.webp'),image('water-mask.png'),image('water-uv.png').catch(()=>undefined),image('water-perspective.png').catch(()=>undefined),image('moon.webp').catch(()=>undefined),image('scene-depth.png').catch(()=>undefined),image('terrain-normal.png').catch(()=>undefined)]).then(([terrain,clouds,water,geometry,perspective,moon,sceneDepth,terrainNormal])=>{
       if(!alive)return;

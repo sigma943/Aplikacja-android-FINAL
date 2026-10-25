@@ -1,6 +1,6 @@
 """Controlled plane reconstruction, tied to the existing panorama and exact mask.
 Pillow/numpy/scipy are generation-only; no new runtime dependencies.
-The UV atlas has two opaque RGB halves: signed X16 and Z16 in RG.
+The UV atlas has two opaque RGB halves: signed X24 and Z24 in RGB.
 Perspective atlas: R relative observer distance, G bank fade, B shore AO.
 No light axis, random coordinates, or inferred 3D mountains are baked into maps.
 """
@@ -19,10 +19,10 @@ world_x=radius[:,None]*np.sin(az)[None,:]
 world_z=radius[:,None]*np.cos(az)[None,:]
 atlas=np.zeros((h,w*2,3),dtype=np.uint8)
 for offset,world in [(0,world_x),(w,world_z)]:
- q=np.rint(np.clip(world/c['worldExtent']*.5+.5,0,1)*65535).astype(np.uint16)
- atlas[:,offset:offset+w,0]=(q>>8).astype(np.uint8)
- atlas[:,offset:offset+w,1]=(q&255).astype(np.uint8)
- atlas[:,offset:offset+w,2]=255
+ q=np.rint(np.clip(world/c['worldExtent']*.5+.5,0,1)*16777215).astype(np.uint32)
+ atlas[:,offset:offset+w,0]=(q>>16).astype(np.uint8)
+ atlas[:,offset:offset+w,1]=((q>>8)&255).astype(np.uint8)
+ atlas[:,offset:offset+w,2]=(q&255).astype(np.uint8)
 Image.fromarray(atlas).save(out/'water-uv.png',optimize=True)
 mask=np.array(Image.open(out/'water-mask.png').getchannel('A').resize((w,h),Image.Resampling.LANCZOS))
 distance=distance_transform_edt(mask>100)

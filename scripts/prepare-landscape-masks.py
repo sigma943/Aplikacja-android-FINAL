@@ -17,9 +17,10 @@ assert terrain.size == (850, 1850)
 alpha = np.asarray(terrain)[:, :, 3]
 skyline = np.argmax(alpha > 160, axis=0)
 assert np.all(np.any(alpha > 160, axis=0))
-assert np.min(skyline) > terrain.height * .4
+assert np.min(skyline) > terrain.height * .3
 water = np.zeros_like(alpha)
-far_bank = 1100  # Above the first river opening, below every mountain edge.
+calibration=json.loads((root/'lib/landscape-water-calibration.json').read_text())
+far_bank = int(calibration['waterMaskTop']*terrain.height)  # Above the first river opening, below every mountain edge.
 assert np.max(skyline) < far_bank
 water[far_bank:] = 255 - alpha[far_bank:]
 mask = np.full((1850, 850, 4), 255, dtype=np.uint8)

@@ -5,9 +5,11 @@ import waves from './landscape-water-spectrum.json';
 const projection=`
 const float PI=3.141592653589793;
 const float AZ_SPAN=${(calibration.azimuthSpanDegrees*Math.PI/180).toPrecision(12)};
+const float HORIZON=${calibration.horizon.toPrecision(12)};
+const float ALT_SPAN=${calibration.altitudeSpan.toPrecision(12)};
 const float CAMERA_HEIGHT=${calibration.cameraHeight.toFixed(1)};
-vec2 projectWater(vec3 p){float az=atan(p.x,p.z);float el=atan(p.y-CAMERA_HEIGHT,length(p.xz));return vec2(.5+az/AZ_SPAN,.55-el/(PI*.5)*.49);}
-vec2 unprojectWater(vec2 uv){float az=(uv.x-.5)*AZ_SPAN;float down=max(.012,(uv.y-.55)/.49*(PI*.5));float r=CAMERA_HEIGHT/tan(down);return r*vec2(sin(az),cos(az));}
+vec2 projectWater(vec3 p){float az=atan(p.x,p.z);float el=atan(p.y-CAMERA_HEIGHT,length(p.xz));return vec2(.5+az/AZ_SPAN,HORIZON-el/(PI*.5)*ALT_SPAN);}
+vec2 unprojectWater(vec2 uv){float az=(uv.x-.5)*AZ_SPAN;float down=max(.012,(uv.y-HORIZON)/ALT_SPAN*(PI*.5));float r=CAMERA_HEIGHT/tan(down);return r*vec2(sin(az),cos(az));}
 vec3 lightDirection(vec2 projected,float altitude){float az=(projected.x-.5)*AZ_SPAN;return vec3(sin(az)*cos(altitude),sin(altitude),cos(az)*cos(altitude));}
 `;
 // direction, wavelength, amplitude; each oscillator has the deep-water dispersion omega=sqrt(g*k).
@@ -76,7 +78,7 @@ vec3 displayColor(vec3 hdr){return pow(aces(max(hdr,0.)),vec3(1./2.2));}
 const rayScene=`
 uniform sampler2D uSceneDepth;
 uniform float uSceneEnabled;
-float sceneRadius(vec4 s){return dot(s.rg,vec2(65280.,255.))/65535.*${calibration.worldExtent.toFixed(1)};}
+float sceneRadius(vec4 s){return dot(s.rg,vec2(65280.,255.))/65535.*${calibration.sceneDepthExtent.toFixed(1)};}
 bool scenePoint(vec3 p,out vec2 uv,out float delta){
  uv=projectWater(p);delta=-1.;
  if(uSceneEnabled<.5||any(lessThan(uv,vec2(0.)))||any(greaterThan(uv,vec2(1.))))return false;
@@ -166,8 +168,8 @@ vec3 skyRadiance(vec3 direction){
  vec3 horizon=mix(vec3(.006,.012,.03),vec3(.60,.78,.91),uDay);
  horizon=mix(horizon,vec3(.80,.24,.075),uWarm*.84);
  vec3 sky=mix(horizon,zenith,smoothstep(0.,.75,elevation));
- vec2 reflected=vec2(.5+atan(direction.x,direction.z)/AZ_SPAN,.55-asin(clamp(direction.y,-1.,1.))/(PI*.5)*.49);
- vec2 cloudUV=vec2(1.-abs(mod(reflected.x-uTime*.012,2.)-1.),reflected.y);vec4 cloud=texture(uClouds,cloudUV);
+ vec2 reflected=vec2(.5+atan(direction.x,direction.z)/AZ_SPAN,HORIZON-asin(clamp(direction.y,-1.,1.))/(PI*.5)*ALT_SPAN);
+ vec2 cloudUV=vec2(1.-abs(mod(reflected.x-uTime*${(calibration.cloudSpeed/1000).toFixed(8)},2.)-1.),reflected.y);vec4 cloud=texture(uClouds,cloudUV);
  float cloudAlpha=cloud.a;
  vec3 cloudLinear=pow(cloud.rgb,vec3(2.2));
  vec3 cloudLit=cloudLinear*mix(vec3(.025,.045,.09),vec3(.8),uDay);
@@ -244,7 +246,7 @@ void main(){
  vec3 albedo=pow(art.rgb,vec3(2.2));
  vec3 n=normalize(texture(uTerrainNormal,uv).rgb*2.-1.+vec3(0.,.0001,0.));
  float radius=sceneRadius(texture(uSceneDepth,uv));
- float az=(uv.x-.5)*AZ_SPAN,el=clamp((.55-uv.y)/.49*(PI*.5),-1.45,1.45);
+ float az=(uv.x-.5)*AZ_SPAN,el=clamp((HORIZON-uv.y)/ALT_SPAN*(PI*.5),-1.45,1.45);
  vec3 position=vec3(radius*sin(az),CAMERA_HEIGHT+radius*tan(el),radius*cos(az));
  vec3 ambient=mix(vec3(.018,.028,.065),vec3(.55,.65,.82),uDay);
  ambient=mix(ambient,vec3(.40,.20,.30),uWarm*.15)*(.55+.45*max(n.y,0.));
@@ -282,7 +284,7 @@ ${rayScene}
 float cloudShadow(vec3 point,vec3 light){
  float distanceToLayer=max(0.,64.-point.y)/max(light.y,.025);
  vec2 p=projectWater(point+light*distanceToLayer);
- p.x=1.-abs(mod(p.x-uTime*.012,2.)-1.);
+ p.x=1.-abs(mod(p.x-uTime*${(calibration.cloudSpeed/1000).toFixed(8)},2.)-1.);
  return 1.-textureLod(uClouds,p,0.).a*.94;
 }
 vec3 bright(vec2 uv){vec4 s=texture(uWater,uv);float lum=dot(s.rgb,vec3(.2126,.7152,.0722));float threshold=uHdr>.5?1.25:.86;return s.rgb*min(max(lum-threshold,0.),4.)/max(lum,.0001)*s.a;}
@@ -299,7 +301,7 @@ void main(){
  }
  float shafts=0.;
  if(uSceneEnabled>.5&&uQuality>.5&&uSunAltitude>0.&&uSunIntensity>.001){
-  float az=(uv.x-.5)*AZ_SPAN,el=(.55-uv.y)/.49*(PI*.5);
+  float az=(uv.x-.5)*AZ_SPAN,el=(HORIZON-uv.y)/ALT_SPAN*(PI*.5);
   vec3 direction=vec3(sin(az)*cos(el),sin(el),cos(az)*cos(el));
   vec3 light=lightDirection(uSunPosition,uSunAltitude);
   vec4 depth=texture(uSceneDepth,uv);

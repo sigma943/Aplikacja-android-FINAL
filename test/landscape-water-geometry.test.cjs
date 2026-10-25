@@ -19,8 +19,8 @@ test('visible water UVs reproject to their authored pixels within a subpixel tol
  for(let y=Math.ceil(h*.59);y<h*.89;y+=5)for(let x=0;x<w;x+=3){
   const mi=((y*2)*mask.width+x*2)*4+3;if(mask.data[mi]<200)continue;
   const a=(y*uv.width+x)*4,b=a+w*4;
-  const px=((uv.data[a]*256+uv.data[a+1])/65535-.5)*2*calibration.worldExtent;
-  const pz=((uv.data[b]*256+uv.data[b+1])/65535-.5)*2*calibration.worldExtent;
+  const px=((uv.data[a]*65536+uv.data[a+1]*256+uv.data[a+2])/16777215-.5)*2*calibration.worldExtent;
+  const pz=((uv.data[b]*65536+uv.data[b+1]*256+uv.data[b+2])/16777215-.5)*2*calibration.worldExtent;
   const rx=.5+Math.atan2(px,pz)/span;
   const ry=calibration.horizon+Math.atan2(calibration.cameraHeight,Math.hypot(px,pz))/(Math.PI/2)*calibration.altitudeSpan;
   assert.ok(Math.abs(rx-(x+.5)/w)<.0007,'horizontal registration');assert.ok(Math.abs(ry-(y+.5)/h)<.0007,'vertical registration');checked++;
@@ -45,7 +45,7 @@ test('terrain material normals are opaque unit vectors with both slopes and upwa
  }
  assert.ok(banks>100&&walls>100,'the material is not a flat painted tint');
  const profile=[];
- for(let y=Math.floor(normals.height*.51);y<normals.height*.65;y++){
+ for(let y=Math.floor(normals.height*(calibration.horizon-.04));y<normals.height*(calibration.horizon+.10);y++){
   let sum=0,count=0;for(let x=Math.floor(normals.width*.235);x<normals.width*.765;x++){sum+=normals.data[(y*normals.width+x)*4+1]/255*2-1;count++;}profile.push(sum/count);
  }
  for(let i=1;i<profile.length;i++)assert.ok(Math.abs(profile[i]-profile[i-1])<.30,'no horizontal shell/plane normal seam');
@@ -56,7 +56,7 @@ test('ray-tracing proxy has finite positive depth and places near banks above th
  let terrain=0,empty=0;
  for(let y=0;y<depth.height;y+=3)for(let x=0;x<depth.width;x+=3){
   const i=(y*depth.width+x)*4,coverage=depth.data[i+2];if(coverage===0){empty++;continue;}
-  const radius=(depth.data[i]*256+depth.data[i+1])/65535*calibration.worldExtent;
+  const radius=(depth.data[i]*256+depth.data[i+1])/65535*calibration.sceneDepthExtent;
   assert.ok(radius>0&&radius<110.01);
   const elevation=(calibration.horizon-(y+.5)/depth.height)/calibration.altitudeSpan*Math.PI/2;
   const height=calibration.cameraHeight+radius*Math.tan(elevation);

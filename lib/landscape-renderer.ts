@@ -1,3 +1,4 @@
+import camera from './landscape-water-calibration.json';
 import {paintSun,moonTexture,MOON_RADIUS} from './landscape-celestial';
 import {projectCelestial,smoothstep,type AstronomyState} from './landscape-astronomy';
 import {landscapeLighting,type LandscapeLightingState} from './landscape-lighting';
@@ -6,7 +7,7 @@ export {mountainHorizon,discVisibility} from './landscape-lighting';
 const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
 const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
-export const cloudOffset=(seconds:number)=>((seconds*12)%(2*WIDTH)+2*WIDTH)%(2*WIDTH);
+export const cloudOffset=(seconds:number)=>((seconds*camera.cloudSpeed)%(2*WIDTH)+2*WIDTH)%(2*WIDTH);
 export const cloudSampleX=(x:number,shift:number)=>{const u=((x-shift/WIDTH)%2+2)%2;return 1-Math.abs(u-1);};
 export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;sceneDepth?:CanvasImageSource;terrainNormal?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
 /** One neutral illustrated terrain cutout, one cloud layer and a mask extracted from
@@ -116,14 +117,14 @@ export class LandscapeRenderer{
       const style=`position:absolute;inset:0;width:100%;height:${this.canvas.style.height||'100%'};z-index:-1;pointer-events:none;visibility:${gpuReady?'visible':'hidden'}`;
       if(this.gpu.canvas.getAttribute('style')!==style)this.gpu.canvas.setAttribute('style',style);
       // The compositor presents water directly: no GPU -> 2D readback on the animation path.
-      const jumped=Math.abs(state.ms-this.lastAstronomy)>2000;
+      const jumped=Math.abs(state.ms-this.lastAstronomy)>2000||seconds<this.lastBackground||seconds-this.lastBackground>1;
       if(!jumped&&seconds-this.lastBackground<1/8)return;
     }
     this.lastBackground=seconds;this.lastAstronomy=state.ms;this.backgroundFrames++;
     const lightKey=[sky.day.toFixed(3),sky.twilight.toFixed(3),sky.moonlight.toFixed(2),sun.x.toFixed(2)].join(':');
     if(lightKey!==this.lastLight){this.relight(sky.day,sky.twilight,sky.moonlight,sun.x);this.lastLight=lightKey;}
     c.setTransform(1,0,0,1,0,0);
-    const gradient=c.createLinearGradient(0,0,0,this.height*.61);
+    const gradient=c.createLinearGradient(0,0,0,this.height*(camera.horizon+.06));
     gradient.addColorStop(0,css(blend(blend([2,9,31],[28,114,204],sky.day),[92,47,102],sky.twilight*.8)));
     gradient.addColorStop(.6,css(blend(blend([8,21,51],[88,172,231],sky.day),[224,107,128],sky.twilight*.9)));
     gradient.addColorStop(1,css(blend(blend([22,34,66],[200,222,226],sky.day),[255,148,64],sky.twilight)));
@@ -156,10 +157,10 @@ export class LandscapeRenderer{
     // No CPU reflection strips or alternate wave simulation runs here.
     if(this.fallbackKey!==lightKey){
       const w=this.water.getContext('2d')!;w.setTransform(1,0,0,1,0,0);w.clearRect(0,0,this.width,this.height);this.coordinates(w);
-      const fill=w.createLinearGradient(0,HEIGHT*.57,0,HEIGHT);
+      const fill=w.createLinearGradient(0,HEIGHT*camera.waterMaskTop,0,HEIGHT);
       fill.addColorStop(0,css(blend(blend([13,35,69],[113,179,199],sky.day),[90,112,150],sky.twilight*.35)));
       fill.addColorStop(1,css(blend(blend([9,28,58],[48,123,155],sky.day),[65,81,123],sky.twilight*.3)));
-      w.fillStyle=fill;w.fillRect(0,HEIGHT*.57,WIDTH,HEIGHT);w.globalCompositeOperation='destination-in';w.drawImage(this.assets.water,0,0,WIDTH,HEIGHT);w.globalCompositeOperation='source-over';this.fallbackKey=lightKey;
+      w.fillStyle=fill;w.fillRect(0,HEIGHT*camera.waterMaskTop,WIDTH,HEIGHT);w.globalCompositeOperation='destination-in';w.drawImage(this.assets.water,0,0,WIDTH,HEIGHT);w.globalCompositeOperation='source-over';this.fallbackKey=lightKey;
     }
     c.drawImage(this.water,0,0);
     }

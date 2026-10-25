@@ -17,11 +17,11 @@ It is not a claim to recover survey-quality 3D from a photograph. The original
 260-degree astronomical panorama supplies projected screen positions; those
 positions are calibrated into a narrower 78-degree water-camera frame so that
 light and viewing directions agree on screen. Vertical elevation and the
-existing horizon remain aligned. Relative camera height is 8 units.
+calibrated horizon remain aligned. Relative camera height is 8 units.
 
 `prepare-water-geometry.py` generates two small, committed opaque PNG atlases:
 
-- `water-uv.png`: two halves packing signed world X/Z coordinates at 16 bits.
+- `water-uv.png`: two halves packing signed world X/Z coordinates at 24 bits.
   It decodes once to an RG32F texture. The vertex shader bilinearly reconstructs
   the plane from this map. Microfacet evaluation uses its analytic inverse to
   avoid interpolation artifacts between triangles.

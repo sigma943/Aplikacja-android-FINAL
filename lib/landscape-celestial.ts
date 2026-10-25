@@ -1,5 +1,5 @@
 /** Decorative disc rendering only. Position, phase and orientation stay astronomical. */
-export const SUN_RADIUS=26,MOON_RADIUS=28;
+export const SUN_RADIUS=26,MOON_RADIUS=36;
 export function moonTexture(){
   const canvas=document.createElement('canvas');canvas.width=canvas.height=192;
   const c=canvas.getContext('2d')!,r=96;
