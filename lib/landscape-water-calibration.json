@@ -16,5 +16,6 @@
   "sceneDepthExtent": 128,
   "waterMaskTop": 0.455,
   "uvBits": 24,
-  "cloudSpeed": 4
+  "cloudSpeed": 4,
+  "framingOffsetY": 0.06
 }

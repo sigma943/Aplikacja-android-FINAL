@@ -19,7 +19,11 @@ used as a reflected-light texture. Actual alpha controls all regenerated masks.
 The fixed camera is now aligned southwest (0.75 radians west of south), with a
 0.45 horizon and 0.65 vertical altitude span. This is a VIEW calibration: SunCalc
 altitude/azimuth, events, lunar phase and continuous orbital calculations remain
-unchanged. Screen positions consequently change to match the new valley. No Sun
+unchanged. Screen positions consequently change to match the new valley. The complete
+registered frame is shifted down by 6% of its height, placing the mountain skyline
+around the reference's 43% screen height instead of 37%. This same frame transform
+applies to terrain, clouds, water, rays and celestial bodies; it does not shift
+only the visible Sun or its reflection. No Sun
 is made to follow a hand-drawn river path. The same projection data controls sky,
 water rays, occlusion and the terrain material. The Moon's decorative radius is
 36 relative units; its phase/orientation stay astronomical.
