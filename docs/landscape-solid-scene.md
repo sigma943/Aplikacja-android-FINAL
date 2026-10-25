@@ -161,3 +161,41 @@ canvas. Therefore it contains no Sun, Moon, terrain or water. It refreshes at
 most four times per second, with a 600px width cap and no extra WebGL draws.
 Other panels/navigation do not receive sky canvases. Tests guard against scene
 canvas copies, check matched panel/dock geometry, and retain rise/set/DST tests.
+
+## Filmic river light and atmosphere
+
+This pass is inspired by the supplied sunset and bright-morning illustrations.
+The scene keeps the registered artwork and existing water geometry. The Sun's
+vertical track is centred on the valley opening (50%); the Moon retains a
+separate track at 78%. Rise/set calculations and the glass UI are unchanged.
+
+Water mixes a narrow GGX lobe with a broader, wind-oriented Beckmann slope
+lobe, driven by the existing analytic waves and unresolved slope variance.
+This creates a continuous reflection path with moving crest detail. Partial-disc
+exposure is lifted artistically near the horizon; shader light directions allow
+standard near-horizon refraction while the shared visible-disc gate still turns
+solar lighting off after sunset. This is an art-directed raster renderer, not
+an unbiased path tracer or a surveyed terrain reconstruction.
+
+A water-specific hue-preserving highlight shoulder retains gold/peach/silver
+instead of mapping every channel to white. The existing quarter-size light pass
+uses soft-knee bloom with 5/9/13 taps for low/medium/high. A bounded halo can
+cross shore silhouettes optically; the actual water FBO remains contained by the
+precise water mask. No extra framebuffer or draw pass is added. Low quality also
+retains a small bloom kernel. Distance haze separates distant ridges while near
+photographic foliage remains sharp; height-limited scattering is cloud/terrain
+occluded at medium/high quality. A blue morning sky returns earlier, while the
+near-horizon sunset remains warm.
+
+Validation covers real GLES compile/link and all quality levels, temporal mean
+stability, mask containment, no direct light from absent sources, finite HDR
+halo pixels, a substantial warm reflection area and protection against a clipped
+white river. Browser captures include 08:12 and 16:15 reference-style scenes.
+The local Mesa review uses the proxy reflection path; the browser suite also
+checks the production depth-tested solid mirror. Android heat/frame-rate remain
+physical-device measurements, not inferred from software rendering.
+
+Shading references:
+- https://pbr-book.org/3ed-2018/Reflection_Models/Microfacet_Models
+- https://www.pbr-book.org/4ed/Volume_Scattering/Phase_Functions
+- https://www.pbr-book.org/4ed/Volume_Scattering/Transmittance

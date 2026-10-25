@@ -193,11 +193,11 @@ test('both bodies rise vertically at their actual apparent horizon and stay insi
   const rise=events[kind==='sun'?'sunrise':'moonrise'],set=events[kind==='sun'?'sunset':'moonset'];
   for(const t of [rise,set]){
    const body=a.astronomyAt(t,place)[kind],point=a.projectCelestial(body,kind),radius=(kind==='sun'?26:36)/(1000*1850/850);
-   assert.equal(point.x,kind==='sun'?.32:.68);assert.ok(Math.abs(point.y-radius-r.mountainHorizon(point.x))<.0015,'upper limb at skyline: '+kind);
+   assert.equal(point.x,kind==='sun'?.50:.78);assert.ok(Math.abs(point.y-radius-r.mountainHorizon(point.x))<.0015,'upper limb at skyline: '+kind);
   }
   assert.ok(a.projectCelestial(a.astronomyAt(rise-60000,place)[kind],kind).y>a.projectCelestial(a.astronomyAt(rise+60000,place)[kind],kind).y);
   assert.ok(a.projectCelestial(a.astronomyAt(set-60000,place)[kind],kind).y<a.projectCelestial(a.astronomyAt(set+60000,place)[kind],kind).y);
-  for(let h=0;h<24;h++){const body=a.astronomyAt(ms+h*3600000,place)[kind];if(a.apparentLandscapeAltitude(body,kind)>0){const p=a.projectCelestial(body,kind);assert.equal(p.x,kind==='sun'?.32:.68);assert.ok(p.y>.06);}}
+  for(let h=0;h<24;h++){const body=a.astronomyAt(ms+h*3600000,place)[kind];if(a.apparentLandscapeAltitude(body,kind)>0){const p=a.projectCelestial(body,kind);assert.equal(p.x,kind==='sun'?.50:.78);assert.ok(p.y>.06);}}
  }
 });
 test('cloud thinning preserves silhouettes with roughly a quarter less coverage',()=>{
@@ -209,9 +209,15 @@ test('cloud thinning preserves silhouettes with roughly a quarter less coverage'
 test('simultaneous sunset and moonrise have separate tracks and a gentle twilight handover',()=>{
  const s=at('2026-10-25T16:10:00+01:00'),sun=a.projectCelestial(s.sun),moon=a.projectCelestial(s.moon,'moon');
  assert.ok(s.sun.altitude>0&&s.moon.altitude>0,'real simultaneous visibility is retained');
- assert.ok(moon.x-sun.x>.3,'discs cannot overlap even at matching heights');
+ assert.ok(moon.x-sun.x>.24,'discs cannot overlap even at matching heights');
  assert.ok(a.moonPresentationOpacity(s.sun.altitude)<.4,'Moon stays subdued while the Sun sets');
  let previous=0;
  for(let degrees=3;degrees>=-8;degrees-=.02){const opacity=a.moonPresentationOpacity(degrees*Math.PI/180);assert.ok(opacity>=previous-1e-12&&opacity>=.1-1e-12&&opacity<=1+1e-12);if(previous)assert.ok(opacity-previous<.01);previous=opacity;}
  assert.equal(a.moonPresentationOpacity(-10*Math.PI/180),1);
+});
+
+test('morning blue sky returns while the horizon keeps its sunset colour',()=>{
+ const morning=at('2026-10-23T08:00:00+02:00'),sunset=at('2026-10-25T16:15:00+01:00');
+ assert.ok(a.skyState(morning).day>.8);assert.ok(a.skyState(morning).twilight<.3,'no hour-long pink wash over a bright morning');
+ assert.ok(a.skyState(sunset).twilight>.95,'the actual sunset retains a rich warm sky');
 });

@@ -11,7 +11,7 @@ const float ALT_SPAN=${calibration.altitudeSpan.toPrecision(12)};
 const float CAMERA_HEIGHT=${calibration.cameraHeight.toFixed(1)};
 vec2 projectWater(vec3 p){float az=atan(p.x,p.z);float el=atan(p.y-CAMERA_HEIGHT,length(p.xz));return vec2(.5+az/AZ_SPAN,HORIZON-el/(PI*.5)*ALT_SPAN);}
 vec2 unprojectWater(vec2 uv){float az=(uv.x-.5)*AZ_SPAN;float down=max(.012,(uv.y-HORIZON)/ALT_SPAN*(PI*.5));float r=CAMERA_HEIGHT/tan(down);return r*vec2(sin(az),cos(az));}
-vec3 lightDirection(vec2 projected,float altitude){float az=(projected.x-.5)*AZ_SPAN;return vec3(sin(az)*cos(altitude),sin(altitude),cos(az)*cos(altitude));}
+vec3 lightDirection(vec2 projected,float altitude){float az=(projected.x-.5)*AZ_SPAN;float apparent=max(.001,altitude+.0098902);return vec3(sin(az)*cos(apparent),sin(apparent),cos(az)*cos(apparent));}
 `;
 // direction, wavelength, amplitude; each oscillator has the deep-water dispersion omega=sqrt(g*k).
 // Emit explicit constant calls. Dynamic indexing of local GLSL arrays can spill
@@ -75,8 +75,29 @@ vec3 evaluateDisc(vec3 n,vec3 v,vec3 l,vec3 radiance,float alpha,float quality,f
  if(quality<1.5)return sum*.5;
  return (sum+evaluateLight(n,v,normalize(l+b*radius),radiance,alpha)+evaluateLight(n,v,normalize(l-b*radius),radiance,alpha))*.25;
 }
+// Broad, wind-oriented Gaussian slope distribution (Beckmann). The narrow
+// GGX lobe retains individual facets; this lobe supplies a coherent light path.
+vec3 evaluateWaterSheen(vec3 n,vec3 v,vec3 l,vec3 radiance,float variance){
+ float NoL=max(dot(n,l),0.),NoV=max(dot(n,v),.001);if(NoL<=0.)return vec3(0.);
+ vec3 h=normalize(v+l),tx=normalize(vec3(1.,0.,0.)-n*n.x),tz=cross(n,tx);
+ float NoH=max(dot(n,h),.001),VoH=max(dot(v,h),0.);
+ float unresolved=sqrt(max(variance,0.));vec2 spread=vec2(.20,.24)+unresolved*vec2(.24,.18);
+ vec2 slope=vec2(dot(h,tx),dot(h,tz))/(NoH*spread);
+ float D=exp(-dot(slope,slope))/(PI*spread.x*spread.y*pow(NoH,4.));
+ return radiance*NoL*D*visibilitySmith(NoV,NoL,sqrt(spread.x*spread.y))*fresnelSchlick(VoH);
+}
 vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
 vec3 displayColor(vec3 hdr){return pow(aces(max(hdr,0.)),vec3(1./2.2));}
+// Preserve the hue of gold/pink/silver in the shoulder instead of mapping each
+// high-energy channel independently to white. Only the hottest core desaturates.
+vec3 waterDisplayColor(vec3 hdr){
+ hdr=max(hdr,0.);float peak=max(max(hdr.r,hdr.g),hdr.b);
+ vec3 hue=hdr/max(peak,.00001);
+ hue=mix(hue,vec3(1.),smoothstep(6.,60.,peak)*.12);
+ vec3 chroma=pow(clamp(hue*aces(vec3(peak)).r,0.,1.),vec3(1./2.2));
+ return mix(displayColor(hdr),chroma,.78);
+}
+
 `;
 /** The same solid heightfield drives direct-light occlusion and the mesh. */
 const solidScene=`
@@ -194,14 +215,14 @@ vec3 skyRadiance(vec3 direction){
  float elevation=max(direction.y,0.);vec3 zenith=mix(vec3(.0018,.004,.012),vec3(.11,.31,.64),uDay);
  zenith=mix(zenith,vec3(.20,.045,.13),uWarm*.65);
  vec3 horizon=mix(vec3(.006,.012,.03),vec3(.60,.78,.91),uDay);
- horizon=mix(horizon,vec3(.80,.24,.075),uWarm*.84);
+ horizon=mix(horizon,vec3(.85,.20,.15),uWarm*.84);
  vec3 sky=mix(horizon,zenith,smoothstep(0.,.75,elevation));
  vec2 reflected=vec2(.5+atan(direction.x,direction.z)/AZ_SPAN,HORIZON-asin(clamp(direction.y,-1.,1.))/(PI*.5)*ALT_SPAN);
  vec2 cloudUV=vec2(1.-abs(mod(reflected.x-uTime*${(calibration.cloudSpeed/1000).toFixed(8)},2.)-1.),reflected.y);vec4 cloud=texture(uClouds,cloudUV);
  float cloudAlpha=cloud.a;
  vec3 cloudLinear=pow(cloud.rgb,vec3(2.2));
  vec3 cloudLit=cloudLinear*mix(vec3(.025,.045,.09),vec3(.8),uDay);
- cloudLit=mix(cloudLit,cloudLinear*vec3(1.15,.43,.13),uWarm*.7);
+ cloudLit=mix(cloudLit,cloudLinear*vec3(1.10,.34,.25),uWarm*.7);
  sky=mix(sky,cloudLit,cloudAlpha);
  return sky;
 }
@@ -234,26 +255,30 @@ void main(){
  gerstner(rest,uTime,count,dx,dy,uFrameInterval,perspective.g,disp,t,b,variance);
  vec3 position=vec3(rest.x,0.,rest.y)+disp;
  vec3 n=normalize(cross(b,t)),v=normalize(vec3(0.,CAMERA_HEIGHT,0.)-position);
- float roughness=.10+.018*perspective.r+.035*(.5+.5*sin(dot(rest,vec2(.43,.71))));
+ float roughness=.135+.018*perspective.r+.025*(.5+.5*sin(dot(rest,vec2(.43,.71))));
  // Unresolved spatial/temporal slopes broaden the microfacet lobe instead of flickering.
- float alpha=sqrt(pow(roughness,4.)+variance*.035+.000022);
+ float alpha=sqrt(pow(roughness,4.)+variance*.045+.000050);
  float NoV=abs(dot(n,v))+.001;vec3 F=fresnelSchlick(NoV),r=reflect(-v,n);
  vec3 reflectedSky=tracedRadiance(position+n*.04,r,roughness)*F;
  // Water absorbs light; sunset colour belongs to reflected sky/light, never
  // an emissive red fill. This remains blue-black when direct sources vanish.
- vec3 body=mix(vec3(.0005,.0015,.004),vec3(.003,.022,.035),uDay);
+ vec3 body=mix(vec3(.0005,.0015,.004),vec3(.004,.028,.046),uDay);
  vec3 radiance=(body*(1.-F)+reflectedSky)*perspective.b;
  // Keep midday highlights restrained; preserve warm detail around the sunset
  // core instead of clipping entire wave fronts to tone-mapped white.
- float solarExposure=mix(.15,1.,1.-smoothstep(.08,.45,uSunAltitude));
- if(uSunAltitude>0.&&uSunIntensity>.00001)radiance+=evaluateDisc(n,v,lightDirection(uSunPosition,uSunAltitude),uSunColor*uSunIntensity*8.*solarExposure*solidShadow(position+n*.04,lightDirection(uSunPosition,uSunAltitude),uQuality>.5?4:2),alpha,uQuality,.009);
- if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(n,v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*1.2*solidShadow(position+n*.04,lightDirection(uMoonPosition,uMoonAltitude),uQuality>.5?4:2),alpha,uQuality,.008);
- float aerial=perspective.r*.07;
+ float solarExposure=mix(.25,1.65,1.-smoothstep(.08,.45,uSunAltitude));
+ if(uSunAltitude>-.01454&&uSunIntensity>.00001){
+  vec3 l=lightDirection(uSunPosition,uSunAltitude),glossNormal=normalize(mix(vec3(0.,1.,0.),n,.72));
+  vec3 incident=uSunColor*uSunIntensity*10.*solarExposure*mix(.18,1.,solidShadow(position+n*.04,l,uQuality>.5?4:2));
+  radiance+=evaluateDisc(glossNormal,v,l,incident,alpha,uQuality,.010)*.45+evaluateWaterSheen(glossNormal,v,l,incident,variance)*.55;
+ }
+ if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(normalize(mix(vec3(0.,1.,0.),n,.85)),v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*1.2*solidShadow(position+n*.04,lightDirection(uMoonPosition,uMoonAltitude),uQuality>.5?4:2),alpha,uQuality,.009);
+ float aerial=perspective.r*.11;
  radiance=mix(radiance,skyRadiance(vec3(0.,.06,1.))*.08,aerial);
  // Relative exposure is continuous through the existing solar state.
  radiance*=mix(2.4,1.10,uDay);
  radiance=min(radiance,vec3(60000.));
- fragColor=vec4(uHdr>.5?radiance:displayColor(radiance),mask);
+ fragColor=vec4(uHdr>.5?radiance:waterDisplayColor(radiance),mask);
 }`;
 export const SCREEN_VERTEX=`#version 300 es
 void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}`;
@@ -291,17 +316,17 @@ void main(){
  vec3 ambient=mix(vec3(.018,.028,.065),vec3(.55,.65,.82),uDay);
  ambient=mix(ambient,vec3(.40,.20,.30),uWarm*.15)*(.55+.45*max(n.y,0.));
  vec3 lighting=ambient;
- if(uSunAltitude>0.&&uSunIntensity>.001){
+ if(uSunAltitude>-.01454&&uSunIntensity>.001){
   vec3 l=lightDirection(uSunPosition,uSunAltitude);float NoL=max(dot(n,l),0.);
   float shadow=uQuality>.5&&NoL>0.?rayShadow(position+n*.12,l,3):1.;
   lighting+=uSunColor*uSunIntensity*NoL*1.8*shadow;
  }
  if(uMoonAltitude>0.)lighting+=uMoonColor*uMoonIntensity*max(dot(n,lightDirection(uMoonPosition,uMoonAltitude)),0.)*.20;
  vec3 radiance=albedo*lighting;
- float haze=1.-exp(-radius*(.0008+.002*uWarm));
+ float haze=1.-exp(-radius*(.0015+.0032*uWarm));
  vec3 air=mix(vec3(.005,.013,.035),vec3(.36,.49,.62),uDay);
  air=mix(air,vec3(.65,.28,.18),uWarm*.7);
- radiance=mix(radiance,air,haze*.6);
+ radiance=mix(radiance,air,haze*.64);
  fragColor=vec4(displayColor(radiance),art.a);
 }`;
 export const LIGHT_FRAGMENT=`#version 300 es
@@ -327,36 +352,46 @@ float cloudShadow(vec3 point,vec3 light){
  p.x=1.-abs(mod(p.x-uTime*${(calibration.cloudSpeed/1000).toFixed(8)},2.)-1.);
  return 1.-textureLod(uClouds,p,0.).a*.94;
 }
-vec3 bright(vec2 uv){vec4 s=texture(uWater,uv);float lum=dot(s.rgb,vec3(.2126,.7152,.0722));float threshold=uHdr>.5?1.25:.86;return s.rgb*min(max(lum-threshold,0.),4.)/max(lum,.0001)*s.a;}
+vec3 bright(vec2 uv){
+ vec4 s=texture(uWater,uv);float lum=dot(s.rgb,vec3(.2126,.7152,.0722));
+ float threshold=uHdr>.5?.65:.72,knee=uHdr>.5?.45:.16;
+ float soft=clamp(lum-threshold+knee,0.,2.*knee);soft=soft*soft/(4.*knee+.0001);
+ float contribution=max(soft,lum-threshold)/max(lum,.0001);
+ return s.rgb*min(contribution,2.)*s.a;
+}
 void main(){
  vec2 texUV=gl_FragCoord.xy/uResolution;
  vec2 pixel=vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y);
  vec2 uv=(pixel-uFrame.zw)/uFrame.xy;
- vec3 bloom=vec3(0.);
+ vec2 d=4./uWaterResolution;
+ vec3 bloom=bright(texUV)*.24;
+ bloom+=(bright(texUV+vec2(d.x,0.))+bright(texUV-vec2(d.x,0.))+bright(texUV+vec2(0.,d.y))+bright(texUV-vec2(0.,d.y)))*.10;
  if(uQuality>.5){
-  vec2 d=2./uWaterResolution;
-  bloom=bright(texUV)*.28;
-  bloom+=(bright(texUV+vec2(d.x,0.))+bright(texUV-vec2(d.x,0.))+bright(texUV+vec2(0.,d.y))+bright(texUV-vec2(0.,d.y)))*.12;
-  bloom+=(bright(texUV+d)+bright(texUV-d)+bright(texUV+vec2(d.x,-d.y))+bright(texUV+vec2(-d.x,d.y)))*.06;
+  vec2 wide=d*2.8;
+  bloom+=(bright(texUV+wide)+bright(texUV-wide)+bright(texUV+vec2(wide.x,-wide.y))+bright(texUV+vec2(-wide.x,wide.y)))*.06;
+  if(uQuality>1.5){
+   wide=d*5.5;
+   bloom+=(bright(texUV+vec2(wide.x,0.))+bright(texUV-vec2(wide.x,0.))+bright(texUV+vec2(0.,wide.y))+bright(texUV-vec2(0.,wide.y)))*.03;
+  }
  }
  float shafts=0.;
- if(uSceneEnabled>.5&&uQuality>.5&&uSunAltitude>0.&&uSunIntensity>.001){
+ if(uSceneEnabled>.5&&uQuality>.5&&uSunAltitude>-.01454&&uSunIntensity>.001){
   float az=(uv.x-.5)*AZ_SPAN,el=(HORIZON-uv.y)/ALT_SPAN*(PI*.5);
   vec3 direction=vec3(sin(az)*cos(el),sin(el),cos(az)*cos(el));
   vec3 light=lightDirection(uSunPosition,uSunAltitude);
   vec4 depth=texture(uSceneDepth,uv);
   float farDistance=depth.b>.55?min(110.,sceneRadius(depth)/max(length(direction.xz),.05)):110.;
-  float g=.72,mu=dot(direction,light);
+  float g=.64,mu=dot(direction,light);
   float phase=(1.-g*g)/(4.*PI*pow(max(.02,1.+g*g-2.*g*mu),1.5));
   int count=uQuality>1.5?12:6;float stepLength=farDistance/float(count),transmittance=1.;
   for(int i=0;i<12;i++){
    if(i>=count)break;vec3 p=vec3(0.,CAMERA_HEIGHT,0.)+direction*((float(i)+.5)*stepLength);
-   float density=.006*exp(-max(p.y,0.)/16.)*smoothstep(-.5,.5,p.y);
+   float density=.0055*exp(-max(p.y,0.)/12.)*smoothstep(-.5,.5,p.y);
    float extinction=exp(-density*stepLength);
    float shadow=rayShadow(p,light,uQuality>1.5?4:2)*cloudShadow(p,light);
    shafts+=transmittance*(1.-extinction)*shadow*phase;transmittance*=extinction;
   }
-  shafts=min(.20,shafts*uSunIntensity*(1.-smoothstep(.12,.5,uSunAltitude))*2.2);
+  shafts=min(.18,shafts*uSunIntensity*(1.-smoothstep(.12,.5,uSunAltitude))*2.5);
  }
  fragColor=vec4(bloom,shafts);
 }`;
@@ -380,14 +415,21 @@ void main(){
  vec2 uv=(vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y)-uFrame.zw)/uFrame.xy;
  vec4 water=texture(uWater,texUV),light=texture(uLight,texUV);
  float mask=texture(uMask,uv).a,alpha=min(mask,water.a);
- vec3 color=uHdr>.5?displayColor(water.rgb+light.rgb*.065):clamp(water.rgb+light.rgb*.06,0.,1.);
+ vec3 color=uHdr>.5?waterDisplayColor(water.rgb+light.rgb*.18):clamp(water.rgb+light.rgb*.12,0.,1.);
  float shaftAlpha=light.a;
  color=mix(color,uSunColor,shaftAlpha*.25);
  vec4 terrain=texture(uLitTerrain,texUV);terrain.a*=uTerrainEnabled;
  float surface=min(1.,alpha+terrain.a);
- float total=surface+shaftAlpha*(1.-surface);
- vec3 premult=(color*alpha+terrain.rgb*terrain.a)*(1.-shaftAlpha)+clamp(uSunColor,0.,1.)*shaftAlpha;
+ float haloAlpha=clamp(dot(light.rgb,vec3(.2126,.7152,.0722))*(uHdr>.5?.025:.055),0.,.075);
+ vec3 halo=uHdr>.5?waterDisplayColor(light.rgb*.24):clamp(light.rgb,0.,1.);
+ vec3 terrainColor=1.-(1.-terrain.rgb)*(1.-halo*haloAlpha*2.);
+ float scatter=1.-(1.-shaftAlpha)*(1.-haloAlpha);
+ float total=surface+scatter*(1.-surface);
+ vec3 base=color*alpha+terrainColor*terrain.a;
+ vec3 scatterColor=(clamp(uSunColor,0.,1.)*shaftAlpha+halo*haloAlpha)/max(shaftAlpha+haloAlpha,.00001);
+ vec3 premult=base*(1.-scatter)+scatterColor*scatter;
  fragColor=total>.00001?vec4(premult/total,total):vec4(0.);
+
 }`;
 
 /** Closed terrain and instanced conifers, rendered twice with real depth tests. */
@@ -455,10 +497,10 @@ void main(){
  vec3 ambient=mix(vec3(.018,.028,.065),vec3(.55,.65,.82),uDay);
  ambient=mix(ambient,vec3(.40,.20,.30),uWarm*.15)*(.55+.45*max(n.y,0.));
  vec3 radiance=albedo*ambient;
- if(uSunAltitude>0.){vec3 l=lightDirection(uSunPosition,uSunAltitude);radiance+=albedo*uSunColor*uSunIntensity*max(dot(n,l),0.)*1.8*solidShadow(vWorld+n*.16,l,uQuality>.5?4:2);}
+ if(uSunAltitude>-.01454){vec3 l=lightDirection(uSunPosition,uSunAltitude);radiance+=albedo*uSunColor*uSunIntensity*max(dot(n,l),0.)*1.8*solidShadow(vWorld+n*.16,l,uQuality>.5?4:2);}
  if(uMoonAltitude>0.){vec3 l=lightDirection(uMoonPosition,uMoonAltitude);radiance+=albedo*uMoonColor*uMoonIntensity*max(dot(n,l),0.)*.2*solidShadow(vWorld+n*.16,l,2);}
- float haze=1.-exp(-length(vWorld.xz)*(.0008+.002*uWarm));
+ float haze=1.-exp(-length(vWorld.xz)*(.0015+.0032*uWarm));
  vec3 air=mix(vec3(.005,.013,.035),vec3(.36,.49,.62),uDay);air=mix(air,vec3(.65,.28,.18),uWarm*.7);
- radiance=mix(radiance,air,haze*.6);
+ radiance=mix(radiance,air,haze*.64);
  fragColor=vec4(uSceneHdr>.5?radiance:displayColor(radiance),uMirror>.5?1.:1.-smoothstep(.70,.82,uv.y));
 }`;
