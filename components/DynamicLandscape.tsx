@@ -104,8 +104,8 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
           renderer.copyWindow(recordingContext,0,0,element.width,element.height,element.width,element.height,true);
         }
         const cost=performance.now()-start;frames++;fpsFrames++;if(mono-fpsStart>=1000){
-          actualFps=fpsFrames*1000/(mono-fpsStart);fpsFrames=0;fpsStart=mono;
-          if(motionPolicy.reason==='active'&&!preview.quality&&frames>20){
+          const observedFrames=fpsFrames;actualFps=observedFrames*1000/(mono-fpsStart);fpsFrames=0;fpsStart=mono;
+          if(motionPolicy.reason==='active'&&!preview.quality&&observedFrames>=3){
             slowWindows=actualFps<WATER_QUALITY[renderer.quality].fps*.72?slowWindows+1:Math.max(0,slowWindows-1);
             if(slowWindows>=2&&mono-lastQualityChange>2000){quality=quality==='high'?'medium':'low';slow=quality==='low';lastQualityChange=mono;slowWindows=0;}
           }

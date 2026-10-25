@@ -232,10 +232,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   for(const mode of ['bus','stop']){
    await page.goto(origin+'/landscape-'+mode+'-sheet-fixture/');
    await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>1);
+   // High-quality optical frames and both recordings are checked above.
+   // Measure the UI spring at the bounded mobile quality: software rasterization
+   // of the High shader can otherwise consume an entire spring between rAFs.
+   await page.evaluate(()=>window.__landscapePreview({quality:'low'}));
    await page.waitForFunction(()=>document.querySelector('[data-landscape-window=panel]')?.dataset.sceneReady==='true');
    assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter),'none','artwork sheets do not blur the map');
    if(mode==='bus'){
-    await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0}));
+    await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0,quality:'low'}));
     await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='day'&&document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
     await new Promise(r=>setTimeout(r,150));
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).backgroundColor),'rgb(8, 13, 29)','daytime carrier header retains the dark cosmic base');

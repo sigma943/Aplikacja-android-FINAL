@@ -83,6 +83,13 @@ GPU frame from the existing animation task. It no longer allocates a new canvas
 or rerenders all GPU passes for every encoder tick. This improves the validity of
 the CI preview; it remains a software-renderer measurement, not a phone benchmark.
 
+The FPS adaptation no longer waits for 20 expensive frames before reacting: two
+slow sampled windows can lower quality once at least three frames were observed.
+The sheet-spring browser test explicitly uses Low after the separate High
+optical/recording checks; otherwise software GPU work can consume the entire
+spring between requestAnimationFrame samples. The height progression and stable
+canvas-size assertions remain required.
+
 Validation includes TypeScript, lint of changed modules, mask/normal/depth tests,
 native GLSL compilation and water pixels, browser lifecycle/material-cache checks,
 web compilation and the signed Android quick build. The known local keytool issue
