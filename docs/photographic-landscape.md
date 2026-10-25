@@ -84,7 +84,8 @@ or rerenders all GPU passes for every encoder tick. This improves the validity o
 the CI preview; it remains a software-renderer measurement, not a phone benchmark.
 
 The FPS adaptation no longer waits for 20 expensive frames before reacting: two
-slow sampled windows can lower quality once at least three frames were observed.
+slow sampled windows lower quality even when the GPU delivers only one frame
+per second; sparse windows must not disable the fallback.
 The sheet-spring browser test explicitly uses Low after the separate High
 optical/recording checks; otherwise software GPU work can consume the entire
 spring between requestAnimationFrame samples. The height progression and stable
