@@ -42,8 +42,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    const alpha=()=>{const t=gpu.targets[2],p=new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,gl.UNSIGNED_BYTE,p);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return p;};
    const geometry=alpha();let baseline;
    try{scene.draw=()=>{};gpu.terrainKey='';gpu.render(window.gpuLight,window.gpuFrame,'high');baseline=alpha();}finally{scene.draw=draw;gpu.terrainKey='';gpu.render(window.gpuLight,window.gpuFrame,'high');}
-   let excess=0,difference=0;for(let i=3;i<geometry.length;i+=4){excess=Math.max(excess,geometry[i]-baseline[i]);difference=Math.max(difference,Math.abs(geometry[i]-baseline[i]));}return {excess,difference,error:gl.getError()};
+   let colorDifference=0;for(let i=0;i<geometry.length;i++)if(i%4!==3)colorDifference=Math.max(colorDifference,Math.abs(geometry[i]-baseline[i]));
+   let excess=0,difference=0;for(let i=3;i<geometry.length;i+=4){excess=Math.max(excess,geometry[i]-baseline[i]);difference=Math.max(difference,Math.abs(geometry[i]-baseline[i]));}return {excess,difference,colorDifference,error:gl.getError()};
   });
+  assert.equal(coverage.colorDifference,0,'the registered main-view material cannot acquire proxy-tree silhouettes or terrain lighting triangles');
   assert.equal(coverage.error,0);assert.equal(coverage.excess,0,'3D material passes cannot grow opaque fringes around the river or tree silhouettes');assert.equal(coverage.difference,0,'the main scene preserves the authored coverage mask');
   const spatial=await page.evaluate(()=>{
    const gpu=window.gpu,light=window.gpuLight,gl=gpu.canvas.getContext('webgl2'),p=gpu.programs[4];

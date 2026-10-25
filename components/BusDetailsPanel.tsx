@@ -3,7 +3,6 @@
 import {useLayoutEffect,useRef} from 'react';
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
 import LandscapeChrome from './LandscapeChrome';
-import {vehicleHeaderStyle} from '@/lib/interface-appearance';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {motion, AnimatePresence, type MotionStyle} from 'motion/react';
 import {Navigation, Clock, MapPin} from 'lucide-react';
@@ -88,35 +87,35 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                      onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();setIsBusPanelExpanded(value => !value);}}}
                      data-vehicle-header data-ui-mode={isDark ? 'dark' : 'light'}
                      className="p-3 pb-5 md:p-6 md:pb-8 text-white relative shrink-0 cursor-pointer touch-none overflow-hidden" 
-                     style={{...selectedBusHeaderStyle,'--landscape-vehicle-header':vehicleHeaderStyle(selectedVehicleColor,true,true).background} as CSSProperties}
+                     style={selectedBusHeaderStyle}
                      {...busDrag.handle}
                   >
                      <div 
                         className="w-12 h-1.5 rounded-full bg-white/40 hover:bg-white/60 mx-auto mb-3 transition-colors"
                      />
 
-                     <div className="flex items-baseline gap-2 mb-1 md:mb-1.5">
+                     <div data-vehicle-line data-carrier-id={selectedBus.provider} className="flex items-baseline gap-2 mb-1 md:mb-1.5">
                         <span className="text-3xl md:text-5xl font-black tracking-tighter drop-shadow-sm">{selectedBus.routeShortName || '-'}</span>
                         <span className="uppercase tracking-widest text-[10px] md:text-xs font-bold text-white/90">{selectedVehicleIsTrain ? 'Pociag' : 'Linia'}</span>
                      </div>
-                     <div className="pr-12 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm md:text-[17px] font-medium leading-tight opacity-100 drop-shadow-sm">
+                     <div data-vehicle-direction className="pr-12 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm md:text-[17px] font-medium leading-tight opacity-100 drop-shadow-sm">
                        <h2 className="min-w-0">
                          {selectedVehicleIsTrain ? 'Relacja' : 'Kierunek'}: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
                        </h2>
                        {selectedBus.provider === 'marcel' && selectedBusStatusLabel && (
-                         <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? (isDark ? 'bg-indigo-500/80 text-white' : 'bg-indigo-100 text-indigo-900') : 'bg-white/[0.18] text-white'}`}>
+                         <span data-vehicle-status={selectedBus.status} className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? (isDark ? 'bg-indigo-500/80 text-white' : 'bg-indigo-100 text-indigo-900') : 'bg-white/[0.18] text-white'}`}>
                            {normalizeVehicleText(selectedBusStatusLabel)}
                          </span>
                        )}
                      </div>
-                     <h3 className="text-[10px] md:text-xs font-medium leading-tight opacity-90 drop-shadow-sm mt-0.5 md:mt-1 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1">
+                     <h3 data-vehicle-meta className="text-[10px] md:text-xs font-medium leading-tight opacity-90 drop-shadow-sm mt-0.5 md:mt-1 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1">
                         {getVehicleDisplayNumber(selectedBus) && (
                           <span className="text-white/80 uppercase tracking-[0.18em] font-semibold">
                             {selectedVehicleIsTrain ? 'Nr pociagu' : 'Nr pojazdu'}: {getVehicleDisplayNumber(selectedBus)}
                           </span>
                         )}
                         {selectedBus.provider !== 'marcel' && selectedBusStatusLabel && (
-                          <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? (isDark ? 'bg-indigo-500/80 text-white' : 'bg-indigo-100 text-indigo-900') : 'bg-white/[0.18] text-white'}`}>
+                          <span data-vehicle-status={selectedBus.status} className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? (isDark ? 'bg-indigo-500/80 text-white' : 'bg-indigo-100 text-indigo-900') : 'bg-white/[0.18] text-white'}`}>
                             {normalizeVehicleText(selectedBusStatusLabel)}
                           </span>
                         )}
@@ -153,7 +152,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                         className="flex flex-1 flex-col min-h-0 overflow-hidden"
                       >
                         <div className={`p-2.5 md:p-4 flex min-h-0 flex-1 flex-col gap-2.5 md:gap-4 overflow-y-auto mt-1.5 md:mt-2 rounded-t-xl md:rounded-t-2xl relative z-10 ${mapDetailContent}`}>
-                        <div className="grid grid-cols-2 gap-2 md:gap-4 shrink-0">
+                        <div data-vehicle-metrics className="grid grid-cols-2 gap-2 md:gap-4 shrink-0">
                         <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard} ${selectedBusIsWaitingForDeparture ? 'col-span-2' : ''}`}>
                            <div className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5 md:mb-1 ${textSub}`}>
                               <Navigation className="w-3 h-3 md:w-3.5 md:h-3.5" /> Prędkość
@@ -207,7 +206,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
 
                       {selectedBusTripFinished&&<div role="status" data-next-departure className={`p-3 rounded-xl border ${mapDetailCard}`}><div className={`flex items-center gap-2 text-sm ${textMain}`}><Clock size={17}/>{breakCountdownLabel?`Kolejny odjazd za ${breakCountdownLabel}`:'Obliczanie czasu do kolejnego odjazdu…'}</div></div>}
                       {!selectedBusTripFinished&&(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
-                       <div className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
+                       <div data-vehicle-stops className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
                             <MapPin className="w-4 h-4" /> {selectedVehicleIsTrain ? 'Wszystkie przystanki trasy' : 'Następne przystanki'}
                           </h3>

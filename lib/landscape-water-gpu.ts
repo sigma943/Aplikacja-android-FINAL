@@ -144,7 +144,7 @@ export class LandscapeWaterGPU {
    let materialKey=this.terrainKey;
    if(this.targets[2]&&(!materialKey||major||wall-this.lastTerrainUpdate>1000))materialKey=`${light.sky.day.toFixed(2)}:${light.sky.twilight.toFixed(2)}:${light.sun.intensity.toFixed(2)}:${light.sun.x.toFixed(2)}:${light.sun.altitude.toFixed(2)}:${light.moon.intensity.toFixed(2)}:${light.moon.x.toFixed(2)}:${light.moon.altitude.toFixed(2)}`;
    const relight=!!this.targets[2]&&materialKey!==this.terrainKey;
-   this.lastDrawCalls=relight?(this.solid?8:4):3;
+   this.lastDrawCalls=relight?(this.solid?6:4):3;
    for(let stage=relight?(this.solid?-2:-1):0;stage<3;stage++){
     const pass=stage===-2?4:stage<0?3:stage;
     const p=this.programs[pass],target=pass===4?this.targets[3]:pass===3?this.targets[2]:pass<2?this.targets[pass]:null,w=target?.width??this.canvas.width,h=target?.height??this.canvas.height;
@@ -152,7 +152,11 @@ export class LandscapeWaterGPU {
     this.configure(p,light,frame,quality,w,h,width,height,pass===0||pass===3||pass===4);
     if(pass===4){gl.uniform1f(this.uniform(p,'uMirror'),1);gl.uniform1f(this.uniform(p,'uSceneHdr'),1);this.solid!.draw(this.uniform(p,'uTree'));gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,this.targets[3].texture);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);this.reflectionUpdates++;}
     else if(pass===0){gl.bindVertexArray(this.vao);gl.drawElements(gl.TRIANGLES,this.indices,gl.UNSIGNED_SHORT,0);gl.bindVertexArray(null);}
-    else {gl.drawArrays(gl.TRIANGLES,0,3);if(pass===3&&this.solid){const mesh=this.programs[4];gl.useProgram(mesh.program);this.configure(mesh,light,frame,quality,w,h,width,height,true);gl.uniform1f(this.uniform(mesh,'uMirror'),0);gl.uniform1f(this.uniform(mesh,'uSceneHdr'),0);this.solid.draw(this.uniform(mesh,'uTree'),true);}}
+    // The fixed camera already has registered albedo, normals and coverage in
+    // TERRAIN_FRAGMENT. Painting the proxy mesh/forest over it creates cone
+    // silhouettes and triangle-shaped lighting on the photographic foreground.
+    // Keep solid geometry for the depth-tested mirror and terrain shadows.
+    else gl.drawArrays(gl.TRIANGLES,0,3);
    }
    if(relight){this.terrainKey=materialKey;this.lastTerrainUpdate=wall;previous[0]=light.sky.day;previous[1]=light.sky.twilight;previous[2]=light.sun.intensity;previous[3]=light.moon.intensity;previous[4]=light.sun.x;previous[5]=light.sun.altitude;previous[6]=light.moon.x;previous[7]=light.moon.altitude;this.terrainRelights++;}
    if(timing&&this.timer){gl.endQuery(this.timer.TIME_ELAPSED_EXT);this.pendingQuery=true;}

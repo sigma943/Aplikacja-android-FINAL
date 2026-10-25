@@ -91,3 +91,21 @@ composition is not a guarantee of pixel identity with the reference artwork.
 
 Planar-mirror implementation reference:
 https://wikis.khronos.org/opengl/Viewing_and_Transformations#How_do_I_render_a_mirror?
+
+## Foreground correction (build after 561)
+
+The production camera now uses the registered photographic material pass alone
+for visible terrain. Overlaying the approximate solid mesh and low-poly conifers
+on that pass changed the photograph's local lighting and introduced triangular
+patches and duplicate tree silhouettes. Alpha preservation alone did not prevent
+these RGB artifacts. The solid geometry still supplies depth-tested planar
+reflections and terrain shadow queries. This is a hybrid scene, not newly
+reconstructed detailed foreground geometry. No replacement artwork is used.
+
+A material/mirror refresh now takes six draws instead of eight. The GPU browser
+regression compares RGB as well as coverage against the registered material with
+the solid draw disabled, and separately still requires geometry and parallax in
+the mirror. The vehicle sheet shares the existing scene window and saved glass
+opacity, with a carrier-coloured line badge, wrapped destination, lighter status
+chips and day/night ink. Browser captures cover 320/393px, both periods and sheet
+collapse.

@@ -242,9 +242,20 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0,quality:'low'}));
     await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='day'&&document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
     await new Promise(r=>setTimeout(r,150));
-    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).backgroundColor),'rgb(8, 13, 29)','daytime carrier header retains the dark cosmic base');
-    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)','header text stays light in solar day mode');
-    assert.equal(await page.$eval('[data-vehicle-header] [class*="text-white"]',e=>getComputedStyle(e).color),'rgb(248, 250, 252)');
+    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','vehicle heading shares the scene glass instead of an opaque carrier slab');
+    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(11, 27, 38)','daytime heading uses dark ink');
+    assert.equal(await page.$eval('[data-vehicle-line] span',e=>getComputedStyle(e).color),'rgb(52, 80, 9)','Marcel badge retains readable carrier ink');
+    for(const width of [320,393]){
+     await page.setViewport({width,height:851,deviceScaleFactor:1});
+     assert.ok(await page.$eval('[data-map-bus-sheet]',e=>e.scrollWidth<=e.clientWidth+1),'vehicle panel fits '+width+'px');
+     await page.screenshot({path:'test/ui-previews/landscape-bus-day-'+width+'.png'});
+    }
+    await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-24T03:00:00+02:00',rate:0,quality:'low'}));
+    await page.waitForFunction(()=>document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='dark');
+    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(244, 248, 252)','night heading uses pale ink');
+    await page.screenshot({path:'test/ui-previews/landscape-bus-night.png'});
+    await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0,quality:'low'}));
+    await page.waitForFunction(()=>document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
     assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])<=.65),'daytime route uses saved translucent material');
    }
    if(mode==='stop')assert.ok(await page.$$eval('[data-departure-row]>span:first-child',badges=>{
