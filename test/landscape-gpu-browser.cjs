@@ -64,19 +64,21 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
   // source-free night. These measure output pixels, not shader source strings.
   const filmic=await page.evaluate(()=>{
    const gpu=window.gpu,gl=gpu.canvas.getContext('webgl2'),original=window.gpuLight;
-   const light={...original,sky:{...original.sky,day:.45,twilight:1},sun:{...original.sun,x:.5,altitude:.06,intensity:.8,color:[1,.66,.45]},moon:{...original.moon,intensity:0}};
+   const light={...original,sky:{...original.sky,day:.45,twilight:1},sun:{...original.sun,x:.5,y:.39,altitude:.06,intensity:.8,color:[1,.66,.45]},moon:{...original.moon,intensity:0}};
    const buffer=()=>{const t=gpu.targets[1],hdr=gpu.diagnostics().hdr,p=hdr?new Float32Array(t.width*t.height*4):new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,hdr?gl.FLOAT:gl.UNSIGNED_BYTE,p);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return hdr?p:Float32Array.from(p,v=>v/255);};
    gpu.render(light,window.gpuFrame,'high');const pixels=window.gpuCopy(),halo=buffer();
    const c=document.createElement('canvas');c.width=gpu.canvas.width;c.height=gpu.canvas.height;const ctx=c.getContext('2d');ctx.drawImage(gpu.assets.water,0,0,c.width,c.height);const mask=ctx.getImageData(0,0,c.width,c.height).data;
    let water=0,warm=0,white=0,energy=0,finite=true;
    for(let i=0;i<pixels.length;i+=4)if(mask[i+3]>220){water++;const r=pixels[i],g=pixels[i+1],b=pixels[i+2];if(r>70&&r>g*1.08&&g>b*1.15)warm++;if(Math.min(r,g,b)>230)white++;}
    for(let i=0;i<halo.length;i+=4){finite&&=Number.isFinite(halo[i]+halo[i+1]+halo[i+2]);energy+=halo[i]+halo[i+1]+halo[i+2];}
+   gpu.render({...light,sun:{...light.sun,y:.20}},window.gpuFrame,'high');const moved=window.gpuCopy();let relocated=0;for(let i=0;i<pixels.length;i+=4)if(mask[i+3]>220&&Math.abs(pixels[i]-moved[i])+Math.abs(pixels[i+1]-moved[i+1])+Math.abs(pixels[i+2]-moved[i+2])>12)relocated++;
    light.sun.intensity=0;light.moon.intensity=0;light.sky.day=0;light.sky.twilight=0;gpu.render(light,window.gpuFrame,'high');const dark=buffer();let nightEnergy=0;for(let i=0;i<dark.length;i+=4)nightEnergy+=dark[i]+dark[i+1]+dark[i+2];
-   gpu.render(original,window.gpuFrame,'high');return {water,warm,white,energy,finite,nightEnergy,error:gl.getError()};
+   gpu.render(original,window.gpuFrame,'high');return {water,warm,white,energy,finite,relocated,nightEnergy,error:gl.getError()};
   });
   assert.equal(filmic.error,0);assert.equal(filmic.finite,true,'HDR bloom never contains NaN/Infinity');
   assert.ok(filmic.warm>filmic.water*.025,'warm light occupies a reflection path rather than isolated pinpoints: '+JSON.stringify(filmic));
   assert.ok(filmic.white<filmic.water*.10,'the reflection keeps warm colour instead of a clipped white sheet');
+  assert.ok(filmic.relocated>filmic.water*.01,'reflected light follows the visible disc height as well as its azimuth');
   assert.ok(filmic.energy>1,'bright facets produce an optical halo');assert.ok(filmic.nightEnergy<.001,'a source-free night cannot retain solar bloom');
   console.log('Filmic reflection pixels:',filmic);
   // Test every pixel against the actual water mask, not a rectangular bounding box.

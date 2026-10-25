@@ -34,3 +34,12 @@ test('solar material adds no CSS solar gradients; shafts are supplied by GPU',()
  const {landscapeOptics}=load('lib/landscape-optics.ts');
  assert.equal(landscapeOptics(at('2026-10-23T17:10:00+02:00'),64,true)['--landscape-reflection-image'],'none');
 });
+
+test('a subpixel solar limb never produces a non-finite exposure',()=>{
+ const state=at('2026-10-25T16:00:00+01:00');
+ // Sample both sides of the apparent rise/set horizon at floating-point scale.
+ for(let i=-100;i<=100;i++){
+  state.sun.altitude=-.833*Math.PI/180+i*1e-14;
+  const light=landscapeLighting(state,0);assert.ok(Number.isFinite(light.sun.intensity)&&light.sun.intensity>=0);
+ }
+});

@@ -199,3 +199,14 @@ Shading references:
 - https://pbr-book.org/3ed-2018/Reflection_Models/Microfacet_Models
 - https://www.pbr-book.org/4ed/Volume_Scattering/Phase_Functions
 - https://www.pbr-book.org/4ed/Volume_Scattering/Transmittance
+
+The decorative vertical travel uses a smooth monotonic altitude compression so
+morning light clears the horizon cloud bank and the Sun climbs through the
+available sky. Upper-limb rise/set registration remains the same. The shading
+light direction is reconstructed from the visible disc's registered camera UV,
+rather than mixing that decorative projection with geographic altitude. This
+keeps glints, shadows and the visible Sun aligned. The actual ephemeris still
+controls visibility, time, exposure temperature and the daylight cycle. Material
+and mirror caches include both projected heights. The GPU regression moves the
+projected light height while holding time/physical altitude fixed and requires
+the reflected path to move.

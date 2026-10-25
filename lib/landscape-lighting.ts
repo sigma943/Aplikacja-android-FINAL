@@ -23,7 +23,7 @@ export function landscapeLighting(state:AstronomyState,time:number,sunTransmissi
   const base=skyState(state),sky={...base,twilight:base.twilight*(2-base.twilight)},sun=projectCelestial(state.sun),moon=projectCelestial(state.moon,'moon');
   const warm=sky.twilight;
   return {time,sky,
-    sun:{...sun,altitude:state.sun.altitude,intensity:(.45+.55*sky.day)*Math.sqrt(discVisibility(sun.x,sun.y,SUN_RADIUS/(1000*1850/850),apparentLandscapeAltitude(state.sun)))*sunTransmission,
+    sun:{...sun,altitude:state.sun.altitude,intensity:(.45+.55*sky.day)*Math.sqrt(Math.max(0,discVisibility(sun.x,sun.y,SUN_RADIUS/(1000*1850/850),apparentLandscapeAltitude(state.sun))))*sunTransmission,
       color:[1,.94-warm*.28,.81-warm*.36]},
     moon:{...moon,altitude:state.moon.altitude,illumination:state.illumination.fraction,
       intensity:state.illumination.fraction*(1-sky.day)*moonPresentationOpacity(state.sun.altitude)*discVisibility(moon.x,moon.y,MOON_RADIUS/(1000*1850/850),apparentLandscapeAltitude(state.moon,'moon'))*moonTransmission*.32,color:[.67,.81,1]},

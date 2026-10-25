@@ -26,7 +26,7 @@ export class LandscapeWaterGPU {
  private reflectionUpdates=0;
  private terrainKey='';
  private lastTerrainUpdate=-Infinity;
- private lastTerrainLight=[-1,-1,-1,-1,-1,-1,-1,-1];
+ private lastTerrainLight=[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
  private terrainRelights=0;
  private lastDrawCalls=0;
  private floatSupported=false;
@@ -140,9 +140,9 @@ export class LandscapeWaterGPU {
    // presentation rays retain display colour. Reuse the upload arrays.
    for(let i=0;i<3;i++){this.sunLinear[i]=light.sun.color[i]**2.2;this.moonLinear[i]=light.moon.color[i]**2.2;}
    const wall=performance.now(),previous=this.lastTerrainLight;
-   const major=Math.abs(light.sky.day-previous[0])>.08||Math.abs(light.sky.twilight-previous[1])>.08||Math.abs(light.sun.intensity-previous[2])>.08||Math.abs(light.moon.intensity-previous[3])>.08||Math.abs(light.sun.x-previous[4])>.08||Math.abs(light.sun.altitude-previous[5])>.08||Math.abs(light.moon.x-previous[6])>.08||Math.abs(light.moon.altitude-previous[7])>.08;
+   const major=Math.abs(light.sky.day-previous[0])>.08||Math.abs(light.sky.twilight-previous[1])>.08||Math.abs(light.sun.intensity-previous[2])>.08||Math.abs(light.moon.intensity-previous[3])>.08||Math.abs(light.sun.x-previous[4])>.08||Math.abs(light.sun.altitude-previous[5])>.08||Math.abs(light.moon.x-previous[6])>.08||Math.abs(light.moon.altitude-previous[7])>.08||Math.abs(light.sun.y-previous[8])>.08||Math.abs(light.moon.y-previous[9])>.08;
    let materialKey=this.terrainKey;
-   if(this.targets[2]&&(!materialKey||major||wall-this.lastTerrainUpdate>1000))materialKey=`${light.sky.day.toFixed(2)}:${light.sky.twilight.toFixed(2)}:${light.sun.intensity.toFixed(2)}:${light.sun.x.toFixed(2)}:${light.sun.altitude.toFixed(2)}:${light.moon.intensity.toFixed(2)}:${light.moon.x.toFixed(2)}:${light.moon.altitude.toFixed(2)}`;
+   if(this.targets[2]&&(!materialKey||major||wall-this.lastTerrainUpdate>1000))materialKey=`${light.sky.day.toFixed(2)}:${light.sky.twilight.toFixed(2)}:${light.sun.intensity.toFixed(2)}:${light.sun.x.toFixed(2)}:${light.sun.altitude.toFixed(2)}:${light.moon.intensity.toFixed(2)}:${light.moon.x.toFixed(2)}:${light.moon.altitude.toFixed(2)}:${light.sun.y.toFixed(3)}:${light.moon.y.toFixed(3)}`;
    const relight=!!this.targets[2]&&materialKey!==this.terrainKey;
    this.lastDrawCalls=relight?(this.solid?6:4):3;
    for(let stage=relight?(this.solid?-2:-1):0;stage<3;stage++){
@@ -158,7 +158,7 @@ export class LandscapeWaterGPU {
     // Keep solid geometry for the depth-tested mirror and terrain shadows.
     else gl.drawArrays(gl.TRIANGLES,0,3);
    }
-   if(relight){this.terrainKey=materialKey;this.lastTerrainUpdate=wall;previous[0]=light.sky.day;previous[1]=light.sky.twilight;previous[2]=light.sun.intensity;previous[3]=light.moon.intensity;previous[4]=light.sun.x;previous[5]=light.sun.altitude;previous[6]=light.moon.x;previous[7]=light.moon.altitude;this.terrainRelights++;}
+   if(relight){this.terrainKey=materialKey;this.lastTerrainUpdate=wall;previous[0]=light.sky.day;previous[1]=light.sky.twilight;previous[2]=light.sun.intensity;previous[3]=light.moon.intensity;previous[4]=light.sun.x;previous[5]=light.sun.altitude;previous[6]=light.moon.x;previous[7]=light.moon.altitude;previous[8]=light.sun.y;previous[9]=light.moon.y;this.terrainRelights++;}
    if(timing&&this.timer){gl.endQuery(this.timer.TIME_ELAPSED_EXT);this.pendingQuery=true;}
    return true;
   }catch(e){this.canvas.dataset.error=String(e);this.release();this.failed=true;return false;}

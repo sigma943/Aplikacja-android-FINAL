@@ -11,7 +11,7 @@ const float ALT_SPAN=${calibration.altitudeSpan.toPrecision(12)};
 const float CAMERA_HEIGHT=${calibration.cameraHeight.toFixed(1)};
 vec2 projectWater(vec3 p){float az=atan(p.x,p.z);float el=atan(p.y-CAMERA_HEIGHT,length(p.xz));return vec2(.5+az/AZ_SPAN,HORIZON-el/(PI*.5)*ALT_SPAN);}
 vec2 unprojectWater(vec2 uv){float az=(uv.x-.5)*AZ_SPAN;float down=max(.012,(uv.y-HORIZON)/ALT_SPAN*(PI*.5));float r=CAMERA_HEIGHT/tan(down);return r*vec2(sin(az),cos(az));}
-vec3 lightDirection(vec2 projected,float altitude){float az=(projected.x-.5)*AZ_SPAN;float apparent=max(.001,altitude+.0098902);return vec3(sin(az)*cos(apparent),sin(apparent),cos(az)*cos(apparent));}
+vec3 lightDirection(vec2 projected,float altitude){float az=(projected.x-.5)*AZ_SPAN;float apparent=clamp((HORIZON-projected.y)/ALT_SPAN*(PI*.5),.001,PI*.5-.005);return vec3(sin(az)*cos(apparent),sin(apparent),cos(az)*cos(apparent));}
 `;
 // direction, wavelength, amplitude; each oscillator has the deep-water dispersion omega=sqrt(g*k).
 // Emit explicit constant calls. Dynamic indexing of local GLSL arrays can spill
