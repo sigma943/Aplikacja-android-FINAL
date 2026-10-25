@@ -141,3 +141,23 @@ Tests cover 25 October 2026 sunrise 06:09, sunset 16:21, moonrise 15:35 and
 moonset 05:12 local time, the dates either side of the autumn change, the spring
 23-hour day, skyline limb crossings, vertical ascent/descent, sparse cloud
 coverage, shared panel layout, opaque panel material and navigation docking.
+
+## Rounded dock and sky-only filter refinement
+
+The mobile navigation and both map sheets now share 10px side insets and the
+same all-corner radius. Navigation sits 8px above the safe area; sheets have an
+intentional 8px gap above it, with aligned edges. Their milk material remains
+opaque and has a broad cream/peach upper glow, a restrained rose shoulder and a
+thin optical rim during twilight.
+
+Sun and Moon retain accurate Rzeszow rise/set instants and vertical movement,
+but use separate left/right tracks (32%/68%). Each track is registered to its
+own local skyline. The Moon fades from a subdued daytime appearance to full
+night brightness across civil twilight; its water lighting uses the same fade.
+
+Only the map filter receives a small sky canvas. It is painted directly from
+sky colours and the existing drifting cloud cache, never copied from the scene
+canvas. Therefore it contains no Sun, Moon, terrain or water. It refreshes at
+most four times per second, with a 600px width cap and no extra WebGL draws.
+Other panels/navigation do not receive sky canvases. Tests guard against scene
+canvas copies, check matched panel/dock geometry, and retain rise/set/DST tests.

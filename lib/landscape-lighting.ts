@@ -1,4 +1,4 @@
-import {projectCelestial,apparentLandscapeAltitude,skyState,smoothstep,type AstronomyState} from './landscape-astronomy';
+import {projectCelestial,apparentLandscapeAltitude,moonPresentationOpacity,skyState,smoothstep,type AstronomyState} from './landscape-astronomy';
 import {SUN_RADIUS,MOON_RADIUS} from './landscape-celestial';
 import horizon from './landscape-horizon.json';
 export type LightColor=[number,number,number];
@@ -26,6 +26,6 @@ export function landscapeLighting(state:AstronomyState,time:number,sunTransmissi
     sun:{...sun,altitude:state.sun.altitude,intensity:sky.day*discVisibility(sun.x,sun.y,SUN_RADIUS/(1000*1850/850),apparentLandscapeAltitude(state.sun))*sunTransmission,
       color:[1,.94-warm*.28,.81-warm*.50]},
     moon:{...moon,altitude:state.moon.altitude,illumination:state.illumination.fraction,
-      intensity:state.illumination.fraction*(1-sky.day)*discVisibility(moon.x,moon.y,MOON_RADIUS/(1000*1850/850),apparentLandscapeAltitude(state.moon,'moon'))*moonTransmission*.32,color:[.67,.81,1]},
+      intensity:state.illumination.fraction*(1-sky.day)*moonPresentationOpacity(state.sun.altitude)*discVisibility(moon.x,moon.y,MOON_RADIUS/(1000*1850/850),apparentLandscapeAltitude(state.moon,'moon'))*moonTransmission*.32,color:[.67,.81,1]},
     ambient:{intensity:.12+.88*sky.day,color:[.12+.32*sky.day,.24+.35*sky.day,.39+.31*sky.day]}};
 }

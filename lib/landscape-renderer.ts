@@ -1,6 +1,6 @@
 import camera from './landscape-water-calibration.json';
 import {paintSun,moonTexture,MOON_RADIUS} from './landscape-celestial';
-import {projectCelestial,smoothstep,type AstronomyState} from './landscape-astronomy';
+import {projectCelestial,moonPresentationOpacity,smoothstep,type AstronomyState} from './landscape-astronomy';
 import {landscapeLighting,type LandscapeLightingState} from './landscape-lighting';
 import {LandscapeWaterGPU,type WaterQuality} from './landscape-water-gpu';
 export {mountainHorizon,discVisibility} from './landscape-lighting';
@@ -59,6 +59,32 @@ export class LandscapeRenderer{
       const gx=this.gpu.canvas.width/this.width,gy=this.gpu.canvas.height/this.height;
       context.drawImage(this.gpu.canvas,sx*gx,sy*gy,sw*gx,sh*gy,0,0,width,height);
     }
+  }
+  /** Paint from sky colours and the cloud cache only. Never sample the scene,
+   * which already contains discs, stars, terrain and water. No additional GPU pass. */
+  copyFilterSky(context:CanvasRenderingContext2D,width:number,height:number,day:boolean){
+    const sky=this.lighting?.sky;if(!sky)return;
+    context.setTransform(1,0,0,1,0,0);this.paintSky(context,width,height,sky,height);
+    const sw=this.clouds.width,sh=sw*height/width;
+    if(this.assets&&sw>1){
+      const sy=Math.max(0,Math.min(this.clouds.height-sh,HEIGHT*.20*this.scale+this.offsetY));
+      const ratio=width/sw,shift=cloudOffset(this.ambientSeconds)*this.scale;
+      context.save();context.scale(ratio,ratio);context.translate(0,-sy);
+      for(let tile=-2;tile<=1;tile++){
+        const left=shift+tile*sw;
+        context.save();if(Math.abs(tile)%2){context.translate(left+sw,0);context.scale(-1,1);context.drawImage(this.clouds,0,0);}else context.drawImage(this.clouds,left,0);context.restore();
+      }
+      context.restore();
+    }
+    // Keep dark daytime brand text readable over blue/clouds, without blur.
+    context.fillStyle=day?'rgba(241,248,255,.56)':'rgba(6,15,32,.08)';context.fillRect(0,0,width,height);
+  }
+  private paintSky(c:CanvasRenderingContext2D,width:number,height:number,sky:LandscapeLightingState['sky'],gradientHeight:number){
+    const gradient=c.createLinearGradient(0,0,0,gradientHeight);
+    gradient.addColorStop(0,css(blend(blend([2,9,31],[28,114,204],sky.day),[92,47,102],sky.twilight*.8)));
+    gradient.addColorStop(.6,css(blend(blend([8,21,51],[88,172,231],sky.day),[224,107,128],sky.twilight*.9)));
+    gradient.addColorStop(1,css(blend(blend([22,34,66],[200,222,226],sky.day),[255,148,64],sky.twilight)));
+    c.fillStyle=gradient;c.fillRect(0,0,width,height);
   }
   private coordinates(c:CanvasRenderingContext2D){c.setTransform(this.scale,0,0,this.scale,this.offsetX,this.offsetY);}
   private relight(day:number,warm:number,moon:number,sunX:number){
@@ -124,11 +150,7 @@ export class LandscapeRenderer{
     const lightKey=[sky.day.toFixed(3),sky.twilight.toFixed(3),sky.moonlight.toFixed(2),sun.x.toFixed(2)].join(':');
     if(lightKey!==this.lastLight){this.relight(sky.day,sky.twilight,sky.moonlight,sun.x);this.lastLight=lightKey;}
     c.setTransform(1,0,0,1,0,0);
-    const gradient=c.createLinearGradient(0,0,0,this.height*(camera.horizon+.06));
-    gradient.addColorStop(0,css(blend(blend([2,9,31],[28,114,204],sky.day),[92,47,102],sky.twilight*.8)));
-    gradient.addColorStop(.6,css(blend(blend([8,21,51],[88,172,231],sky.day),[224,107,128],sky.twilight*.9)));
-    gradient.addColorStop(1,css(blend(blend([22,34,66],[200,222,226],sky.day),[255,148,64],sky.twilight)));
-    c.fillStyle=gradient;c.fillRect(0,0,this.width,this.height);this.coordinates(c);
+    this.paintSky(c,this.width,this.height,sky,this.height*(camera.horizon+.06));this.coordinates(c);
     for(const s of this.stars){const opacity=smoothstep(s.brightness*.5,.65+s.brightness*.35,sky.stars);if(opacity<=0)continue;
       const distance=Math.hypot(s.x-moon.x,s.y-moon.y);
       c.globalAlpha=opacity*(.72+(motion?.12*Math.sin(seconds*.17+s.x*100):0))*(1-state.illumination.fraction*.55*(1-smoothstep(0,.15,distance)));
@@ -140,7 +162,7 @@ export class LandscapeRenderer{
     }
     if(state.moon.altitude>-.04){
       const glow=c.createRadialGradient(mx,my,15,mx,my,100);glow.addColorStop(0,`rgba(222,229,245,${state.illumination.fraction*.2*(1-sky.day)})`);glow.addColorStop(1,'#cadfff00');c.fillStyle=glow;c.fillRect(mx-100,my-100,200,200);
-      c.save();c.globalAlpha=.25+.75*(1-sky.day);this.moon(c,state,mx,my,MOON_RADIUS);c.restore();
+      c.save();c.globalAlpha=moonPresentationOpacity(state.sun.altitude);this.moon(c,state,mx,my,MOON_RADIUS);c.restore();
     }
     c.setTransform(1,0,0,1,0,0);
     const cloudShift=cloudOffset(seconds);

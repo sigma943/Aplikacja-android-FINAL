@@ -63,6 +63,20 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       modelTimer=setTimeout(updateModel,preview.iso&&preview.rate!==1?500:15000);
     };
     let lastDraw=performance.now(),fpsStart=performance.now(),fpsFrames=0,actualFps=0;
+    let lastFilter=0;
+    const paintFilter=(mono:number)=>{
+      if(mono-lastFilter<250)return;lastFilter=mono;
+      for(const target of document.querySelectorAll<HTMLCanvasElement>('[data-landscape-window="filter"]')){
+        const rect=target.getBoundingClientRect();if(!rect.width||!rect.height)continue;
+        const width=Math.ceil(Math.min(600,rect.width)),height=Math.ceil(rect.height*width/rect.width);
+        if(target.width!==width||target.height!==height){target.width=width;target.height=height;}
+        const context=target.getContext('2d',{alpha:false});if(!context)continue;
+        renderer.copyFilterSky(context,width,height,solarDay??true);
+        target.dataset.sceneReady=element.dataset.assetsReady==='true'?'true':'false';
+      }
+    };
+    const refreshFilter=()=>{lastFilter=0;paintFilter(performance.now()+250);};
+    window.addEventListener('pks-landscape-window',refreshFilter);
     const draw=()=>{
       clearTimeout(drawTimer);cancelAnimationFrame(frameRequest);if(!visible()||!alive)return;
       const mono=performance.now(),wall=Date.now(),motionPolicy=policy();
@@ -78,6 +92,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
         if(mono-lastGlass>=250&&renderer.lighting){
           lastGlass=mono;updatePalette(state);
         }
+        paintFilter(mono);
         if(recordingCanvas&&recordingContext){
           if(recordingCanvas.width!==element.width||recordingCanvas.height!==element.height){recordingCanvas.width=element.width;recordingCanvas.height=element.height;}
           renderer.copyWindow(recordingContext,0,0,element.width,element.height,element.width,element.height,true);
@@ -176,6 +191,7 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     }
     root.dataset.landscapeTheme='on';resize();updateModel();
     return()=>{
+      window.removeEventListener('pks-landscape-window',refreshFilter);
       alive=false;cancelAnimationFrame(frameRequest);renderer.dispose();clearTimeout(drawTimer);clearTimeout(modelTimer);worker.terminate();observer.disconnect();intersection.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);document.removeEventListener('focusin',resize);
       document.removeEventListener('visibilitychange',restart);window.removeEventListener('focus',restart);
       window.removeEventListener('pks-interface-appearance',restart);window.removeEventListener('storage',restart);window.removeEventListener('pks-landscape-location',restart);media.removeEventListener('change',restart);

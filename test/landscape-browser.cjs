@@ -8,14 +8,21 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
-  await page.evaluateOnNewDocument(()=>localStorage.setItem('mks_app_theme','dark-mountains'));
+  await page.evaluateOnNewDocument(()=>{
+   localStorage.setItem('mks_app_theme','dark-mountains');window.__filterSceneCopies=0;
+   const draw=CanvasRenderingContext2D.prototype.drawImage;
+   CanvasRenderingContext2D.prototype.drawImage=function(source,...args){
+    if(this.canvas.dataset.landscapeWindow==='filter'&&source?.dataset&&('landscapeStage'in source.dataset||'landscapeWater'in source.dataset))window.__filterSceneCopies++;
+    return draw.call(this,source,...args);
+   };
+  });
   await page.setRequestInterception(true);page.on('request',req=>req.url().startsWith('https://mt1.google.com/')?req.respond({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path fill="#eaf1e7" d="M0 0h256v256H0z"/><path d="M0 130h256M110 0v256" stroke="#fff" stroke-width="12"/><path d="M0 10q80 100 256 50" stroke="#afd7ee" stroke-width="20" fill="none"/><text x="125" y="115" fill="#526159" font-size="11">Rzeszów</text></svg>'}):req.url().startsWith(origin)||req.url().startsWith('data:')?req.continue():req.abort());
   await page.goto(origin+'/landscape-fixture/');await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0&&document.querySelector('[data-landscape-stage]')?.dataset.assetsReady==='true');
   assert.equal(await page.evaluate(()=>window.__landscapeDiagnostics().renderer.presentation),'direct-gpu');
   assert.equal(await page.$$eval('[data-landscape-water]',nodes=>nodes.length),1,'one visible GPU surface, no GPU-to-2D copy in the frame path');
   fs.mkdirSync('test/ui-previews',{recursive:true});
   await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}html[data-landscape-theme] *{transition-duration:0s!important}'});
-  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:20:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['phone-twilight-low','2026-10-24T18:11:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['cloudy-night','2026-10-24T03:00:00+02:00'],['sunrise','2026-10-23T07:10:00+02:00']]){
+  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:20:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['phone-twilight-low','2026-10-24T18:11:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['cloudy-night','2026-10-24T03:00:00+02:00'],['sunrise','2026-10-23T07:10:00+02:00'],['sun-moon-transition','2026-10-25T16:10:00+01:00'],['after-sunset','2026-10-25T16:34:00+01:00']]){
    // Fix wave/cloud phase for repeatable coverage, while keeping both moving.
    await page.evaluate(({iso,seconds,quality})=>window.__landscapePreview({iso,rate:0,quality,seconds}),{iso,quality:name==='phone-twilight-low'?'low':'high',seconds:name==='night'?72:name==='cloudy-night'?168:name==='golden-hour'?78:0});
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
@@ -131,7 +138,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   await page.goto(origin+'/landscape-map-fixture/');
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
-  assert.equal(await page.$$eval('[data-landscape-window]',els=>els.length),0,'map controls never copy the landscape');
+  await page.waitForSelector('[data-landscape-window=filter][data-scene-ready=true]');
+  assert.equal(await page.$$eval('[data-landscape-window]',els=>els.length),1,'only the filter owns a sky window');
   await page.waitForSelector('.leaflet-layer img');
   for(const [name,iso,invert] of [['day','2026-10-23T12:00:00+02:00',0],['night','2026-10-26T23:00:00+01:00',1]]){
    await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
@@ -148,10 +156,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    assert.equal(ink,name==='day'?'rgb(11, 27, 38)':'rgb(244, 248, 252)');
    assert.equal(await page.$eval('[data-fixture-period]',e=>e.dataset.fixturePeriod),name,'solar mode reaches React component props as well as CSS');
    assert.ok(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color!==getComputedStyle(document.documentElement).getPropertyValue('--landscape-ink')),'brand uses the selected accent');
-   assert.equal(await page.$eval('[data-map-search-panel]',e=>getComputedStyle(e).backgroundColor.replaceAll(' ','')),await page.evaluate(()=>document.documentElement.style.getPropertyValue('--landscape-solid')),'map filter uses a smooth opaque milk material');
+   assert.equal(await page.$eval('[data-landscape-window=filter]',e=>getComputedStyle(e).filter),'none','sky is crisp instead of frosted');
+   assert.ok(await page.$eval('[data-landscape-window=filter]',e=>{const d=e.getContext('2d').getImageData(0,0,e.width,e.height).data,colors=new Set();for(let i=0;i<d.length;i+=16)colors.add(d[i]+','+d[i+1]+','+d[i+2]);return colors.size>30&&e.width<=600;}),'filter paints bounded sky/cloud detail');
+   assert.equal(await page.evaluate(()=>window.__filterSceneCopies),0,'filter never samples the scene containing discs, mountains or water');
    await page.screenshot({path:'test/ui-previews/landscape-map-'+name+'.png'});
   }
-  assert.ok(await page.$eval('.pks-navigation',e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.left===0&&r.right===innerWidth&&parseFloat(s.borderRadius)===0&&Math.abs(r.bottom-innerHeight)<1;}),'navigation matches other themes: full width, square corners, no lower gap');
+  assert.ok(await page.$eval('.pks-navigation',e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return Math.abs(r.left-10)<1&&Math.abs(innerWidth-r.right-10)<1&&parseFloat(s.borderRadius)>=20&&Math.abs(innerHeight-r.bottom-8)<1;}),'navigation floats with matching 10px sides and rounded corners');
   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T17:10:00+02:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
   await page.evaluate(()=>new Promise(requestAnimationFrame));
@@ -177,7 +187,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.click('[data-nav-item="map"]');
   await page.screenshot({path:'test/ui-previews/landscape-map-chrome.png'});
   const nav=await page.$eval('.pks-navigation',e=>({width:e.getBoundingClientRect().width,radius:parseFloat(getComputedStyle(e).borderTopLeftRadius)}));
-  assert.equal(nav.width,393,'navigation keeps the shared full-width layout');assert.equal(nav.radius,0,'navigation keeps the shared square corners');
+  assert.equal(nav.width,373,'navigation has balanced side insets');assert.ok(nav.radius>=20,'navigation is rounded all around');
   await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:20}));window.dispatchEvent(new Event('pks-interface-appearance'));});
   await page.click('[data-nav-item="options"]');await page.waitForSelector('[data-options-sheet]');
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-app-content]')).visibility==='hidden');
@@ -235,7 +245,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    // High-quality optical frames and both recordings are checked above.
    // Measure the UI spring at the bounded mobile quality: software rasterization
    // of the High shader can otherwise consume an entire spring between rAFs.
-   await page.evaluate(()=>window.__landscapePreview({quality:'low'}));
+   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-25T16:15:00+01:00',rate:0,quality:'low'}));
+   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
    assert.equal(await page.$$eval('[data-landscape-window]',els=>els.length),0,'no scenery canvas in the vehicle sheet');
    assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter),'none','artwork sheets do not blur the map');
    if(mode==='bus'){
@@ -248,7 +259,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     for(const width of [320,393]){
      await page.setViewport({width,height:851,deviceScaleFactor:1});
      assert.ok(await page.$eval('[data-map-bus-sheet]',e=>e.scrollWidth<=e.clientWidth+1),'vehicle panel fits '+width+'px');
-     assert.ok(await page.evaluate(()=>Math.abs(document.querySelector('[data-map-bus-sheet]').getBoundingClientRect().bottom-document.querySelector('.pks-navigation').getBoundingClientRect().top)<1),'sheet touches the shared bottom navigation');
+     assert.ok(await page.evaluate(()=>Math.abs(document.querySelector('.pks-navigation').getBoundingClientRect().top-document.querySelector('[data-map-bus-sheet]').getBoundingClientRect().bottom-8)<1),'sheet has a balanced 8px gap above the rounded navigation');
      await page.screenshot({path:'test/ui-previews/landscape-bus-day-'+width+'.png'});
     }
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-24T03:00:00+02:00',rate:0,quality:'low'}));
@@ -274,6 +285,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     });
    }),'stop line numbers remain readable on the solar glass');
    assert.ok(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backgroundColor.startsWith('rgb(')),'sheet is opaque milk, never a view of terrain');
+   assert.ok(await page.evaluate(()=>{const sheet=document.querySelector('.map-detail-shell'),nav=document.querySelector('.pks-navigation'),a=sheet.getBoundingClientRect(),b=nav.getBoundingClientRect(),s=getComputedStyle(sheet);return Math.abs(a.left-b.left)<1&&Math.abs(a.right-b.right)<1&&Math.abs(b.top-a.bottom-8)<1&&[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius].every(r=>parseFloat(r)>=20);}),mode+' sheet matches the rounded dock on all four corners');
    await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-expanded.png'});
    const handle=mode==='bus'?'[data-vehicle-header]':'.map-stop-handle';
    if(mode==='bus'){

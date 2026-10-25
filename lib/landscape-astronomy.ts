@@ -76,6 +76,12 @@ export function apparentLandscapeAltitude(body:{altitude:number;distance?:number
  return body.altitude+(34/60+limb)*Math.PI/180;
 }
 export function projectCelestial(body:{altitude:number;azimuth:number;distance?:number},kind:'sun'|'moon'='sun'){
- const radius=(kind==='sun'?26:36)/(1000*1850/850),crest=(horizon[127]+horizon[128])/2;
- return {x:.5,y:crest+radius-(crest-.07)*Math.sin(Math.max(-Math.PI/2,Math.min(Math.PI/2,apparentLandscapeAltitude(body,kind))))};
+ const x=kind==='sun'?.32:.68,index=x*255,i=Math.floor(index);
+ const radius=(kind==='sun'?26:36)/(1000*1850/850),crest=horizon[i]+(horizon[i+1]-horizon[i])*(index-i);
+ return {x,y:crest+radius-(crest-.07)*Math.sin(Math.max(-Math.PI/2,Math.min(Math.PI/2,apparentLandscapeAltitude(body,kind))))};
+}
+
+/** Let the rising Moon emerge through twilight, rather than compete with the Sun. */
+export function moonPresentationOpacity(sunAltitude:number){
+ return .10+.90*(1-smoothstep(-6,1,sunAltitude*180/Math.PI));
 }

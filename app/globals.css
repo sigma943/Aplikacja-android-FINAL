@@ -1245,6 +1245,13 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
   -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
  }
  html[data-landscape-theme='on'] [data-landscape-chrome] { display:none!important; }
+ html[data-landscape-theme='on'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:var(--landscape-solid)!important;background-image:none!important; }
+ html[data-landscape-theme='on'] [data-landscape-chrome='filter'] { display:block!important;z-index:0; }
+ html[data-landscape-theme='on'] [data-landscape-chrome='filter']::after { content:none!important; }
+ html[data-landscape-theme='on'] [data-landscape-chrome='filter'] [data-landscape-window='filter'] { filter:none!important;transform:none!important;visibility:visible!important; }
+ html[data-landscape-theme='on'] .pks-map-search-panel input { background:color-mix(in srgb,var(--landscape-solid) 85%,transparent)!important; }
+ html[data-landscape-theme='on'] .map-detail-shell { border-radius:var(--personal-panel-radius,24px)!important; }
+
  html[data-landscape-theme='on'] [data-vehicle-header] { background:var(--landscape-field)!important; }
  html[data-landscape-theme='on'] [data-vehicle-header] * { text-shadow:none!important; }
  html[data-landscape-theme='on'] [data-vehicle-direction] { padding-right:0;overflow-wrap:anywhere; }
@@ -1259,4 +1266,16 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
 }
 @media(min-width:768px) {
  html[data-landscape-theme='on'] :is([data-map-bus-sheet],[data-map-stop-sheet]) { bottom:16px; }
+}
+
+@layer landscape-materials {
+ @media(max-width:767px) {
+  html[data-landscape-theme='on'] .pks-navigation:not([data-navigation-preview]) {
+   width:calc(100% - 20px)!important;margin:0 10px 8px;
+   border:1px solid var(--landscape-edge)!important;border-radius:var(--personal-panel-radius,24px)!important;
+  }
+  html[data-landscape-theme='on'] :is([data-map-bus-sheet],[data-map-stop-sheet]) {
+   left:10px;right:10px;bottom:calc(80px + env(safe-area-inset-bottom));
+  }
+ }
 }
