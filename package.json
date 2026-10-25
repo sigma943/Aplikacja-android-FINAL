@@ -28,6 +28,7 @@
     "@capacitor/device": "^8.0.2",
     "@capacitor/network": "^8.0.1",
     "@microsoft/signalr": "^10.0.0",
+    "astronomy-engine": "2.1.19",
     "autoprefixer": "^10.4.21",
     "clsx": "^2.1.1",
     "firebase": "^12.12.1",

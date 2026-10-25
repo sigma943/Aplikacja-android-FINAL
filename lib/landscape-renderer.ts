@@ -104,7 +104,7 @@ export class LandscapeRenderer{
   render(state:AstronomyState,seconds:number,motion:boolean){
     if(motion)this.ambientSeconds=seconds;
     seconds=this.ambientSeconds;
-    const sun=projectCelestial(state.sun),moon=projectCelestial(state.moon);
+    const sun=projectCelestial(state.sun),moon=projectCelestial(state.moon,'moon');
     const shift=cloudOffset(seconds);
     const lighting=this.lighting=landscapeLighting(state,seconds,this.cloudTransmission(sun.x,sun.y,shift),this.cloudTransmission(moon.x,moon.y,shift));
     const c=this.ctx,sky=lighting.sky;
@@ -138,7 +138,7 @@ export class LandscapeRenderer{
     if(state.sun.altitude>-.06){
       paintSun(c,sx,sy,sky.twilight);
     }
-    if(state.moon.altitude>0){
+    if(state.moon.altitude>-.04){
       const glow=c.createRadialGradient(mx,my,15,mx,my,100);glow.addColorStop(0,`rgba(222,229,245,${state.illumination.fraction*.2*(1-sky.day)})`);glow.addColorStop(1,'#cadfff00');c.fillStyle=glow;c.fillRect(mx-100,my-100,200,200);
       c.save();c.globalAlpha=.25+.75*(1-sky.day);this.moon(c,state,mx,my,MOON_RADIUS);c.restore();
     }

@@ -109,3 +109,35 @@ the mirror. The vehicle sheet shares the existing scene window and saved glass
 opacity, with a carrier-coloured line badge, wrapped destination, lighter status
 chips and day/night ink. Browser captures cover 320/393px, both periods and sheet
 collapse.
+
+## Milk material and Rzeszow timing correction
+
+Map search, vehicle/stop sheets, options and bottom navigation now use an opaque,
+smooth milk material with a faint optical sheen. They never copy or reveal the
+landscape. Dawn/dusk add restrained peach and rose light; day is pearl blue and
+night is ink blue. The common vehicle layout and 64px edge-to-edge mobile
+navigation are retained. There is no floating capsule or 16px gap above it.
+
+The landscape observer is fixed to Rzeszow, independently of the device's saved
+GPS location. Astronomy Engine 2.1.19 replaces low-precision SunCalc positions
+and event searches; SunCalc remains for the Moon's illuminated limb orientation.
+Topocentric lunar positions include parallax. UTC instants remain absolute;
+Europe/Warsaw defines civil-day boundaries, including 23h/25h DST transition
+days. Events are cached by observer, body and civil date, rather than searched
+on every frame. The rendered discs use a vertical decorative track: azimuth can
+no longer move a body offscreen, and the apparent upper limb reaches the valley
+crest at the corresponding rise/set. This presentation is not a geographically
+accurate south-facing camera. The daily vertical travel stays within the sky.
+
+A soft, static density mask reduces average cloud coverage by about 26 percent.
+The same prepared texture/alpha drives visible clouds, GPU water reflections and
+solar/lunar attenuation, preserving their registration while they drift.
+
+Regression references and model documentation:
+- https://www.timeanddate.com/astronomy/poland/rzeszow
+- https://github.com/cosinekitty/astronomy/blob/master/source/js/README.md
+
+Tests cover 25 October 2026 sunrise 06:09, sunset 16:21, moonrise 15:35 and
+moonset 05:12 local time, the dates either side of the autumn change, the spring
+23-hour day, skyline limb crossings, vertical ascent/descent, sparse cloud
+coverage, shared panel layout, opaque panel material and navigation docking.

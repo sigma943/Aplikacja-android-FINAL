@@ -2,10 +2,11 @@
 import {useEffect,useRef} from 'react';
 import {App} from '@capacitor/app';
 import {Capacitor,registerPlugin,type PluginListenerHandle} from '@capacitor/core';
-import {LANDSCAPE_LOCATION_KEY,landscapeLocation,interpolateAstronomy,type AstronomyState} from '@/lib/landscape-astronomy';
+import {DEFAULT_LANDSCAPE_LOCATION,interpolateAstronomy,type AstronomyState} from '@/lib/landscape-astronomy';
 import {landscapeOptics,landscapeViewport,type LandscapeViewport} from '@/lib/landscape-optics';
 import {landscapePalette,isLandscapeDay} from '@/lib/landscape-palette';
 import {WATER_QUALITY,type WaterQuality} from '@/lib/landscape-water-gpu';
+import {cloudDensity} from '@/lib/landscape-clouds';
 import {LandscapeRenderer} from '@/lib/landscape-renderer';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {landscapeMotionPolicy,landscapeFrameBudget} from '@/lib/landscape-motion';
@@ -57,32 +58,11 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     };
     const updateModel=()=>{
       clearTimeout(modelTimer);if(!visible()||!alive)return;
-      let value:unknown=null;try{value=JSON.parse(localStorage.getItem(LANDSCAPE_LOCATION_KEY)||'null');}catch{}
-      const location=landscapeLocation(value);source=location.source;
+      const location=DEFAULT_LANDSCAPE_LOCATION;source=location.source;
       const ms=now();worker.postMessage({ms,location,id:++requestId,span:Math.max(30000,(preview.rate??1)*1000)});
       modelTimer=setTimeout(updateModel,preview.iso&&preview.rate!==1?500:15000);
     };
-    let lastWindows=0,lastDraw=performance.now(),fpsStart=performance.now(),fpsFrames=0,actualFps=0;
-    const paintWindows=(mono:number,waterFresh=false)=>{
-      if(mono-lastWindows<250)return;lastWindows=mono;
-      // Read layout before resizing any bitmap. Small copies preserve the same
-      // sky/water and solar lighting without another animated scene per sheet.
-      const windows=Array.from(document.querySelectorAll<HTMLCanvasElement>('[data-landscape-window]')).map(target=>({target,rect:target.getBoundingClientRect()}));
-      for(const {target,rect} of windows){
-        if(!rect.width||!rect.height)continue;
-        const width=Math.ceil(Math.min(rect.width,600)),height=Math.ceil(rect.height*width/rect.width);
-        if(target.width!==width||target.height!==height){target.width=width;target.height=height;}
-        const context=target.getContext('2d',{alpha:false});if(!context)continue;
-        const kind=target.dataset.landscapeWindow;
-        const sw=Math.min(element.width,element.height*width/height),sh=sw*height/width;
-        const top=kind==='filter'?.07:kind==='navigation'?.20:.34;
-        renderer.copyWindow(context,(element.width-sw)/2,Math.min(element.height-sh,element.height*top),sw,sh,width,height,waterFresh);
-        waterFresh=true;
-        target.dataset.sceneReady=element.dataset.assetsReady==='true'?'true':'false';
-      }
-    };
-    const refreshWindows=()=>{lastWindows=0;paintWindows(performance.now()+250);};
-    window.addEventListener('pks-landscape-window',refreshWindows);
+    let lastDraw=performance.now(),fpsStart=performance.now(),fpsFrames=0,actualFps=0;
     const draw=()=>{
       clearTimeout(drawTimer);cancelAnimationFrame(frameRequest);if(!visible()||!alive)return;
       const mono=performance.now(),wall=Date.now(),motionPolicy=policy();
@@ -98,7 +78,6 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
         if(mono-lastGlass>=250&&renderer.lighting){
           lastGlass=mono;updatePalette(state);
         }
-        paintWindows(mono,true);
         if(recordingCanvas&&recordingContext){
           if(recordingCanvas.width!==element.width||recordingCanvas.height!==element.height){recordingCanvas.width=element.width;recordingCanvas.height=element.height;}
           renderer.copyWindow(recordingContext,0,0,element.width,element.height,element.width,element.height,true);
@@ -139,9 +118,10 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
       if(!alive)return;
       const mask=document.createElement('canvas');mask.width=850;mask.height=1850;
       const context=mask.getContext('2d',{willReadFrequently:true})!;context.drawImage(clouds,0,0,850,1850);
-      const rgba=context.getImageData(0,0,850,1850).data,alpha=new Uint8ClampedArray(850*1850);
-      for(let i=0;i<alpha.length;i++)alpha[i]=rgba[i*4+3];
-      renderer.setAssets({terrain,clouds,water,geometry,perspective,moon,sceneDepth,terrainNormal,cloudAlpha:alpha});element.dataset.assetsReady='true';draw();
+      const pixels=context.getImageData(0,0,850,1850),rgba=pixels.data,alpha=new Uint8ClampedArray(850*1850);
+      for(let i=0;i<alpha.length;i++)alpha[i]=rgba[i*4+3]=Math.round(rgba[i*4+3]*cloudDensity((i%850)/850,Math.floor(i/850)/1850));
+      context.putImageData(pixels,0,0);
+      renderer.setAssets({terrain,clouds:mask,water,geometry,perspective,moon,sceneDepth,terrainNormal,cloudAlpha:alpha});element.dataset.assetsReady='true';draw();
     }).catch(()=>{if(alive)element.dataset.renderError='landscape-assets';});
     worker.onmessage=event=>{
       if(!alive||event.data.id!==requestId)return;
@@ -196,7 +176,6 @@ export default function DynamicLandscape({active,glass=true}:{active:boolean;gla
     }
     root.dataset.landscapeTheme='on';resize();updateModel();
     return()=>{
-      window.removeEventListener('pks-landscape-window',refreshWindows);
       alive=false;cancelAnimationFrame(frameRequest);renderer.dispose();clearTimeout(drawTimer);clearTimeout(modelTimer);worker.terminate();observer.disconnect();intersection.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);document.removeEventListener('focusin',resize);
       document.removeEventListener('visibilitychange',restart);window.removeEventListener('focus',restart);
       window.removeEventListener('pks-interface-appearance',restart);window.removeEventListener('storage',restart);window.removeEventListener('pks-landscape-location',restart);media.removeEventListener('change',restart);

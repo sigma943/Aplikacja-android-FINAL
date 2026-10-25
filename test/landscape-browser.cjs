@@ -20,7 +20,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.evaluate(({iso,seconds,quality})=>window.__landscapePreview({iso,rate:0,quality,seconds}),{iso,quality:name==='phone-twilight-low'?'low':'high',seconds:name==='night'?72:name==='cloudy-night'?168:name==='golden-hour'?78:0});
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
    await new Promise(r=>setTimeout(r,150));
-   if(name==='cloudy-night')assert.ok(await page.evaluate(()=>window.__landscapeDiagnostics().renderer.lighting.moon.intensity<.03),'an opaque cloud suppresses direct moonlight');
+   if(name==='cloudy-night')assert.ok(await page.evaluate(()=>{const l=window.__landscapeDiagnostics().renderer.lighting;return l.moon.intensity<=l.moon.illumination*(1-l.sky.day)*.32;}),'sparser cloud coverage never amplifies moonlight');
    if(name==='night')assert.ok(await page.evaluate(()=>window.__landscapeDiagnostics().renderer.lighting.moon.intensity>.05),'the moonlit fixture uses a genuinely exposed Moon');
    if(name==='night')assert.ok(await page.evaluate(()=>{const c=window.__landscapeCapture(),d=c.getContext('2d').getImageData(0,Math.floor(c.height*.6),c.width,Math.floor(c.height*.4)).data;let silver=0;for(let i=0;i<d.length;i+=4)if(d[i+2]>100&&d[i+2]>d[i]*1.03)silver++;return silver>100;}),'visible silver path follows the real Moon through the river bends');
    await page.screenshot({path:'test/ui-previews/landscape-'+name+'.png'});
@@ -131,7 +131,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   await page.goto(origin+'/landscape-map-fixture/');
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
-  for(const kind of ['filter','navigation'])assert.equal(await page.$eval('[data-landscape-chrome="'+kind+'"]',e=>getComputedStyle(e).display),'block');
+  assert.equal(await page.$$eval('[data-landscape-window]',els=>els.length),0,'map controls never copy the landscape');
   await page.waitForSelector('.leaflet-layer img');
   for(const [name,iso,invert] of [['day','2026-10-23T12:00:00+02:00',0],['night','2026-10-26T23:00:00+01:00',1]]){
    await page.evaluate(iso=>window.__landscapePreview({iso,rate:0}),iso);
@@ -148,10 +148,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    assert.equal(ink,name==='day'?'rgb(11, 27, 38)':'rgb(244, 248, 252)');
    assert.equal(await page.$eval('[data-fixture-period]',e=>e.dataset.fixturePeriod),name,'solar mode reaches React component props as well as CSS');
    assert.ok(await page.$eval('[data-map-brand]',e=>getComputedStyle(e).color!==getComputedStyle(document.documentElement).getPropertyValue('--landscape-ink')),'brand uses the selected accent');
-   assert.ok(await page.$eval('[data-landscape-window=filter]',e=>e.width>100&&e.height>20),'filter receives the actual rendered sky');
+   assert.equal(await page.$eval('[data-map-search-panel]',e=>getComputedStyle(e).backgroundColor.replaceAll(' ','')),await page.evaluate(()=>document.documentElement.style.getPropertyValue('--landscape-solid')),'map filter uses a smooth opaque milk material');
    await page.screenshot({path:'test/ui-previews/landscape-map-'+name+'.png'});
   }
-  assert.equal(await page.$eval('[data-landscape-window=filter]',e=>getComputedStyle(e).filter),'blur(18px)','filter respects the saved blur radius');
+  assert.ok(await page.$eval('.pks-navigation',e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.left===0&&r.right===innerWidth&&parseFloat(s.borderRadius)===0&&Math.abs(r.bottom-innerHeight)<1;}),'navigation matches other themes: full width, square corners, no lower gap');
   await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T17:10:00+02:00',rate:0}));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
   await page.evaluate(()=>new Promise(requestAnimationFrame));
@@ -236,27 +236,32 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    // Measure the UI spring at the bounded mobile quality: software rasterization
    // of the High shader can otherwise consume an entire spring between rAFs.
    await page.evaluate(()=>window.__landscapePreview({quality:'low'}));
-   await page.waitForFunction(()=>document.querySelector('[data-landscape-window=panel]')?.dataset.sceneReady==='true');
+   assert.equal(await page.$$eval('[data-landscape-window]',els=>els.length),0,'no scenery canvas in the vehicle sheet');
    assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter),'none','artwork sheets do not blur the map');
    if(mode==='bus'){
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0,quality:'low'}));
     await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='day'&&document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
     await new Promise(r=>setTimeout(r,150));
-    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','vehicle heading shares the scene glass instead of an opaque carrier slab');
+    assert.equal(await page.$eval('[data-vehicle-line]',e=>getComputedStyle(e).flexDirection),'row','vehicle sheet retains the shared layout');
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(11, 27, 38)','daytime heading uses dark ink');
-    assert.equal(await page.$eval('[data-vehicle-line] span',e=>getComputedStyle(e).color),'rgb(52, 80, 9)','Marcel badge retains readable carrier ink');
+    assert.equal(await page.$eval('[data-map-bus-sheet]',e=>getComputedStyle(e).backgroundColor),'rgb(242, 248, 252)','milk hides scenery in day mode');
     for(const width of [320,393]){
      await page.setViewport({width,height:851,deviceScaleFactor:1});
      assert.ok(await page.$eval('[data-map-bus-sheet]',e=>e.scrollWidth<=e.clientWidth+1),'vehicle panel fits '+width+'px');
+     assert.ok(await page.evaluate(()=>Math.abs(document.querySelector('[data-map-bus-sheet]').getBoundingClientRect().bottom-document.querySelector('.pks-navigation').getBoundingClientRect().top)<1),'sheet touches the shared bottom navigation');
      await page.screenshot({path:'test/ui-previews/landscape-bus-day-'+width+'.png'});
     }
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-24T03:00:00+02:00',rate:0,quality:'low'}));
     await page.waitForFunction(()=>document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='dark');
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(244, 248, 252)','night heading uses pale ink');
     await page.screenshot({path:'test/ui-previews/landscape-bus-night.png'});
+    await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-25T16:15:00+01:00',rate:0,quality:'low'}));
+    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+    await new Promise(r=>setTimeout(r,350));
+    await page.screenshot({path:'test/ui-previews/landscape-bus-warm-glass.png'});
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0,quality:'low'}));
     await page.waitForFunction(()=>document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
-    assert.ok(await page.$eval('[data-landscape-chrome=panel]',e=>Number(getComputedStyle(e,'::after').backgroundColor.match(/[\d.]+(?=\)$)/)[0])<=.65),'daytime route uses saved translucent material');
+    assert.ok(await page.$eval('[data-map-bus-sheet]',e=>getComputedStyle(e).backgroundImage.includes('radial-gradient')),'sheet has smooth optical highlights');
    }
    if(mode==='stop')assert.ok(await page.$$eval('[data-departure-row]>span:first-child',badges=>{
     const colorCanvas=document.createElement('canvas');colorCanvas.width=colorCanvas.height=1;const colorContext=colorCanvas.getContext('2d');
@@ -268,21 +273,17 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
      return [0,255].every(v=>{const bg=lum(over(badge,over(row,over(panel,[v,v,v]))));return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)>=4.5;});
     });
    }),'stop line numbers remain readable on the solar glass');
-   const canvas=await page.$eval('[data-landscape-window=panel]',e=>{const d=e.getContext('2d').getImageData(0,0,e.width,e.height).data;const colors=new Set();for(let i=0;i<d.length;i+=16)colors.add(d[i]+','+d[i+1]+','+d[i+2]);return colors.size;});
-   assert.ok(canvas>100,'expanded '+mode+' sheet contains detailed scenery, not a flat fill');
+   assert.ok(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backgroundColor.startsWith('rgb(')),'sheet is opaque milk, never a view of terrain');
    await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-expanded.png'});
    const handle=mode==='bus'?'[data-vehicle-header]':'.map-stop-handle';
    if(mode==='bus'){
     const motion=await page.evaluate(async()=>{
-     const sheet=document.querySelector('[data-map-bus-sheet]'),canvas=document.querySelector('[data-landscape-window=panel]');
-     const bitmap=[canvas.width,canvas.height],heights=[],sizes=[];
+     const sheet=document.querySelector('[data-map-bus-sheet]'),heights=[];
      document.querySelector('[data-vehicle-header]').click();const start=performance.now();
-     while(performance.now()-start<800){await new Promise(requestAnimationFrame);heights.push(Math.round(sheet.getBoundingClientRect().height));sizes.push(canvas.width+':'+canvas.height);}
-     return {bitmap,heights,sizes,after:[canvas.width,canvas.height]};
+     while(performance.now()-start<800){await new Promise(requestAnimationFrame);heights.push(Math.round(sheet.getBoundingClientRect().height));}
+     return {heights};
     });
     assert.ok(new Set(motion.heights).size>4,'sheet height changes smoothly over successive frames');
-    assert.deepEqual(motion.after,motion.bitmap,'the illustration keeps its dimensions across expansion/collapse');
-    assert.equal(new Set(motion.sizes).size,1,'the illustration is never resized during the height spring');
    }else await page.click(handle);
    await page.waitForFunction(selector=>document.querySelector(selector)?.getAttribute('aria-expanded')==='false',{},handle);
    await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-collapsed.png'});

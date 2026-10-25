@@ -15,6 +15,7 @@ export function landscapeOptics(state:AstronomyState,opacity:number,glass:boolea
  // The shared GPU layer supplies occluded screen-space shafts beneath the UI.
  return {
   '--landscape-reflection-image':'none',
+  '--landscape-milk-glow':`radial-gradient(ellipse at 16% 0%,rgba(255,174,116,${(warm*.24).toFixed(4)}),transparent 65%),radial-gradient(ellipse at 100% 20%,rgba(235,159,180,${(warm*.14).toFixed(4)}),transparent 70%)`,
   '--landscape-rim':`rgba(${rgb},${(strength*1.7).toFixed(4)})`,
   '--landscape-reflection-strength':strength.toFixed(4),
  };

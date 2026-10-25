@@ -94,7 +94,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                         className="w-12 h-1.5 rounded-full bg-white/40 hover:bg-white/60 mx-auto mb-3 transition-colors"
                      />
 
-                     <div data-vehicle-line data-carrier-id={selectedBus.provider} className="flex items-baseline gap-2 mb-1 md:mb-1.5">
+                     <div data-vehicle-line className="flex items-baseline gap-2 mb-1 md:mb-1.5">
                         <span className="text-3xl md:text-5xl font-black tracking-tighter drop-shadow-sm">{selectedBus.routeShortName || '-'}</span>
                         <span className="uppercase tracking-widest text-[10px] md:text-xs font-bold text-white/90">{selectedVehicleIsTrain ? 'Pociag' : 'Linia'}</span>
                      </div>

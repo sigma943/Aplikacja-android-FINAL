@@ -14,7 +14,7 @@ test('below-horizon bodies and a new moon cannot create bright night reflections
  state.moon={...state.moon,altitude:.6,azimuth:0};state.sun.altitude=-.5;state.illumination.fraction=1;
  assert.ok(landscapeLighting(state,0).moon.intensity>0);
  state.illumination.fraction=0;assert.equal(landscapeLighting(state,0).moon.intensity,0);
- state.illumination.fraction=1;state.moon.altitude=-.01;
+ state.illumination.fraction=1;state.moon.altitude=-.03; // Entire apparent limb is below the horizon.
  assert.equal(landscapeLighting(state,0).moon.intensity,0);assert.equal(landscapeLighting(state,0).sun.intensity,0);
 });
 test('lighting has no discontinuity at sunset or arbitrary warm colour thresholds',()=>{

@@ -172,3 +172,36 @@ test('mountain materials apply saved panel tint, border and native control colou
   for(const key of ['surface','panel-scrim','nav-top','nav-bottom'])assert.match(a['--landscape-'+key],/0.35\)$/);
  }
 });
+
+// Reference: https://www.timeanddate.com/astronomy/poland/rzeszow (25 Oct 2026).
+test('Warsaw DST days and Sun/Moon rise-set agree with Rzeszow references',()=>{
+ const autumn=a.landscapeDayBounds(Date.parse('2026-10-25T12:00Z')),spring=a.landscapeDayBounds(Date.parse('2026-03-29T12:00Z'));
+ assert.equal(autumn.end-autumn.start,25*3600000);assert.equal(spring.end-spring.start,23*3600000);
+ const references=[['2026-10-24','07:08','17:23','+02:00'],['2026-10-25','06:09','16:21','+01:00'],['2026-10-26','06:11','16:19','+01:00']];
+ for(const [date,rise,set,offset]of references){
+  const events=a.solarEvents(Date.parse(date+'T12:00:00'+offset),place);
+  for(const [key,clock]of [['sunrise',rise],['sunset',set]])assert.ok(Math.abs(events[key]-Date.parse(date+'T'+clock+':00'+offset))<90000,key+' '+date);
+  assert.deepEqual(a.solarEvents(Date.parse(date+'T00:05:00'+(date==='2026-10-25'?'+02:00':offset)),place),events,'same local day around midnight');
+ }
+ const moon=a.lunarEvents(Date.parse('2026-10-25T12:00:00+01:00'),place);
+ assert.ok(Math.abs(moon.moonrise-Date.parse('2026-10-25T15:35:00+01:00'))<90000);
+ assert.ok(Math.abs(moon.moonset-Date.parse('2026-10-25T05:12:00+01:00'))<90000);
+});
+test('both bodies rise vertically at their actual apparent horizon and stay inside the sky',()=>{
+ const ms=Date.parse('2026-10-25T12:00Z'),events={...a.solarEvents(ms,place),...a.lunarEvents(ms,place)};
+ for(const kind of ['sun','moon']){
+  const rise=events[kind==='sun'?'sunrise':'moonrise'],set=events[kind==='sun'?'sunset':'moonset'];
+  for(const t of [rise,set]){
+   const body=a.astronomyAt(t,place)[kind],point=a.projectCelestial(body,kind),radius=(kind==='sun'?26:36)/(1000*1850/850);
+   assert.equal(point.x,.5);assert.ok(Math.abs(point.y-radius-r.mountainHorizon(.5))<.0015,'upper limb at skyline: '+kind);
+  }
+  assert.ok(a.projectCelestial(a.astronomyAt(rise-60000,place)[kind],kind).y>a.projectCelestial(a.astronomyAt(rise+60000,place)[kind],kind).y);
+  assert.ok(a.projectCelestial(a.astronomyAt(set-60000,place)[kind],kind).y<a.projectCelestial(a.astronomyAt(set+60000,place)[kind],kind).y);
+  for(let h=0;h<24;h++){const body=a.astronomyAt(ms+h*3600000,place)[kind];if(a.apparentLandscapeAltitude(body,kind)>0){const p=a.projectCelestial(body,kind);assert.equal(p.x,.5);assert.ok(p.y>.06);}}
+ }
+});
+test('cloud thinning creates soft openings and roughly a quarter less coverage',()=>{
+ const {cloudDensity}=load('lib/landscape-clouds.ts');let sum=0,open=0;
+ for(let y=0;y<50;y++)for(let x=0;x<100;x++){const n=cloudDensity(x/100,y/100);assert.ok(n>=0&&n<=1);sum+=n;if(n<.2)open++;}
+ assert.ok(sum/5000>.65&&sum/5000<.8);assert.ok(open>200);
+});
