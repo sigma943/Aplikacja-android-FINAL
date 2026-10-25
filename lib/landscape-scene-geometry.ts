@@ -49,9 +49,11 @@ export function buildLandscapeScene(mask:Uint8Array|Uint8ClampedArray,width:numb
  const treePositions:number[]=[],treeNormals:number[]=[];
  for(let layer=0;layer<4;layer++)for(let side=0;side<6;side++){
   const top=1-layer*.21,bottom=top-.41,radius=.12+layer*.058,a=side/6*Math.PI*2,b=(side+1)/6*Math.PI*2;
-  const p=[0,top,0,Math.cos(a)*radius,bottom,Math.sin(a)*radius,Math.cos(b)*radius,bottom,Math.sin(b)*radius];
+  const p=[0,top,0,Math.cos(b)*radius,bottom,Math.sin(b)*radius,Math.cos(a)*radius,bottom,Math.sin(a)*radius];
   const ux=p[3]-p[0],uy=p[4]-p[1],uz=p[5]-p[2],vx=p[6]-p[0],vy=p[7]-p[1],vz=p[8]-p[2],nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,len=Math.hypot(nx,ny,nz);
-  treePositions.push(...p);for(let k=0;k<3;k++)treeNormals.push(-nx/len,-ny/len,-nz/len);
+  treePositions.push(...p);for(let k=0;k<3;k++)treeNormals.push(nx/len,ny/len,nz/len);
+  treePositions.push(0,bottom,0,Math.cos(a)*radius,bottom,Math.sin(a)*radius,Math.cos(b)*radius,bottom,Math.sin(b)*radius);
+  for(let k=0;k<3;k++)treeNormals.push(0,-1,0);
  }
  return {positions,indices:new Uint32Array(triangles),heights,trees:new Float32Array(trees),treePositions:new Float32Array(treePositions),treeNormals:new Float32Array(treeNormals)};
 }

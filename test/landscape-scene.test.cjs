@@ -21,6 +21,7 @@ test('forest consists of three-dimensional instanced conifers with finite unit n
  assert.ok(scene.trees.length/4>100);assert.equal(scene.treePositions.length,scene.treeNormals.length);
  assert.ok(new Set([...scene.treePositions].filter((_,i)=>i%3===2)).size>6,'trees have actual depth');
  for(let i=0;i<scene.treeNormals.length;i+=3)assert.ok(Math.abs(Math.hypot(...scene.treeNormals.slice(i,i+3))-1)<.0001);
+ for(let i=0;i<scene.treePositions.length;i+=9){const p=scene.treePositions,n=scene.treeNormals,ux=p[i+3]-p[i],uy=p[i+4]-p[i+1],uz=p[i+5]-p[i+2],vx=p[i+6]-p[i],vy=p[i+7]-p[i+1],vz=p[i+8]-p[i+2];const x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx;assert.ok((x*n[i]+y*n[i+1]+z*n[i+2])/Math.hypot(x,y,z)>.999,'foliage winding agrees with its outward normal');}
  for(let i=0;i<scene.trees.length;i+=4){assert.ok(scene.trees[i+1]>0);assert.ok(scene.trees[i+3]>0);}
 });
 test('heightfield coordinates agree with geometry used for lighting and shadow queries',()=>{
