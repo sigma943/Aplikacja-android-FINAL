@@ -21,6 +21,10 @@ export class LandscapeRenderer{
   private gpuAttempted=false;
   quality:WaterQuality='high';
   effects={bloom:1,reflections:1,rays:1,waveSpeed:1,exposure:1};
+  setEffects(effects:typeof this.effects){
+    if(Object.keys(effects).some(key=>effects[key as keyof typeof effects]!==this.effects[key as keyof typeof effects]))this.lastBackground=-Infinity;
+    this.effects={...effects};
+  }
   lighting:LandscapeLightingState|null=null;
   private lunarTexture:CanvasImageSource;
   private lastBackground=-Infinity;

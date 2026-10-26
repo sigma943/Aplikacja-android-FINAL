@@ -44,7 +44,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     const visible=()=>!document.hidden&&nativeActive&&sceneVisible;
     let reduced=false,light=false,appearance=normalizeInterfaceAppearance(null),accent='#00a3a2',settings=readLandscapeSettings();
     const readPreferences=()=>{
-      settings=readLandscapeSettings();renderer.effects={bloom:settings.bloom/100,reflections:settings.reflections/100,rays:settings.rays/100,waveSpeed:settings.waveSpeed/100,exposure:settings.exposure/100};
+      settings=readLandscapeSettings();renderer.setEffects({bloom:settings.bloom/100,reflections:settings.reflections/100,rays:settings.rays/100,waveSpeed:settings.waveSpeed/100,exposure:settings.exposure/100});
       reduced=false;light=false;appearance=normalizeInterfaceAppearance(null);accent='#00a3a2';
       try{appearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));reduced=appearance.reducedMotion;accent=localStorage.getItem('mks_theme')||accent;light=localStorage.getItem('mks_light_effects')==='true';}catch{}
     };readPreferences();

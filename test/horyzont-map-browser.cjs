@@ -35,7 +35,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   }
   for(const opacity of [20,85,100]){
    await page.evaluate(opacity=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:opacity}));window.dispatchEvent(new Event('pks-interface-appearance'));},opacity);
-   await page.waitForFunction(opacity=>[...document.querySelectorAll('[data-opacity-probes]>div,[data-landscape-settings]')].every(e=>{const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=getComputedStyle(e).backgroundColor;ctx.fillRect(0,0,1,1);const expected=e.hasAttribute('data-adjustable-card')?opacity/100:1;return Math.abs(ctx.getImageData(0,0,1,1).data[3]/255-expected)<.01;}),{},opacity);
+   await page.waitForFunction(opacity=>[...document.querySelectorAll('[data-opacity-probes]>div,[data-opacity-probes]>article,[data-landscape-settings]')].every(e=>{const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=getComputedStyle(e).backgroundColor;ctx.fillRect(0,0,1,1);const expected=e.hasAttribute('data-adjustable-card')?opacity/100:1;return Math.abs(ctx.getImageData(0,0,1,1).data[3]/255-expected)<.01;}),{},opacity);
   }
   assert.equal(await page.$eval('[data-landscape-window="filter"]',e=>getComputedStyle(e).opacity),'1','filter sky stays independent of card opacity');
   await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:64}));window.dispatchEvent(new Event('pks-interface-appearance'));});

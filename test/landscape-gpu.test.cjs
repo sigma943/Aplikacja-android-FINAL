@@ -63,3 +63,11 @@ test('GPU uploads retain float32 precision while skipping repeated and unused un
   assert.equal(locations.filter(name=>name==='unused').length,1);
  }finally{global.document=documentBefore;}
 });
+
+test('changing rays invalidates the sun layer even with stopped ambient time',()=>{
+ const {LandscapeRenderer}=load('lib/landscape-renderer.ts');
+ const renderer=Object.create(LandscapeRenderer.prototype);
+ renderer.effects={bloom:1,reflections:1,rays:1,waveSpeed:1,exposure:1};renderer.lastBackground=72;
+ renderer.setEffects({...renderer.effects});assert.equal(renderer.lastBackground,72);
+ renderer.setEffects({...renderer.effects,rays:2});assert.equal(renderer.lastBackground,-Infinity);
+});
