@@ -327,8 +327,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.waitForFunction(theme=>document.querySelector('[data-bus-sheet-fixture]')?.dataset.uiTheme===theme,{},theme);
    await page.waitForSelector(handle);
    await page.waitForFunction(()=>document.querySelector('.map-detail-shell')?.dataset.expanded==='true');
-   const material=await page.$eval(handle,el=>({background:getComputedStyle(el).background,carrier:getComputedStyle(el.closest('.map-detail-shell')).getPropertyValue('--vehicle-carrier-background')}));
-   if(mode==='bus')assert.ok(!material.background.includes('rgba('),'carrier header is opaque in '+theme);
+   const material=await page.$eval(handle,el=>({background:getComputedStyle(el).background,image:getComputedStyle(el).backgroundImage,color:getComputedStyle(el).backgroundColor,carrier:getComputedStyle(el.closest('.map-detail-shell')).getPropertyValue('--vehicle-carrier-background')}));
+   if(mode==='bus')assert.ok(material.image!=='none'?!material.image.includes('rgba(')&&!material.image.includes('transparent'):!material.color.includes('rgba('),'carrier header is opaque in '+theme);
    await page.click(handle);await page.waitForFunction(()=>document.querySelector('.map-detail-shell')?.dataset.expanded==='false');
    const collapsed=await page.$eval(handle,el=>({background:getComputedStyle(el).background,carrier:getComputedStyle(el.closest('.map-detail-shell')).getPropertyValue('--vehicle-carrier-background')}));
    if(mode==='bus')assert.equal(collapsed.carrier,material.carrier,'both states share one carrier material in '+theme);
