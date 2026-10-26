@@ -1,3 +1,4 @@
+import {solarMilkMaterial} from './solar-milk';
 import {smoothstep,type AstronomyState} from './landscape-astronomy';
 /** Schlick approximation for an air/glass interface (IOR about 1.5).
  * UI panels use an artistic viewing angle, not a tracked physical camera. */
@@ -15,7 +16,7 @@ export function landscapeOptics(state:AstronomyState,opacity:number,glass:boolea
  // The shared GPU layer supplies occluded screen-space shafts beneath the UI.
  return {
   '--landscape-reflection-image':'none',
-  '--landscape-milk-glow':`radial-gradient(ellipse 110% 85% at 12% -12%,rgba(255,232,192,${(warm*.46).toFixed(4)}),transparent 64%),radial-gradient(ellipse 85% 70% at 90% -8%,rgba(240,165,168,${(warm*.23).toFixed(4)}),transparent 72%),linear-gradient(165deg,rgba(255,190,131,${(warm*.09).toFixed(4)}),transparent 48%)`,
+  '--landscape-milk-glow':solarMilkMaterial(state.sun.altitude*180/Math.PI).glow,
   '--landscape-rim':`rgba(${rgb},${(strength*1.7).toFixed(4)})`,
   '--landscape-reflection-strength':strength.toFixed(4),
  };

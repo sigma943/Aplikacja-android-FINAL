@@ -1290,22 +1290,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
   background:transparent!important;color:var(--landscape-ink,var(--ui-text,#172536))!important;
  }
  html:not([data-personal-chrome='classic']) [data-vehicle-header] [class*='text-white'] { color:inherit!important; }
- html[data-personal-chrome='classic'] [data-vehicle-route-badge] { color:inherit!important;background:none!important; }
  [data-vehicle-route-badge] { display:contents; }
- [data-vehicle-carrier-name] { display:none; }
- html:not([data-personal-chrome='classic']) [data-vehicle-line] { align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap; }
- html:not([data-personal-chrome='classic']) [data-vehicle-route-badge] {
-  display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  min-width:68px;padding:8px 12px;border:1px solid;border-radius:16px;
- }
- html:not([data-personal-chrome='classic']) [data-vehicle-carrier-name] {
-  display:inline-flex;padding:5px 9px;border:1px solid;border-radius:9px;font-size:11px;font-weight:800;letter-spacing:.03em;
- }
- html:not([data-personal-chrome='classic']) :is([data-vehicle-route-badge],[data-vehicle-carrier-name])[data-carrier-id='pks'] { background:#c9f4ed!important;color:#07594f!important;border-color:#68b9ab!important; }
- html:not([data-personal-chrome='classic']) :is([data-vehicle-route-badge],[data-vehicle-carrier-name])[data-carrier-id='mpk'] { background:#ffead1!important;color:#843b08!important;border-color:#d89a55!important; }
- html:not([data-personal-chrome='classic']) :is([data-vehicle-route-badge],[data-vehicle-carrier-name])[data-carrier-id='marcel'] { background:#dcf5cc!important;color:#26520d!important;border-color:#89b86d!important; }
- html:not([data-personal-chrome='classic']) :is([data-vehicle-route-badge],[data-vehicle-carrier-name])[data-carrier-id='rail'] { background:#dbeafe!important;color:#1e3a8a!important;border-color:#93b4e0!important; }
- html:not([data-personal-chrome='classic']) [data-vehicle-route-badge] [class*='text-white'] { color:inherit!important; }
  @media(max-width:767px) {
   html:not([data-personal-chrome='classic']) .pks-navigation:not([data-navigation-preview]) {
    width:calc(100% - 20px)!important;margin:0 10px 8px;border:1px solid var(--landscape-edge,var(--ui-edge))!important;border-radius:var(--personal-panel-radius,24px)!important;
@@ -1315,8 +1300,18 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
   html[data-personal-chrome='classic'] :is([data-map-bus-sheet],[data-map-stop-sheet]) { left:0!important;right:0!important;bottom:calc(64px + env(safe-area-inset-bottom))!important;border-radius:24px 24px 0 0!important;border-bottom-width:0!important; }
  }
 }
-.map-attribution { position:absolute;top:132px;left:10px;z-index:1000;color:#172536;background:#ffffffed;border:1px solid #17253626;border-radius:12px;box-shadow:0 2px 8px #0002;font-size:11px;max-width:260px; }
-.map-attribution summary { cursor:pointer;list-style:none;display:grid;place-items:center;width:32px;height:32px;font-size:20px; }
-.map-attribution summary::-webkit-details-marker { display:none; }
-.map-attribution div { padding:0 10px 10px; }
-.map-attribution a { text-decoration:underline; }
+
+/* The carrier owns the whole vehicle header, including the collapsed sheet. */
+@layer landscape-materials {
+ html [data-map-detail-kind='bus'] [data-vehicle-header] {
+  background:var(--vehicle-carrier-background)!important;
+  color:var(--vehicle-carrier-ink)!important;
+ }
+ html [data-map-detail-kind='bus'][data-ui-mode='light'] { --vehicle-carrier-ink:#172536; }
+ html [data-map-detail-kind='bus'][data-ui-mode='dark'] { --vehicle-carrier-ink:#fff; }
+ html [data-map-detail-kind='bus'] [data-vehicle-header] :is([class*='text-white'],[class*='text-slate-']) { color:inherit!important; }
+ html [data-map-detail-kind='bus'][data-expanded='false'] { background:var(--vehicle-carrier-background)!important; }
+}
+.pks-loading-screen[data-startup-theme='dark-mountains'] { background-image:var(--pks-loading-glow,none)!important; }
+
+html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image:var(--pks-loading-glow,none); }

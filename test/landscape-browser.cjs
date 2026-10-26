@@ -254,7 +254,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='day'&&document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
     await new Promise(r=>setTimeout(r,150));
     assert.equal(await page.$eval('[data-vehicle-line]',e=>getComputedStyle(e).flexDirection),'row','vehicle sheet retains the shared layout');
-    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(11, 27, 38)','daytime heading uses dark ink');
+    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(23, 37, 54)','daytime carrier heading uses dark ink');
     assert.equal(await page.$eval('[data-map-bus-sheet]',e=>getComputedStyle(e).backgroundColor),'rgb(242, 248, 252)','milk hides scenery in day mode');
     for(const width of [320,393]){
      await page.setViewport({width,height:851,deviceScaleFactor:1});
@@ -264,7 +264,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
     }
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-24T03:00:00+02:00',rate:0,quality:'low'}));
     await page.waitForFunction(()=>document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='dark');
-    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(244, 248, 252)','night heading uses pale ink');
+    assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(255, 255, 255)','night carrier heading uses pale ink');
     await page.screenshot({path:'test/ui-previews/landscape-bus-night.png'});
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-25T16:15:00+01:00',rate:0,quality:'low'}));
     await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
@@ -307,13 +307,30 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.waitForFunction(()=>{const a=document.querySelector('.map-detail-shell')?.getBoundingClientRect(),b=document.querySelector('.pks-navigation')?.getBoundingClientRect();return a&&b&&Math.abs(a.left-b.left)<1&&Math.abs(a.right-b.right)<1&&Math.abs(b.top-a.bottom-8)<1;});
    if(theme==='light-sky'||theme==='dark-oled')await page.screenshot({path:'test/ui-previews/chrome-'+theme+'-'+mode+'-modern.png'});
   }
-  const colors={pks:'rgb(201, 244, 237)',mpk:'rgb(255, 234, 209)',marcel:'rgb(220, 245, 204)'};
-  for(const carrier of Object.keys(colors)){
-   await page.goto(origin+'/chrome-fixture/?carrier='+carrier);
-   await page.waitForSelector('[data-vehicle-route-badge][data-carrier-id="'+carrier+'"]');
-   assert.equal(await page.$eval('[data-vehicle-route-badge]',e=>getComputedStyle(e).backgroundColor),colors[carrier]);
+  const colors={pks:[213,242,239],mpk:[254,230,213],marcel:[233,246,213]};
+  for(const carrier of Object.keys(colors))for(const theme of ['light','dark-oled']){
+   await page.goto(origin+'/chrome-fixture/?carrier='+carrier+'&theme='+theme);
+   await page.waitForSelector('[data-vehicle-carrier="'+carrier+'"]');
+   assert.equal(await page.$$eval('[data-vehicle-route-badge][data-carrier-id],[data-vehicle-carrier-name]',els=>els.length),0,'no coloured tiles in the header');
+   await page.click('[data-vehicle-header]');
+   await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='false');
    await page.waitForFunction(()=>{const a=document.querySelector('.map-detail-shell').getBoundingClientRect(),b=document.querySelector('.pks-navigation').getBoundingClientRect();return Math.abs(b.top-a.bottom-8)<1;});
+   const fill=await page.$eval('[data-map-bus-sheet]',el=>({sheet:getComputedStyle(el).background,header:getComputedStyle(el.querySelector('[data-vehicle-header]')).background}));
+   assert.equal(fill.sheet,fill.header,'the whole collapsed panel has the carrier fill');
+   if(theme==='light')assert.ok(fill.sheet.includes(colors[carrier].join(', ')),JSON.stringify(fill));
+   else assert.ok(fill.sheet.includes('linear-gradient'),'dark carrier tint remains visible');
    await page.screenshot({path:'test/ui-previews/chrome-carrier-'+carrier+'.png'});
+  }
+  for(const [name,iso] of [['day','2026-10-26T12:00:00+01:00'],['sunset','2026-10-26T16:00:00+01:00'],['night','2026-10-26T02:00:00+01:00']]){
+   await page.evaluateOnNewDocument(iso=>{const NativeDate=Date,fixed=NativeDate.parse(iso);window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return fixed;}};localStorage.setItem('mks_app_theme','dark-mountains');},iso);
+   await page.goto(origin+'/theme-screens-fixture/');
+   await page.waitForSelector('[data-startup-theme="dark-mountains"]');
+   const material=await page.$eval('.pks-loading-screen',el=>({background:getComputedStyle(el).backgroundColor,glow:getComputedStyle(el).backgroundImage,ink:getComputedStyle(el).color}));
+   assert.equal(material.ink,name==='night'?'rgb(244, 248, 252)':'rgb(11, 27, 38)');
+   if(name==='day')assert.equal(material.background,'rgb(242, 248, 252)');
+   if(name==='sunset')assert.ok(material.glow.includes('radial-gradient')&&!material.glow.includes('rgba(255, 232, 192, 0)'));
+   if(name==='night')assert.equal(material.background,'rgb(24, 27, 43)');
+   await page.screenshot({path:'test/ui-previews/landscape-loading-'+name+'.png'});
   }
   for(const mode of ['bus','stop']){
    await page.goto(origin+'/chrome-fixture/?style=classic&mode='+mode);

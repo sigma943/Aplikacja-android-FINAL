@@ -51,7 +51,7 @@ interface BusDetailsPanelProps {
 
 export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
   const carrier=selectedBus.provider==='mpk_rzeszow'?'mpk':selectedBus.provider==='marcel'?'marcel':selectedVehicleIsTrain?'rail':'pks';
-  const carrierName=carrier==='mpk'?'MPK Rzeszów':carrier==='marcel'?'Marcel':carrier==='rail'?'PKP Intercity':'PKS Rzeszów';
+
   // A removed motion element can interrupt its shared height animation. A new
   // panel must start from its requested size, not that intermediate value.
   const initialSync=useRef(busDrag.syncHeight);
@@ -65,8 +65,9 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
   return (
     <motion.div
                   key="bus-panel-map"
-                  style={{height:busDrag.height,'--map-cosmos-crop':mapCosmicCrop(`bus:${selectedBus.id}`)} as MotionStyle}
+                  style={{height:busDrag.height,'--vehicle-carrier-background':selectedBusHeaderStyle.background||selectedBusHeaderStyle.backgroundColor,'--map-cosmos-crop':mapCosmicCrop(`bus:${selectedBus.id}`)} as MotionStyle}
                   data-map-detail-kind="bus"
+                  data-vehicle-carrier={carrier}
                   data-map-bus-sheet={preview?undefined:true}
                   data-cosmic-view={preview?undefined:`map-vehicle:${selectedBus.id}`}
                   data-expanded={isBusPanelExpanded}
@@ -97,9 +98,8 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                      />
 
                      <div data-vehicle-line className="flex items-baseline gap-2 mb-1 md:mb-1.5">
-                        <span data-vehicle-route-badge data-carrier-id={carrier}><span className="text-3xl md:text-5xl font-black tracking-tighter drop-shadow-sm">{selectedBus.routeShortName || '-'}</span>
+                        <span data-vehicle-route-badge><span className="text-3xl md:text-5xl font-black tracking-tighter drop-shadow-sm">{selectedBus.routeShortName || '-'}</span>
                         <span className="uppercase tracking-widest text-[10px] md:text-xs font-bold text-white/90">{selectedVehicleIsTrain ? 'Pociag' : 'Linia'}</span></span>
-                        <span data-vehicle-carrier-name data-carrier-id={carrier}>{carrierName}</span>
                      </div>
                      <div data-vehicle-direction className="pr-12 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm md:text-[17px] font-medium leading-tight opacity-100 drop-shadow-sm">
                        <h2 className="min-w-0">

@@ -436,10 +436,6 @@ function BusMap({
           onVehicleClick={onVehicleClick}
         />
       </MapContainer>
-      <details data-map-attribution className="map-attribution">
-        <summary aria-label="Źródła mapy" title="Źródła mapy">ⓘ</summary>
-        <div>Mapy: Google · Przystanki: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></div>
-      </details>
     </div>
   );
 }

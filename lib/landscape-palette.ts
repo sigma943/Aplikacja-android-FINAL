@@ -1,6 +1,7 @@
+import {solarMilkMaterial} from './solar-milk';
 import {DEFAULT_INTERFACE_APPEARANCE,type InterfaceAppearance} from './interface-appearance';
 import {normalizeUiAccent,uiAccentVariables} from './ui-accent';
-import {smoothstep,type AstronomyState} from './landscape-astronomy';
+import {type AstronomyState} from './landscape-astronomy';
 /** Switch foreground, surface and map polarity together. A one-degree dead band
  * avoids flicker after tiny astronomy/location corrections near the horizon. */
 export function isLandscapeDay(state:AstronomyState,previous?:boolean){
@@ -10,9 +11,7 @@ export function isLandscapeDay(state:AstronomyState,previous?:boolean){
 /** Interpolate temperature within a readable material family, never between
  * white and black. Otherwise twilight produces grey glass with unrelated ink. */
 export function landscapePalette(state:AstronomyState,glassOpacity=64,day=isLandscapeDay(state),appearance:InterfaceAppearance=DEFAULT_INTERFACE_APPEARANCE,accent='#00a3a2'){
-  const warmth=1-smoothstep(-6,12,state.sun.altitude*180/Math.PI);
-  const blend=(cool:number[],warm:number[])=>cool.map((v,i)=>Math.round(v+(warm[i]-v)*warmth)).join(',');
-  let surface=day?blend([242,248,252],[250,239,224]):blend([9,24,40],[24,27,43]);
+  let surface=solarMilkMaterial(state.sun.altitude*180/Math.PI,day).surface;
   if(appearance.surfaceTint!=='original'){
     const hex=normalizeUiAccent(appearance.surfaceTint==='custom'?appearance.panelColor:appearance.surfaceTint==='accent'?accent:'#d2c2a4');
     const target=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)),amount=appearance.panelTintStrength/100;

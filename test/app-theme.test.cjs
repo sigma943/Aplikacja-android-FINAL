@@ -50,3 +50,23 @@ test('first-paint loading accent follows the saved colour independently of every
  vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{localStorage:{getItem(){throw Error('Denied');}},matchMedia(){throw Error('Denied');},document:{documentElement:root}});
  assert.equal(values['--pks-accent'],'#00a3a2');
 });
+
+
+test('mountain loading first paint uses the same solar milk and glow as panels',()=>{
+ const {solarMilkMaterial,startupSunAltitude}=load('lib/solar-milk.ts');
+ const {astronomyAt,DEFAULT_LANDSCAPE_LOCATION}=load('lib/landscape-astronomy.ts');
+ const {landscapePalette}=load('lib/landscape-palette.ts'),{landscapeOptics}=load('lib/landscape-optics.ts');
+ for(let month=0;month<12;month++)for(let hour=0;hour<24;hour+=3){
+  const ms=Date.UTC(2026,month,15,hour),state=astronomyAt(ms,DEFAULT_LANDSCAPE_LOCATION),alt=state.sun.altitude*180/Math.PI;
+  assert.ok(Math.abs(startupSunAltitude(ms)-alt)<.5,'first paint agrees with the ephemeris within half a degree');
+  const material=solarMilkMaterial(alt);
+  assert.equal(material.background,landscapePalette(state,100)['--landscape-solid']);
+  assert.equal(material.glow,landscapeOptics(state,100,false)['--landscape-milk-glow']);
+ }
+ for(const iso of ['2026-10-26T12:00:00+01:00','2026-10-26T16:00:00+01:00','2026-10-26T02:00:00+01:00']){
+  const ms=Date.parse(iso),root={style:{values:{},setProperty(k,v){this.values[k]=v}},dataset:{}};
+  vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{Date:class extends Date{static now(){return ms;}},localStorage:{getItem:k=>k==='mks_app_theme'?'dark-mountains':null},matchMedia:()=>({matches:true}),document:{documentElement:root}});
+  const expected=theme.themeScreenMaterial('dark-mountains',ms);
+  assert.equal(root.style.backgroundColor,expected.background);assert.equal(root.style.color,expected.text);assert.equal(root.style.values['--pks-loading-glow'],expected.glow);
+ }
+});
