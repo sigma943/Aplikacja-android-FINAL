@@ -422,6 +422,7 @@ vec2 foliageWind(vec2 uv,vec3 albedo){
  float foliage=smoothstep(.012,.09,albedo.g-albedo.b)*smoothstep(-.10,.03,albedo.g-albedo.r);
  float rooted=1.-.8*smoothstep(.965,1.,uv.y);
  float weight=max(left,max(right,bottom))*foliage*rooted;
+ if(weight<.001)return vec2(0.);
  // Slow travelling gust envelope, broad branch bend, then small leaf flutter.
  // Incommensurate frequencies avoid a repeated pendulum beat.
  float phase=uv.x*19.+uv.y*11.;
