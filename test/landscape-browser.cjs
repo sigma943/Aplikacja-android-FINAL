@@ -315,11 +315,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.click('[data-vehicle-header]');
    await page.waitForFunction(()=>document.querySelector('[data-map-bus-sheet]').dataset.expanded==='false');
    await page.waitForFunction(()=>{const a=document.querySelector('.map-detail-shell').getBoundingClientRect(),b=document.querySelector('.pks-navigation').getBoundingClientRect();return Math.abs(b.top-a.bottom-8)<1;});
-   const fill=await page.$eval('[data-map-bus-sheet]',el=>({sheet:getComputedStyle(el).background,header:getComputedStyle(el.querySelector('[data-vehicle-header]')).background}));
-   assert.equal(fill.sheet,fill.header,'the whole collapsed panel has the carrier fill');
+   const fill=await page.$eval('[data-map-bus-sheet]',el=>({sheet:getComputedStyle(el).background,header:getComputedStyle(el.querySelector('[data-vehicle-header]')).backgroundColor}));
+   assert.equal(fill.header,'rgba(0, 0, 0, 0)','one carrier fill covers the whole collapsed panel without a second tint');
    if(theme==='light')assert.ok(fill.sheet.includes(colors[carrier].join(', ')),JSON.stringify(fill));
    else assert.ok(fill.sheet.includes('linear-gradient'),'dark carrier tint remains visible');
-   await page.screenshot({path:'test/ui-previews/chrome-carrier-'+carrier+'.png'});
+   await page.screenshot({path:'test/ui-previews/chrome-carrier-'+carrier+'-'+theme+'.png'});
   }
   for(const [name,iso] of [['day','2026-10-26T12:00:00+01:00'],['sunset','2026-10-26T16:00:00+01:00'],['night','2026-10-26T02:00:00+01:00']]){
    await page.evaluateOnNewDocument(iso=>{const NativeDate=Date,fixed=NativeDate.parse(iso);window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return fixed;}};localStorage.setItem('mks_app_theme','dark-mountains');},iso);

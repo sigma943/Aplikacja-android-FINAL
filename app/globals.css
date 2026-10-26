@@ -1310,6 +1310,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html [data-map-detail-kind='bus'][data-ui-mode='light'] { --vehicle-carrier-ink:#172536; }
  html [data-map-detail-kind='bus'][data-ui-mode='dark'] { --vehicle-carrier-ink:#fff; }
  html [data-map-detail-kind='bus'] [data-vehicle-header] :is([class*='text-white'],[class*='text-slate-']) { color:inherit!important; }
+ html [data-map-detail-kind='bus'][data-expanded='false'] [data-vehicle-header] { background:transparent!important; }
  html [data-map-detail-kind='bus'][data-expanded='false'] { background:var(--vehicle-carrier-background)!important; }
 }
 .pks-loading-screen[data-startup-theme='dark-mountains'] { background-image:var(--pks-loading-glow,none)!important; }

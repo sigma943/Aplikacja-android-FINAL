@@ -142,7 +142,7 @@ function LoadingScreen() {
   }, [mode]);
 
   return (
-    <div data-startup-theme={mode} style={{...theme.pageStyle,backgroundImage:'none',['--startup-decoration' as string]:'none'}} className={`pks-status-screen pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
+    <div data-startup-theme={mode} style={{backgroundImage:'none',['--startup-decoration' as string]:'none'}} className={`pks-status-screen pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
       <div className="relative z-10 flex flex-col items-center gap-5">
         <svg className="h-16 w-16" viewBox="0 0 64 64" aria-hidden="true">
           <circle
