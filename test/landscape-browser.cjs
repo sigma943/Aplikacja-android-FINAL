@@ -312,6 +312,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.goto(origin+'/chrome-fixture/?carrier='+carrier);
    await page.waitForSelector('[data-vehicle-route-badge][data-carrier-id="'+carrier+'"]');
    assert.equal(await page.$eval('[data-vehicle-route-badge]',e=>getComputedStyle(e).backgroundColor),colors[carrier]);
+   await page.waitForFunction(()=>{const a=document.querySelector('.map-detail-shell').getBoundingClientRect(),b=document.querySelector('.pks-navigation').getBoundingClientRect();return Math.abs(b.top-a.bottom-8)<1;});
    await page.screenshot({path:'test/ui-previews/chrome-carrier-'+carrier+'.png'});
   }
   for(const mode of ['bus','stop']){
