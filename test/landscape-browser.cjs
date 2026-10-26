@@ -332,7 +332,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.click(handle);await page.waitForFunction(()=>document.querySelector('.map-detail-shell')?.dataset.expanded==='false');
    const collapsed=await page.$eval(handle,el=>({background:getComputedStyle(el).background,carrier:getComputedStyle(el.closest('.map-detail-shell')).getPropertyValue('--vehicle-carrier-background')}));
    if(mode==='bus')assert.equal(collapsed.carrier,material.carrier,'both states share one carrier material in '+theme);
-   else assert.equal(collapsed.background,material.background,'stop header material is independent of expansion in '+theme);
+   else {assert.equal(collapsed.background,material.background,'stop header material is independent of expansion in '+theme);assert.ok(await page.$eval('[data-map-stop-sheet]',el=>!getComputedStyle(el).backgroundImage.includes('nebula')),'collapsed stop has no exposed artwork strip');}
   }
   await page.goto(origin+'/stop-refresh-fixture/');
   await page.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===2);
