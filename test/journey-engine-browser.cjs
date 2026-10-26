@@ -5,7 +5,7 @@ const {roadDistance}=load('lib/bus-road-geometry.ts');
 (async()=>{
  const root=process.cwd(),temp=fs.mkdtempSync(path.join(os.tmpdir(),'journey-engine-v2-'));let browser,server;
  try{
-  await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'production',devtool:false,plugins:[new webpack.DefinePlugin({'process.env':JSON.stringify({})})],entry:path.join(root,'test/journey-engine-browser-fixture.ts'),output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')}]},optimization:{minimize:false}});compiler.run((error,stats)=>compiler.close(()=>error||stats.hasErrors()?reject(error||Error(stats.toString({all:false,errors:true}))):resolve()));});
+  await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'production',devtool:false,plugins:[new webpack.webpack.DefinePlugin({'process.env':JSON.stringify({})})],entry:path.join(root,'test/journey-engine-browser-fixture.ts'),output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')}]},optimization:{minimize:false}});compiler.run((error,stats)=>compiler.close(()=>error||stats.hasErrors()?reject(error||Error(stats.toString({all:false,errors:true}))):resolve()));});
   server=http.createServer((req,res)=>{
    if(req.url==='/'){res.setHeader('Content-Type','text/html');return res.end('<meta charset="utf-8"><body><script src="/fixture.js"></script></body>');}
    const file=path.resolve(temp,'.'+new URL(req.url,'http://localhost').pathname);
