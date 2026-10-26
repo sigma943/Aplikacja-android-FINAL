@@ -304,7 +304,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   for(const theme of ['light','light-warm','light-pink','light-sky','dark','dark-oled','dark-forest','dark-cosmos'])for(const mode of ['bus','stop']){
    await page.goto(origin+'/chrome-fixture/?theme='+theme+'&mode='+mode);
    await page.waitForFunction(()=>document.documentElement.dataset.personalChrome==='modern');
-   assert.ok(await page.evaluate(()=>{const a=document.querySelector('.map-detail-shell').getBoundingClientRect(),b=document.querySelector('.pks-navigation').getBoundingClientRect();return Math.abs(a.left-b.left)<1&&Math.abs(a.right-b.right)<1&&Math.abs(b.top-a.bottom-8)<1;}),'modern dock and '+mode+' sheet align in '+theme);
+   await page.waitForFunction(()=>{const a=document.querySelector('.map-detail-shell')?.getBoundingClientRect(),b=document.querySelector('.pks-navigation')?.getBoundingClientRect();return a&&b&&Math.abs(a.left-b.left)<1&&Math.abs(a.right-b.right)<1&&Math.abs(b.top-a.bottom-8)<1;});
    if(theme==='light-sky'||theme==='dark-oled')await page.screenshot({path:'test/ui-previews/chrome-'+theme+'-'+mode+'-modern.png'});
   }
   const colors={pks:'rgb(201, 244, 237)',mpk:'rgb(255, 234, 209)',marcel:'rgb(220, 245, 204)'};
@@ -317,7 +317,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   for(const mode of ['bus','stop']){
    await page.goto(origin+'/chrome-fixture/?style=classic&mode='+mode);
    await page.waitForFunction(()=>document.documentElement.dataset.personalChrome==='classic');
-   assert.ok(await page.evaluate(()=>{const a=document.querySelector('.map-detail-shell').getBoundingClientRect(),nav=document.querySelector('.pks-navigation'),b=nav.getBoundingClientRect();return a.left===0&&b.left===0&&Math.abs(b.width-innerWidth)<1&&Math.abs(a.bottom-b.top)<1&&parseFloat(getComputedStyle(nav).borderTopLeftRadius)===0;}),'classic restores edge-to-edge dock and '+mode+' sheet');
+   await page.waitForFunction(()=>{const a=document.querySelector('.map-detail-shell')?.getBoundingClientRect(),nav=document.querySelector('.pks-navigation'),b=nav?.getBoundingClientRect();return a&&b&&a.left===0&&b.left===0&&Math.abs(b.width-innerWidth)<1&&Math.abs(a.bottom-b.top)<1&&parseFloat(getComputedStyle(nav).borderTopLeftRadius)===0;});
    await page.screenshot({path:'test/ui-previews/chrome-'+mode+'-classic.png'});
   }
   assert.deepEqual(errors,[]);
