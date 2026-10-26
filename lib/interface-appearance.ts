@@ -1,6 +1,5 @@
 import {INTERFACE_FONTS,parseGoogleFontLink,interfaceFontStack} from './interface-fonts';
 import {normalizeUiAccent} from './ui-accent';
-import {withAlpha} from './home/vehicle-display';
 export function vehicleHeaderStyle(color:string,glass:boolean,isDark=true){
   // An opaque, pale carrier tint keeps dark text readable over any bright map.
   if(!isDark){
@@ -8,7 +7,12 @@ export function vehicleHeaderStyle(color:string,glass:boolean,isDark=true){
     const tint='#'+[1,3,5].map(i=>Math.round(parseInt(hex.slice(i,i+2),16)*0.18+255*0.82).toString(16).padStart(2,'0')).join('');
     return {background:tint};
   }
-  return {background:glass?`linear-gradient(135deg, ${withAlpha(color,0.48)}, ${withAlpha(color,0.28)})`:color};
+  if(!glass)return {background:color};
+  // Composite once against a fixed dark material. Expanding a sheet must not
+  // recolour its header by exposing a different map or cosmic layer beneath it.
+  const hex=normalizeUiAccent(color),base=[8,13,29];
+  const tint=(alpha:number)=>'#'+[1,3,5].map((i,j)=>Math.round(parseInt(hex.slice(i,i+2),16)*alpha+base[j]*(1-alpha)).toString(16).padStart(2,'0')).join('');
+  return {background:`linear-gradient(135deg, ${tint(.48)}, ${tint(.28)})`};
 }
 
 export const NAV_ITEMS=['map','stops','journeys','admin','options'] as const;

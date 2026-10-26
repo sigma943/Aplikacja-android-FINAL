@@ -48,11 +48,7 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
     appearance:appearance({textScale:110,titleWeight:700,textContrast:'strong',iconSize:26,iconStroke:2.25,density:'spacious',borderStrength:20,shadowStrength:15,navIndicator:'block',reducedMotion:true}),
     preview:{background:'#eaf0f8',surface:'#ffffff',text:'#172536'},
   },
-  {
-    name:'Minimalny',description:'Grafit, lekkie linie i proste karty',theme:'dark',accent:'#94a3b8',glass:false,glow:false,glowStrength:40,
-    appearance:appearance({panelRadius:18,cardRadius:14,controlRadius:10,borderStrength:10,shadowStrength:0,cardStyle:'flat',navIndicator:'pill',density:'compact',titleWeight:600}),
-    preview:{background:'#101a26',surface:'#1b2937',text:'#f3f7fb'},
-  },
+
 ];
 
 export function matchesInterfacePreset(preset:InterfacePreset,current:{appearance:InterfaceAppearance;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number}){

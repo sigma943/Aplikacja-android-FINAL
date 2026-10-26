@@ -1338,3 +1338,10 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 @layer pks-performance {
  html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status'],.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
 }
+
+/* A stop handle is one material in both sheet states, including cosmic art. */
+@layer landscape-materials {
+ html .map-stop-handle { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
+ html [data-map-stop-sheet][data-expanded='false'] { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important; }
+ html[data-cosmic-theme='on'] .map-stop-handle { background:#080d1d!important; }
+}

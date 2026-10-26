@@ -1064,7 +1064,7 @@ function mapJourneyToDeparture(journey: Record<string, unknown>, index: number, 
   const carrier = PKS_CARRIER;
 
   return {
-    id: [line, plannedAtMs || journey.timetable_time || index, direction, vehicleId || 'schedule'].join(':'),
+    id: [line, plannedAtMs || journey.timetable_time || index, direction].join(':'),
     courseId: String(journey.journey_id ?? journey.trip_id ?? '').trim() || undefined,
     vehicleId: vehicleId || undefined,
     stopId: stopId || String(journey.stop_point_id ?? '').trim() || undefined,

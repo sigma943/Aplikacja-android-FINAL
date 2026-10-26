@@ -321,6 +321,30 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    else assert.ok(fill.sheet.includes('linear-gradient'),'dark carrier tint remains visible');
    await page.screenshot({path:'test/ui-previews/chrome-carrier-'+carrier+'-'+theme+'.png'});
   }
+  for(const theme of ['light','light-warm','light-pink','light-sky','dark','dark-oled','dark-forest','dark-cosmos'])for(const mode of ['bus','stop']){
+   await page.goto(origin+'/chrome-fixture/?theme='+theme+'&mode='+mode);
+   const handle=mode==='bus'?'[data-vehicle-header]':'.map-stop-handle';
+   await page.waitForFunction(theme=>document.querySelector('[data-bus-sheet-fixture]')?.dataset.uiTheme===theme,{},theme);
+   await page.waitForSelector(handle);
+   await page.waitForFunction(()=>document.querySelector('.map-detail-shell')?.dataset.expanded==='true');
+   const material=await page.$eval(handle,el=>({background:getComputedStyle(el).background,carrier:getComputedStyle(el.closest('.map-detail-shell')).getPropertyValue('--vehicle-carrier-background')}));
+   if(mode==='bus')assert.ok(!material.background.includes('rgba('),'carrier header is opaque in '+theme);
+   await page.click(handle);await page.waitForFunction(()=>document.querySelector('.map-detail-shell')?.dataset.expanded==='false');
+   const collapsed=await page.$eval(handle,el=>({background:getComputedStyle(el).background,carrier:getComputedStyle(el.closest('.map-detail-shell')).getPropertyValue('--vehicle-carrier-background')}));
+   if(mode==='bus')assert.equal(collapsed.carrier,material.carrier,'both states share one carrier material in '+theme);
+   else assert.equal(collapsed.background,material.background,'stop header material is independent of expansion in '+theme);
+  }
+  await page.goto(origin+'/stop-refresh-fixture/');
+  await page.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length===2);
+  await page.evaluate(()=>{window.__oldDepartureRows=[...document.querySelectorAll('[data-departure-row]')];window.__rowPositions=window.__oldDepartureRows.map(el=>el.getBoundingClientRect().top);window.__startStopRefresh();});
+  await page.waitForFunction(()=>window.__refreshCount===2&&window.__releaseDepartures);
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  assert.ok(await page.evaluate(()=>window.__oldDepartureRows.every((el,i)=>document.querySelectorAll('[data-departure-row]')[i]===el)),'partial refresh does not replace or remove existing rows');
+  await page.evaluate(()=>window.__releaseDepartures());
+  await page.waitForFunction(()=>document.querySelector('[data-departure-line="108"]').textContent.includes('+5 min'));
+  assert.ok(await page.evaluate(()=>window.__oldDepartureRows.every((el,i)=>document.querySelectorAll('[data-departure-row]')[i]===el)),'ETA and vehicle updates retain DOM identity');
+  assert.ok(await page.evaluate(()=>window.__oldDepartureRows.every((el,i)=>Math.abs(el.getBoundingClientRect().top-window.__rowPositions[i])<1)),'refresh updates digits without moving the departure cards');
+  await page.screenshot({path:'test/ui-previews/steady-stop-refresh.png'});
   await page.goto(origin+'/readability-fixture/');
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>1);
   for(const [phase,iso] of [['day','2026-10-26T12:00:00+01:00'],['sunset','2026-10-26T16:00:00+01:00'],['night','2026-10-26T02:00:00+01:00']])for(const opacity of [20,80]){

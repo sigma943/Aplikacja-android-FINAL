@@ -81,7 +81,7 @@ jobs:
       - name: Verify living mountain astronomy and lifecycle
         run: |
           node --test test/landscape-asset-masks.test.cjs
-          node --test test/landscape-scene.test.cjs test/landscape-water-geometry.test.cjs test/landscape-gpu.test.cjs test/landscape-optics.test.cjs test/landscape.test.cjs test/app-theme.test.cjs test/interface-presets.test.cjs test/appearance-backup.test.cjs test/personalization-profiles.test.cjs test/journey-places.test.cjs
+          node --test test/landscape-scene.test.cjs test/landscape-water-geometry.test.cjs test/landscape-gpu.test.cjs test/landscape-optics.test.cjs test/landscape.test.cjs test/app-theme.test.cjs test/interface-presets.test.cjs test/ban-image.test.cjs test/provider-delays.test.cjs test/stop-timetable.test.cjs test/appearance-backup.test.cjs test/personalization-profiles.test.cjs test/journey-places.test.cjs
           node scripts/export-landscape-scene.cjs
           node test/landscape-gpu-browser.cjs
           node test/landscape-browser.cjs

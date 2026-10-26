@@ -85,7 +85,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
   useEffect(()=>{if(active&&selectedDayIndex===0&&!isLoading&&(!warnings.length||departures.length))void syncStopWidgets(stop.id,departures,vehicles,warnings).catch(()=>{});},[stop.id,departures,vehicles,warnings,isLoading,active,selectedDayIndex]);
   const reduceMotion = useReducedMotion();
-  const animateDepartures = !reduceMotion && !showAllDepartures && !cosmos;
+  const animateDepartures = !reduceMotion && !showAllDepartures;
 
   useForegroundRefresh(stop.id+':clock',async()=>{setCurrentTimeMs(Date.now());},1000,active);
 
@@ -328,18 +328,18 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                   </div>
                 ) : (
                   <>
-                    <AnimatePresence mode="popLayout">
+                    <AnimatePresence initial={false} mode="popLayout">
                   {displayedDepartures.map((dep, idx) => {
                     const isPast = (dep as any).isPast;
                     const departureTimeLabel = formatDepartureTime(dep);
                     return (
                       <motion.div 
                         layout={animateDepartures ? "position" : false}
-                        initial={animateDepartures ? { opacity: 0, y: 8 } : false}
+                        initial={false}
                         animate={animateDepartures ? { opacity: isPast ? 0.45 : 1, y: 0 } : { opacity: isPast ? 0.45 : 1, y: 0 }}
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
-                        transition={animateDepartures ? { duration: 0.3, delay: Math.min(idx * 0.06, 0.3) } : { duration: 0 }}
-                        key={dep.id}
+                        transition={animateDepartures ? { layout:{duration:.22},opacity:{duration:.15} } : { duration: 0 }}
+                        key={(dep.carrier?.id||'')+':'+dep.id}
                         data-interface-row data-departure-row data-departure-line={dep.line}
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? `border-b ${rowBorderClass}` : ''} ${rowClass} transition-colors cursor-pointer ${isPast ? (isDarkTheme ? 'bg-black/15' : 'bg-slate-100/70') : ''}`}
                       >
@@ -374,7 +374,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         </div>
 
                         {/* Right Side: Departure Time & Delayed/On-time Badge */}
-                        <div className="min-w-[4.4rem] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
+                        <div className="min-w-[4.4rem] min-h-[48px] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
                            <div className={`font-semibold tabular-nums tracking-tight text-[18px] sm:text-[19px] ${isPast ? 'text-slate-500 line-through' : headingTextClass}`}>{departureTimeLabel}</div>
                            {!isPast && dep.carrier?.id === 'mpk' && dep.realAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Rozkład planowy</span>}
                            {!isPast && dep.carrier?.id === 'mpk' && dep.realtimeSource && dep.plannedAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Na żywo</span>}

@@ -21,3 +21,9 @@ test('light vehicle headers are opaque and readable; dark headers retain their o
  if(!glass)assert.equal(vehicleHeaderStyle(color,glass,true).background,color);
  }
 });
+
+
+test('dark carrier glass is composited once and never depends on scenery behind it',()=>{
+ const {vehicleHeaderStyle}=require('./load-ts.cjs')('lib/interface-appearance.ts');
+ for(const color of ['#14b8a6','#f97316','#84cc16']){const bg=vehicleHeaderStyle(color,true,true).background;assert.match(bg,/linear-gradient/);assert.doesNotMatch(bg,/rgba|transparent/);assert.equal((bg.match(/#[0-9a-f]{6}/g)||[]).length,2);}
+});

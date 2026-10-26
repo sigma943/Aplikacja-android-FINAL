@@ -5,7 +5,7 @@ const {INTERFACE_PRESETS,matchesInterfacePreset}=load('lib/interface-presets.ts'
 const {normalizeInterfaceAppearance}=load('lib/interface-appearance.ts');
 
 test('all complete presets survive saved-setting normalization unchanged',()=>{
- assert.deepEqual(INTERFACE_PRESETS.map(p=>p.name),['Żywy Krajobraz – Dynamiczne Góry','Różowy','Leśny','Niebo','Kosmos','Spokojny','Nocny','Czytelny','Minimalny']);
+ assert.deepEqual(INTERFACE_PRESETS.map(p=>p.name),['Żywy Krajobraz – Dynamiczne Góry','Różowy','Leśny','Niebo','Kosmos','Spokojny','Nocny','Czytelny']);
  for(const preset of INTERFACE_PRESETS){
   const saved=normalizeInterfaceAppearance(JSON.parse(JSON.stringify(preset.appearance)));
   assert.deepEqual(saved,preset.appearance);
