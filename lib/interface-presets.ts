@@ -9,6 +9,11 @@ const appearance=(changes:Partial<InterfaceAppearance>):InterfaceAppearance=>({.
 
 export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
   {
+    name:'Horyzont',description:'Żywa woda i niebo. Dzień i noc.',theme:'dark-mountains',accent:'#a6e2cb',glass:true,glow:false,glowStrength:25,
+    appearance:appearance({glassOpacity:62,glassBlur:5,borderStrength:16,shadowStrength:15,navIndicator:'line'}),
+    preview:{background:'#40799a',surface:'#142d40',text:'#f4f8fc'},
+  },
+  {
     name:'Różowy',description:'Cukierkowy róż, malinowe akcenty i subtelne serduszka',theme:'light-pink',accent:'#c02674',glass:true,glow:false,glowStrength:40,
     appearance:appearance({}),
     preview:{background:'#ffd1e8',surface:'#ffd1e8',text:'#57153c'},
@@ -43,11 +48,7 @@ export const INTERFACE_PRESETS:readonly InterfacePreset[]=[
     appearance:appearance({textScale:110,titleWeight:700,textContrast:'strong',iconSize:26,iconStroke:2.25,density:'spacious',borderStrength:20,shadowStrength:15,navIndicator:'block',reducedMotion:true}),
     preview:{background:'#eaf0f8',surface:'#ffffff',text:'#172536'},
   },
-  {
-    name:'Minimalny',description:'Grafit, lekkie linie i proste karty',theme:'dark',accent:'#94a3b8',glass:false,glow:false,glowStrength:40,
-    appearance:appearance({panelRadius:18,cardRadius:14,controlRadius:10,borderStrength:10,shadowStrength:0,cardStyle:'flat',navIndicator:'pill',density:'compact',titleWeight:600}),
-    preview:{background:'#101a26',surface:'#1b2937',text:'#f3f7fb'},
-  },
+
 ];
 
 export function matchesInterfacePreset(preset:InterfacePreset,current:{appearance:InterfaceAppearance;theme:string;accent:string;glass:boolean;glow:boolean;glowStrength:number}){

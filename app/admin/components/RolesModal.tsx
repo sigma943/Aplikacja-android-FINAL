@@ -52,6 +52,8 @@ export function RolesModal({
         canChangeRoles: true,
         disableMap: false,
         disableStops: false,
+        disableJourneys:false,
+        journeys:false,
         globalSettings: true,
         globalSettingsEdit: true,
       };
@@ -68,6 +70,8 @@ export function RolesModal({
         canChangeRoles: false,
         disableMap: false,
         disableStops: false,
+        disableJourneys:false,
+        journeys:false,
         globalSettings: false,
         globalSettingsEdit: false,
       };
@@ -83,6 +87,8 @@ export function RolesModal({
       canChangeRoles: false,
       disableMap: false,
       disableStops: false,
+        disableJourneys:false,
+        journeys:false,
       globalSettings: false,
       globalSettingsEdit: false,
     };
@@ -95,6 +101,7 @@ export function RolesModal({
       ...base,
       ...device.permissions,
       statistics: r.includes('CICIEL') || (r==='ADMIN' && device.permissions.statistics!==false),
+      journeys:device.permissions.journeys===true&&!device.permissions.disableJourneys,
       disableStops: device.permissions.disableMap ? false : Boolean(device.permissions.disableStops),
     };
   };
@@ -156,12 +163,14 @@ export function RolesModal({
 
   const ownerRoleDisabled = !canAssignOwner && !initialRole.includes('CICIEL');
 
-  const toggleUserTabRestriction = (key: 'disableMap' | 'disableStops') => {
-    if (!canManageTabAccess || isSelfTarget) return;
+  const toggleUserTabRestriction = (key: 'disableMap' | 'disableStops' | 'journeys') => {
+    if (!canManageTabAccess || isSelfTarget || (key==='journeys'&&isOwnerRole)) return;
     setPermissions((prev) => ({
       ...prev,
-      disableMap: key === 'disableMap' ? !prev.disableMap : false,
-      disableStops: key === 'disableStops' ? !prev.disableStops : false,
+      disableMap: key==='journeys'?prev.disableMap:key === 'disableMap' ? !prev.disableMap : false,
+      disableStops: key==='journeys'?prev.disableStops:key === 'disableStops' ? !prev.disableStops : false,
+      disableJourneys:key==='journeys'?false:prev.disableJourneys,
+      journeys:key==='journeys'?!prev.journeys:prev.journeys,
     }));
   };
 
@@ -294,6 +303,7 @@ export function RolesModal({
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 block px-1">Dostęp użytkownika</label>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {[
+                  { key:'journeys' as const,title:'Włącz połączenia',desc:isOwnerRole?'Właściciel ma zawsze dostęp':'Zezwól temu urządzeniu na wyszukiwanie połączeń',active:isOwnerRole||Boolean(permissions.journeys&&!permissions.disableJourneys),blocked:isOwnerRole },
                   { key: 'disableMap' as const, title: 'Wyłącz mapę', desc: 'Użytkownik nie zobaczy zakładki mapy', active: permissions.disableMap, blocked: permissions.disableStops },
                   { key: 'disableStops' as const, title: 'Wyłącz przystanki', desc: 'Użytkownik nie zobaczy zakładki przystanków', active: permissions.disableStops, blocked: permissions.disableMap },
                 ].map((item) => (
@@ -304,12 +314,12 @@ export function RolesModal({
                     onClick={() => toggleUserTabRestriction(item.key)}
                     className={cn(
                       'flex items-center justify-between gap-4 rounded-2xl border p-4 text-left transition-all',
-                      item.active ? 'border-rose-500/40 bg-rose-500/10' : 'border-white/5 bg-[#111623]',
+                      item.active ? (item.key==='journeys'?'ui-accent-soft':'border-rose-500/40 bg-rose-500/10') : 'border-white/5 bg-[#111623]',
                       item.blocked || isSelfTarget ? 'cursor-not-allowed opacity-45 grayscale-[0.4]' : 'cursor-pointer active:scale-[0.98]',
                     )}
                   >
                     <div className="min-w-0">
-                      <div className={cn('text-sm font-black', item.active ? 'text-rose-300' : 'text-slate-200')}>{item.title}</div>
+                      <div className={cn('text-sm font-black', item.active ? (item.key==='journeys'?'ui-accent-text':'text-rose-300') : 'text-slate-200')}>{item.title}</div>
                       <div className="mt-1 text-[11px] text-slate-500">{item.desc}</div>
                     </div>
                     <span
@@ -317,10 +327,10 @@ export function RolesModal({
                       aria-checked={item.active}
                       className={cn(
                         'flex h-7 w-12 shrink-0 items-center rounded-full border px-1 transition-all',
-                        item.active ? 'justify-end border-rose-500/50 bg-rose-500/25' : 'justify-start border-white/10 bg-white/5',
+                        item.active ? (item.key==='journeys'?'justify-end ui-accent-soft':'justify-end border-rose-500/50 bg-rose-500/25') : 'justify-start border-white/10 bg-white/5',
                       )}
                     >
-                      <span className={cn('h-5 w-5 rounded-full shadow-lg transition-all', item.active ? 'bg-rose-400' : 'bg-slate-600')} />
+                      <span className={cn('h-5 w-5 rounded-full shadow-lg transition-all', item.active ? (item.key==='journeys'?'ui-accent-solid':'bg-rose-400') : 'bg-slate-600')} />
                     </span>
                   </button>
                 ))}

@@ -1,8 +1,10 @@
 'use client';
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import { Clock, ChevronUp } from 'lucide-react';
-import { motion, useReducedMotion, type MotionStyle } from 'motion/react';
+import { motion, type MotionStyle } from 'motion/react';
+import LandscapeChrome from './LandscapeChrome';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {useEffect,useState} from 'react';
 import {useSheetGesture,SHEET_SPRING} from '@/lib/use-sheet-gesture';
@@ -53,6 +55,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
       className="map-stop-sheet map-detail-shell absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-2 right-2 z-40 flex min-h-0 flex-col overflow-hidden rounded-[24px] border md:bottom-4 md:left-4 md:right-auto md:w-[380px]"
       style={{height:drag.height,'--map-cosmos-crop':mapCosmicCrop(`stop:${name}:${code||''}`)} as MotionStyle}
     >
+      <LandscapeChrome variant="panel"/>
       <motion.button
         type="button"
         aria-label={expanded ? 'Zwiń panel przystanku' : 'Rozwiń panel przystanku'}

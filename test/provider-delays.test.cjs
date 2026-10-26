@@ -92,3 +92,11 @@ test('duplicate named stop aliases share a visit even if backend IDs differ',()=
   const stops=[{id:1,name:'Niebylec 2',planned:'2026-10-07T14:31:00Z'},{id:2,name:'Jawornik',planned:'2026-10-07T14:36:00Z'},{id:101,name:' Niebylec  2 ',planned:'2026-10-07T14:31:00Z'},{id:3,name:'Konieczkowa',planned:'2026-10-07T14:44:00Z'}];
   assert.deepEqual(upcomingVehicleStops(stops,Date.parse('2026-10-07T14:30:00Z')).map(s=>s.id),[1,2,3]);
 });
+
+
+test('assigning a vehicle or updating its delay preserves a scheduled PKS row identity',()=>{
+ const domain=require('./load-ts.cjs')('components/stops-panel/stop-domain.ts');
+ const row={line_name:'108',timetable_time:'2026-10-26T08:00:00Z',route_description:'Rzeszów'};
+ const before=domain.mapJourneyToDeparture(row,0,'2083'),after=domain.mapJourneyToDeparture({...row,vehicle_id:'89',deviation:5},4,'2083');
+ assert.equal(before.id,after.id);assert.notEqual(before.delayMins,after.delayMins);
+});

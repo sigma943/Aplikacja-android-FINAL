@@ -268,7 +268,7 @@ const server=http.createServer((req,res)=>{
     // Exercise every preset under every active palette, including scroll invalidation.
     await button('Opcje');await page.waitForSelector('[data-options-sheet]');await page.click('#options-personal-tab');
     const thumbnailPixels=new Map();
-    for(const name of ['Różowy','Leśny','Niebo','Kosmos','Spokojny','Nocny','Czytelny','Minimalny']) {
+    for(const name of ['Różowy','Leśny','Niebo','Kosmos','Spokojny','Nocny','Czytelny']) {
       await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.click());
       await new Promise(resolve=>setTimeout(resolve,650));
       assert.equal(await page.$eval(`[aria-label="Zestaw: ${name}"]`,el=>el.getAttribute('aria-pressed')),'true','selection and saved appearance still match '+name);

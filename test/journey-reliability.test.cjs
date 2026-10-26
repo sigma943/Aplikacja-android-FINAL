@@ -7,21 +7,22 @@ const connection=(from,to,dep,arr,provider,course)=>({from,to,departure:dep*6000
 
 // Independent exhaustive oracle: enumerate boardings and each possible alighting,
 // then recurse to another whole course. No chronological scan or label dominance.
-function enumerate(from,to,connections,o){
+// Walking is limited per uninterrupted access/transfer/egress, as in the public contract.
+function enumerate(from,to,connections,o,graph){
  const earliest=o.arriveBy?o.at-21600000:o.at,latest=o.arriveBy?o.at:o.at+21600000;
  const courses=[...Map.groupBy(connections.filter(c=>o.providers.includes(c.provider)),c=>c.course).values()].map(c=>c.sort((a,b)=>a.departure-b.departure||a.arrival-b.arrival));
  const answers=[];
- const walk=(a,b)=>a.id===b.id?{meters:0,ms:0}:{meters:Math.ceil(stopDistance(a,b)*1.35),ms:Math.max(1,Math.ceil(Math.ceil(stopDistance(a,b)*1.35)/70))*60000};
+ const walk=(a,b)=>{if(a.id===b.id)return {meters:0,ms:0};const known=graph?.footpaths.find(p=>p.key===JSON.stringify([a.id,a.lat,a.lon,b.id,b.lat,b.lon]));const meters=known?.meters??Math.ceil(stopDistance(a,b)*1.35);return {meters,ms:(known?.minutes??Math.max(1,Math.ceil(meters/70)))*60000};};
  function visit(current,time,rides,walking,departure){
   const end=walk(current,to),arrival=time+end.ms;
-  if(walking+end.meters<=o.walkMeters&&arrival<=latest){
+  if(end.meters<=o.walkMeters&&arrival<=latest){
    const duration=arrival-earliest;
    answers.push({arrival:o.arriveBy&&!rides?latest:arrival,departure:rides?departure:o.arriveBy?latest-duration:earliest,walking:walking+end.meters,transfers:Math.max(0,rides-1)});
   }
   if(rides>=o.maxTransfers+1||current.id===to.id)return;
   for(const course of courses)for(let first=0;first<course.length;first++){
    const boarding=course[first],access=walk(current,boarding.from);
-   if(boarding.pickup===false||walking+access.meters>o.walkMeters||boarding.departure<time+access.ms+(rides?o.transferMinutes*60000:0)||boarding.departure<earliest)continue;
+   if(boarding.pickup===false||access.meters>o.walkMeters||boarding.departure<time+access.ms+(rides?o.transferMinutes*60000:0)||boarding.departure<earliest)continue;
    let previous;
    for(let last=first;last<course.length;last++){
     const c=course[last];if(previous&&(previous.to.id!==c.from.id||c.departure<previous.arrival))break;previous=c;
@@ -77,7 +78,7 @@ test('720 deterministic mixed-provider searches agree with an exhaustive indepen
     assert.equal(actual.length>0,Boolean(expected),JSON.stringify({seed,arriveBy,sort,reason:'reachability'}));
     if(expected){reachable++;if(new Set(actual[0].legs.filter(l=>l.walking===undefined).map(l=>l.provider)).size>1)mixed++;}
     if(expected)assert.deepEqual(score(actual[0],o),score(expected,o),JSON.stringify({seed,arriveBy,sort,actual:actual[0],expected}));
-    for(const j of actual){assert.ok(j.walking<=o.walkMeters);assert.ok(j.transfers<=o.maxTransfers);assert.ok(j.legs.filter(l=>l.walking===undefined).every(l=>o.providers.includes(l.provider)));}
+    for(const j of actual){for(const l of j.legs.filter(l=>l.walking!==undefined))assert.ok(l.walking<=o.walkMeters);assert.ok(j.transfers<=o.maxTransfers);assert.ok(j.legs.filter(l=>l.walking===undefined).every(l=>o.providers.includes(l.provider)));}
    }
   }
  }
@@ -99,7 +100,7 @@ test('real PKS and MPK schedules plus the recorded Marcel course support mixed-c
   const o={...base,at:warsawTimeMs(dated,time),providers,walkMeters},connections=[...feedConnections(feeds.pks,[],dated,o),...feedConnections(feeds.mpk,[],dated,o),...marcel];
   const result=scanJourneys(from,to,connections,o),mixed=result.find(j=>providers.every(p=>j.legs.some(l=>l.provider===p)));
   assert.ok(mixed,name+' must have a real mixed-provider itinerary');
-  for(const j of result){assert.ok(j.walking<=walkMeters);for(let i=1;i<j.legs.length;i++)assert.ok(j.legs[i].departure>=j.legs[i-1].arrival);}
+  for(const j of result){for(const l of j.legs.filter(l=>l.walking!==undefined))assert.ok(l.walking<=walkMeters);for(let i=1;i<j.legs.length;i++)assert.ok(j.legs[i].departure>=j.legs[i-1].arrival);}
   const arrivalOptions={...o,arriveBy:true,at:mixed.arrival},arrivalConnections=[...feedConnections(feeds.pks,[],dated,arrivalOptions),...feedConnections(feeds.mpk,[],dated,arrivalOptions),...marcel];
   const reverse=scanJourneys(from,to,arrivalConnections,arrivalOptions);assert.ok(reverse[0].arrival<=mixed.arrival);assert.ok(reverse[0].departure>=mixed.departure,name+' arrive-by must retain an equally good or later departure');
  }
@@ -121,4 +122,18 @@ test('instantaneous cycles terminate without losing a reachable transfer',()=>{
  const a=stop('a',50),b=stop('b',50.02),c=stop('c',50.04),o={...base,transferMinutes:0,walkMeters:0};
  const legs=[connection(b,c,10,10,'mpk','second'),connection(a,b,10,10,'pks','loop'),connection(b,a,10,10,'pks','loop')];
  const result=scanJourneys(a,c,legs,o);assert.ok(result.length>0);assert.equal(result[0].arrival,10*60000);
+});
+
+test('180 searches with routed footpath costs agree with exhaustive whole-course enumeration',()=>{
+ for(let seed=1;seed<=30;seed++){
+  const points=[stop('a',50),stop('b',50.0002),stop('c',50.02),stop('d',50.0202),stop('e',50.04)];
+  const legs=[connection(points[0],points[2],10,20,'pks','one'),connection(points[1],points[3],12,23,'mpk','two'),connection(points[2],points[4],30,50,'marcel','three'),connection(points[3],points[4],25,40,'mpk','four')];
+  const footpaths=points.flatMap((a,i)=>points.filter(b=>a.id!==b.id).map(b=>{const meters=Math.ceil(stopDistance(a,b))+(seed*(i+1)%4)*30;return {key:JSON.stringify([a.id,a.lat,a.lon,b.id,b.lat,b.lon]),meters,minutes:Math.max(1,Math.ceil(meters/70)),points:[[a.lat,a.lon],[b.lat,b.lon]],checkedAt:0};}));
+  const graph={footpaths};
+  for(const arriveBy of [false,true])for(const sort of ['fastest','walking','transfers']){
+   const o={...base,arriveBy,sort,at:(arriveBy?70:0)*60000,walkMeters:100,transferMinutes:seed%4,maxTransfers:1};
+   const expected=enumerate(points[0],points[4],legs,o,graph).sort((a,b)=>cmp(score(a,o),score(b,o)))[0],actual=scanJourneys(points[0],points[4],legs,o,()=>{},graph)[0];
+   assert.equal(Boolean(actual),Boolean(expected));if(expected)assert.deepEqual(score(actual,o),score(expected,o),JSON.stringify({seed,arriveBy,sort}));
+  }
+ }
 });

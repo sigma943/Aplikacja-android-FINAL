@@ -1,9 +1,10 @@
 'use client';
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import {isMpkPassengerLine} from '@/lib/mpk-passenger-lines';
 
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {useAppBack} from '@/lib/use-app-back';
-import { motion, useReducedMotion } from 'motion/react';
+import { motion } from 'motion/react';
 import { buildStopsCatalogAsync, restoreStopsCatalog, CATALOG_RULES_VERSION } from '@/lib/stops-catalog-async';
 import {stopIdentityIds} from '@/lib/stop-identity';
 import { loadStopDepartures } from '@/lib/stop-departures';

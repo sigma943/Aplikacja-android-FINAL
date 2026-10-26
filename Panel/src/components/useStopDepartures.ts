@@ -21,7 +21,7 @@ export function useStopDepartures(stop: Stop, dayIndex: number, dateIso: string,
     const generation=scope.current;
     const valid=()=>generation===scope.current;
     setState(previous=>({...previous,isFetching:true}));
-    const partial=(result:DepartureResult)=>{if(valid())startTransition(()=>setState({...result,isLoading:false,isFetching:true}));};
+    const partial=(result:DepartureResult)=>{if(valid())startTransition(()=>setState(previous=>previous.updatedAt?previous:{...result,isLoading:false,isFetching:true}));};
     try {
       const value=await input.current.load(input.current.stop,input.current.dayIndex,partial);
       if(!valid())return;

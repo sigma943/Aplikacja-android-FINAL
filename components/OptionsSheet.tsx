@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import {useSheetGesture,SHEET_SPRING} from '@/lib/use-sheet-gesture';
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import {useDialogFocus} from '@/lib/use-dialog-focus';
 
 type Props = {
@@ -15,11 +16,12 @@ type Props = {
 };
 
 export default function OptionsSheet({ expanded, onExpandedChange, onClose, className, overlayClassName, children }: Props) {
+  const reduced=useJourneyReducedMotion();
   const sheet = useRef<HTMLDivElement>(null);
   const [entering,setEntering]=useState(true);
   const [limits, setLimits] = useState({ compact: 320, full: 500 });
   // During entrance animate the compositor transform, not a second layout spring.
-  const drag=useSheetGesture(expanded,onExpandedChange,limits.compact,limits.full,entering);
+  const drag=useSheetGesture(expanded,onExpandedChange,limits.compact,limits.full,entering,true);
   useDialogFocus(sheet,true,onClose);
 
   useEffect(() => {
@@ -59,11 +61,11 @@ export default function OptionsSheet({ expanded, onExpandedChange, onClose, clas
   useEffect(()=>{if(!expanded)sheet.current?.querySelector('[data-options-scroll]')?.scrollTo(0,0);},[expanded]);
 
   return (
-    <motion.div initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} transition={{duration: 0.15}}
-      className={overlayClassName} onClick={event => {if (event.target === event.currentTarget) onClose();}}>
+    <motion.div initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} transition={{duration: reduced?0:0.15}}
+      data-options-overlay className={overlayClassName} onClick={event => {if (event.target === event.currentTarget) onClose();}}>
       <motion.div ref={sheet} role="dialog" aria-modal="true" aria-labelledby="options-title" data-options-sheet data-expanded={expanded}
-        initial={{y: '100%', opacity: 0}} animate={{y: 0, opacity: 1}} exit={{y: '100%', opacity: 0}}
-        transition={SHEET_SPRING} className={className} style={{height:drag.height,willChange:'transform'}}
+        initial={reduced?false:{y:'100%',opacity:0}} animate={{y: 0, opacity: 1}} exit={reduced?{y:0,opacity:1}:{y:'100%',opacity:0}}
+        transition={reduced?{duration:0}:SHEET_SPRING} className={className} style={{height:drag.height,willChange:'transform'}}
         onAnimationComplete={()=>setEntering(false)}
         onClick={event => event.stopPropagation()}>
         <button type="button" aria-label={expanded ? 'Zwiń opcje' : 'Rozwiń opcje'} aria-expanded={expanded} aria-controls="additional-options"

@@ -1,5 +1,6 @@
 'use client';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
+import {pksTerminalLines} from '@/lib/pks-terminal-timetable';
 import {cachedStopText} from '@/lib/stop-text-cache';
 
 import type { Carrier, Departure, Stop } from '@/Panel/src/types';
@@ -804,6 +805,7 @@ function isMpkOnlyStop(stop: Stop) {
 
 function shouldMergeMpkStops(left: Stop, right: Stop) {
   if (!isMpkOnlyStop(left) || !isMpkOnlyStop(right)) return false;
+  if (shouldKeepSameProviderStopsSeparate(left,right)) return false;
   if (hasConflictingStopNumbers(left.name, right.name)) return false;
   const distance = distanceMeters(left.lat, left.lon, right.lat, right.lon);
   const score = stopMergeNameScore(left.name, right.name);
@@ -856,9 +858,11 @@ function mergeMpkStopsForList(stops: Stop[]) {
 }
 
 function pksLinesForStop(
-  stop: Pick<Stop, 'id' | 'providerStopIds'>,
+  stop: Pick<Stop, 'id' | 'providerStopIds'> & Partial<Pick<Stop,'areaId'|'code'>>,
   pksLinesByStopId: Record<string, string[]>,
 ) {
+  const reviewed=pksTerminalLines(stop.areaId,stop.code);
+  if(reviewed!==null)return reviewed;
   const lineSet = new Set<string>();
   const ids = splitCsvValues(stop.providerStopIds?.pks || stop.id);
   ids.forEach((id) => {
@@ -1060,7 +1064,7 @@ function mapJourneyToDeparture(journey: Record<string, unknown>, index: number, 
   const carrier = PKS_CARRIER;
 
   return {
-    id: [line, plannedAtMs || journey.timetable_time || index, direction, vehicleId || 'schedule'].join(':'),
+    id: [line, plannedAtMs || journey.timetable_time || index, direction].join(':'),
     courseId: String(journey.journey_id ?? journey.trip_id ?? '').trim() || undefined,
     vehicleId: vehicleId || undefined,
     stopId: stopId || String(journey.stop_point_id ?? '').trim() || undefined,

@@ -1,10 +1,13 @@
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
+import CosmicFilterEffects from '@/components/CosmicFilterEffects';
+import {createStopSearchIndex,searchStops} from '@/lib/stop-search';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
 import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
-import { motion, useReducedMotion } from 'motion/react';
+import { motion } from 'motion/react';
 import VirtualStopCards from './VirtualStopCards';
 
 interface StopListProps {
@@ -50,33 +53,6 @@ const CARRIER_FILTERS: Array<{ id: CarrierFilterId; label: string; dotClass: str
   { id: 'mpk', label: 'MPK Rzeszów', dotClass: 'bg-orange-500' },
   { id: 'marcel', label: 'Marcel', dotClass: 'bg-lime-400' },
 ];
-
-type SearchableStop = {
-  stop: Stop;
-  normalizedName: string;
-  carrierIds: Set<string>;
-};
-
-function normalizeSearchText(value: unknown) {
-  return String(value || '')
-    .trim()
-    .toLowerCase().replace(/ł/g, 'l')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-}
-
-function filterStops(stops: SearchableStop[], query: string, carrierFilter: CarrierFilterId) {
-  const normalizedQuery = normalizeSearchText(query);
-  return stops
-    .filter((entry) => {
-      if (!ENABLE_TRAINS && entry.stop.type !== 'bus') return false;
-      if (carrierFilter !== 'all' && !entry.carrierIds.has(carrierFilter)) return false;
-      if (!normalizedQuery) return true;
-      return entry.normalizedName.includes(normalizedQuery);
-    })
-    .map((entry) => entry.stop);
-}
 
 function StopLineBadges({lines,providerId,pksLineSet,providers}:{lines:string[];providerId?:string;pksLineSet:Set<string>;providers?:Record<string,string[]>}) {
   const row=useRef<HTMLDivElement>(null);
@@ -165,25 +141,14 @@ export default function StopList({
     });
     return [...favorites, ...others];
   }, [stops]);
-  const searchableStops = useMemo<SearchableStop[]>(
-    () =>
-      sortedStops.map((stop) => ({
-        stop,
-        normalizedName: normalizeSearchText(stop.name + " " + displayStopCatalogLabel(stop.name,stop.code)),
-        carrierIds: new Set([
-          ...stop.carriers.map((carrier) => carrier.id),
-          ...((stop.sourceProviderIds || []).map((provider) => (provider === 'mpk_rzeszow' ? 'mpk' : provider))),
-        ]),
-      })),
-    [sortedStops],
-  );
+  const searchableStops = useMemo(() => createStopSearchIndex(sortedStops), [sortedStops]);
 
   const filteredStops = useMemo(
-    () => filterStops(searchableStops, deferredInputValue, carrierFilter).filter(stop=>!favoritesOnly||stop.isFavorite),
+    () => searchStops(searchableStops, deferredInputValue, {carrier:carrierFilter,favoritesOnly}),
     [searchableStops, deferredInputValue, carrierFilter,favoritesOnly],
   );
   const fullFilteredStops = useMemo(
-    () => (isFullListOpen ? filterStops(searchableStops, deferredFullInputValue, carrierFilter).filter(stop=>!favoritesOnly||stop.isFavorite) : []),
+    () => (isFullListOpen ? searchStops(searchableStops, deferredFullInputValue, {carrier:carrierFilter,favoritesOnly}) : []),
     [isFullListOpen, searchableStops, deferredFullInputValue, carrierFilter,favoritesOnly],
   );
   const displayStops = useMemo(() => filteredStops.slice(0, 30), [filteredStops]);
@@ -291,6 +256,7 @@ export default function StopList({
               </span>
             </div>
             {isBus && stop.lines.length > 0 && <StopLineBadges lines={stop.lines} providerId={singleProviderId} pksLineSet={pksLineSet} providers={stop.lineProviders} />}
+            {isBus && stop.timetableNotice && stop.lines.length===0 && <span className={`text-[11px] leading-relaxed ${secondaryTextClass}`}>Brak przypisanych linii PKS</span>}
           </div>
         </div>
 
@@ -323,8 +289,10 @@ export default function StopList({
 
   return (
     <motion.div key={isFullListOpen ? "full" : "preview"} initial={reduceMotion ? false : {opacity: 0, y: isFullListOpen ? 18 : -10}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.52, ease: [0.25, 0.1, 0.25, 1]}} data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
+
+      <CosmicFilterEffects/>
       {!isFullListOpen && <>
-      <div className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>
+      <div data-stop-list-header data-cosmic-panel className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>
         <div className="mb-3.5 flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="ui-accent-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"><MapPin size={20} /></span>
@@ -428,7 +396,7 @@ export default function StopList({
             isDarkTheme ? 'bg-[#050b12]/96' : 'bg-white/96'
           }`}
         >
-          <div className={`flex min-w-0 shrink-0 items-center justify-between border-b px-4 pb-4 pt-6 backdrop-blur-xl lg:px-6 ${isDarkTheme ? 'border-white/[0.06] bg-[#0d1622]/96' : 'border-slate-200/85 bg-white/98'}`}>
+          <div data-cosmic-panel className={`flex min-w-0 shrink-0 items-center justify-between border-b px-4 pb-4 pt-6 backdrop-blur-xl lg:px-6 ${isDarkTheme ? 'border-white/[0.06] bg-[#0d1622]/96' : 'border-slate-200/85 bg-white/98'}`}>
             <div className="min-w-0 pr-3">
               <h2 className={`text-lg font-black lg:text-xl ${isDarkTheme ? 'text-white' : 'text-slate-900'}` }>Pełna Lista Przystanków</h2>
               <p className={`mt-0.5 text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}` }>Wszystkie pasujące punkty komunikacyjne ({fullFilteredStops.length})</p>
@@ -445,7 +413,7 @@ export default function StopList({
             </button>
           </div>
 
-          <div className={`shrink-0 border-b px-4 py-4 backdrop-blur-xl lg:px-6 ${isDarkTheme ? 'border-white/[0.03] bg-[#08111c]/96' : 'border-slate-200/85 bg-white/96'}`}>
+          <div data-cosmic-panel className={`shrink-0 border-b px-4 py-4 backdrop-blur-xl lg:px-6 ${isDarkTheme ? 'border-white/[0.03] bg-[#08111c]/96' : 'border-slate-200/85 bg-white/96'}`}>
             <div className="ui-accent-search group relative">
               <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchIconClass}`} size={18} />
               <input

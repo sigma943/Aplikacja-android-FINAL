@@ -2,7 +2,7 @@
 
 import {useEffect, useState} from 'react';
 import {normalizeUiAccent} from '@/lib/ui-accent';
-import {readAppTheme,resolveAppTheme,THEME_SCREEN_COLORS} from '@/lib/app-theme';
+import {readAppTheme,resolveAppTheme,THEME_SCREEN_COLORS,themeScreenMaterial} from '@/lib/app-theme';
 
 import {type DeviceRole} from '@/lib/admin/rbac';
 
@@ -128,21 +128,21 @@ function LoadingScreen() {
   const theme=themeShell(mode);
 
   useEffect(() => {
-
-    const current=getStoredThemeMode();
-    const bg = themeBackground(current);
-    const text = themeTextColor(current);
-    document.documentElement.dataset.pksTheme=current;
-    document.documentElement.style.setProperty('--pks-initial-bg', bg);
-    document.documentElement.style.setProperty('--pks-loading-text', text);
-    document.documentElement.style.backgroundColor = bg;
-    document.documentElement.style.color = text;
-    document.body.style.backgroundColor = bg;
-    document.body.style.color = text;
+    const update=()=>{
+      const current=getStoredThemeMode(),material=themeScreenMaterial(current),root=document.documentElement;
+      root.dataset.pksTheme=current;
+      root.style.setProperty('--pks-initial-bg',material.background);
+      root.style.setProperty('--pks-loading-text',material.text);
+      root.style.setProperty('--pks-loading-glow',material.glow);
+      root.style.backgroundColor=material.background;root.style.color=material.text;
+      document.body.style.backgroundColor=material.background;document.body.style.color=material.text;
+    };
+    update();const timer=setInterval(update,30000);document.addEventListener('visibilitychange',update);
+    return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',update);};
   }, [mode]);
 
   return (
-    <div data-startup-theme={mode} style={{...theme.pageStyle,backgroundImage:'none',['--startup-decoration' as string]:'none'}} className={`pks-status-screen pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
+    <div data-startup-theme={mode} style={{backgroundImage:'none',['--startup-decoration' as string]:'none'}} className={`pks-status-screen pks-loading-screen min-h-screen overflow-hidden ${theme.page} flex items-center justify-center p-6 font-sans relative`}>
       <div className="relative z-10 flex flex-col items-center gap-5">
         <svg className="h-16 w-16" viewBox="0 0 64 64" aria-hidden="true">
           <circle

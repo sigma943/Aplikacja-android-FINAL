@@ -1,3 +1,4 @@
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import {useAppBack} from '@/lib/use-app-back';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, ChevronDown, Calendar, RefreshCcw, LogIn, MonitorOff, ShieldAlert, UserCog, PowerOff, MapPin, Menu, Trash2, X, Check } from 'lucide-react';
@@ -68,6 +69,7 @@ export function LogsView({
   canClearLogs?: boolean;
   onClearLogs?: () => Promise<void>;
 }) {
+  const reducedMotion=useJourneyReducedMotion();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterOp, setFilterOp] = useState('Wszyscy');
@@ -364,7 +366,7 @@ export function LogsView({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text" 
-              placeholder="Szukaj w logach aktywności..." 
+              placeholder="Szukaj..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-[#111623] border border-white/10 rounded-2xl py-3.5 pl-10 pr-4 text-sm font-medium text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition-all shadow-inner"
@@ -404,10 +406,10 @@ export function LogsView({
               visibleLogs.map((log, idx) => (
                 <motion.div
                   key={log.id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reducedMotion?false:{opacity:0,y:10}}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: idx * 0.03 }}
+                  transition={reducedMotion?{duration:0,delay:0}:{delay:idx*0.03}}
                 >
                   <LogCard log={log} />
                 </motion.div>

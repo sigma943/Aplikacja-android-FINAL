@@ -1,0 +1,21 @@
+{
+  "model": "controlled-coplanar-reconstruction",
+  "sourceWidth": 850,
+  "sourceHeight": 1850,
+  "mapWidth": 425,
+  "mapHeight": 925,
+  "horizon": 0.45,
+  "azimuthSpanDegrees": 78,
+  "altitudeSpan": 0.65,
+  "cameraHeight": 8,
+  "worldExtent": 1024,
+  "waterTop": 0.455,
+  "note": "Fixed southwest-facing camera registered to the photographic valley. Ephemeris altitude/azimuth remain unchanged; only the view projection is calibrated. Controlled relative depth is not surveyed 3D.",
+  "astronomyAzimuthSpanDegrees": 260,
+  "cameraYawRadians": 0.75,
+  "sceneDepthExtent": 128,
+  "waterMaskTop": 0.455,
+  "uvBits": 24,
+  "cloudSpeed": 4,
+  "framingOffsetY": 0.06
+}

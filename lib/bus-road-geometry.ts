@@ -32,6 +32,18 @@ export function roadRouteMatchesStops(route: Point[], stops: Point[], tolerance=
   return true;
 }
 
+/** Inferred roads have no operator shape to establish their identity. Do not
+ * apply the broad tolerance needed by older GTFS platform coordinates here. */
+export function routedRoadRouteMatchesStops(route: Point[], stops: Point[]) {
+  return roadRouteMatchesStops(route, stops, 60);
+}
+
+function distanceToRoute(stop: Point, route: Point[]) {
+  let distance=Infinity;
+  for(let i=1;i<route.length;i++)distance=Math.min(distance,segmentProjection(stop,route[i-1],route[i]).distance);
+  return distance;
+}
+
 /** Preserve road corners instead of dropping every Nth coordinate on long routes. */
 export function simplifyRoadRoute(route: Point[], tolerance=2): Point[] {
   if (route.length<3) return route;
@@ -70,7 +82,8 @@ export function joinRouteChunks(chunks:Point[][]):Point[] {
   for(const chunk of chunks) {
     if(chunk.length<2 || !chunk.every(validRoadPoint))throw new Error('Incomplete road route');
     const end=result.at(-1);
-    if(end && roadDistance(end,chunk[0])>80)throw new Error('Disconnected road route chunks');
+    // Allow only polyline rounding noise, never a connector across nearby roads.
+    if(end && roadDistance(end,chunk[0])>1)throw new Error('Disconnected road route chunks');
     for(const point of chunk){const last=result.at(-1);if(!last||last[0]!==point[0]||last[1]!==point[1])result.push(point);}
   }
   return result;
@@ -104,7 +117,7 @@ export function cleanRoadJunctionLoops(route:Point[],stops:Point[]):Point[] {
 /** Nearby candidates for interior pins; shared endpoints must snap consistently. */
 export function roadRoutingLocations(stops:Point[],stopWaypoints:boolean,boundaries={start:true,end:true}) {
   return stops.map(([lat,lon],index)=>({lat,lon,type:index===0||index===stops.length-1?'break':stopWaypoints?'via':'through',
-    ...(stopWaypoints?{radius:index===0||index===stops.length-1?35:150,rank_candidates:false}:{})}));
+    ...(stopWaypoints?{radius:index===0||index===stops.length-1?35:60,rank_candidates:false}:{})}));
 }
 /** Only request an alternative for a short out-and-back/closed junction excursion. */
 export function hasLocalRoadExcursion(route:Point[]) {
@@ -122,8 +135,42 @@ export function hasLocalRoadExcursion(route:Point[]) {
 export function preferRoadCorridor(route:Point[],candidate:Point[],stops:Point[]) {
   // Repeated stops describe a deliberate return leg; a shortcut must not erase it.
   if(stops.some((stop,index)=>stops.slice(0,Math.max(0,index-1)).some(previous=>roadDistance(stop,previous)<10)))return route;
-  if(!roadRouteMatchesStops(candidate,stops,150))return route;
+  if(!routedRoadRouteMatchesStops(candidate,stops))return route;
+  // Shorter is not evidence that an excursion is artificial. Preserve every
+  // stop's existing access, allowing only small coordinate/road-width noise.
+  if(stops.some(stop=>distanceToRoute(stop,candidate)>Math.min(15,distanceToRoute(stop,route)+5)))return route;
   const length=(points:Point[])=>points.slice(1).reduce((total,point,index)=>total+roadDistance(points[index],point),0);
   const oldLength=length(route),newLength=length(candidate);
   return oldLength-newLength>=30&&newLength<oldLength*.95?candidate:route;
+}
+
+/** Remove a closed routing cycle only at an identical road vertex, with the
+ * same direction before/after and no loss of ordered stop access. No new road
+ * segment is invented. Repeated passenger calls protect genuine return trips. */
+export function removeRedundantRoadCycles(route:Point[],stops:Point[]):Point[] {
+  const repeated=stops.filter((stop,index)=>stops.slice(0,Math.max(0,index-1)).some(previous=>roadDistance(stop,previous)<10));
+  let result=route;
+  const aligned=(a:Point,b:Point,c:Point,d:Point)=>{
+    const scale=Math.cos(b[0]*Math.PI/180);
+    const x=[(b[1]-a[1])*scale,b[0]-a[0]],y=[(d[1]-c[1])*scale,d[0]-c[0]];
+    return (x[0]*y[0]+x[1]*y[1])/(Math.hypot(...x)*Math.hypot(...y)||1)>.95;
+  };
+  for(let end=3;end<result.length-1;end++){
+    let length=0;
+    for(let start=end-1;start>0;start--){
+      length+=roadDistance(result[start],result[start+1]);
+      if(length>900)break;
+      if(end-start<3||length<30||result[start][0]!==result[end][0]||result[start][1]!==result[end][1])continue;
+      if(!aligned(result[start-1],result[start],result[end],result[end+1]))continue;
+      const loop=result.slice(start,end+1);
+      if(repeated.some(stop=>distanceToRoute(stop,loop)<150))continue;
+      const candidate=[...result.slice(0,start+1),...result.slice(end+1)];
+      if(!roadRouteMatchesStops(candidate,stops,150))continue;
+      // Unchanged distant legacy pins must not veto a local repair. Affected
+      // calls must retain access within five metres of their original distance.
+      if(stops.some(stop=>{const old=distanceToRoute(stop,result),next=distanceToRoute(stop,candidate);return next>old+5||(next>old+1&&next>35);}))continue;
+      result=candidate;end=Math.max(2,start);break;
+    }
+  }
+  return result;
 }

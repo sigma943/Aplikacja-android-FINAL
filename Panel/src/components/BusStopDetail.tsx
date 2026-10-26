@@ -1,3 +1,4 @@
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
@@ -10,7 +11,7 @@ import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { departureIsPast, departureCountdown } from '../../../lib/departure-display';
 import { Stop, Departure } from '../types';
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
 import type { Vehicle } from '../../../components/BusMap';
 import { departureFromLiveVehicle } from '../../../lib/vehicle-stop-timing';
@@ -29,24 +30,24 @@ interface BusStopDetailProps {
 function getDynamicDays() {
   const weekdaysPl = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
   const labelsPl = ['Nie', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
-  
+
   const days = [];
   const now = new Date(warsawDateIso()+'T12:00:00Z');
-  
+
   for (let i = 0; i < 7; i++) {
     const futureDate = new Date(now);
     futureDate.setUTCDate(now.getUTCDate() + i);
-    
+
     const dayName = weekdaysPl[futureDate.getUTCDay()];
     let label = labelsPl[futureDate.getUTCDay()];
     if (i === 0) label = 'Dziś';
     if (i === 1) label = 'Jutro';
-    
+
     const weekdayKeys: Record<number, string> = {
       0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
     };
     const key = i === 0 ? 'today' : i === 1 ? 'tomorrow' : weekdayKeys[futureDate.getUTCDay()];
-    
+
     days.push({
       label,
       dayNum: String(futureDate.getUTCDate()),
@@ -62,7 +63,7 @@ function getDynamicDays() {
 export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepartures, vehicles = [], onShowOnMap, isDarkTheme = true, active = true }: BusStopDetailProps) {
   const [cosmos,setCosmos]=useState(false);
   useLayoutEffect(()=>{
-    const update=()=>setCosmos(resolveAppTheme(readAppTheme())==='dark-cosmos');
+    const update=()=>setCosmos(['dark-cosmos','dark-mountains'].includes(resolveAppTheme(readAppTheme())));
     update();
     for(const event of ['storage','pks-profile-applied','pks-interface-appearance'])window.addEventListener(event,update);
     return()=>{for(const event of ['storage','pks-profile-applied','pks-interface-appearance'])window.removeEventListener(event,update);};
@@ -85,7 +86,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
   useEffect(()=>{if(active&&selectedDayIndex===0&&!isLoading&&(!warnings.length||departures.length))void syncStopWidgets(stop.id,departures,vehicles,warnings).catch(()=>{});},[stop.id,departures,vehicles,warnings,isLoading,active,selectedDayIndex]);
   const reduceMotion = useReducedMotion();
-  const animateDepartures = !reduceMotion && !showAllDepartures && !cosmos;
+  const animateDepartures = !reduceMotion && !showAllDepartures;
 
   useForegroundRefresh(stop.id+':clock',async()=>{setCurrentTimeMs(Date.now());},1000,active);
 
@@ -172,18 +173,19 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       data-cosmic-view={`stop:${stop.id}`}
       className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
     >
+
       <div className="w-full max-w-3xl min-w-0 mx-auto">
         {/* Header */}
         <div {...cosmicPanel('stop-header')} className={`relative mx-3 mt-3 rounded-[24px] border p-3.5 lg:mx-8 lg:p-5 overflow-hidden backdrop-blur-2xl ${headerShellClass}`}>
           {/* Subtle background gradient */}
           <div className={`absolute top-0 right-0 w-full h-full ${headerGradientClass}`}></div>
-          
+
           {/* Top bar */}
           <div className="flex justify-between items-center mb-3 relative z-10 w-full">
             <button aria-label="Wróć do listy przystanków" onClick={onBack} className={`ui-accent-focus flex h-10 w-10 items-center justify-center rounded-xl border border-current/10 transition-colors flex-shrink-0 ${isDarkTheme ? 'text-white hover:bg-white/10' : 'text-slate-700 hover:bg-slate-200/60'}`}>
               <ArrowLeft size={22} />
             </button>
-            
+
             <div className="flex items-center ml-auto gap-2">
               <button
                 aria-label="Pokaż przystanek na mapie"
@@ -209,7 +211,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
           {/* Stop Info */}
           <div className="relative z-10">
             <h1 className={`text-xl sm:text-2xl lg:text-3xl font-semibold mb-2 tracking-tight leading-tight break-words ${headingTextClass}`}>{displayStopCatalogLabel(stop.name,stop.code)}</h1>
-            
+
             <div className="flex flex-wrap gap-1">
               {[...stop.carriers].sort((a, b) => {
                 const order = ['pks', 'mpk', 'marcel'];
@@ -220,7 +222,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                 if (idxB === -1) return -1;
                 return idxA - idxB;
               }).map((c) => (
-                <div key={c.id} className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider uppercase border ${c.bgClass} ${c.colorClass} ${c.borderClass}`}>
+                <div key={c.id} data-carrier-id={c.id} className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider uppercase border ${c.bgClass} ${c.colorClass} ${c.borderClass}`}>
                   {c.name}
                 </div>
               ))}
@@ -229,7 +231,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
         </div>
 
         <div className="px-3 lg:px-8 mt-3 space-y-4 relative z-10">
-          
+
           {/* Calendar Picker Swipable 7-Day Row */}
           <div {...cosmicPanel('stop-days')} className={`relative rounded-[22px] p-3 border backdrop-blur-2xl ${surfaceClass}`}>
             <div className="flex justify-between items-center mb-2 px-1">
@@ -238,7 +240,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                 {days.find(d => d.key === selectedDay)?.monthYear}
               </span>
             </div>
-            
+
             <div
               ref={scrollContainerRef}
               className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 snap-x select-none pointer-events-auto px-0 lg:justify-center"
@@ -269,12 +271,12 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Line Filter */}
           <div className="relative">
-            <h3 className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie</h3>
+            <h3 data-scene-label className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie</h3>
             <div role="group" aria-label="Filtr linii odjazdów — można wybrać kilka" className="flex gap-1.5 overflow-x-auto no-scrollbar pb-2 px-1 snap-x">
                {lines.map(line => {
                  const value = (line === 'Wszystkie' ? 'all' : line) as string;
                  const isActive = value === 'all' ? selectedLines.length === 0 : selectedLines.includes(value);
-                 
+
                  const activeClass = 'ui-accent-solid';
                  const inactiveClass = value === 'all'
                    ? (isDarkTheme ? 'bg-white/5 text-slate-300 border-white/10' : 'bg-white text-slate-700 border-slate-200')
@@ -302,13 +304,13 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
              {warnings.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{warnings.join(' ')}</div>}
              <div className="flex flex-col gap-2.5 mb-3 px-1">
                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                 <div className="text-xs font-medium text-slate-400">
+                 <div data-scene-label className="text-xs font-medium text-slate-400">
                    {days.find(d => d.key === selectedDay)?.weekday}, {days.find(d => d.key === selectedDay)?.dayNum} {days.find(d => d.key === selectedDay)?.monthName}
                  </div>
-                 
+
                </div>
              </div>
-              
+
              <motion.div {...cosmicPanel('stop-departures')} data-cosmic-expanded={showAllDepartures} layout={!cosmos} className={`backdrop-blur-2xl rounded-[22px] border overflow-hidden ${departuresCardClass}`}>
                 {isLoading ? (
                   <div className="space-y-1.5 animate-pulse p-4">
@@ -327,18 +329,18 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                   </div>
                 ) : (
                   <>
-                    <AnimatePresence mode="popLayout">
+                    <AnimatePresence initial={false} mode="popLayout">
                   {displayedDepartures.map((dep, idx) => {
                     const isPast = (dep as any).isPast;
                     const departureTimeLabel = formatDepartureTime(dep);
                     return (
                       <motion.div 
                         layout={animateDepartures ? "position" : false}
-                        initial={animateDepartures ? { opacity: 0, y: 8 } : false}
+                        initial={false}
                         animate={animateDepartures ? { opacity: isPast ? 0.45 : 1, y: 0 } : { opacity: isPast ? 0.45 : 1, y: 0 }}
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
-                        transition={animateDepartures ? { duration: 0.3, delay: Math.min(idx * 0.06, 0.3) } : { duration: 0 }}
-                        key={dep.id}
+                        transition={animateDepartures ? { layout:{duration:.22},opacity:{duration:.15} } : { duration: 0 }}
+                        key={(dep.carrier?.id||'')+':'+dep.id}
                         data-interface-row data-departure-row data-departure-line={dep.line}
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? `border-b ${rowBorderClass}` : ''} ${rowClass} transition-colors cursor-pointer ${isPast ? (isDarkTheme ? 'bg-black/15' : 'bg-slate-100/70') : ''}`}
                       >
@@ -352,7 +354,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                           }`}>
                             {dep.line}
                           </div>
-                           
+
                           {/* Direction Info */}
                           <div className="ml-2.5 sm:ml-3 flex-1 min-w-0">
                              <div className="flex flex-wrap items-center gap-1.5">
@@ -371,10 +373,11 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                              )}
                           </div>
                         </div>
-                        
+
                         {/* Right Side: Departure Time & Delayed/On-time Badge */}
-                        <div className="min-w-[4.4rem] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
+                        <div className="min-w-[4.4rem] min-h-[48px] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
                            <div className={`font-semibold tabular-nums tracking-tight text-[18px] sm:text-[19px] ${isPast ? 'text-slate-500 line-through' : headingTextClass}`}>{departureTimeLabel}</div>
+                           {!isPast && dep.carrier?.id === 'mpk' && dep.realAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Rozkład planowy</span>}
                            {!isPast && dep.carrier?.id === 'mpk' && dep.realtimeSource && dep.plannedAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Na żywo</span>}
                            {!isPast && dep.status === 'delayed' && Number.isFinite(dep.delayMins) && Math.abs(Number(dep.delayMins)) > 0 && (
                              <span className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-black leading-none ${
@@ -394,9 +397,10 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                 {activeDepartures.length === 0 && (
                   <div data-departure-empty className={`px-5 py-5 sm:px-6 sm:py-6 text-center text-sm leading-relaxed ${subtleTextClass}`}>
                     {warnings.length ? 'Nie można potwierdzić pełnej listy odjazdów.' : filteredDeparturesByLine.length ? 'Wszystkie kursy na dziś już odjechały.' : selectedLines.length === 0 ? 'Brak zaplanowanych odjazdów w wybranym dniu.' : 'Brak odjazdów wybranych linii w tym dniu.'}
+                    {!warnings.length && departures.length===0 && stop.timetableNotice && <p className="mt-3 text-xs leading-relaxed">{stop.timetableNotice}</p>}
                   </div>
                 )}
-                
+
                 {!showAllDepartures && activeDepartures.length > 5 && (
                   <button 
                     onClick={() => setShowAllDepartures(true)}
@@ -417,7 +421,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Lines serving stop */}
           <div data-stop-lines>
-             <h3 className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie obsługujące przystanek</h3>
+             <h3 data-scene-label className={`text-[11px] font-semibold uppercase tracking-[0.12em] mb-2 ml-1 ${mutedTextClass}`}>Linie obsługujące przystanek</h3>
              <div className="flex flex-wrap gap-2">
                {combinedLines.map(line => (
                   <div key={line} className={`px-4 py-2 rounded-xl border font-bold text-[13px] transition-all duration-300 hover:opacity-80 ${getLineStyle(line, lineProviderIds.get(line))}`}>

@@ -4,6 +4,7 @@ import {transitTimestamp} from './bus-operating-state';
 import {warsawClock,warsawDateIso} from './transit-time';
 import {busDelayMinutes} from './bus-punctuality';
 import {marcelDepartureFromVehicle} from './marcel-stop-punctuality';
+import {upcomingVehicleStops} from './vehicle-upcoming-stops';
 
 function vehicleStopTiming(vehicle:Vehicle,stop:StopSchedule) {
   const planned=transitTimestamp(stop.planned), explicit=transitTimestamp(stop.real);
@@ -50,4 +51,16 @@ export function timedVehicleStops(vehicle:Vehicle):StopSchedule[] {
     const {real}=vehicleStopTiming(vehicle,stop);
     return {...stop,real:Number.isFinite(real)?new Date(real).toISOString():stop.real};
   });
+}
+
+/** PKS next_stop_points is the remaining sequence at the last GPS update.
+ * Timetable/predicted times are estimates, not confirmation of a stop passage. */
+export function upcomingTimedVehicleStops(vehicle:Vehicle,nowMs:number):StopSchedule[] {
+  if(vehicle.provider==='pks') {
+    if(vehicle.schedule?.length) {
+      return upcomingVehicleStops(timedVehicleStops({...vehicle,routeStops:undefined}),undefined);
+    }
+    return upcomingVehicleStops(timedVehicleStops(vehicle),undefined,vehicle.lastStopId);
+  }
+  return upcomingVehicleStops(timedVehicleStops(vehicle),nowMs,vehicle.lastStopId);
 }
