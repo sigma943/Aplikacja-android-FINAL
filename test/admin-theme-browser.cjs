@@ -7,7 +7,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
   server=http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost');if(url.pathname==='/'){res.setHeader('Content-Type','text/html');return res.end('<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/production.css"><div id="root"></div><script src="/fixture.js"></script>');}if(url.pathname==='/production.css'){res.setHeader('Content-Type','text/css');return res.end(css);}const base=/^\/(themes|data)\//.test(url.pathname)?path.join(root,'public'):temp,file=path.resolve(base,'.'+url.pathname);if(!file.startsWith(base+path.sep)||!fs.existsSync(file)){res.statusCode=404;return res.end();}res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.json')?'application/json':'application/octet-stream');res.end(fs.readFileSync(file));});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
-  browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(60000);
+  browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser error:',e.message);});page.setDefaultTimeout(60000);
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   fs.mkdirSync('test/ui-previews',{recursive:true});
   const contrast=(a,b)=>{const lum=c=>c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
@@ -52,13 +52,13 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   }
   await page.setRequestInterception(true);page.on('request',r=>r.url().includes('/data/stop-platform-index.json')?r.respond({status:404,body:'{}'}):r.url().includes('/data/stop-platforms.json')?r.respond({status:200,contentType:'application/json',body:JSON.stringify({points:[{id:'platform/1',name:'Test wspólny peron 01',lat:50.00007,lon:22.00007}]})}):r.continue());
   for(const provider of ['pks','mpk_rzeszow','marcel']){
-   await page.goto(origin+'/?view=platform&provider='+provider);await page.waitForSelector('.mks-route-stop-marker');await page.waitForSelector('.map-catalog-stop');
+   await page.goto(origin+'/?view=platform&provider='+provider);await page.waitForFunction(()=>window.__platformCenters?.().circles.length===1&&window.__platformCenters().icons.length===1);await page.waitForSelector('.map-catalog-stop');
    for(const zoom of [16,19,20]){
     await page.evaluate(zoom=>window.__platformZoom(zoom),zoom);await new Promise(r=>setTimeout(r,100));
-    const distance=await page.evaluate(()=>{const a=document.querySelector('.map-catalog-stop').getBoundingClientRect(),b=document.querySelector('.mks-route-stop-marker').getBoundingClientRect();return Math.hypot(a.x+a.width/2-b.x-b.width/2,a.y+a.height/2-b.y-b.height/2);});assert.ok(distance<1.6,'same platform markers join at zoom '+zoom+' '+provider+': '+distance);
+    const distance=await page.evaluate(()=>{const {circles,icons}=window.__platformCenters();return Math.hypot(circles[0].x-icons[0].x,circles[0].y-icons[0].y);});assert.ok(distance<1.6,'same platform markers join at zoom '+zoom+' '+provider+': '+distance);
    }
    await page.evaluate(()=>window.__platformRefresh());await new Promise(r=>setTimeout(r,100));
-   const distance=await page.evaluate(()=>{const a=document.querySelector('.map-catalog-stop').getBoundingClientRect(),b=document.querySelector('.mks-route-stop-marker').getBoundingClientRect();return Math.hypot(a.x+a.width/2-b.x-b.width/2,a.y+a.height/2-b.y-b.height/2);});assert.ok(distance<1.6,'platform refresh keeps markers aligned: '+distance);
+   const distance=await page.evaluate(()=>{const {circles,icons}=window.__platformCenters();return Math.hypot(circles[0].x-icons[0].x,circles[0].y-icons[0].y);});assert.ok(distance<1.6,'platform refresh keeps markers aligned: '+distance);
    await page.screenshot({path:'test/ui-previews/horyzont-platform-join-'+provider+'.png'});console.log('PASS joined platform',provider,'zoom 16/19/20, catalog reload');
   }
   await page.goto(origin+'/?view=clouds');const clouds=await page.evaluate(()=>window.__cloudMaterialCheck);assert.equal(clouds.alphaMismatch,0,'identical cloud silhouettes day and night');assert.ok(clouds.visible>1000);assert.ok(clouds.nightRatio>.25&&clouds.nightRatio<.8,'night clouds keep visible texture without daytime lighting: '+JSON.stringify(clouds));console.log('PASS same cloud asset day/night',clouds);
