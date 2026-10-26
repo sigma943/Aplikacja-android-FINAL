@@ -24,6 +24,8 @@ export class LandscapeRenderer{
   private lunarTexture:CanvasImageSource;
   private lastBackground=-Infinity;
   private backgroundFrames=0;
+  private coveredFrames=0;
+  private sceneCovered=false;
   private lastAstronomy=-Infinity;
   private lastLight='';
   private fallbackKey='';
@@ -39,7 +41,7 @@ export class LandscapeRenderer{
   suspend(){this.gpu?.suspend();}
   dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
   getGpuMs(){return this.gpu?.getGpuMs()??0;}
-  diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
+  diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,coveredFrames:this.coveredFrames,sceneCovered:this.sceneCovered,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
   sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
   resize(w:number,h:number,dpr:number){
     const density=Math.min(dpr,1.25,Math.sqrt(900000/(w*h)));
@@ -127,13 +129,24 @@ export class LandscapeRenderer{
     c.closePath();c.clip();c.drawImage(this.lunarTexture,-radius,-radius,radius*2,radius*2);
     c.restore();
   }
-  render(state:AstronomyState,seconds:number,motion:boolean){
+  render(state:AstronomyState,seconds:number,motion:boolean,sceneVisible=true){
     if(motion)this.ambientSeconds=seconds;
     seconds=this.ambientSeconds;
     const sun=projectCelestial(state.sun),moon=projectCelestial(state.moon,'moon');
     const shift=cloudOffset(seconds);
     const lighting=this.lighting=landscapeLighting(state,seconds,this.cloudTransmission(sun.x,sun.y,shift),this.cloudTransmission(moon.x,moon.y,shift));
     const c=this.ctx,sky=lighting.sky;
+    this.sceneCovered=!sceneVisible;
+    if(!sceneVisible){
+      // The opaque map covers the main canvas. Only the filter's sky window is
+      // visible: keep its cloud cache, time and lighting live without a water,
+      // foliage or reflection draw. Retain GPU resources for an instant return.
+      const key=[sky.day.toFixed(3),sky.twilight.toFixed(3),sky.moonlight.toFixed(2),sun.x.toFixed(2)].join(':');
+      if(key!==this.lastLight){this.relight(sky.day,sky.twilight,sky.moonlight,sun.x);this.lastLight=key;}
+      if(this.gpu)this.gpu.canvas.style.visibility='hidden';
+      this.coveredFrames++;return;
+    }
+
     if(this.assets&&!this.gpuAttempted){
       this.gpuAttempted=true;this.gpu=new LandscapeWaterGPU();this.gpu.setAssets(this.assets);
       if(this.directWater){this.gpu.canvas.dataset.landscapeWater='';this.gpu.canvas.setAttribute('aria-hidden','true');this.canvas.insertAdjacentElement('afterend',this.gpu.canvas);}

@@ -8,7 +8,7 @@ export const WATER_QUALITY={high:{fps:30,pixels:360000,scale:.85,columns:96,rows
 export type WaterAssets={terrain:CanvasImageSource;water:CanvasImageSource;clouds:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;sceneDepth?:CanvasImageSource;terrainNormal?:CanvasImageSource};
 type Frame={width:number;height:number;scale:number;x:number;y:number};
 type Target={framebuffer:WebGLFramebuffer;texture:WebGLTexture;width:number;height:number;depth?:WebGLRenderbuffer};
-type Program={program:WebGLProgram;uniforms:Map<string,WebGLUniformLocation|null>};
+type Program={program:WebGLProgram;uniforms:Map<string,WebGLUniformLocation|null>;values:Map<string,Float32Array>};
 /** One directly presented WebGL2 context; a displaced mesh, low-resolution light
  * pass and ACES presentation. Static textures/meshes never upload per frame. */
 export class LandscapeWaterGPU {
@@ -29,6 +29,9 @@ export class LandscapeWaterGPU {
  private lastTerrainLight=[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
  private terrainRelights=0;
  private lastDrawCalls=0;
+ private bindingsDirty=true;
+ private uniformUploads=0;
+ private textureRestores=0;
  private floatSupported=false;
  private hdrUnavailable=false;
  private lost=false;
@@ -52,10 +55,26 @@ export class LandscapeWaterGPU {
   try{
    for(const [kind,source] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]] as const){const shader=gl.createShader(kind);if(!shader)throw Error('shader allocation');shaders.push(shader);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader)||'shader compile');gl.attachShader(program,shader);}
    gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program)||'shader link');
-   return {program,uniforms:new Map()};
+   return {program,uniforms:new Map(),values:new Map()};
   }catch(e){gl.deleteProgram(program);throw e;}finally{for(const shader of shaders)gl.deleteShader(shader);}
  }
  private uniform(p:Program,name:string){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl!.getUniformLocation(p.program,name));return p.uniforms.get(name)!;}
+ /** The context is exclusively owned here. Compare the actual float32 values
+  * accepted by WebGL; avoiding redundant driver calls cannot change pixels. */
+ private upload(p:Program,name:string,a:number,b?:number,c?:number,d?:number){
+  const location=this.uniform(p,name);if(location===null)return;
+  a=Math.fround(a);if(b!==undefined)b=Math.fround(b);if(c!==undefined)c=Math.fround(c);if(d!==undefined)d=Math.fround(d);
+  let previous=p.values.get(name);
+  if(previous&&previous[0]===a&&(b===undefined||previous[1]===b)&&(c===undefined||previous[2]===c)&&(d===undefined||previous[3]===d))return;
+  if(!previous){previous=new Float32Array(4);p.values.set(name,previous);}
+  previous[0]=a;if(b!==undefined)previous[1]=b;if(c!==undefined)previous[2]=c;if(d!==undefined)previous[3]=d;
+  const gl=this.gl!;
+  if(d!==undefined)gl.uniform4f(location,a,b!,c!,d);
+  else if(c!==undefined)gl.uniform3f(location,a,b!,c);
+  else if(b!==undefined)gl.uniform2f(location,a,b);
+  else gl.uniform1f(location,a);
+  this.uniformUploads++;
+ }
  private texture(unit:number,source:CanvasImageSource){
   const gl=this.gl!,texture=gl.createTexture();if(!texture)throw Error('texture allocation');this.textures.push({unit,texture});gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);this.parameters(gl.LINEAR);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,gl.NONE);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,source as TexImageSource);
@@ -105,23 +124,23 @@ export class LandscapeWaterGPU {
  }
  private resize(width:number,height:number,hdr:boolean,presentWidth:number,presentHeight:number){
   if(this.targets[0]?.width===width&&this.targets[0]?.height===height&&this.hdr===hdr&&this.canvas.width===presentWidth&&this.canvas.height===presentHeight)return;
-  this.clearTargets();this.canvas.width=presentWidth;this.canvas.height=presentHeight;this.hdr=hdr;
+  this.clearTargets();this.bindingsDirty=true;this.canvas.width=presentWidth;this.canvas.height=presentHeight;this.hdr=hdr;
   try{this.targets.push(this.target(width,height,hdr));this.targets.push(this.target(Math.max(1,Math.ceil(width/4)),Math.max(1,Math.ceil(height/4)),hdr));}
   catch(e){this.clearTargets();if(!hdr)throw e;this.hdrUnavailable=true;this.hdr=false;this.targets.push(this.target(width,height,false));this.targets.push(this.target(Math.max(1,Math.ceil(width/4)),Math.max(1,Math.ceil(height/4)),false));}
-  if(this.assets?.terrainNormal&&this.assets?.sceneDepth)this.targets.push(this.target(presentWidth,presentHeight,false,true));
+  if(this.assets?.terrainNormal&&this.assets?.sceneDepth)this.targets.push(this.target(presentWidth,presentHeight,false));
   if(this.solid)this.targets.push(this.target(width,height,this.hdr,true));
  }
 
  private configure(p:Program,light:LandscapeLightingState,frame:Frame,quality:WaterQuality,w:number,h:number,width:number,height:number,linear:boolean){
-  const gl=this.gl!,sx=w/frame.width,sy=h/frame.height;
-    gl.uniform2f(this.uniform(p,'uResolution'),w,h);gl.uniform4f(this.uniform(p,'uFrame'),1000*frame.scale*sx,(1000*1850/850)*frame.scale*sy,frame.x*sx,frame.y*sy);
-    gl.uniform1f(this.uniform(p,'uTime'),light.time);gl.uniform1f(this.uniform(p,'uQuality'),quality==='high'?2:quality==='medium'?1:0);gl.uniform1f(this.uniform(p,'uFrameInterval'),1/WATER_QUALITY[quality].fps);gl.uniform1f(this.uniform(p,'uHdr'),this.hdr?1:0);
-    gl.uniform1f(this.uniform(p,'uSceneEnabled'),this.assets?.sceneDepth?1:0);
-    gl.uniform1f(this.uniform(p,'uTerrainEnabled'),this.targets[2]?1:0);
-    gl.uniform1f(this.uniform(p,'uDay'),light.sky.day);gl.uniform1f(this.uniform(p,'uWarm'),light.sky.twilight);gl.uniform1f(this.uniform(p,'uMoonIllumination'),light.moon.illumination);gl.uniform2f(this.uniform(p,'uWaterResolution'),width,height);
-    gl.uniform2f(this.uniform(p,'uSunPosition'),light.sun.x,light.sun.y);gl.uniform1f(this.uniform(p,'uSunAltitude'),light.sun.altitude);gl.uniform3fv(this.uniform(p,'uSunColor'),linear?this.sunLinear:light.sun.color);gl.uniform1f(this.uniform(p,'uSunIntensity'),light.sun.intensity);
-    gl.uniform2f(this.uniform(p,'uMoonPosition'),light.moon.x,light.moon.y);gl.uniform1f(this.uniform(p,'uMoonAltitude'),light.moon.altitude);gl.uniform3fv(this.uniform(p,'uMoonColor'),linear?this.moonLinear:light.moon.color);gl.uniform1f(this.uniform(p,'uMoonIntensity'),light.moon.intensity);
-  gl.uniform1f(this.uniform(p,'uScene3D'),this.solid?1:0);
+  const sun=linear?this.sunLinear:light.sun.color,moon=linear?this.moonLinear:light.moon.color,sx=w/frame.width,sy=h/frame.height;
+    this.upload(p,'uResolution',w,h);this.upload(p,'uFrame',1000*frame.scale*sx,(1000*1850/850)*frame.scale*sy,frame.x*sx,frame.y*sy);
+    this.upload(p,'uTime',light.time);this.upload(p,'uQuality',quality==='high'?2:quality==='medium'?1:0);this.upload(p,'uFrameInterval',1/WATER_QUALITY[quality].fps);this.upload(p,'uHdr',this.hdr?1:0);
+    this.upload(p,'uSceneEnabled',this.assets?.sceneDepth?1:0);
+    this.upload(p,'uTerrainEnabled',this.targets[2]?1:0);
+    this.upload(p,'uDay',light.sky.day);this.upload(p,'uWarm',light.sky.twilight);this.upload(p,'uMoonIllumination',light.moon.illumination);this.upload(p,'uWaterResolution',width,height);
+    this.upload(p,'uSunPosition',light.sun.x,light.sun.y);this.upload(p,'uSunAltitude',light.sun.altitude);this.upload(p,'uSunColor',sun[0],sun[1],sun[2]);this.upload(p,'uSunIntensity',light.sun.intensity);
+    this.upload(p,'uMoonPosition',light.moon.x,light.moon.y);this.upload(p,'uMoonAltitude',light.moon.altitude);this.upload(p,'uMoonColor',moon[0],moon[1],moon[2]);this.upload(p,'uMoonIntensity',light.moon.intensity);
+  this.upload(p,'uScene3D',this.solid?1:0);
  }
 
  render(light:LandscapeLightingState,frame:Frame,quality:WaterQuality){
@@ -129,11 +148,15 @@ export class LandscapeWaterGPU {
   try{
    const q=WATER_QUALITY[quality],density=Math.min(q.scale,Math.sqrt(q.pixels/(frame.width*frame.height))),width=Math.max(1,Math.floor(frame.width*density)),height=Math.max(1,Math.floor(frame.height*density));
    this.resize(width,height,this.floatSupported&&!this.hdrUnavailable&&quality!=='low',frame.width,frame.height);this.mesh(quality);
-   // Texture bindings can be changed by target allocation; restore all static units.
+   // Target allocation can disturb texture units. Animation passes do not:
+   // restore once after resize/recovery, then retain the context's bindings.
+   if(this.bindingsDirty){
    for(const {unit,texture} of this.textures){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);}
    for(let i=0;i<2;i++){gl.activeTexture(gl.TEXTURE5+i);gl.bindTexture(gl.TEXTURE_2D,this.targets[i].texture);}
    if(this.targets[2]){gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,this.targets[2].texture);}
    if(this.targets[3]){gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,this.targets[3].texture);}this.solid?.bind();
+    this.bindingsDirty=false;this.textureRestores++;
+   }
    let timing=false;
    if(this.timer&&this.query){if(this.pendingQuery&&gl.getQueryParameter(this.query,gl.QUERY_RESULT_AVAILABLE)){if(!gl.getParameter(this.timer.GPU_DISJOINT_EXT))this.gpuMs=gl.getQueryParameter(this.query,gl.QUERY_RESULT)/1e6;this.pendingQuery=false;}if(!this.pendingQuery){gl.beginQuery(this.timer.TIME_ELAPSED_EXT,this.query);timing=true;}}
    // Shared palette colours are display sRGB. BRDF radiance must be linear;
@@ -164,8 +187,8 @@ export class LandscapeWaterGPU {
   }catch(e){this.canvas.dataset.error=String(e);this.release();this.failed=true;return false;}
  }
  getGpuMs(){return this.gpuMs;}
- private release(){const gl=this.gl;if(!gl)return;this.solid?.dispose();this.solid=null;for(const p of this.programs)gl.deleteProgram(p.program);this.programs=[];for(const t of this.textures)gl.deleteTexture(t.texture);this.textures=[];for(const b of this.buffers)gl.deleteBuffer(b);this.buffers=[];if(this.vao)gl.deleteVertexArray(this.vao);this.vao=null;this.meshQuality=null;this.clearTargets();if(this.query)gl.deleteQuery(this.query);this.query=null;this.pendingQuery=false;this.gpuMs=0;}
+ private release(){this.bindingsDirty=true;const gl=this.gl;if(!gl)return;this.solid?.dispose();this.solid=null;for(const p of this.programs)gl.deleteProgram(p.program);this.programs=[];for(const t of this.textures)gl.deleteTexture(t.texture);this.textures=[];for(const b of this.buffers)gl.deleteBuffer(b);this.buffers=[];if(this.vao)gl.deleteVertexArray(this.vao);this.vao=null;this.meshQuality=null;this.clearTargets();if(this.query)gl.deleteQuery(this.query);this.query=null;this.pendingQuery=false;this.gpuMs=0;}
  suspend(){this.release();this.canvas.width=this.canvas.height=1;}
  dispose(){this.release();this.canvas.removeEventListener('webglcontextlost',this.loss);this.canvas.removeEventListener('webglcontextrestored',this.restore);this.gl?.getExtension('WEBGL_lose_context')?.loseContext();this.gl=null;this.assets=null;this.canvas.width=this.canvas.height=1;this.canvas.remove();}
- diagnostics(){return {available:!!this.gl&&!this.failed,lost:this.lost,error:this.canvas.dataset.error,pixels:(this.targets[0]?.width??1)*(this.targets[0]?.height??1),presentationPixels:this.canvas.width*this.canvas.height,terrainRelights:this.terrainRelights,scene3D:!!this.solid,sceneVertices:this.solid?.vertexCount??0,treeInstances:this.solid?.treeCount??0,reflectionUpdates:this.reflectionUpdates,reflectionPixels:(this.targets[3]?.width??0)*(this.targets[3]?.height??0),hdr:this.hdr,drawCalls:this.lastDrawCalls,vertices:this.meshQuality?(WATER_QUALITY[this.meshQuality].columns+1)*(WATER_QUALITY[this.meshQuality].rows+1):0,gpuMs:this.timer?this.gpuMs:null,targetPixels:this.targets.reduce((sum,t)=>sum+t.width*t.height,0)};}
+ diagnostics(){return {uniformUploads:this.uniformUploads,textureRestores:this.textureRestores,depthBufferPixels:this.targets.filter(t=>t.depth).reduce((sum,t)=>sum+t.width*t.height,0),available:!!this.gl&&!this.failed,lost:this.lost,error:this.canvas.dataset.error,pixels:(this.targets[0]?.width??1)*(this.targets[0]?.height??1),presentationPixels:this.canvas.width*this.canvas.height,terrainRelights:this.terrainRelights,scene3D:!!this.solid,sceneVertices:this.solid?.vertexCount??0,treeInstances:this.solid?.treeCount??0,reflectionUpdates:this.reflectionUpdates,reflectionPixels:(this.targets[3]?.width??0)*(this.targets[3]?.height??0),hdr:this.hdr,drawCalls:this.lastDrawCalls,vertices:this.meshQuality?(WATER_QUALITY[this.meshQuality].columns+1)*(WATER_QUALITY[this.meshQuality].rows+1):0,gpuMs:this.timer?this.gpuMs:null,targetPixels:this.targets.reduce((sum,t)=>sum+t.width*t.height,0)};}
 }

@@ -28,6 +28,39 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    return {ok,changed,opaque,skyAlpha,skyPixels,error,diagnostics:gpu.diagnostics(),canLose:!!extension};
   });
   assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.ok(result.skyAlpha<result.skyPixels*255*.08,'god rays remain a subtle background effect');assert.equal(result.diagnostics.drawCalls,3);assert.equal(result.diagnostics.scene3D,true);assert.ok(result.diagnostics.sceneVertices>20000);assert.ok(result.diagnostics.treeInstances>100);assert.ok(result.diagnostics.reflectionUpdates>0);assert.ok(result.diagnostics.vertices>3000);assert.ok(result.diagnostics.pixels<=360000);
+  const optimized=await page.evaluate(reference=>{
+   const gpu=window.gpu,gl=gpu.canvas.getContext('webgl2'),configure=gpu.configure;
+   const referenceConfigure=new Function('return ('+reference+')')();
+   const methods=['uniform1f','uniform2f','uniform3f','uniform4f','uniform3fv','activeTexture','bindTexture'];
+   const originals=Object.fromEntries(methods.map(name=>[name,gl[name]]));let calls=0;
+   for(const name of methods)gl[name]=function(...args){calls++;return originals[name].apply(this,args);};
+   const rows=[];
+   try{
+    for(const quality of ['high','medium','low']){
+     gpu.configure=referenceConfigure;gpu.bindingsDirty=true;gpu.render({...window.gpuLight,time:0},window.gpuFrame,quality);
+     calls=0;const referencePixels=[];
+     for(const time of [0,.1,.2]){gpu.bindingsDirty=true;gpu.render({...window.gpuLight,time},window.gpuFrame,quality);referencePixels.push(window.gpuCopy());}
+     const referenceCalls=calls;
+     gpu.configure=configure;for(const p of gpu.programs)p.values.clear();gpu.bindingsDirty=true;
+     gpu.render({...window.gpuLight,time:0},window.gpuFrame,quality);
+     calls=0;let difference=0;const restores=gpu.diagnostics().textureRestores;
+     for(const [i,time] of [0,.1,.2].entries()){
+      gpu.render({...window.gpuLight,time},window.gpuFrame,quality);const pixels=window.gpuCopy();
+      for(let j=0;j<pixels.length;j++)difference=Math.max(difference,Math.abs(pixels[j]-referencePixels[i][j]));
+     }
+     rows.push({quality,referenceCalls,optimizedCalls:calls,difference,restores:gpu.diagnostics().textureRestores-restores,depthPixels:gpu.diagnostics().depthBufferPixels,reflectionPixels:gpu.diagnostics().reflectionPixels});
+    }
+   }finally{gpu.configure=configure;for(const name of methods)gl[name]=originals[name];}
+   for(const p of gpu.programs)p.values.clear();gpu.bindingsDirty=true;gpu.render(window.gpuLight,window.gpuFrame,'high');
+   return rows;
+  },require('./landscape-gpu-reference.cjs').toString());
+  for(const row of optimized){
+   assert.equal(row.difference,0,'optimization preserves every rendered pixel: '+JSON.stringify(row));
+   assert.ok(row.optimizedCalls<row.referenceCalls*.5,'driver dispatch work must materially decrease: '+JSON.stringify(row));
+   assert.equal(row.restores,0,'animation retains its existing texture bindings');
+   assert.equal(row.depthPixels,row.reflectionPixels,'only the actual 3D mirror needs a depth buffer');
+  }
+  console.log('Pixel-identical GPU optimization:',optimized);
   const wind=await page.evaluate(()=>{
    const gpu=window.gpu,gl=gpu.canvas.getContext('webgl2'),p=gpu.programs[2];
    // Keep water, shafts and relighting cached: isolate the presentation wind.

@@ -65,6 +65,29 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await new Promise(r=>setTimeout(r,3000));
   assert.ok(await page.evaluate(()=>{const c=document.querySelector('[data-landscape-stage]'),after=c.getContext('2d').getImageData(0,0,c.width,Math.floor(c.height*.33)).data;let changed=0;for(let i=0;i<after.length;i+=4)if(Math.abs(after[i]-window.__cloudBefore[i])+Math.abs(after[i+1]-window.__cloudBefore[i+1])+Math.abs(after[i+2]-window.__cloudBefore[i+2])>12)changed++;return changed>300;}),'clouds visibly change position within three seconds at a fixed daytime instant');
   await page.screenshot({path:'test/ui-previews/landscape-motion-after.png'});
+  // Covering the scene must stop expensive draws, not lower visible quality.
+  await page.evaluate(()=>{window.__surfaceBeforeCover=document.querySelector('[data-landscape-water]');document.querySelector('[data-toggle-covered]').click();});
+  await page.waitForFunction(()=>window.__landscapeDiagnostics().renderer.sceneCovered&&document.querySelector('[data-landscape-window="filter"]')?.dataset.sceneReady==='true');
+  const coveredBefore=await page.evaluate(()=>{
+   const canvas=document.querySelector('[data-landscape-window="filter"]');window.__coveredSky=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+   const d=window.__landscapeDiagnostics();return {uploads:d.renderer.gpu.uniformUploads,frames:d.frames,quality:d.renderer.quality};
+  });
+  await new Promise(r=>setTimeout(r,1800));
+  const coveredAfter=await page.evaluate(()=>{
+   const d=window.__landscapeDiagnostics(),c=document.querySelector('[data-landscape-window="filter"]'),pixels=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+   let changed=0;for(let i=0;i<pixels.length;i++)if(Math.abs(pixels[i]-window.__coveredSky[i])>2)changed++;
+   return {uploads:d.renderer.gpu.uniformUploads,frames:d.frames,quality:d.renderer.quality,changed,interval:d.interval,surfaceHidden:getComputedStyle(window.__surfaceBeforeCover).visibility};
+  });
+  assert.equal(coveredAfter.uploads,coveredBefore.uploads,'opaque map stops water, reflection and foliage GPU work');
+  assert.equal(coveredAfter.quality,coveredBefore.quality,'covering the scene must not downgrade the quality controller');
+  assert.ok(coveredAfter.frames-coveredBefore.frames<=10,'sky-only updates avoid a full animation draw loop');
+  assert.ok(coveredAfter.changed>30,'filter clouds remain animated while the river is covered');
+  assert.equal(coveredAfter.interval,250);assert.equal(coveredAfter.surfaceHidden,'hidden');
+  await page.evaluate(()=>document.querySelector('[data-toggle-covered]').click());
+  await page.waitForFunction(before=>!window.__landscapeDiagnostics().renderer.sceneCovered&&window.__landscapeDiagnostics().renderer.gpu.uniformUploads>before,{},coveredBefore.uploads);
+  assert.equal(await page.evaluate(()=>window.__surfaceBeforeCover===document.querySelector('[data-landscape-water]')),true,'reveal reuses the live GPU context and textures');
+  assert.equal(await page.$eval('[data-landscape-water]',e=>getComputedStyle(e).visibility),'visible');
+  console.log('Covered landscape:',{coveredBefore,coveredAfter});
   // Real timetable UI over the same scene, including a small viewport and scrolling.
   await page.evaluate(()=>document.querySelector('[data-toggle-ui]').click());await page.waitForSelector('[data-departure-row]');
   await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('.transit-view')).opacity)>=.999);
@@ -139,6 +162,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.goto(origin+'/landscape-map-fixture/');
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>0);
   await page.waitForSelector('[data-landscape-window=filter][data-scene-ready=true]');
+  assert.equal(await page.evaluate(()=>window.__landscapeDiagnostics().renderer.gpu),undefined,'opening directly on the opaque map does not allocate a hidden GPU scene');
   assert.equal(await page.$$eval('[data-landscape-window]',els=>els.length),1,'only the filter owns a sky window');
   await page.waitForSelector('.leaflet-layer img');
   for(const [name,iso,invert] of [['day','2026-10-23T12:00:00+02:00',0],['night','2026-10-26T23:00:00+01:00',1]]){

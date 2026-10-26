@@ -43,3 +43,23 @@ test('a subpixel solar limb never produces a non-finite exposure',()=>{
   const light=landscapeLighting(state,0);assert.ok(Number.isFinite(light.sun.intensity)&&light.sun.intensity>=0);
  }
 });
+
+test('GPU uploads retain float32 precision while skipping repeated and unused uniforms',()=>{
+ const {LandscapeWaterGPU}=load('lib/landscape-water-gpu.ts');
+ const documentBefore=global.document,calls=[],locations=[];
+ const gl={getUniformLocation:(_p,name)=>{locations.push(name);return name==='unused'?null:name;}};
+ for(const n of [1,2,3,4])gl['uniform'+n+'f']=(name,...values)=>calls.push({name,values});
+ global.document={createElement:()=>({addEventListener(){},getContext:()=>gl})};
+ try{
+  const gpu=new LandscapeWaterGPU(),p={program:{},uniforms:new Map(),values:new Map()};
+  gpu.upload(p,'time',1);gpu.upload(p,'time',1+1e-10); // Same GPU float32.
+  gpu.upload(p,'time',1+2**-22);
+  gpu.upload(p,'size',425,925);gpu.upload(p,'size',425,925);
+  gpu.upload(p,'color',.67,.81,1);gpu.upload(p,'color',.67,.81,1);gpu.upload(p,'color',.67,.82,1);
+  gpu.upload(p,'frame',425,925,0,0);gpu.upload(p,'frame',425,925,0,0);
+  gpu.upload(p,'unused',1);gpu.upload(p,'unused',2);
+  assert.deepEqual(calls.map(c=>c.name),['time','time','size','color','color','frame']);
+  assert.deepEqual(calls[3].values,[Math.fround(.67),Math.fround(.81),1]);
+  assert.equal(locations.filter(name=>name==='unused').length,1);
+ }finally{global.document=documentBefore;}
+});
