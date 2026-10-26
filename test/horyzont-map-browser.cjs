@@ -25,7 +25,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.waitForFunction(()=>window.__landscapeDiagnostics().renderer.quality==='medium');
   const reading=await page.$eval('[data-landscape-settings]',e=>{const s=getComputedStyle(e),c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');const parse=color=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data];};const bg=parse(s.backgroundColor),fg=parse(s.color);const lum=rgb=>rgb.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((a,v,i)=>a+v*[.2126,.7152,.0722][i],0);return {background:s.backgroundColor,color:s.color,alpha:bg[3],contrast:(Math.max(lum(bg),lum(fg))+.05)/(Math.min(lum(bg),lum(fg))+.05)};});
   console.log('Horyzont settings reading surface:',reading);
-  assert.ok(reading.alpha===255,'stable milk settings surface: '+JSON.stringify(reading));assert.ok(reading.contrast>=4.5,'readable settings: '+JSON.stringify(reading));
+  assert.equal(await page.$eval('[data-landscape-settings]',e=>getComputedStyle(e).backgroundColor),await page.$eval('.personal-group:not([data-landscape-settings])',e=>getComputedStyle(e).backgroundColor),'same material as adjacent option groups');assert.ok(reading.contrast>=4.5,'readable settings: '+JSON.stringify(reading));
   const sliders=await page.$$('[data-landscape-settings] input[type="range"]');assert.equal(sliders.length,5);
   for(const [key,label,max] of [['bloom','Siła poświaty wody',200],['reflections','Siła odbić światła',200],['rays','Rozchodzenie się promieni',200],['waveSpeed','Prędkość fal',200],['exposure','Jasność wody',150]]){
    for(const value of [key==='exposure'?50:0,max]){
@@ -35,7 +35,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   }
   for(const opacity of [20,85,100]){
    await page.evaluate(opacity=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:opacity}));window.dispatchEvent(new Event('pks-interface-appearance'));},opacity);
-   await page.waitForFunction(opacity=>[...document.querySelectorAll('[data-opacity-probes]>div,[data-opacity-probes]>article,[data-landscape-settings]')].every(e=>{const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=getComputedStyle(e).backgroundColor;ctx.fillRect(0,0,1,1);const expected=e.hasAttribute('data-adjustable-card')?opacity/100:1;return Math.abs(ctx.getImageData(0,0,1,1).data[3]/255-expected)<.01;}),{},opacity);
+   await page.waitForFunction(opacity=>[...document.querySelectorAll('[data-opacity-probes]>div,[data-opacity-probes]>article')].every(e=>{const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=getComputedStyle(e).backgroundColor;ctx.fillRect(0,0,1,1);const expected=e.hasAttribute('data-adjustable-card')?opacity/100:1;return Math.abs(ctx.getImageData(0,0,1,1).data[3]/255-expected)<.01;}),{},opacity);
   }
   // Measure transmitted contrast in pixels: alpha alone missed the old
   // contrast(.2) scrim that visually hid the scenery at 20%, especially at night.
@@ -55,7 +55,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   const glowBefore=await page.$eval('[data-landscape-settings]',e=>getComputedStyle(e).backgroundImage);
   await page.evaluate(()=>{document.documentElement.dataset.panelGlow='on';document.documentElement.style.setProperty('--panel-glow-image','radial-gradient(at 0% 0%, rgb(10, 240, 100), transparent)');});
   const glowAfter=await page.$eval('[data-landscape-settings]',e=>getComputedStyle(e).backgroundImage);
-  assert.notEqual(glowAfter,glowBefore,'Horyzont options must react to panel glow');assert.ok(glowAfter.includes('10, 240, 100'));
+  assert.notEqual(glowAfter,glowBefore,'Horyzont options must react to panel glow');assert.ok(glowAfter.includes('10, 240, 100'));assert.equal(glowAfter,await page.$eval('.personal-group:not([data-landscape-settings])',e=>getComputedStyle(e).backgroundImage),'same glow as other option groups');
   await page.evaluate(()=>{document.documentElement.dataset.panelGlow='off';document.documentElement.style.removeProperty('--panel-glow-image');});
   assert.equal(await page.$eval('[data-landscape-window="filter"]',e=>getComputedStyle(e).opacity),'1','filter sky stays independent of card opacity');
   await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:64}));window.dispatchEvent(new Event('pks-interface-appearance'));});

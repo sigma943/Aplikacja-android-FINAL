@@ -1,3 +1,4 @@
+import {cloudRelightColor} from './landscape-clouds';
 import camera from './landscape-water-calibration.json';
 import {paintSun,moonTexture,MOON_RADIUS} from './landscape-celestial';
 import {projectCelestial,moonPresentationOpacity,smoothstep,type AstronomyState} from './landscape-astronomy';
@@ -103,7 +104,7 @@ export class LandscapeRenderer{
       // after tinting, so transparent sky/river holes never become coloured plates.
       c.globalCompositeOperation='multiply';
       const shade=blend([12+moon*5,20+moon*7,44+moon*10],[245,250,255],day);
-      c.fillStyle=css(blend(shade,[255,180,126],warm*(isCloud?.65:.35)));c.fillRect(0,0,WIDTH,HEIGHT);
+      c.fillStyle=css(isCloud?cloudRelightColor(day,warm,moon):blend(shade,[255,180,126],warm*.35));c.fillRect(0,0,WIDTH,HEIGHT);
       if(isCloud&&warm>0){
         const rim=c.createRadialGradient(sunX*WIDTH,HEIGHT*.48,10,sunX*WIDTH,HEIGHT*.48,WIDTH*.65);
         rim.addColorStop(0,`rgba(255,175,70,${warm*.28})`);rim.addColorStop(1,'transparent');

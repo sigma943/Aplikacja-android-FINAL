@@ -1386,18 +1386,6 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  .connections-map-modal .connections-sheet-handle { background:transparent!important;color:var(--cn-text)!important; }
 }
 
-@layer landscape-materials {
- /* Dedicated controls need a stable reading surface even over bright rays or
-    a dark valley; their colours follow the same day/night material as panels. */
- html[data-landscape-theme='on'] details.personal-group[data-landscape-settings] {
-  background-color:var(--landscape-solid,#f2f8fc)!important;
-  background-image:var(--landscape-user-glow,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)),var(--landscape-milk-glow,linear-gradient(transparent,transparent))!important;
-  color:var(--landscape-ink,#0b1b26)!important;
-  border:1px solid var(--landscape-edge,#2b4f6329)!important;
- }
- html[data-landscape-theme='on'] [data-landscape-settings] .personal-note { color:var(--landscape-muted)!important;opacity:1; }
-}
-
 /* Restore the established milk chrome: ordinary content cards retain the
    opacity slider; map filters, navigation and map/options sheets stay readable. */
 @layer landscape-materials {

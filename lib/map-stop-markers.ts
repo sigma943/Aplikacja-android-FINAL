@@ -72,6 +72,19 @@ export function marcelMapStopPoint(stops:Stop[],id:string,point:StopData):StopDa
   return position?{...point,...position}:point;
 }
 
+/** Share one passenger-platform position between route dots and catalog icons.
+ * This never moves the driving route or matches a neighbouring platform by GPS. */
+export function routeMapStopPoint(stops:Stop[],id:string,point:StopData,provider='pks'):StopData{
+ if(provider==='marcel')return marcelMapStopPoint(stops,id,point);
+ if(provider!=='pks'&&provider!=='mpk_rzeszow')return point;
+ const rawId=id.replace(/^(pks|mpk_rzeszow):/,'');
+ const matches=stops.filter(stop=>String(stop.providerStopIds?.[provider]||'').split(',').map(v=>v.trim()).includes(rawId));
+ if(matches.length!==1)return point;
+ const position=platformPosition(matches[0]);
+ if(!position||!readBusCoordinates(point.lat,point.lon)||distanceMeters(point.lat,point.lon,position.lat,position.lon)>120)return point;
+ return {...point,...position};
+}
+
 export function mapStopColor(stop:Pick<Stop,'name'>){
   const name=stop.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   if(/^rzeszow\b/.test(name)&&(/\bd\s*\.?\s*a\s*\.?\s*(?:st\b|stanow|$)/.test(name)||/\b(?:dworzec|dworz\.)\s*(?:autobusowy|pks)\b/.test(name)))return '#14b8a6';

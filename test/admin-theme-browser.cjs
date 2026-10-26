@@ -50,6 +50,18 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    }
    console.log('PASS bus sheet',theme,night?'night':'day',provider,'collapsed/expanded/collapsed');
   }
+  await page.setRequestInterception(true);page.on('request',r=>r.url().includes('/data/stop-platform-index.json')?r.respond({status:404,body:'{}'}):r.url().includes('/data/stop-platforms.json')?r.respond({status:200,contentType:'application/json',body:JSON.stringify({points:[{id:'platform/1',name:'Test wspólny peron 01',lat:50.00007,lon:22.00007}]})}):r.continue());
+  for(const provider of ['pks','mpk_rzeszow','marcel']){
+   await page.goto(origin+'/?view=platform&provider='+provider);await page.waitForSelector('.mks-route-stop-marker');await page.waitForSelector('.map-catalog-stop');
+   for(const zoom of [16,19,20]){
+    await page.evaluate(zoom=>window.__platformZoom(zoom),zoom);await new Promise(r=>setTimeout(r,100));
+    const distance=await page.evaluate(()=>{const a=document.querySelector('.map-catalog-stop').getBoundingClientRect(),b=document.querySelector('.mks-route-stop-marker').getBoundingClientRect();return Math.hypot(a.x+a.width/2-b.x-b.width/2,a.y+a.height/2-b.y-b.height/2);});assert.ok(distance<1.6,'same platform markers join at zoom '+zoom+' '+provider+': '+distance);
+   }
+   await page.evaluate(()=>window.__platformRefresh());await new Promise(r=>setTimeout(r,100));
+   const distance=await page.evaluate(()=>{const a=document.querySelector('.map-catalog-stop').getBoundingClientRect(),b=document.querySelector('.mks-route-stop-marker').getBoundingClientRect();return Math.hypot(a.x+a.width/2-b.x-b.width/2,a.y+a.height/2-b.y-b.height/2);});assert.ok(distance<1.6,'platform refresh keeps markers aligned: '+distance);
+   await page.screenshot({path:'test/ui-previews/horyzont-platform-join-'+provider+'.png'});console.log('PASS joined platform',provider,'zoom 16/19/20, catalog reload');
+  }
+  await page.goto(origin+'/?view=clouds');const clouds=await page.evaluate(()=>window.__cloudMaterialCheck);assert.equal(clouds.alphaMismatch,0,'identical cloud silhouettes day and night');assert.ok(clouds.visible>1000);assert.ok(clouds.nightRatio>.25&&clouds.nightRatio<.8,'night clouds keep visible texture without daytime lighting: '+JSON.stringify(clouds));console.log('PASS same cloud asset day/night',clouds);
   assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});
