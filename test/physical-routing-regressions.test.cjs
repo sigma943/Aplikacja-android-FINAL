@@ -44,7 +44,7 @@ test('nearby opposite-platform names are not merged and matched catalog position
 test('a pedestrian profile snapped across the carriageway cannot certify a transfer',async()=>{
  const original=global.fetch,a={id:'a',lat:50,lon:22},b={id:'b',lat:50.001,lon:22};
  global.fetch=async url=>({ok:true,json:async()=>String(url).includes('valhalla')?{}:{code:'Ok',routes:[{distance:112,geometry:{coordinates:[[22.0003,50],[22.0003,50.001]]}}]}});
- try{await assert.rejects(load('lib/journey-walking.ts').journeyWalkingRoute(a,b));}finally{global.fetch=original;}
+ try{await assert.rejects(load('lib/journey-walking.ts',{'./transport/http':{requestJson:async(url,init)=>{const r=await global.fetch(url,init);if(!r.ok)throw Error('HTTP');return r.json();}}}).journeyWalkingRoute(a,b));}finally{global.fetch=original;}
 });
 
 test('unconfirmed walking alternatives do not displace confirmed complete journeys',async()=>{

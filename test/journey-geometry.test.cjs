@@ -37,13 +37,13 @@ test('invalid foot geometry falls back to a real pedestrian profile, with exact 
    const query=JSON.parse(decodeURIComponent(String(url).split('?json=')[1]));assert.equal(query.costing,'pedestrian');
    return {ok:true,json:async()=>({trip:{summary:{length:meters/1000},legs:[{shape:encoded(points)}]}})};
   };
-  const {journeyWalkingRoute}=load('lib/journey-walking.ts');const result=await journeyWalkingRoute(from,to);assert.deepEqual(result.points,points);assert.equal(result.meters,Math.ceil(meters));
+  const {journeyWalkingRoute}=load('lib/journey-walking.ts',{'./transport/http':{requestJson:async(url,init)=>{const r=await global.fetch(url,init);if(!r.ok)throw Error('HTTP');return r.json();}}});const result=await journeyWalkingRoute(from,to);assert.deepEqual(result.points,points);assert.equal(result.meters,Math.ceil(meters));
   await journeyWalkingRoute(from,to);assert.equal(calls,2);
  }finally{global.fetch=original;}
 });
 test('both failed foot profiles reject the route instead of inventing a straight connector; retry stays possible',async()=>{
  const original=global.fetch;try{
-  global.fetch=async()=>({ok:true,json:async()=>({code:'NoRoute'})});const {journeyWalkingRoute}=load('lib/journey-walking.ts');
+  global.fetch=async()=>({ok:true,json:async()=>({code:'NoRoute'})});const {journeyWalkingRoute}=load('lib/journey-walking.ts',{'./transport/http':{requestJson:async(url,init)=>{const r=await global.fetch(url,init);if(!r.ok)throw Error('HTTP');return r.json();}}});
   const a=stop('a',[50,22]),b=stop('b',[50,22.001]);await assert.rejects(journeyWalkingRoute(a,b));
   global.fetch=async()=>({ok:true,json:async()=>({code:'Ok',routes:[{distance:72,geometry:{coordinates:[[22,50],[22.001,50]]}}]})});
   assert.equal((await journeyWalkingRoute(a,b)).points.length,2);
@@ -84,10 +84,10 @@ test('a slower pedestrian answer replaces a fast ring-road detour; alternative f
    const query=JSON.parse(decodeURIComponent(String(url).split('?json=')[1]));assert.equal(query.costing_options.pedestrian.shortest,true);
    await new Promise(resolve=>setTimeout(resolve,25));return {ok:true,json:async()=>({trip:{summary:{length:length(short)/1000},legs:[{shape:encoded(short)}]}})};
   };
-  const api=load('lib/journey-walking.ts');const result=await api.journeyWalkingRoute(a,b);assert.deepEqual(result.points,short);assert.ok(result.meters<100);assert.equal(requests,2);
+  const api=load('lib/journey-walking.ts',{'./transport/http':{requestJson:async(url,init)=>{const r=await global.fetch(url,init);if(!r.ok)throw Error('HTTP');return r.json();}}});const result=await api.journeyWalkingRoute(a,b);assert.deepEqual(result.points,short);assert.ok(result.meters<100);assert.equal(requests,2);
   await api.journeyWalkingRoute(a,b);assert.equal(requests,2,'both calls share the validated best path');
   global.fetch=async url=>String(url).includes('routed-foot')?{ok:true,json:async()=>({code:'Ok',routes:[{distance:length(long),geometry:{coordinates:long.map(([lat,lon])=>[lon,lat])}},{distance:length(short),geometry:{coordinates:short.map(([lat,lon])=>[lon,lat])}}]})}:{ok:false};
-  assert.deepEqual((await load('lib/journey-walking.ts').journeyWalkingRoute(a,b)).points,short,'OSRM alternatives are considered independently');
+  assert.deepEqual((await load('lib/journey-walking.ts',{'./transport/http':{requestJson:async(url,init)=>{const r=await global.fetch(url,init);if(!r.ok)throw Error('HTTP');return r.json();}}}).journeyWalkingRoute(a,b)).points,short,'OSRM alternatives are considered independently');
  }finally{global.fetch=previous;}
 });
 test('map roles distinguish real transfers from an initial walk and dots shrink with zoom',()=>{

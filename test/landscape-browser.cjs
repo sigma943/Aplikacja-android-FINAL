@@ -190,8 +190,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   assert.equal(nav.width,373,'navigation has balanced side insets');assert.ok(nav.radius>=20,'navigation is rounded all around');
   await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:20}));window.dispatchEvent(new Event('pks-interface-appearance'));});
   await page.click('[data-nav-item="options"]');await page.waitForSelector('[data-options-sheet]');
-  await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-app-content]')).visibility==='hidden');
-  assert.ok(await page.$$eval('[data-app-content],[data-app-navigation]',nodes=>nodes.every(e=>getComputedStyle(e).visibility==='hidden')),'transparent options expose scenery, never the underlying UI');
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-app-content]')).visibility==='visible');
+  assert.ok(await page.$$eval('[data-app-content],[data-app-navigation]',nodes=>nodes.every(e=>getComputedStyle(e).visibility==='visible')),'options retain the current tab beneath the glass');
   await page.screenshot({path:'test/ui-previews/landscape-options-20.png'});
   const reflection=()=>page.evaluate(()=>Number(getComputedStyle(document.documentElement).getPropertyValue('--landscape-reflection-strength')));
   const strong=await reflection();
@@ -320,6 +320,24 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    if(theme==='light')assert.ok(fill.sheet.includes(colors[carrier].join(', ')),JSON.stringify(fill));
    else assert.ok(fill.sheet.includes('linear-gradient'),'dark carrier tint remains visible');
    await page.screenshot({path:'test/ui-previews/chrome-carrier-'+carrier+'-'+theme+'.png'});
+  }
+  await page.goto(origin+'/readability-fixture/');
+  await page.waitForFunction(()=>window.__landscapeDiagnostics?.().frames>1);
+  for(const [phase,iso] of [['day','2026-10-26T12:00:00+01:00'],['sunset','2026-10-26T16:00:00+01:00'],['night','2026-10-26T02:00:00+01:00']])for(const opacity of [20,80]){
+   await page.evaluate(({iso,opacity})=>{window.__landscapePreview({iso,rate:0,quality:'low'});localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:opacity}));window.dispatchEvent(new Event('pks-interface-appearance'));},{iso,opacity});
+   await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
+   await page.waitForFunction(opacity=>{const s=getComputedStyle(document.querySelector('[role="alert"]'));return Math.abs(Number(s.backgroundColor.match(/[\d.]+/g).pop())-opacity/100)<.01;},{},opacity);
+   await page.waitForFunction(ink=>getComputedStyle(document.querySelector('[role="alert"]')).color===ink,{},phase==='night'?'rgb(244, 248, 252)':'rgb(11, 27, 38)');
+   const style=await page.$eval('[role="alert"]',el=>({filter:getComputedStyle(el).backdropFilter,ink:getComputedStyle(el).color}));
+   assert.ok(style.filter.includes('contrast(0.2)'),'message has a reading shield');
+   assert.equal(style.ink,phase==='night'?'rgb(244, 248, 252)':'rgb(11, 27, 38)');
+   await page.click('[data-open-admin-menu]');
+   await page.waitForFunction(()=>Math.abs(document.querySelector('[data-admin-sidebar]').getBoundingClientRect().left)<1);
+   assert.ok(await page.$eval('[data-admin-sidebar]',el=>getComputedStyle(el).backdropFilter.includes('contrast(0.2)')));
+   await page.screenshot({path:'test/ui-previews/readable-admin-'+phase+'-'+opacity+'.png'});
+   await page.click('[aria-label="Zamknij menu administratora"]');
+   await page.waitForFunction(()=>document.querySelector('[data-admin-sidebar]').getBoundingClientRect().right<=1);
+   await page.screenshot({path:'test/ui-previews/readable-messages-'+phase+'-'+opacity+'.png'});
   }
   for(const [name,iso] of [['day','2026-10-26T12:00:00+01:00'],['sunset','2026-10-26T16:00:00+01:00'],['night','2026-10-26T02:00:00+01:00']]){
    await page.evaluateOnNewDocument(iso=>{const NativeDate=Date,fixed=NativeDate.parse(iso);window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return fixed;}};localStorage.setItem('mks_app_theme','dark-mountains');},iso);

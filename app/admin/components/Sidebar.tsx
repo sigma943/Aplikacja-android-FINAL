@@ -55,17 +55,17 @@ export function Sidebar({
         />
       )}
 
-      <div className={cn(
+      <div data-admin-sidebar aria-label="Menu administratora" className={cn(
         "pks-personal-panel fixed inset-y-0 left-0 z-[7000] w-64 border-r border-white/5 bg-[#080B12] flex flex-col justify-between transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0 lg:flex-shrink-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div>
+        <div className="min-h-0 overflow-y-auto">
           <div className="p-6 flex items-center justify-between">
             <div className="flex items-center gap-2 font-extrabold tracking-tight" style={{ color: accentColor }}>
               <Bus className="h-6 w-6 shrink-0 md:h-7 md:w-7" strokeWidth={2.25} aria-hidden />
               <span className="text-lg md:text-xl">PKS Live</span>
             </div>
-            <button className="lg:hidden text-slate-400 hover:text-white cursor-pointer active:scale-95 transition-all" onClick={onClose}>
+            <button aria-label="Zamknij menu administratora" className="lg:hidden text-slate-400 hover:text-white cursor-pointer active:scale-95 transition-all" onClick={onClose}>
               <X size={24} />
             </button>
           </div>
@@ -79,6 +79,7 @@ export function Sidebar({
                 return (
                   <button
                     key={item.id}
+                    aria-current={isActive?'page':undefined}
                     onClick={() => {
                       onViewChange(item.id);
                       onClose();

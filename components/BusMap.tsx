@@ -15,7 +15,7 @@ import {canonicalMapStopId, mapStopColor} from '@/lib/map-stop-markers';
 
 import {routeGeometryKey} from '@/lib/route-geometry-key';
 import {officialBusRoute} from '@/lib/official-bus-routes';
-import {roadRouteMatchesStops, cleanRoadJunctionLoops} from '@/lib/bus-road-geometry';
+import {roadRouteMatchesStops, cleanRoadJunctionLoops, validRoadPoint} from '@/lib/bus-road-geometry';
 import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
 import {withRequestDeadline} from '@/lib/request-deadline';
@@ -192,6 +192,7 @@ function BusMap({
   // Both the rendered identity and persisted geometry distinguish courses.
   const routeCourse = String(selectedVehicle?.tripId || selectedVehicle?.journeyId || '');
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
+  const suppliedRouteKey=JSON.stringify(selectedVehicle?.routeGeometry||[]);
   const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
 
   useEffect(() => {
@@ -206,22 +207,18 @@ function BusMap({
       return;
     }
 
+    setRouteError('');
     const currentIdentity = routeIdentity;
     if (selectedVehicleIdentityRef.current && selectedVehicleIdentityRef.current !== currentIdentity) {
       startTransition(() => setSnappedRoute([]));
     }
     selectedVehicleIdentityRef.current = currentIdentity;
 
-    if (routeGeometryStops.length < 2) {
-      startTransition(() => setSnappedRoute([]));
-      return;
+    const suppliedGeometry=selectedVehicle.routeGeometry;
+    if(suppliedGeometry&&suppliedGeometry.length>1&&suppliedGeometry.every(validRoadPoint)&&(routeGeometryStops.length<2||roadRouteMatchesStops(suppliedGeometry,routeGeometryStops.map(s=>[s.lat,s.lon]),180))){
+      setSnappedRoute(simplifyRouteForPaint(correctPksStationJunction(correctMarcelNiebylecRoute(suppliedGeometry,selectedVehicle.provider),selectedVehicle.provider)));return;
     }
-
-    const suppliedGeometry = selectedVehicle.routeGeometry;
-    if (suppliedGeometry && suppliedGeometry.length > 1 && roadRouteMatchesStops(suppliedGeometry, routeGeometryStops.map(stop => [stop.lat, stop.lon]), 180)) {
-      setSnappedRoute(simplifyRouteForPaint(correctPksStationJunction(correctMarcelNiebylecRoute(suppliedGeometry,selectedVehicle.provider),selectedVehicle.provider)));
-      return;
-    }
+    if(routeGeometryStops.length<2){startTransition(()=>setSnappedRoute([]));return;}
 
     let cancelled = false;
     const controller = new AbortController();
@@ -269,7 +266,7 @@ function BusMap({
         dataVersion: routeGeometryVersion,
         mode: routeMode,
         stops: routeGeometryStops,
-      }, { signal: controller.signal });}, controller.signal, [1000, 3000, 10000, 30000], {
+      }, { signal: controller.signal });}, controller.signal, [1000, 3000], {
         keepRetrying: false,
         isUsable: response => (response.geometry?.coordinates || [])
           .filter(([lon, lat]) => Number.isFinite(lat) && Number.isFinite(lon)).length > 1,
@@ -300,7 +297,7 @@ function BusMap({
         }
     };
 
-    withRequestDeadline(()=>loadRoute(),controller.signal,45000).catch((error) => {
+    withRequestDeadline(()=>loadRoute(),controller.signal,75000).catch((error) => {
       if (requestId !== activeRouteRequestIdRef.current || controller.signal.aborted) return;
       // Keep any valid geometry and make failure recoverable without reselection.
       setRouteError(currentIdentity);controller.abort();
@@ -310,7 +307,14 @@ function BusMap({
       cancelled = true;
       controller.abort();
     };
-  }, [routeAttempt,routeKey, routeStopsHash, routeCourse, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.routeGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeAttempt,routeKey, routeStopsHash, routeCourse, selectedVehicle?.provider, selectedVehicle?.id, suppliedRouteKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(()=>{
+    if(routeError!==routeIdentity||!selectedVehicle||currentGeometry.length>1)return;
+    const retry=()=>setRouteAttempt(value=>value+1);
+    const timer=setTimeout(retry,15000);window.addEventListener('online',retry);
+    return()=>{clearTimeout(timer);window.removeEventListener('online',retry);};
+  },[routeError,routeIdentity,routeAttempt,currentGeometry.length,Boolean(selectedVehicle)]);
 
   if (!initMapState) return null;
 

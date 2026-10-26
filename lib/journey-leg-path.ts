@@ -23,8 +23,8 @@ export function journeyLegPath(leg:JourneyLeg):Promise<Point[]>{
  if(leg.walking!==undefined)return journeyWalkingRoute(leg.from,leg.to).then(r=>r.points);
  const key=JSON.stringify([leg.provider,leg.course,leg.routePattern,coords]);
  if(!pending.has(key))pending.set(key,(async()=>{
-  const full=leg.provider==='marcel' ? await bundledMarcelJourneyRoute(leg.routePattern||coords,true) : await officialBusRoute(leg.provider==='mpk'?'mpk_rzeszow':leg.provider,leg.course.split(':')[1],[]).catch(()=>[] as Point[]);
-  const pins=leg.provider==='mpk'?await officialBusStopPoints('mpk_rzeszow').catch(()=>[])||[]:leg.provider==='marcel'?await bundledMarcelStopPoints()||[]:[];
+  const full=leg.provider==='marcel' ? await bundledMarcelJourneyRoute(leg.routePattern||coords,true).catch(()=>[] as Point[]) : await officialBusRoute(leg.provider==='mpk'?'mpk_rzeszow':leg.provider,leg.course.split(':')[1],[]).catch(()=>[] as Point[]);
+  const pins=leg.provider==='mpk'?await officialBusStopPoints('mpk_rzeszow').catch(()=>[])||[]:leg.provider==='marcel'?await bundledMarcelStopPoints().catch(()=>[])||[]:[];
   const corrected=correctPksStationJunction(correctMarcelNiebylecRoute(full,leg.provider),leg.provider);
   const official=leg.provider==='mpk'||leg.provider==='marcel'?journeyBusCorridor(corrected,[...pins,...coords],leg.provider==='marcel'?8:2):corrected;
   // Stop dots are projected separately by JourneyMap. Never rebuild a known

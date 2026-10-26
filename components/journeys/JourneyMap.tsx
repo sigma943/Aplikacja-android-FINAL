@@ -1,4 +1,6 @@
 'use client';
+import {loadRouteWithRetry} from '@/lib/route-load-retry';
+import {withRequestDeadline} from '@/lib/request-deadline';
 import {mapReducedMotion} from '@/lib/map-motion';
 import {Fragment,memo,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {createPortal} from 'react-dom';
@@ -120,28 +122,36 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
   return()=>{if(page)page.style.overflow=previous||'';document.body.style.overflow=bodyOverflow;};
  },[expanded]);
  useEffect(()=>{
-  let alive=true;
+  const controller=new AbortController();let alive=true;
+  const previous=geometry.key===geometryKey?geometry.paths:{};
   journey.legs.forEach((leg,index)=>{
-   const load=async()=>{try{return await journeyLegPath(leg);}catch(error){if(!alive)throw error;await new Promise<void>(resolve=>{setTimeout(resolve,900);});if(!alive)throw error;return journeyLegPath(leg);}};
-   void load().then(path=>{
-    if(path.length<2||path.some(point=>!point.every(Number.isFinite)))throw Error('Brak kompletnej trasy.');
-    if(alive)setGeometry(old=>({key:requestKey,paths:{...(old.key===requestKey?old.paths:{}),[index]:path},failed:old.key===requestKey?old.failed:[]}));
-   }).catch(()=>{
-    if(alive)setGeometry(old=>({key:requestKey,paths:old.key===requestKey?old.paths:{},failed:[...(old.key===requestKey?old.failed:[]),index]}));
-   });
+   if(previous[index]?.length>1)return;
+   const load=async()=>{
+    try{
+     const path=await withRequestDeadline(()=>journeyLegPath(leg),controller.signal,65000);
+     if(path.length<2||path.some(point=>!point.every(Number.isFinite)))throw Error('Brak kompletnej trasy.');
+     return path;
+    }catch(error){
+     if(alive&&!controller.signal.aborted)setGeometry(old=>({key:geometryKey,paths:old.key===geometryKey?old.paths:{},failed:[...new Set([...(old.key===geometryKey?old.failed:[]),index])]}));
+     throw error;
+    }
+   };
+   void loadRouteWithRetry(load,controller.signal,[1000,3000,10000,30000],{keepRetrying:true}).then(path=>{
+    if(alive)setGeometry(old=>({key:geometryKey,paths:{...(old.key===geometryKey?old.paths:{}),[index]:path},failed:(old.key===geometryKey?old.failed:[]).filter(i=>i!==index)}));
+   }).catch(()=>{/* Selection changes abort only this subscriber. Shared valid paths stay cached. */});
   });
-  return()=>{alive=false;};
+  return()=>{alive=false;controller.abort();};
  },[requestKey]);
  const endpoints=useMemo(()=>journey.legs.flatMap(leg=>[leg.from,leg.to]).filter(hasCoordinates),[geometryKey]);
  const bounds=useMemo(()=>[
   ...endpoints.map(stop=>[stop.lat!,stop.lon!] as Point),
-  ...(geometry.key===requestKey?Object.values(geometry.paths).flat():[]),
+  ...(geometry.key===geometryKey?Object.values(geometry.paths).flat():[]),
  ],[endpoints,geometry,requestKey]);
- const paths=geometry.key===requestKey?geometry.paths:{};
+ const paths=geometry.key===geometryKey?geometry.paths:{};
  const markers=useMemo(()=>{
   const unique=new Map<string,JourneyMapPoint>();
   journey.legs.forEach((leg,index)=>{
-   const path=geometry.key===requestKey?geometry.paths[index]:undefined;if(!path)return;
+   const path=geometry.key===geometryKey?geometry.paths[index]:undefined;if(!path)return;
    const stops=journeyLegStops(leg).filter(hasCoordinates);
    // Passenger platforms stay on their physical side of the road.
    const points=stops.map(stop=>({point:[stop.lat!,stop.lon!] as Point}));
@@ -156,7 +166,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  const legStopIds=activeLeg===null?null:new Set(journeyLegStops(journey.legs[activeLeg]).map(stop=>stop.id));
  const visibleMarkers=legStopIds?markers.filter(marker=>legStopIds.has(marker.stop.id)):markers;
  const selectedMarker=visibleMarkers.find(marker=>marker.stop.id===selectedStop?.id);
- const failed=geometry.key===requestKey?geometry.failed:[];
+ const failed=geometry.key===geometryKey?geometry.failed:[];
  const pending=Object.keys(paths).length+failed.length<journey.legs.length;
  useEffect(()=>{if(!failed.length)return;const retry=()=>setAttempt(v=>v+1);window.addEventListener('online',retry);return()=>window.removeEventListener('online',retry);},[failed.length]);
  function openMap(){
@@ -193,7 +203,6 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  </>;
  return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
   <div className="connections-map-toolbar"><strong>Mapa podróży</strong>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
-  {failed.length>0&&<div className="connections-map-status" role="status">Nie udało się wczytać przebiegu: {failed.map(i=>journey.legs[i].walking!==undefined?'dojście piesze':(journey.legs[i].provider==='marcel'?'Marcel':'Linia '+journey.legs[i].line)).join(', ')}. Pozostałe odcinki są widoczne.<button onClick={()=>setAttempt(v=>v+1)}>Ponów wczytywanie</button></div>}
   {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
    <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journeyDestinationLabel(journey.legs.at(-1)!.to)}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
