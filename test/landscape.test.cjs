@@ -110,10 +110,10 @@ test('solar glass stays translucent with restrained colours throughout dawn and 
  }
  const sunset=palette({sun:{altitude:Math.PI/180}});
  const surface=numbers(sunset['--landscape-surface']);
- assert.ok(luminance(numbers(palette({sun:{altitude:30*Math.PI/180}})['--landscape-surface']).slice(0,3))>.8,'daytime cards must be light');
+ assert.ok(luminance(numbers(palette({sun:{altitude:30*Math.PI/180}})['--landscape-surface']).slice(0,3))>.55,'daytime glass keeps a luminous sky tint');
  assert.ok(luminance(numbers(palette({sun:{altitude:-15*Math.PI/180}})['--landscape-surface']).slice(0,3))<.03,'nighttime cards must be dark');
  assert.ok(surface[0]>surface[2],'sunset glass keeps a subtle warm tint');
- assert.ok(Math.max(...surface.slice(0,3))-Math.min(...surface.slice(0,3))<40,'sunset tint never becomes saturated pink or orange');
+ assert.ok(Math.max(...surface.slice(0,3))-Math.min(...surface.slice(0,3))<85,'sunset tint remains readable');
 });
 
 test('sunrise and sunset reuse the same two readable material families',()=>{
@@ -123,7 +123,7 @@ test('sunrise and sunset reuse the same two readable material families',()=>{
  assert.deepEqual([...levels].reverse().map(altitude=>palette({sun:{altitude:altitude*Math.PI/180}})['--landscape-surface']),[...values].reverse());
  for(const value of values){
   const channels=value.match(/[\d.]+/g).slice(0,3).map(Number);
-  assert.ok(channels.every(v=>v>220)||channels.every(v=>v<50),'no grey intermediate material');
+  assert.ok(channels.every(v=>v>170)||channels.every(v=>v<80),'no grey intermediate material');
  }
 });
 

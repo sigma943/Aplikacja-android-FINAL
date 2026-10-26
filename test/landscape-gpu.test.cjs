@@ -27,7 +27,7 @@ test('lighting has no discontinuity at sunset or arbitrary warm colour threshold
  }
 });
 test('water budgets remain bounded with three distinct frame and pixel limits',()=>{
- assert.deepEqual(Object.values(WATER_QUALITY).map(v=>v.fps),[30,24,15]);
+ assert.deepEqual(Object.values(WATER_QUALITY).map(v=>v.fps),[60,30,15]);
  assert.ok(WATER_QUALITY.low.pixels<WATER_QUALITY.medium.pixels&&WATER_QUALITY.medium.pixels<WATER_QUALITY.high.pixels);
 });
 test('solar material adds no CSS solar gradients; shafts are supplied by GPU',()=>{

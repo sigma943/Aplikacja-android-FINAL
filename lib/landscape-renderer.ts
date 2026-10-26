@@ -44,7 +44,7 @@ export class LandscapeRenderer{
   diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,coveredFrames:this.coveredFrames,sceneCovered:this.sceneCovered,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
   sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
   resize(w:number,h:number,dpr:number){
-    const density=Math.min(dpr,1.25,Math.sqrt(900000/(w*h)));
+    const density=Math.min(dpr,3,Math.sqrt(3600000/(w*h)));
     this.width=this.canvas.width=Math.round(w*density);this.height=this.canvas.height=Math.round(h*density);
     for(const layer of [this.terrain,this.water]){layer.width=this.width;layer.height=this.height;}
     // Uniform scale; phones crop at most a narrow edge instead of stretching artwork.

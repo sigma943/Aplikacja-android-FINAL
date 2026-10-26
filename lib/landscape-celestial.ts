@@ -20,6 +20,18 @@ export function moonTexture(){
 }
 export function paintSun(c:CanvasRenderingContext2D,x:number,y:number,warm:number){
   c.save();c.globalCompositeOperation='screen';
+  // Subtle optical star around the actual disc, beneath clouds and terrain.
+  // This is lens glare; the GPU still handles occluded atmospheric shafts.
+  c.save();c.translate(x,y);
+  for(let i=0;i<8;i++){
+    c.save();c.rotate(i*Math.PI/4+.19);
+    const length=(i%2?260:410)*(1+warm*.25),width=i%2?13:21;
+    const ray=c.createLinearGradient(0,0,length,0);
+    ray.addColorStop(0,`rgba(255,241,186,${.08+warm*.09})`);
+    ray.addColorStop(.25,`rgba(255,205,121,${.025+warm*.04})`);ray.addColorStop(1,'rgba(255,185,91,0)');
+    c.fillStyle=ray;c.beginPath();c.moveTo(6,-width);c.quadraticCurveTo(length*.45,-width*.25,length,0);c.quadraticCurveTo(length*.45,width*.25,6,width);c.closePath();c.fill();c.restore();
+  }
+  c.restore();
   const halo=c.createRadialGradient(x,y,8,x,y,250);halo.addColorStop(0,'#fff8cfb0');halo.addColorStop(.14,'#ffe5a85c');halo.addColorStop(.42,`rgba(255,173,82,${.09+warm*.09})`);halo.addColorStop(1,'#ffaf5100');c.fillStyle=halo;c.fillRect(x-250,y-250,500,500);
   const bloom=c.createRadialGradient(x,y,15,x,y,75);bloom.addColorStop(0,'#fffdf1ff');bloom.addColorStop(.32,'#fff0c1a0');bloom.addColorStop(1,'#ffdb8a00');c.fillStyle=bloom;c.fillRect(x-75,y-75,150,150);
   c.globalCompositeOperation='source-over';

@@ -1,7 +1,7 @@
-/** Shared opaque milk and solar glow for landscape panels and first paint. */
+/** Shared atmospheric tint and solar glow for glass panels and first paint. */
 export function solarMilkMaterial(degrees:number,day=degrees>-2){
  const smooth=(a:number,b:number,x:number)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
- const warmth=1-smooth(-6,12,degrees),cool=day?[242,248,252]:[9,24,40],warm=day?[250,239,224]:[24,27,43];
+ const warmth=1-smooth(0,18,degrees),cool=day?[178,220,240]:[17,30,57],warm=day?[244,199,174]:[55,37,73];
  const surface=cool.map((v,i)=>Math.round(v+(warm[i]-v)*warmth)).join(',');
  const glow=smooth(-7,-.5,degrees)*(1-smooth(4,20,degrees));
  return {surface,background:`rgb(${surface})`,text:day?'rgb(11,27,38)':'rgb(244,248,252)',

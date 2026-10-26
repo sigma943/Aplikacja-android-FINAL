@@ -33,6 +33,7 @@ export function landscapePalette(state:AstronomyState,glassOpacity=64,day=isLand
     '--landscape-panel-row':`rgba(${field},${opacity*.32})`,
     '--landscape-nav-top':`rgba(${surface},${opacity})`,
     '--landscape-nav-bottom':`rgba(${surface},${opacity})`,
+    '--landscape-nav-glass':`rgba(12,24,31,${opacity})`,
     '--landscape-solid':`rgb(${surface})`,
     '--landscape-color-scheme':day?'light':'dark',
     '--landscape-chrome-light':day?'rgba(255,248,224,.24)':'rgba(174,220,234,.24)',
