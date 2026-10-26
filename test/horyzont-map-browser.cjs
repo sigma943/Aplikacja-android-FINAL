@@ -21,7 +21,9 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   }
   await page.goto(origin+'/?view=options&theme=dark-mountains');await page.waitForSelector('[data-landscape-settings]');await page.click('[data-landscape-settings]>summary');
   await page.waitForFunction(()=>window.__landscapeDiagnostics?.().renderer.quality==='low');
-  await page.click('[data-landscape-settings] button[aria-pressed="true"]');
+  await page.evaluate(()=>[...document.querySelectorAll('[data-landscape-settings] button')].find(e=>e.textContent.includes('Średnia')).click());
+  await page.waitForFunction(()=>window.__landscapeDiagnostics().renderer.quality==='medium');
+  assert.ok(await page.$eval('[data-landscape-settings]',e=>getComputedStyle(e).backgroundColor.startsWith('rgb(')),'settings use an opaque readable surface');
   const sliders=await page.$$('[data-landscape-settings] input[type="range"]');assert.equal(sliders.length,5);
   await page.$eval('[aria-label="Rozchodzenie się promieni"]',e=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(e,'0');e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.waitForFunction(()=>JSON.parse(localStorage.getItem('pks_horyzont_settings_v1')).rays===0);

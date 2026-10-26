@@ -1385,3 +1385,14 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  .connections-map-modal>.connections-map-toolbar small { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
  .connections-map-modal .connections-sheet-handle { background:transparent!important;color:var(--cn-text)!important; }
 }
+
+@layer landscape-materials {
+ /* Dedicated controls need a stable reading surface even over bright rays or
+    a dark valley; their colours follow the same day/night material as panels. */
+ html[data-landscape-theme='on'] [data-landscape-settings] {
+  background-color:var(--landscape-solid)!important;
+  color:var(--landscape-ink)!important;
+  border:1px solid var(--landscape-edge)!important;
+ }
+ html[data-landscape-theme='on'] [data-landscape-settings] .personal-note { color:var(--landscape-muted)!important;opacity:1; }
+}

@@ -14,6 +14,7 @@ const params=new URLSearchParams(location.search),theme=params.get('theme')||'da
 const dark=!theme.startsWith('light')&&theme!=='dark-mountains';
 const root=document.documentElement;root.style.setProperty('--ui-surface',dark?'#152230':'#f5f8fc');root.style.setProperty('--ui-text',dark?'#edf2f7':'#172536');root.style.setProperty('--ui-muted',dark?'#b8c8d8':'#475569');root.style.setProperty('--ui-edge','#7a8b9c55');root.style.setProperty('--pks-accent','#00a3a2');
 applyInterfaceAppearance(root,DEFAULT_INTERFACE_APPEARANCE,dark,'#00a3a2',false,theme);
+if(theme==='dark-cosmos')root.dataset.cosmicTheme='on';
 if(theme==='dark-mountains'){
  root.dataset.landscapeTheme='on';root.dataset.landscapeGlass='on';root.dataset.landscapePeriod='day';
  for(const [key,value] of Object.entries(landscapePalette({sun:{altitude:.5}} as any,64,true)))root.style.setProperty(key,value);
