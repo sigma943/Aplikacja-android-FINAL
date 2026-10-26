@@ -1321,11 +1321,11 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 @layer landscape-materials {
  html[data-landscape-theme='on'] { --landscape-reading-brightness:1.8; }
  html[data-landscape-theme='on'][data-landscape-period='night'] { --landscape-reading-brightness:.35; }
- html[data-landscape-theme='on'] :is([data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
+ html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
   color:var(--landscape-ink)!important;background-color:var(--landscape-surface)!important;
   background-image:var(--landscape-milk-glow)!important;border:1px solid var(--landscape-edge);border-radius:var(--personal-card-radius,18px);
-  -webkit-backdrop-filter:blur(max(12px,var(--personal-blur,12px))) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
-  backdrop-filter:blur(max(12px,var(--personal-blur,12px))) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
+  -webkit-backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
+  backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
  }
  html[data-landscape-theme='on'] :is(.connections-results-heading,.connections-warning,.connections-error,.connections-hint,.journey-error,.journey-hint) { padding:12px 14px; }
  html[data-landscape-theme='on'] [data-admin-sidebar] { border-radius:0!important;box-shadow:12px 0 40px #07132140!important;isolation:isolate; }
@@ -1333,4 +1333,8 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
  html[data-landscape-theme='on'] [data-admin-sidebar] nav button[aria-current='page'] { background:var(--landscape-field)!important;border-color:var(--landscape-accent)!important;color:var(--landscape-accent)!important; }
  html[data-landscape-theme='on'] [data-admin-sidebar] button:hover { background:var(--landscape-field)!important; }
  html[data-cosmic-theme='on'] [data-admin-sidebar] { background:#080d1d!important;background-image:none!important; }
+}
+
+@layer pks-performance {
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status'],.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
 }
