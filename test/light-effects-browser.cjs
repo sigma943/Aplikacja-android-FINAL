@@ -61,6 +61,11 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[data-light-toggle]');await page.click('[data-light-toggle]');
   await page.waitForFunction(()=>document.documentElement.dataset.personalLightEffects==='on'&&document.documentElement.dataset.personalMotion==='normal');
   assert.ok(await page.$$eval('.admin-device-card',cards=>cards.every(card=>{const box=card.getBoundingClientRect();return card.lastElementChild.getBoundingClientRect().bottom<=box.bottom+1;})),'toggling glass does not clip the final card');
+  await page.evaluate(()=>{const key='mks_interface_appearance_v1',value=JSON.parse(localStorage.getItem(key)||'{}');localStorage.setItem(key,JSON.stringify({...value,reducedMotion:true}));window.dispatchEvent(new Event('pks-interface-appearance'));});
+  await page.waitForFunction(()=>document.documentElement.dataset.personalMotion==='reduced');
+  await page.click('[data-test-devices] button:has(.lucide-chevron-left)');
+  await page.waitForFunction(()=>document.querySelectorAll('[data-admin-device-item]').length===5);
+  assert.ok(await page.$$eval('[data-admin-device-item]',cards=>cards.every(c=>getComputedStyle(c).opacity==='1')),'reduced motion removes stagger delays as well as movement');
   assert.deepEqual(errors,[]);console.log('PASS: reversible light effects, opaque glass, stopped cosmic accents, retained useful spinner, terminal state and next course');
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

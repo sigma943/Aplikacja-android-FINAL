@@ -544,7 +544,7 @@ export function DeviceTable({
             const deleteDisabled = !canDeleteTarget(device, isSelf);
             const primaryLabel = device.name;
             return (
-              <motion.div key={device.id} initial={reducedMotion?false:{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ delay: idx * 0.05 }} className="relative min-w-0 shrink-0" data-admin-device-item>
+              <motion.div key={device.id} initial={reducedMotion?false:{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={reducedMotion?{duration:0,delay:0}:{delay:idx*.05}} className="relative min-w-0 shrink-0" data-admin-device-item>
                <div data-cosmic-panel={`admin-device:${device.id}`} className="admin-device-card pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative">
                 <div className="admin-device-card-glow absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
                 <div className="flex flex-wrap items-center justify-between relative z-10 gap-3">

@@ -55,7 +55,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await click(summary);await wait(300);
   // Preview and font selector use the same finite expand/collapse policy.
   await click('[data-preview-toggle]');await page.waitForSelector('[data-interface-preview]');await wait(300);
-  await click('[aria-label="Podgląd: Autobus"]');await wait(450);assert.ok(await page.$('[data-interface-preview] [data-map-bus-sheet]'));
+  await click('[aria-label="Podgląd: Autobus"]');await wait(450);assert.ok(await page.$('[data-interface-preview] [data-map-detail-kind="bus"]'));
   await click('[data-preview-toggle]');await wait(350);assert.equal(await page.$('[data-interface-preview]'),null);
   await click(summary);await wait(300);
   const textSummary='[data-personal-group="text"]>summary';await click(textSummary);await wait(300);

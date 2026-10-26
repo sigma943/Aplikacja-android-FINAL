@@ -1,3 +1,4 @@
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import {AdminModalPortal} from './AdminModalPortal';
 import {useAppBack} from '@/lib/use-app-back';
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -41,6 +42,7 @@ export function OperatorsView({
   globalSettings,
   onSaveGlobalSettings,
 }: OperatorsViewProps) {
+  const reducedMotion=useJourneyReducedMotion();
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'ALL' | 'WŁAŚCICIEL' | 'ADMIN'>('ALL');
   const [editingOperator, setEditingOperator] = useState<Operator | null>(null);
@@ -162,10 +164,10 @@ export function OperatorsView({
               filteredOperators.map((op, idx) => (
                 <motion.div
                   key={op.id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reducedMotion?false:{opacity:0,y:10}}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: idx * 0.04 }}
+                  transition={reducedMotion?{duration:0,delay:0}:{delay:idx*0.04}}
                 >
                   <OperatorCard 
                     operator={op}

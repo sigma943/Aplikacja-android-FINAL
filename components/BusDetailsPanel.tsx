@@ -1,4 +1,5 @@
 'use client';
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 
 import {useLayoutEffect,useRef} from 'react';
 import type {CSSProperties, Dispatch, RefObject, SetStateAction} from 'react';
@@ -50,6 +51,7 @@ interface BusDetailsPanelProps {
 }
 
 export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
+  const reducedMotion=useJourneyReducedMotion();
   const carrier=selectedBus.provider==='mpk_rzeszow'?'mpk':selectedBus.provider==='marcel'?'marcel':selectedVehicleIsTrain?'rail':'pks';
 
   // A removed motion element can interrupt its shared height animation. A new
@@ -73,10 +75,10 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   data-expanded={isBusPanelExpanded}
                   data-glass={transparentUI ? 'on' : 'off'}
                   data-ui-mode={isDark ? 'dark' : 'light'}
-                  initial={preview?false:{ y: "100%", opacity: 0.5 }}
+                  initial={preview||reducedMotion?false:{ y: "100%", opacity: 0.5 }}
                   animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: "100%", opacity: 0.5 }}
-                  transition={SHEET_SPRING}
+                  exit={reducedMotion?{y:0,opacity:1}:{y:"100%",opacity:.5}}
+                  transition={reducedMotion?{duration:0}:SHEET_SPRING}
                   className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
 
@@ -151,7 +153,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 35 }}
+                        transition={reducedMotion?{duration:0}:{type:"spring",stiffness:400,damping:35}}
                         className="flex flex-1 flex-col min-h-0 overflow-hidden"
                       >
                         <div className={`p-2.5 md:p-4 flex min-h-0 flex-1 flex-col gap-2.5 md:gap-4 overflow-y-auto mt-1.5 md:mt-2 rounded-t-xl md:rounded-t-2xl relative z-10 ${mapDetailContent}`}>

@@ -1,3 +1,4 @@
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import {useAppBack} from '@/lib/use-app-back';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, ChevronDown, Calendar, RefreshCcw, LogIn, MonitorOff, ShieldAlert, UserCog, PowerOff, MapPin, Menu, Trash2, X, Check } from 'lucide-react';
@@ -68,6 +69,7 @@ export function LogsView({
   canClearLogs?: boolean;
   onClearLogs?: () => Promise<void>;
 }) {
+  const reducedMotion=useJourneyReducedMotion();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterOp, setFilterOp] = useState('Wszyscy');
@@ -404,10 +406,10 @@ export function LogsView({
               visibleLogs.map((log, idx) => (
                 <motion.div
                   key={log.id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reducedMotion?false:{opacity:0,y:10}}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: idx * 0.03 }}
+                  transition={reducedMotion?{duration:0,delay:0}:{delay:idx*0.03}}
                 >
                   <LogCard log={log} />
                 </motion.div>

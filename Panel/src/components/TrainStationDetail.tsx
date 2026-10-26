@@ -1,3 +1,4 @@
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
@@ -57,6 +58,7 @@ export default function TrainStationDetail({
   onBack,
   toggleFavorite,
 }: TrainStationDetailProps) {
+  const reducedMotion=useJourneyReducedMotion();
   const DAYS = useRef(getDynamicDays()).current;
   const [tab, setTab] = useState<"departures" | "arrivals">("departures");
   const [selectedDay, setSelectedDay] = useState<string>("today");
@@ -156,10 +158,10 @@ export default function TrainStationDetail({
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 15 }}
+      initial={reducedMotion?false:{opacity:0,x:15}}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 15 }}
-      transition={{ type: "spring", stiffness: 350, damping: 30 }}
+      transition={reducedMotion?{duration:0}:{type:"spring",stiffness:350,damping:30}}
       className="flex flex-col min-h-full bg-[#05080c] text-slate-200 font-sans pb-8"
     >
       <div className="w-full max-w-3xl mx-auto">
@@ -329,10 +331,10 @@ export default function TrainStationDetail({
                   return (
                     <motion.div
                       layout="position"
-                      initial={{ opacity: 0, y: 8 }}
+                      initial={reducedMotion?false:{opacity:0,y:8}}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.98 }}
-                      transition={{ duration: 0.18, delay: Math.min(idx * 0.05, 0.3) }}
+                      transition={{duration:reducedMotion?0:.18,delay:reducedMotion?0:Math.min(idx*.05,.3)}}
                       key={train.id}
                       className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-white/[0.02] transition-colors cursor-pointer border-b border-white/[0.03]"
                     >

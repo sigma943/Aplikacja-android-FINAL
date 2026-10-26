@@ -1,3 +1,4 @@
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import {useAppBack} from '@/lib/use-app-back';
 ﻿import { useState, useMemo } from 'react';
 import { Search, Filter, Lock, LockOpen, Smartphone, ChevronDown, Menu, Calendar, Info, MapPin, Pencil } from 'lucide-react';
@@ -28,6 +29,7 @@ export function BansView({
   onEdit?: (id:string)=>void;
   onMenuClick: () => void;
 }) {
+  const reducedMotion=useJourneyReducedMotion();
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(3);
@@ -143,10 +145,10 @@ export function BansView({
               visibleBans.map((ban, idx) => (
                 <motion.div
                   key={ban.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={reducedMotion?false:{opacity:0,y:20}}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: idx * 0.05 }}
+                  transition={reducedMotion?{duration:0,delay:0}:{delay:idx*0.05}}
                 >
                   <BanCard ban={ban} canBan={canBan} onUnblock={() => onUnblock(ban.id)} onEdit={onEdit?()=>onEdit(ban.id):undefined} />
                 </motion.div>

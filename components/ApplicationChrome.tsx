@@ -1,4 +1,5 @@
 'use client';
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import JourneyIcon from './journeys/JourneyIcon';
 import CosmicFilterEffects from './CosmicFilterEffects';
 import LandscapeChrome from './LandscapeChrome';
@@ -74,6 +75,7 @@ export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,
 
 type NavigationProps={preview?:boolean;order?:readonly NavItem[];activeTab:string;className:string;themeColor:string;isMapTabDisabled?:boolean;isStopsTabDisabled?:boolean;isJourneysTabDisabled?:boolean;canOpenAdminEmbed?:boolean;onMap:()=>void;onStops:()=>void;onAdmin?:()=>void;onOptions:()=>void;onJourneys?:()=>void};
 export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,className,themeColor,isMapTabDisabled=false,isStopsTabDisabled=false,isJourneysTabDisabled=false,canOpenAdminEmbed=false,onMap,onStops,onAdmin,onOptions,onJourneys}:NavigationProps){
+ const reducedMotion=useJourneyReducedMotion();
  const items={journeys:{label:'Połączenia',Icon:JourneyIcon,disabled:isJourneysTabDisabled,onClick:onJourneys},map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
  return <div data-navigation-preview={preview||undefined} className={`relative isolate pointer-events-auto flex h-[calc(64px+env(safe-area-inset-bottom))] w-full items-center justify-around border-t pb-[env(safe-area-inset-bottom)] transition-colors ${className}`}>
   <LandscapeChrome variant="navigation"/>
@@ -88,7 +90,7 @@ export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,classN
    const item=items[id],Icon=item.Icon,active=activeTab===id;
    return <button type="button" key={id} data-nav-item={id} disabled={item.disabled} aria-current={active?'page':undefined} aria-label={item.label} onClick={item.onClick} className={`relative z-[1] flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1.5 transition-colors ${item.disabled?'cursor-not-allowed opacity-35 grayscale':active?'':'hover:text-current/90'}`} style={active?{color:themeColor}:{}}>
     <Icon className="h-6 w-6"/><span data-nav-label className="text-[11px] font-semibold leading-none">{item.label}</span>
-    {active&&<motion.span data-nav-indicator layoutId={preview?undefined:'navigation-active-tab'} transition={{type:'spring',stiffness:420,damping:36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{backgroundColor:themeColor}}/>}
+    {active&&<motion.span data-nav-indicator layoutId={preview?undefined:'navigation-active-tab'} transition={reducedMotion?{duration:0}:{type:'spring',stiffness:420,damping:36}} className="absolute top-0 h-0.5 w-10 rounded-full" style={{backgroundColor:themeColor}}/>}
    </button>;
   })}
  </div>;
