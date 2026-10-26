@@ -164,6 +164,7 @@ uniform vec2 uResolution;
 uniform vec4 uFrame;
 uniform float uTime;
 out vec2 vRest;
+uniform float uWaveSpeedOffset;
 out vec3 vPosition;
 ${projection}
 ${spectrum}
@@ -177,7 +178,7 @@ vec2 geometry(vec2 uv){
 void main(){
  vRest=geometry(aUV);float bank=texture(uPerspective,aUV).g;
  vec3 displacement,t,b;float unused;
- gerstner(vRest,uTime,3,vec2(0.),vec2(0.),0.,bank,displacement,t,b,unused);
+ gerstner(vRest,uTime*max(0.,1.+uWaveSpeedOffset),3,vec2(0.),vec2(0.),0.,bank,displacement,t,b,unused);
  vPosition=vec3(vRest.x,0.,vRest.y)+displacement;
  vec2 uv=projectWater(vPosition),screen=uv*uFrame.xy+uFrame.zw;
  gl_Position=vec4(screen.x/uResolution.x*2.-1.,1.-screen.y/uResolution.y*2.,0.,1.);
@@ -194,6 +195,9 @@ uniform vec4 uFrame;
 uniform float uTime;
 uniform float uQuality;
 uniform float uFrameInterval;
+uniform float uWaveSpeedOffset;
+uniform float uReflectionsOffset;
+uniform float uExposureOffset;
 uniform float uHdr;
 uniform vec2 uSunPosition;
 uniform float uSunAltitude;
@@ -254,14 +258,14 @@ void main(){
  float mask=texture(uMask,uv).a;if(mask<.004){fragColor=vec4(0.);return;}
  vec3 perspective=texture(uPerspective,uv).rgb;
  vec3 disp,t,b;float variance;int count=uQuality>1.5?24:uQuality>.5?20:16;
- gerstner(rest,uTime,count,dx,dy,uFrameInterval,perspective.g,disp,t,b,variance);
+ gerstner(rest,uTime*max(0.,1.+uWaveSpeedOffset),count,dx,dy,uFrameInterval*max(0.,1.+uWaveSpeedOffset),perspective.g,disp,t,b,variance);
  vec3 position=vec3(rest.x,0.,rest.y)+disp;
  vec3 n=normalize(cross(b,t)),v=normalize(vec3(0.,CAMERA_HEIGHT,0.)-position);
  float roughness=.082+.022*perspective.r+.028*(.5+.5*sin(dot(rest,vec2(.43,.71))));
  // Unresolved spatial/temporal slopes broaden the microfacet lobe instead of flickering.
  float alpha=sqrt(pow(roughness,4.)+variance*.045+.000050);
  float NoV=abs(dot(n,v))+.001;vec3 F=fresnelSchlick(NoV),r=reflect(-v,n);
- vec3 reflectedSky=tracedRadiance(position+n*.04,r,roughness)*F;
+ vec3 reflectedSky=tracedRadiance(position+n*.04,r,roughness)*F*max(0.,1.+uReflectionsOffset);
  // Water absorbs light; sunset colour belongs to reflected sky/light, never
  // an emissive red fill. This remains blue-black when direct sources vanish.
  vec3 body=mix(vec3(.0005,.0015,.004),vec3(.004,.048,.090),uDay);
@@ -272,13 +276,13 @@ void main(){
  if(uSunAltitude>-.01454&&uSunIntensity>.00001){
   vec3 l=lightDirection(uSunPosition,uSunAltitude),glossNormal=normalize(mix(vec3(0.,1.,0.),n,.94));
   vec3 incident=uSunColor*uSunIntensity*13.*solarExposure*mix(.18,1.,solidShadow(position+n*.04,l,uQuality>.5?4:2));
-  radiance+=evaluateDisc(glossNormal,v,l,incident,alpha,uQuality,.006)*.80+evaluateWaterSheen(glossNormal,v,l,incident,variance)*.20;
+  radiance+=(evaluateDisc(glossNormal,v,l,incident,alpha,uQuality,.006)*.80+evaluateWaterSheen(glossNormal,v,l,incident,variance)*.20)*max(0.,1.+uReflectionsOffset);
  }
  if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(normalize(mix(vec3(0.,1.,0.),n,.85)),v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*1.2*solidShadow(position+n*.04,lightDirection(uMoonPosition,uMoonAltitude),uQuality>.5?4:2),alpha,uQuality,.009);
  float aerial=perspective.r*.11;
  radiance=mix(radiance,skyRadiance(vec3(0.,.06,1.))*.08,aerial);
  // Relative exposure is continuous through the existing solar state.
- radiance*=mix(2.4,1.10,uDay);
+ radiance*=mix(2.4,1.10,uDay)*max(0.,1.+uExposureOffset);
  radiance=min(radiance,vec3(60000.));
  fragColor=vec4(uHdr>.5?radiance:waterDisplayColor(radiance),mask);
 }`;
@@ -336,6 +340,7 @@ precision highp float;
 uniform sampler2D uWater;
 uniform sampler2D uTerrain;
 uniform sampler2D uClouds;
+uniform float uRaysOffset;
 uniform vec2 uResolution;
 uniform vec4 uFrame;
 uniform vec2 uWaterResolution;
@@ -376,6 +381,23 @@ void main(){
   }
   shafts=min(.18,shafts*uSunIntensity*(1.-smoothstep(.12,.5,uSunAltitude))*2.5);
  }
+ // Crepuscular rays follow the visible Sun and sample the same terrain/cloud
+ // occluders. Radial visibility varies across cloud gaps instead of painting
+ // a static star or a second Sun over the scenery.
+ if(uSunAltitude>-.01454&&uSunIntensity>.001&&uRaysOffset>-.999){
+  vec2 delta=(uv-uSunPosition)*vec2(1.,2.17647);
+  float distance=length(delta),visibility=0.,weight=0.;int steps=uQuality>1.5?32:uQuality>.5?20:8;
+  for(int i=0;i<32;i++){
+   if(i>=steps)break;float fraction=(float(i)+.5)/float(steps);
+   vec2 q=mix(uv,uSunPosition,fraction);
+   vec2 cloudUV=vec2(1.-abs(mod(q.x-uTime*${(calibration.cloudSpeed/1000).toFixed(8)},2.)-1.),q.y);
+   float open=(1.-texture(uTerrain,q).a)*(1.-texture(uClouds,cloudUV).a);
+   float decay=exp(-fraction*1.6);visibility+=open*decay;weight+=decay;
+  }
+  float radial=visibility/max(weight,.001)*exp(-distance*3.8)*(1.-exp(-distance*18.));
+  shafts+=radial*uSunIntensity*.24*(1.-smoothstep(.25,.8,uSunAltitude));
+ }
+ shafts=clamp(shafts*max(0.,1.+uRaysOffset),0.,.28);
  fragColor=vec4(0.,0.,0.,shafts);
 }`;
 /** Linear HDR bloom pyramid: masked soft-knee extraction, 13-tap downsample,
@@ -422,6 +444,7 @@ uniform float uTerrainEnabled;
 uniform sampler2D uWater;
 uniform sampler2D uLight;
 uniform sampler2D uBloom;
+uniform float uBloomOffset;
 uniform sampler2D uMask;
 uniform sampler2D uTerrain;
 uniform vec2 uResolution;
@@ -460,7 +483,7 @@ void main(){
                   .5/uResolution,1.-.5/uResolution);
  uv+=wind;
  vec4 water=texture(uWater,texUV),light=texture(uLight,texUV);
- vec3 bloom=texture(uBloom,texUV).rgb;
+ vec3 bloom=texture(uBloom,texUV).rgb*max(0.,1.+uBloomOffset);
  float mask=texture(uMask,uv).a,alpha=min(mask,water.a);
  vec3 color=uHdr>.5?waterDisplayColor(water.rgb+bloom*.48):clamp(water.rgb+bloom*.25,0.,1.);
  float shaftAlpha=light.a;

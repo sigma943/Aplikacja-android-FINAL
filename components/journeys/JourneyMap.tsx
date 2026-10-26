@@ -105,7 +105,7 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  const [selectedStop,setSelectedStop]=useState<Stop|null>(null);
  const [geometry,setGeometry]=useState<Geometry>({key:'',paths:{},failed:[]});
  const [attempt,setAttempt]=useState(0),[expanded,setExpanded]=useState(false),[fitVersion,setFitVersion]=useState(0);
- const [placeholderHeight,setPlaceholderHeight]=useState(0),[portalHost,setPortalHost]=useState<Element|null>(null);
+ const [placeholderHeight,setPlaceholderHeight]=useState(0),[dialogUiTheme,setDialogUiTheme]=useState('');
  useEffect(()=>{let alive=true;queueMicrotask(()=>{if(alive){setActiveLeg(focusLeg);setSelectedStop(null);setFitVersion(v=>v+1);}});return()=>{alive=false;};},[focusLeg,focusVersion]);
  const [dialogTheme,setDialogTheme]=useState<CSSProperties>({});
  const host=useRef<HTMLDivElement>(null),dialog=useRef<HTMLElement>(null);
@@ -174,13 +174,16 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
    const toolbar=host.current.querySelector<HTMLElement>('.connections-map-toolbar');
    setPlaceholderHeight(host.current.clientHeight-(toolbar?.offsetHeight||0));
    const computed=getComputedStyle(host.current),values:Record<string,string>={};
-   for(const name of ['--cn-surface','--cn-text','--cn-muted','--cn-edge','--cn-accent'])values[name]=computed.getPropertyValue(name);
+   for(const name of ['--cn-surface','--cn-text','--cn-muted','--cn-edge','--cn-accent','--pks-accent','--ui-surface','--ui-text','--ui-muted','--ui-edge'])values[name]=computed.getPropertyValue(name);
+   setDialogUiTheme(host.current.closest<HTMLElement>('[data-ui-theme]')?.dataset.uiTheme||'');
    setDialogTheme(values as CSSProperties);
   }
-  setPortalHost(host.current?.closest('.pks-theme-root')||document.body);setExpanded(true);
+  // A body portal escapes animated cards, transformed app roots and dock
+  // stacking contexts. Fullscreen map chrome must never expose other panels.
+  setExpanded(true);
  }
  if(endpoints.length<2)return <p className="connections-hint">Brak współrzędnych do wyświetlenia planu.</p>;
- const status=pending?<span role="status" aria-label="Wczytywanie trasy"><LoaderCircle size={17} className="animate-spin"/></span>:failed.length>0?<button aria-label="Niepełna trasa. Ponów wczytywanie" title="Niepełna trasa. Ponów wczytywanie" onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={17}/></button>:null;
+ const status=pending?<span className="connections-route-status" role="status" aria-label="Wczytywanie trasy"><LoaderCircle size={17} className="animate-spin"/></span>:failed.length>0?<button aria-label="Niepełna trasa. Ponów wczytywanie" title="Niepełna trasa. Ponów wczytywanie" onClick={()=>setAttempt(value=>value+1)}><RotateCcw size={17}/></button>:null;
  const mapContent=<>
   <MapContainer key={expanded?'fullscreen':'inline'} bounds={bounds} boundsOptions={{padding:[30,40]}} className="connections-leaflet" zoomSnap={.25} zoomControl={false} dragging touchZoom attributionControl={false} scrollWheelZoom={expanded} preferCanvas={false}>
    <MapViewport points={focusPoints} fitVersion={fitVersion}/><ZoomControl position="bottomright"/>
@@ -204,11 +207,11 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
   <div className="connections-map-toolbar"><strong>Mapa podróży</strong>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
   {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
-  {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
+  {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-ui-theme={dialogUiTheme} data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
    <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journeyDestinationLabel(journey.legs.at(-1)!.to)}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
    {mapContent}
    <JourneyMapSheet journey={journey} activeLeg={activeLeg} onFocusLeg={index=>{focusStage(index);requestAnimationFrame(()=>dialog.current?.querySelector<HTMLElement>('.leaflet-container')?.focus({preventScroll:true}));}}/>
-  </section>,portalHost||document.body)}
+  </section>,document.body)}
  </div>;
 }
 

@@ -1,3 +1,4 @@
+@layer journey-map-isolation;
 @layer pks-performance;
 @import "tailwindcss";
 
@@ -1359,31 +1360,28 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  .ui-disclosure-chevron,.personal-tabs button,.personal-choice {transition:none!important;}
 }
 
-/* Horyzont cinematic glass. Keep the scenery's contrast and hue beneath one
-   tint; the old milk/contrast filter erased the light in the reference view. */
-@layer landscape-materials {
- html[data-landscape-theme='on'][data-landscape-glass='on'] :is(.transit-surface,.transit-card,.pks-options-sheet,.map-detail-shell,.pks-map-search-panel,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel]) {
-  background-color:var(--landscape-surface)!important;
-  background-image:var(--landscape-user-glow),var(--landscape-milk-glow),linear-gradient(135deg,#ffffff12,transparent 54%)!important;
-  -webkit-backdrop-filter:blur(var(--personal-blur,8px)) saturate(125%)!important;
-  backdrop-filter:blur(var(--personal-blur,8px)) saturate(125%)!important;
-  box-shadow:var(--personal-shadow,0 8px 26px #07132126),inset 0 1px 0 var(--landscape-rim),inset 1px 0 0 #ffffff16,inset 0 -1px 0 #07132112!important;
- }
- html[data-landscape-theme='on'][data-landscape-glass='on'] .pks-navigation {
-  background-color:var(--landscape-nav-glass)!important;
-  background-image:linear-gradient(150deg,#ffe6b01c,transparent 60%)!important;
-  -webkit-backdrop-filter:blur(var(--personal-blur,8px)) saturate(130%)!important;
-  backdrop-filter:blur(var(--personal-blur,8px)) saturate(130%)!important;
-  box-shadow:0 10px 30px #07132140,inset 0 1px 0 var(--landscape-rim)!important;
- }
- html[data-landscape-theme='on'][data-landscape-glass='on'] .pks-navigation [data-nav-item]:not([aria-current='page']) { color:#f1f7fb!important; }
- html[data-landscape-theme='on'][data-landscape-glass='on'] :is(.map-stop-handle,[data-map-stop-sheet][data-expanded='false']) {
-  background-color:var(--landscape-surface)!important;
- }
- html[data-landscape-theme='on'][data-landscape-glass='on'] .map-detail-shell .map-stop-handle { background-color:transparent!important; }
- /* The map search owns a separate sky-only layer; tint it once. */
- html[data-landscape-theme='on'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:var(--landscape-solid)!important; }
- html[data-landscape-theme='on'][data-landscape-glass='off'] :is(.transit-surface,.transit-card,.pks-options-sheet,.map-detail-shell,.pks-map-search-panel,.pks-navigation) {
+
+/* Modal map surfaces are opaque in every theme, including landscape glass.
+   This first-declared layer wins important legacy/personalization fills. */
+@layer journey-map-isolation {
+ .connections-map-modal {
+  position:fixed!important;inset:0!important;z-index:20000!important;
+  background:var(--cn-solid,#0b1422)!important;
+  isolation:isolate;opacity:1!important;transform:none!important;
   -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
  }
+ :is(.journey-map,.connections-map-modal) .connections-map-toolbar,
+ .connections-map-modal .connections-map-sheet {
+  background:var(--cn-solid,#0b1422)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  box-shadow:none!important;opacity:1!important;
+ }
+ .connections-map-modal .connections-map-toolbar { color:var(--cn-text)!important; }
+ .connections-map-toolbar>.connections-route-status {
+  display:flex;align-items:center;flex:none;padding:0!important;margin:0!important;
+  border:0!important;background:transparent!important;box-shadow:none!important;
+ }
+ .connections-map-modal>.connections-map-toolbar>div { min-width:0;flex:1; }
+ .connections-map-modal>.connections-map-toolbar small { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+ .connections-map-modal .connections-sheet-handle { background:transparent!important;color:var(--cn-text)!important; }
 }

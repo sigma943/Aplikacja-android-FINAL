@@ -10,6 +10,7 @@ import {cloudDensity} from '@/lib/landscape-clouds';
 import {LandscapeRenderer} from '@/lib/landscape-renderer';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {landscapeMotionPolicy,landscapeFrameBudget} from '@/lib/landscape-motion';
+import {LANDSCAPE_SETTINGS_EVENT,readLandscapeSettings} from '@/lib/landscape-settings';
 
 const PowerPolicy=registerPlugin<{
   getStatus():Promise<{limited:boolean;critical?:boolean}>;
@@ -41,8 +42,9 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     const previewEnabled=process.env.NODE_ENV==='development'||process.env.NEXT_PUBLIC_LANDSCAPE_PREVIEW==='true';
     const now=()=>preview.iso?previewStart+(performance.now()-previewMono)*(preview.rate??1):Date.now();
     const visible=()=>!document.hidden&&nativeActive&&sceneVisible;
-    let reduced=false,light=false,appearance=normalizeInterfaceAppearance(null),accent='#00a3a2';
+    let reduced=false,light=false,appearance=normalizeInterfaceAppearance(null),accent='#00a3a2',settings=readLandscapeSettings();
     const readPreferences=()=>{
+      settings=readLandscapeSettings();renderer.effects={bloom:settings.bloom/100,reflections:settings.reflections/100,rays:settings.rays/100,waveSpeed:settings.waveSpeed/100,exposure:settings.exposure/100};
       reduced=false;light=false;appearance=normalizeInterfaceAppearance(null);accent='#00a3a2';
       try{appearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));reduced=appearance.reducedMotion;accent=localStorage.getItem('mks_theme')||accent;light=localStorage.getItem('mks_light_effects')==='true';}catch{}
     };readPreferences();
@@ -88,7 +90,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       if(samples){
         const start=performance.now(),state=interpolateAstronomy(samples.a,samples.b,now());
         // Quality-first profile: timing spikes never silently erase HDR or detail.
-        renderer.quality=preview.quality??(motionPolicy.reason==='light-effects'?'low':'high');
+        renderer.quality=preview.quality??(motionPolicy.reason==='light-effects'?'low':settings.quality);
         const sceneSeconds=preview.seconds===undefined?mono/1000:preview.seconds+(mono-previewMono)/1000;
         renderer.render(state,sceneSeconds,motionPolicy.animate,!covered.current||!!recordingCanvas);
         if(mono-lastGlass>=250&&renderer.lighting){
@@ -157,7 +159,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);
     document.addEventListener('focusin',resize);
     document.addEventListener('visibilitychange',restart);
-    window.addEventListener('focus',restart);window.addEventListener('pks-interface-appearance',restart);
+    window.addEventListener(LANDSCAPE_SETTINGS_EVENT,restart);window.addEventListener('focus',restart);window.addEventListener('pks-interface-appearance',restart);
     window.addEventListener('storage',restart);window.addEventListener('pks-landscape-location',restart);
     media.addEventListener('change',restart);
     const listeners:Promise<PluginListenerHandle>[]=[];
@@ -185,7 +187,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       refreshScene.current=null;
       window.removeEventListener('pks-landscape-window',refreshFilter);
       alive=false;cancelAnimationFrame(frameRequest);renderer.dispose();clearTimeout(drawTimer);clearTimeout(modelTimer);worker.terminate();observer.disconnect();intersection.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);document.removeEventListener('focusin',resize);
-      document.removeEventListener('visibilitychange',restart);window.removeEventListener('focus',restart);
+      document.removeEventListener('visibilitychange',restart);window.removeEventListener(LANDSCAPE_SETTINGS_EVENT,restart);window.removeEventListener('focus',restart);
       window.removeEventListener('pks-interface-appearance',restart);window.removeEventListener('storage',restart);window.removeEventListener('pks-landscape-location',restart);media.removeEventListener('change',restart);
       for(const listener of listeners)void listener.then(handle=>handle.remove());
       if(recordingCanvas)recordingCanvas.width=recordingCanvas.height=1;recordingCanvas=null;recordingContext=null;

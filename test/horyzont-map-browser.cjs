@@ -1,0 +1,32 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),puppeteer=require('puppeteer');
+const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
+(async()=>{
+ const root=process.cwd(),temp=fs.mkdtempSync(path.join(os.tmpdir(),'horyzont-map-'));let browser,server;
+ try{
+  await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'development',devtool:false,plugins:[new webpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],entry:path.join(root,'test/horyzont-map-fixture.tsx'),output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')},{test:/\.css$/,use:path.join(root,'test/journey-css-loader.cjs')}]},optimization:{minimize:false}});compiler.run((error,stats)=>compiler.close(()=>error||stats.hasErrors()?reject(error||Error(stats.toString({all:false,errors:true}))):resolve()));});
+  const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
+  server=http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost');if(url.pathname==='/'){res.setHeader('Content-Type','text/html');return res.end('<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/production.css"><div id="root"></div><script src="/fixture.js"></script>');}if(url.pathname==='/production.css'){res.setHeader('Content-Type','text/css');return res.end(css);}const base=/^\/(themes|data)\//.test(url.pathname)?path.join(root,'public'):temp,file=path.resolve(base,'.'+url.pathname);if(!file.startsWith(base+path.sep)||!fs.existsSync(file)){res.statusCode=404;return res.end();}res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.json')?'application/json':'application/octet-stream');res.end(fs.readFileSync(file));});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
+  browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(60000);
+  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+  await page.evaluateOnNewDocument(()=>localStorage.setItem('pks_horyzont_settings_v1',JSON.stringify({quality:'low'})));
+  await page.setRequestInterception(true);page.on('request',r=>r.url().startsWith(origin)||/^(blob:|data:)/.test(r.url())?r.continue():r.respond({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#c8d0d8"/></svg>'}));
+  fs.mkdirSync('test/ui-previews',{recursive:true});const checked=[];
+  for(const theme of ['dark-mountains','dark-cosmos','dark-forest','dark-oled','dark','light','light-warm','light-sky','light-pink']){
+   await page.goto(origin+'/?theme='+theme);await page.waitForSelector('.connections-bus-path');
+   await page.click('[aria-label="Powiększ mapę"]');await page.waitForSelector('.connections-map-modal .connections-bus-path');
+   const state=await page.evaluate(()=>{const modal=document.querySelector('.connections-map-modal'),header=modal.querySelector('.connections-map-toolbar'),sheet=modal.querySelector('.connections-map-sheet'),map=modal.querySelector('.leaflet-container'),p=modal.querySelector('.connections-bus-path'),hr=header.getBoundingClientRect(),sr=sheet.getBoundingClientRect();return {body:modal.parentElement===document.body,header:getComputedStyle(header).backgroundColor,sheet:getComputedStyle(sheet).backgroundColor,modal:getComputedStyle(modal).backgroundColor,position:getComputedStyle(modal).position,headerHit:modal.contains(document.elementFromPoint(innerWidth/2,Math.min(20,hr.bottom-1))),sheetHit:sheet.contains(document.elementFromPoint(innerWidth/2,sr.top+30)),line:p.getAttribute('d'),stroke:p.getAttribute('stroke'),mapHeight:map.clientHeight,top:modal.getBoundingClientRect().top,bottom:modal.getBoundingClientRect().bottom};});
+   assert.equal(state.body,true,theme);assert.equal(state.position,'fixed');assert.equal(state.top,0);assert.equal(state.bottom,851);assert.ok(state.header.startsWith('rgb('),theme+' header is opaque: '+JSON.stringify(state));assert.ok(state.sheet.startsWith('rgb('),theme+' sheet is opaque');assert.ok(state.modal.startsWith('rgb('),theme+' modal is opaque');assert.equal(state.headerHit,true);assert.equal(state.sheetHit,true);assert.ok(state.line.includes('L'));assert.equal(state.stroke,'#14b8a6');assert.ok(state.mapHeight>120);
+   await page.screenshot({path:'test/ui-previews/horyzont-map-'+theme+'.png'});checked.push(theme);
+  }
+  await page.goto(origin+'/?view=options&theme=dark-mountains');await page.waitForSelector('[data-landscape-settings]');await page.click('[data-landscape-settings]>summary');
+  await page.waitForFunction(()=>window.__landscapeDiagnostics?.().renderer.quality==='low');
+  await page.click('[data-landscape-settings] button[aria-pressed="true"]');
+  const sliders=await page.$$('[data-landscape-settings] input[type="range"]');assert.equal(sliders.length,5);
+  await page.$eval('[aria-label="Rozchodzenie się promieni"]',e=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(e,'0');e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('pks_horyzont_settings_v1')).rays===0);
+  await page.evaluate(()=>document.querySelector('[data-landscape-settings]').scrollIntoView());await page.screenshot({path:'test/ui-previews/horyzont-settings.png'});
+  await page.goto(origin+'/?view=options&theme=dark-cosmos');await page.waitForSelector('[data-personalization-panel]');assert.equal(await page.$('[data-landscape-settings]'),null);
+  assert.deepEqual(errors,[]);console.log('PASS: visible route, body portal, opaque header/sheet, navigation isolation across',checked.join(', '),'; Horyzont settings visibility and persistence');
+ }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
+})().catch(e=>{console.error(e);process.exitCode=1;});

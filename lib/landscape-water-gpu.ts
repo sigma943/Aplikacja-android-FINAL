@@ -169,7 +169,7 @@ export class LandscapeWaterGPU {
   this.upload(p,'uScene3D',this.solid?1:0);
  }
 
- render(light:LandscapeLightingState,frame:Frame,quality:WaterQuality){
+ render(light:LandscapeLightingState,frame:Frame,quality:WaterQuality,effects={bloom:1,reflections:1,rays:1,waveSpeed:1,exposure:1}){
   const gl=this.gl;if(!gl||this.lost||this.failed)return false;if(!this.programs.length)this.initialize();if(!this.programs.length)return false;
   try{
    const q=WATER_QUALITY[quality],density=Math.min(q.scale,Math.sqrt(q.pixels/(frame.width*frame.height))),width=Math.max(1,Math.floor(frame.width*density)),height=Math.max(1,Math.floor(frame.height*density));
@@ -200,6 +200,7 @@ export class LandscapeWaterGPU {
     const p=this.programs[pass],target=pass===4?this.targets[3]:pass===3?this.targets[2]:pass<2?this.targets[pass]:null,w=target?.width??this.canvas.width,h=target?.height??this.canvas.height;
     gl.bindFramebuffer(gl.FRAMEBUFFER,target?.framebuffer??null);gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clearDepth(1);gl.clear(gl.COLOR_BUFFER_BIT|(target?.depth?gl.DEPTH_BUFFER_BIT:0));gl.useProgram(p.program);
     this.configure(p,light,frame,quality,w,h,width,height,pass===0||pass===3||pass===4);
+    this.upload(p,'uBloomOffset',effects.bloom-1);this.upload(p,'uReflectionsOffset',effects.reflections-1);this.upload(p,'uRaysOffset',effects.rays-1);this.upload(p,'uWaveSpeedOffset',effects.waveSpeed-1);this.upload(p,'uExposureOffset',effects.exposure-1);
     if(pass===4){gl.uniform1f(this.uniform(p,'uMirror'),1);gl.uniform1f(this.uniform(p,'uSceneHdr'),1);this.solid!.draw(this.uniform(p,'uTree'));gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,this.targets[3].texture);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);this.reflectionUpdates++;}
     else if(pass===0){gl.bindVertexArray(this.vao);gl.drawElements(gl.TRIANGLES,this.indices,gl.UNSIGNED_SHORT,0);gl.bindVertexArray(null);}
     // The fixed camera already has registered albedo, normals and coverage in

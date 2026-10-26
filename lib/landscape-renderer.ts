@@ -20,6 +20,7 @@ export class LandscapeRenderer{
   private gpu:LandscapeWaterGPU|null=null;
   private gpuAttempted=false;
   quality:WaterQuality='high';
+  effects={bloom:1,reflections:1,rays:1,waveSpeed:1,exposure:1};
   lighting:LandscapeLightingState|null=null;
   private lunarTexture:CanvasImageSource;
   private lastBackground=-Infinity;
@@ -57,7 +58,7 @@ export class LandscapeRenderer{
     if(this.directWater&&this.gpu&&this.gpu.diagnostics().available&&!this.gpu.diagnostics().lost){
       // Within the draw task the freshly rendered GPU buffer is still valid.
       // Sheet snapshots share it instead of issuing three extra passes per card.
-      if(!waterFresh&&this.lighting)this.gpu.render(this.lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality);
+      if(!waterFresh&&this.lighting)this.gpu.render(this.lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality,this.effects);
       const gx=this.gpu.canvas.width/this.width,gy=this.gpu.canvas.height/this.height;
       context.drawImage(this.gpu.canvas,sx*gx,sy*gy,sw*gx,sh*gy,0,0,width,height);
     }
@@ -151,7 +152,7 @@ export class LandscapeRenderer{
       this.gpuAttempted=true;this.gpu=new LandscapeWaterGPU();this.gpu.setAssets(this.assets);
       if(this.directWater){this.gpu.canvas.dataset.landscapeWater='';this.gpu.canvas.setAttribute('aria-hidden','true');this.canvas.insertAdjacentElement('afterend',this.gpu.canvas);}
     }
-    const gpuReady=this.gpu?.render(lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality)??false;
+    const gpuReady=this.gpu?.render(lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality,this.effects)??false;
     if(this.directWater&&this.gpu){
       const style=`position:absolute;inset:0;width:100%;height:${this.canvas.style.height||'100%'};z-index:-1;pointer-events:none;visibility:${gpuReady?'visible':'hidden'}`;
       if(this.gpu.canvas.getAttribute('style')!==style)this.gpu.canvas.setAttribute('style',style);
@@ -171,7 +172,7 @@ export class LandscapeRenderer{
     }c.globalAlpha=1;
     const sx=sun.x*WIDTH,sy=sun.y*HEIGHT,mx=moon.x*WIDTH,my=moon.y*HEIGHT;
     if(state.sun.altitude>-.06){
-      paintSun(c,sx,sy,sky.twilight);
+      paintSun(c,sx,sy,sky.twilight,this.effects.rays);
     }
     if(state.moon.altitude>-.04){
       const glow=c.createRadialGradient(mx,my,15,mx,my,100);glow.addColorStop(0,`rgba(222,229,245,${state.illumination.fraction*.2*(1-sky.day)})`);glow.addColorStop(1,'#cadfff00');c.fillStyle=glow;c.fillRect(mx-100,my-100,200,200);

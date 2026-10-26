@@ -17,7 +17,7 @@ export function landscapeOptics(state:AstronomyState,opacity:number,glass:boolea
  return {
   '--landscape-reflection-image':'none',
   '--landscape-milk-glow':solarMilkMaterial(state.sun.altitude*180/Math.PI).glow,
-  '--landscape-rim':`rgba(${rgb},${(transmission*.34+strength*1.7).toFixed(4)})`,
+  '--landscape-rim':`rgba(${rgb},${(strength*1.7).toFixed(4)})`,
   '--landscape-reflection-strength':strength.toFixed(4),
  };
 }

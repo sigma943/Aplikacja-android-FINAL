@@ -93,6 +93,21 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify Horyzont controls and map isolation across themes
+        if: contains(github.event.pull_request.title, '[horyzont-check]')
+        run: |
+          node --test test/horyzont-settings.test.cjs test/journey-source-geometry.test.cjs test/journey-geometry.test.cjs
+          npx puppeteer browsers install chrome
+          node test/horyzont-map-browser.cjs
+
+      - name: Upload Horyzont regression screenshots
+        if: ${{ always() && contains(github.event.pull_request.title, '[horyzont-check]') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: horyzont-map-regression
+          path: test/ui-previews/horyzont-*.png
+          if-no-files-found: ignore
+
       - name: Verify living mountain astronomy and lifecycle
         if: env.FAST_APK != 'true'
         run: |

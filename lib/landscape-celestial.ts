@@ -18,8 +18,8 @@ export function moonTexture(){
   }
   c.restore();return canvas;
 }
-export function paintSun(c:CanvasRenderingContext2D,x:number,y:number,warm:number){
-  c.save();c.globalCompositeOperation='screen';
+export function paintSun(c:CanvasRenderingContext2D,x:number,y:number,warm:number,rays=1){
+  c.save();const alpha=c.globalAlpha;c.globalAlpha=alpha*Math.max(0,Math.min(2,rays));c.globalCompositeOperation='screen';
   // Subtle optical star around the actual disc, beneath clouds and terrain.
   // This is lens glare; the GPU still handles occluded atmospheric shafts.
   c.save();c.translate(x,y);
@@ -34,6 +34,6 @@ export function paintSun(c:CanvasRenderingContext2D,x:number,y:number,warm:numbe
   c.restore();
   const halo=c.createRadialGradient(x,y,8,x,y,250);halo.addColorStop(0,'#fff8cfb0');halo.addColorStop(.14,'#ffe5a85c');halo.addColorStop(.42,`rgba(255,173,82,${.09+warm*.09})`);halo.addColorStop(1,'#ffaf5100');c.fillStyle=halo;c.fillRect(x-250,y-250,500,500);
   const bloom=c.createRadialGradient(x,y,15,x,y,75);bloom.addColorStop(0,'#fffdf1ff');bloom.addColorStop(.32,'#fff0c1a0');bloom.addColorStop(1,'#ffdb8a00');c.fillStyle=bloom;c.fillRect(x-75,y-75,150,150);
-  c.globalCompositeOperation='source-over';
+  c.globalCompositeOperation='source-over';c.globalAlpha=alpha;
   const disc=c.createRadialGradient(x-5,y-7,1,x,y,SUN_RADIUS);disc.addColorStop(0,'#fffef5');disc.addColorStop(.7,'#fff5cf');disc.addColorStop(.88,'#ffedbd');disc.addColorStop(1,'#ffdf8a00');c.fillStyle=disc;c.beginPath();c.arc(x,y,SUN_RADIUS,0,Math.PI*2);c.fill();c.restore();
 }

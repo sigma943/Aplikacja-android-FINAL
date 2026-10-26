@@ -16,10 +16,11 @@ Based on successful APK build 592, commit `67e8d291`, rather than `main`.
   light effects, native power-saving cadence, severe thermal suspension,
   background suspension and context restoration still work. 60 FPS is a target,
   not a physical POCO F8 Pro measurement.
-- Atmospheric glass tint, preserved backdrop contrast, subtle optical rim,
-  dark translucent dock and a 38%/8px Horyzont preset replace opaque milk.
-  Existing custom opacity is preserved; reapplying Horyzont selects the new
-  preset. The shared first-paint material uses the same tint as the live theme.
+- The original milk panel material, navigation and Horyzont preset are restored
+  after device feedback. Fullscreen journey maps now portal to the document body
+  and have opaque chrome in every theme; landscape tint cannot expose the dock.
+- Horyzont-only options persist quality, bloom, light reflections, radial rays,
+  wave speed and water exposure. Changes reach the active renderer immediately.
 - Solar lens glare is anchored to the existing disc beneath clouds and terrain.
   Astronomical rise/set timing, transport logic and source artwork are retained.
 
@@ -34,8 +35,8 @@ Local checks: TypeScript, changed-module lint, production Android web build,
 synthetic HDR bloom pixels (wide halo, hue, alpha masking, constant-field
 energy, finite floats), and an integrated GLES rendering of water/material/
 shafts/bloom/presentation with the proxy reflection path. The full unit suite
-passes 646/647 tests; the remaining APK-signing test cannot load the local Java
-`libjli.so`. Native APK generation is pending GitHub write approval. Chrome cannot start in the restricted local container;
+passes 650/651 tests; the remaining APK-signing test cannot load the local Java
+`libjli.so`. Native APK generation uses the existing signed quick-build workflow. Chrome cannot start in the restricted local container;
 browser screenshots and actual WebGL2 lifecycle checks are prepared for GitHub
 Actions but have not yet run for this change.
 No physical Android frame-rate, heat, battery or visual identity claim is made.
