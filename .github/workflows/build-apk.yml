@@ -99,6 +99,7 @@ jobs:
           node --test test/horyzont-settings.test.cjs test/journey-source-geometry.test.cjs test/journey-geometry.test.cjs test/journey-walking-nearby.test.cjs
           npx puppeteer browsers install chrome
           node test/horyzont-map-browser.cjs
+          node test/landscape-gpu-browser.cjs
 
       - name: Upload Horyzont regression screenshots
         if: ${{ always() && contains(github.event.pull_request.title, '[horyzont-check]') }}

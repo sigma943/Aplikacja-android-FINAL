@@ -265,7 +265,7 @@ void main(){
  // Unresolved spatial/temporal slopes broaden the microfacet lobe instead of flickering.
  float alpha=sqrt(pow(roughness,4.)+variance*.045+.000050);
  float NoV=abs(dot(n,v))+.001;vec3 F=fresnelSchlick(NoV),r=reflect(-v,n);
- vec3 reflectedSky=tracedRadiance(position+n*.04,r,roughness)*F*max(0.,1.+uReflectionsOffset);
+ vec3 reflectedSky=tracedRadiance(position+n*.04,r,roughness)*F*pow(max(0.,1.+uReflectionsOffset),2.);
  // Water absorbs light; sunset colour belongs to reflected sky/light, never
  // an emissive red fill. This remains blue-black when direct sources vanish.
  vec3 body=mix(vec3(.0005,.0015,.004),vec3(.004,.048,.090),uDay);
@@ -276,9 +276,9 @@ void main(){
  if(uSunAltitude>-.01454&&uSunIntensity>.00001){
   vec3 l=lightDirection(uSunPosition,uSunAltitude),glossNormal=normalize(mix(vec3(0.,1.,0.),n,.94));
   vec3 incident=uSunColor*uSunIntensity*13.*solarExposure*mix(.18,1.,solidShadow(position+n*.04,l,uQuality>.5?4:2));
-  radiance+=(evaluateDisc(glossNormal,v,l,incident,alpha,uQuality,.006)*.80+evaluateWaterSheen(glossNormal,v,l,incident,variance)*.20)*max(0.,1.+uReflectionsOffset);
+  radiance+=(evaluateDisc(glossNormal,v,l,incident,alpha,uQuality,.006)*.80+evaluateWaterSheen(glossNormal,v,l,incident,variance)*.20)*pow(max(0.,1.+uReflectionsOffset),2.);
  }
- if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(normalize(mix(vec3(0.,1.,0.),n,.85)),v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*1.2*solidShadow(position+n*.04,lightDirection(uMoonPosition,uMoonAltitude),uQuality>.5?4:2),alpha,uQuality,.009)*max(0.,1.+uReflectionsOffset);
+ if(uMoonAltitude>0.&&uMoonIntensity>.00001&&uMoonIllumination>0.)radiance+=evaluateDisc(normalize(mix(vec3(0.,1.,0.),n,.85)),v,lightDirection(uMoonPosition,uMoonAltitude),uMoonColor*uMoonIntensity*1.2*solidShadow(position+n*.04,lightDirection(uMoonPosition,uMoonAltitude),uQuality>.5?4:2),alpha,uQuality,.009)*pow(max(0.,1.+uReflectionsOffset),2.);
  float aerial=perspective.r*.11;
  radiance=mix(radiance,skyRadiance(vec3(0.,.06,1.))*.08,aerial);
  // Relative exposure is continuous through the existing solar state.
@@ -363,6 +363,7 @@ void main(){
  vec2 pixel=vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y);
  vec2 uv=(pixel-uFrame.zw)/uFrame.xy;
  float shafts=0.;
+ float rayStrength=pow(max(0.,1.+uRaysOffset),2.);
  if(uSceneEnabled>.5&&uQuality>.5&&uSunAltitude>-.01454&&uSunIntensity>.001){
   float az=(uv.x-.5)*AZ_SPAN,el=(HORIZON-uv.y)/ALT_SPAN*(PI*.5);
   vec3 direction=vec3(sin(az)*cos(el),sin(el),cos(az)*cos(el));
@@ -386,18 +387,24 @@ void main(){
  // a static star or a second Sun over the scenery.
  if(uSunAltitude>-.01454&&uSunIntensity>.001&&uRaysOffset>-.999){
   vec2 delta=(uv-uSunPosition)*vec2(1.,2.17647);
-  float distance=length(delta),visibility=0.,weight=0.;int steps=uQuality>1.5?32:uQuality>.5?20:8;
-  for(int i=0;i<32;i++){
+  float distance=length(delta),visibility=0.,weight=0.;int steps=uQuality>1.5?64:uQuality>.5?32:12;
+  for(int i=0;i<64;i++){
    if(i>=steps)break;float fraction=(float(i)+.5)/float(steps);
    vec2 q=mix(uv,uSunPosition,fraction);
    vec2 cloudUV=vec2(1.-abs(mod(q.x-uTime*${(calibration.cloudSpeed/1000).toFixed(8)},2.)-1.),q.y);
    float open=(1.-texture(uTerrain,q).a)*(1.-texture(uClouds,cloudUV).a);
    float decay=exp(-fraction*1.6);visibility+=open*decay;weight+=decay;
   }
-  float radial=visibility/max(weight,.001)*exp(-distance*3.8)*(1.-exp(-distance*18.));
+  // Broad, feathered bundles alongside fine shafts. Their moving contrast
+  // comes from real cloud visibility; the envelope never introduces hard spokes.
+  float angle=atan(delta.y,delta.x);
+  float fan=.55+.28*pow(.5+.5*sin(angle*11.+.9),6.)+.17*pow(.5+.5*sin(angle*23.-.4),10.);
+  float reach=mix(3.8,2.1,clamp((rayStrength-1.)/3.,0.,1.));
+  float radial=visibility/max(weight,.001)*exp(-distance*reach)*(1.-exp(-distance*18.))*fan;
   shafts+=radial*uSunIntensity*.24*(1.-smoothstep(.25,.8,uSunAltitude));
  }
- shafts=clamp(shafts*max(0.,1.+uRaysOffset),0.,.28);
+ // Exponential exposure keeps increasing smoothly without a flat intensity cap.
+ shafts=1.-exp(-max(0.,shafts)*rayStrength);
  fragColor=vec4(0.,0.,0.,shafts);
 }`;
 /** Linear HDR bloom pyramid: masked soft-knee extraction, 13-tap downsample,
@@ -483,7 +490,7 @@ void main(){
                   .5/uResolution,1.-.5/uResolution);
  uv+=wind;
  vec4 water=texture(uWater,texUV),light=texture(uLight,texUV);
- vec3 bloom=texture(uBloom,texUV).rgb*max(0.,1.+uBloomOffset);
+ vec3 bloom=texture(uBloom,texUV).rgb*pow(max(0.,1.+uBloomOffset),2.);
  float mask=texture(uMask,uv).a,alpha=min(mask,water.a);
  vec3 color=uHdr>.5?waterDisplayColor(water.rgb+bloom*.48):clamp(water.rgb+bloom*.25,0.,1.);
  float shaftAlpha=light.a;

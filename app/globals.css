@@ -1397,23 +1397,11 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  html[data-landscape-theme='on'] [data-landscape-settings] .personal-note { color:var(--landscape-muted)!important;opacity:1; }
 }
 
-/* Opacity belongs to one panel fill. Map modal chrome remains opaque in the
-   journey-map-isolation layer, so navigation cannot bleed into that dialog. */
+/* Restore the established milk chrome: ordinary content cards retain the
+   opacity slider; map filters, navigation and map/options sheets stay readable. */
 @layer landscape-materials {
- html[data-landscape-theme='on'] :is(.pks-map-search-panel,.pks-navigation,.map-detail-shell,.pks-options-sheet),
- html[data-landscape-theme='on'] details.personal-group[data-landscape-settings],
- html[data-landscape-theme='on'] .map-stop-handle,
- html[data-landscape-theme='on'] [data-map-stop-sheet][data-expanded='false'] {
-  background-color:var(--landscape-surface)!important;
- }
- html[data-landscape-theme='on'][data-landscape-glass='on'] :is(.pks-navigation,.map-detail-shell,.pks-options-sheet),
- html[data-landscape-theme='on'][data-landscape-glass='on'] details.personal-group[data-landscape-settings] {
-  -webkit-backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness,1.8))!important;
-  backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness,1.8))!important;
- }
- html[data-landscape-theme='on'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:transparent!important; }
- html[data-landscape-theme='on'] [data-landscape-window='filter'][data-scene-ready='true'] { opacity:var(--landscape-material-opacity,1)!important; }
- html[data-landscape-theme='on'][data-landscape-glass='off'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:var(--landscape-solid)!important; }
+ html[data-landscape-theme='on'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:var(--landscape-solid)!important; }
+ html[data-landscape-theme='on'] [data-landscape-window='filter'][data-scene-ready='true'] { opacity:1!important; }
  html[data-landscape-theme='on'][data-landscape-glass='off'] [data-landscape-chrome='filter'] { display:none!important; }
 }
 @layer journey-map-isolation {

@@ -135,6 +135,21 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
   assert.ok(filmic.relocated>filmic.water*.01,'reflected light follows the visible disc height as well as its azimuth');
   assert.ok(filmic.energy>1,'bright facets produce an optical halo');assert.ok(filmic.nightEnergy<.001,'a source-free night cannot retain solar bloom');
   console.log('Filmic reflection pixels:',filmic);
+  // Each optical slider must change actual rendered pixels, including its
+  // upper half. Hold astronomy/time fixed so animation cannot fake a result.
+  const effectPixels=await page.evaluate(()=>{
+   const gpu=window.gpu,light={...window.gpuLight,time:7},frame=window.gpuFrame;
+   const defaults={bloom:1,reflections:1,rays:1,waveSpeed:1,exposure:1},rows=[];
+   for(const key of Object.keys(defaults)){
+    const values=key==='exposure'?[.5,1,1.5]:[0,1,2],images=[];
+    for(const value of values){gpu.render(light,frame,'high',{...defaults,[key]:value});images.push(window.gpuCopy());}
+    const difference=(a,b)=>{let total=0,changed=0;for(let i=0;i<a.length;i++){const d=Math.abs(a[i]-b[i]);total+=d;if(d>1)changed++;}return {total,changed};};
+    rows.push({key,lower:difference(images[0],images[1]),upper:difference(images[1],images[2])});
+   }
+   gpu.render(light,frame,'high',defaults);return rows;
+  });
+  for(const row of effectPixels){assert.ok(row.lower.changed>20,row.key+' lower range: '+JSON.stringify(row));assert.ok(row.upper.changed>20,row.key+' upper range: '+JSON.stringify(row));}
+  console.log('Live optical slider pixel differences:',effectPixels);
   // Test every pixel against the actual water mask, not a rectangular bounding box.
   const outside=await page.evaluate(async()=>{
    const gpu=window.gpu,c=document.createElement('canvas');c.width=gpu.targets[0].width;c.height=gpu.targets[0].height;

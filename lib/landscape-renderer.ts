@@ -42,7 +42,7 @@ export class LandscapeRenderer{
   suspend(){this.gpu?.suspend();}
   dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
   getGpuMs(){return this.gpu?.getGpuMs()??0;}
-  diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,coveredFrames:this.coveredFrames,sceneCovered:this.sceneCovered,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
+  diagnostics(){return {quality:this.quality,effects:{...this.effects},presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,coveredFrames:this.coveredFrames,sceneCovered:this.sceneCovered,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
   sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
   resize(w:number,h:number,dpr:number){
     const density=Math.min(dpr,3,Math.sqrt(3600000/(w*h)));

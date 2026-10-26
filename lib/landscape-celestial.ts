@@ -19,16 +19,20 @@ export function moonTexture(){
   c.restore();return canvas;
 }
 export function paintSun(c:CanvasRenderingContext2D,x:number,y:number,warm:number,rays=1){
-  c.save();const alpha=c.globalAlpha;c.globalAlpha=alpha*Math.max(0,Math.min(2,rays));c.globalCompositeOperation='screen';
+  c.save();const alpha=c.globalAlpha,strength=Math.max(0,Math.min(2,rays));
+  // Canvas ignores globalAlpha > 1. Put the extra energy into gradients and
+  // ray length instead, so the upper half of the slider actually changes light.
+  const gain=strength<=1?strength:1+3*(strength-1)**2;
+  c.globalAlpha=alpha*Math.min(1,gain);c.globalCompositeOperation='screen';
   // Subtle optical star around the actual disc, beneath clouds and terrain.
   // This is lens glare; the GPU still handles occluded atmospheric shafts.
   c.save();c.translate(x,y);
-  for(let i=0;i<8;i++){
-    c.save();c.rotate(i*Math.PI/4+.19);
-    const length=(i%2?260:410)*(1+warm*.25),width=i%2?13:21;
+  for(let i=0;i<12;i++){
+    c.save();c.rotate(i*Math.PI/6+.19);
+    const length=(i%2?310:490)*(1+warm*.25)*(1+.24*Math.max(0,gain-1)),width=(i%2?10:19)*(1+.18*gain);
     const ray=c.createLinearGradient(0,0,length,0);
-    ray.addColorStop(0,`rgba(255,241,186,${.08+warm*.09})`);
-    ray.addColorStop(.25,`rgba(255,205,121,${.025+warm*.04})`);ray.addColorStop(1,'rgba(255,185,91,0)');
+    ray.addColorStop(0,`rgba(255,241,186,${Math.min(.8,(.08+warm*.09)*Math.max(1,gain))})`);
+    ray.addColorStop(.25,`rgba(255,205,121,${Math.min(.5,(.025+warm*.04)*Math.max(1,gain))})`);ray.addColorStop(1,'rgba(255,185,91,0)');
     c.fillStyle=ray;c.beginPath();c.moveTo(6,-width);c.quadraticCurveTo(length*.45,-width*.25,length,0);c.quadraticCurveTo(length*.45,width*.25,6,width);c.closePath();c.fill();c.restore();
   }
   c.restore();

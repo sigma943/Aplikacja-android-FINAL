@@ -25,16 +25,29 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.waitForFunction(()=>window.__landscapeDiagnostics().renderer.quality==='medium');
   const reading=await page.$eval('[data-landscape-settings]',e=>{const s=getComputedStyle(e),c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');const parse=color=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data];};const bg=parse(s.backgroundColor),fg=parse(s.color);const lum=rgb=>rgb.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((a,v,i)=>a+v*[.2126,.7152,.0722][i],0);return {background:s.backgroundColor,color:s.color,alpha:bg[3],contrast:(Math.max(lum(bg),lum(fg))+.05)/(Math.min(lum(bg),lum(fg))+.05)};});
   console.log('Horyzont settings reading surface:',reading);
-  assert.ok(Math.abs(reading.alpha-163)<=1,'saved 64% settings opacity: '+JSON.stringify(reading));assert.ok(reading.contrast>=4.5,'readable settings: '+JSON.stringify(reading));
+  assert.ok(reading.alpha===255,'stable milk settings surface: '+JSON.stringify(reading));assert.ok(reading.contrast>=4.5,'readable settings: '+JSON.stringify(reading));
   const sliders=await page.$$('[data-landscape-settings] input[type="range"]');assert.equal(sliders.length,5);
-  await page.$eval('[aria-label="Rozchodzenie się promieni"]',e=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(e,'0');e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new Event('input',{bubbles:true}));});
-  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('pks_horyzont_settings_v1')).rays===0);
+  for(const [key,label,max] of [['bloom','Siła poświaty wody',200],['reflections','Siła odbić światła',200],['rays','Rozchodzenie się promieni',200],['waveSpeed','Prędkość fal',200],['exposure','Jasność wody',150]]){
+   for(const value of [key==='exposure'?50:0,max]){
+    await page.$eval('[aria-label="'+label+'"]',(e,value)=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(e,String(value));e.dispatchEvent(new Event('input',{bubbles:true}));},value);
+    await page.waitForFunction((key,value)=>JSON.parse(localStorage.getItem('pks_horyzont_settings_v1'))[key]===value&&window.__landscapeDiagnostics().renderer.effects[key]===value/100,{},key,value);
+   }
+  }
   for(const opacity of [20,85,100]){
    await page.evaluate(opacity=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:opacity}));window.dispatchEvent(new Event('pks-interface-appearance'));},opacity);
-   await page.waitForFunction(opacity=>[...document.querySelectorAll('[data-opacity-probes]>div,[data-landscape-settings]')].every(e=>{const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=getComputedStyle(e).backgroundColor;ctx.fillRect(0,0,1,1);return Math.abs(ctx.getImageData(0,0,1,1).data[3]/255-opacity/100)<.01;}),{},opacity);
+   await page.waitForFunction(opacity=>[...document.querySelectorAll('[data-opacity-probes]>div,[data-landscape-settings]')].every(e=>{const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=getComputedStyle(e).backgroundColor;ctx.fillRect(0,0,1,1);const expected=e.hasAttribute('data-adjustable-card')?opacity/100:1;return Math.abs(ctx.getImageData(0,0,1,1).data[3]/255-expected)<.01;}),{},opacity);
   }
+  assert.equal(await page.$eval('[data-landscape-window="filter"]',e=>getComputedStyle(e).opacity),'1','filter sky stays independent of card opacity');
   await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:64}));window.dispatchEvent(new Event('pks-interface-appearance'));});
   await page.evaluate(()=>document.querySelector('[data-landscape-settings]').scrollIntoView());await page.screenshot({path:'test/ui-previews/horyzont-settings.png'});
+  // Show the real layered scene, with fixed solar time, for visual inspection.
+  await page.evaluate(()=>{document.querySelector('[data-personalization-panel]').style.display='none';document.querySelector('[data-opacity-probes]').style.display='none';window.__landscapePreview({iso:'2026-10-25T16:15:00+01:00',rate:0,quality:'high',seconds:0});});
+  await page.waitForFunction(()=>window.__landscapeDiagnostics().renderer.quality==='high');
+  for(const strength of [0,100,200]){
+   await page.evaluate(strength=>{localStorage.setItem('pks_horyzont_settings_v1',JSON.stringify({quality:'high',bloom:strength,reflections:strength,rays:strength,waveSpeed:100,exposure:100}));window.dispatchEvent(new Event('pks-horyzont-settings'));},strength);
+   await page.waitForFunction(strength=>window.__landscapeDiagnostics().renderer.effects.rays===strength/100,{},strength);
+   await new Promise(r=>setTimeout(r,700));await page.screenshot({path:'test/ui-previews/horyzont-light-'+strength+'.png'});
+  }
   await page.goto(origin+'/?view=options&theme=dark-cosmos');await page.waitForSelector('[data-personalization-panel]');assert.equal(await page.$('[data-landscape-settings]'),null);
   assert.deepEqual(errors,[]);console.log('PASS: visible route, body portal, opaque header/sheet, navigation isolation across',checked.join(', '),'; mixed walking route, adjustable panel opacity, Horyzont settings visibility and persistence');
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
