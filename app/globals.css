@@ -1408,3 +1408,27 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
 @layer journey-map-isolation {
  .connections-map-endpoint-note { flex:none;margin:0!important;padding:7px 12px!important;background:var(--cn-solid,#0b1422)!important;color:var(--cn-text)!important;font-size:11px;line-height:1.5;border-radius:0!important; }
 }
+
+/* Admin-only reading materials. Other landscape cards keep their opacity. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] [data-admin-sidebar] {
+  --landscape-ink:#0b1b26!important;--landscape-muted:#334b5e!important;
+  --landscape-field:#e9f2f6!important;--landscape-edge:#b7cbd4!important;--landscape-accent:#006b65!important;
+  background:#f5f9fc!important;color:#0b1b26!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-sidebar] .pks-personal-card { background:#edf4f8!important;background-image:none!important; }
+ html[data-landscape-theme='on'] [data-admin-sidebar] svg { color:#006b65!important; }
+ html[data-landscape-theme='on'] [data-statistics-view] {
+  --statistics-plot:#f4f8fc;--statistics-axis:#40566c;--statistics-grid:#bccbd6;--statistics-series:#007f79;--statistics-errors:#be123c;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-statistics-view] {
+  --statistics-plot:#101d2c;--statistics-axis:#b8c8dc;--statistics-grid:#64748b;--statistics-series:#5eead4;--statistics-errors:#ff8fa3;
+ }
+}
+[data-statistics-chart] rect[role='button'] { fill:transparent!important;stroke:none!important;outline:none!important; }
+[data-statistics-view] [data-statistics-export] { border:0!important;box-shadow:none!important; }
+
+@layer pks-performance {
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] [data-admin-sidebar] { background:#f5f9fc!important; }
+}
