@@ -96,7 +96,7 @@ jobs:
       - name: Verify Horyzont controls and map isolation across themes
         if: contains(github.event.pull_request.title, '[horyzont-check]')
         run: |
-          node --test test/horyzont-settings.test.cjs test/journey-source-geometry.test.cjs test/journey-geometry.test.cjs
+          node --test test/horyzont-settings.test.cjs test/journey-source-geometry.test.cjs test/journey-geometry.test.cjs test/journey-walking-nearby.test.cjs
           npx puppeteer browsers install chrome
           node test/horyzont-map-browser.cjs
 

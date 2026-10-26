@@ -19,6 +19,8 @@ Based on successful APK build 592, commit `67e8d291`, rather than `main`.
 - The original milk panel material, navigation and Horyzont preset are restored
   after device feedback. Fullscreen journey maps now portal to the document body
   and have opaque chrome in every theme; landscape tint cannot expose the dock.
+  Ordinary panels respect the saved opacity, including navigation and options.
+  The sky-only filter uses a single alpha-controlled canvas layer.
 - Horyzont-only options persist quality, bloom, light reflections, radial rays,
   wave speed and water exposure. Changes reach the active renderer immediately.
 - Solar lens glare is anchored to the existing disc beneath clouds and terrain.
@@ -40,3 +42,13 @@ passes 650/651 tests; the remaining APK-signing test cannot load the local Java
 browser screenshots and actual WebGL2 lifecycle checks are prepared for GitHub
 Actions but have not yet run for this change.
 No physical Android frame-rate, heat, battery or visual identity claim is made.
+
+## Walking display near selected coordinates
+
+The planner still requires endpoints within 8 m of the returned foot network.
+Only the map display can accept up to 50 m of endpoint snapping. Its cache is
+separate from the planner cache. Returned foot-network vertices are preserved;
+no straight connector is drawn across unknown land. The map displays the gap
+and says final access is unconfirmed. A recorded OSRM answer from Warszawska
+ZS. Samoch. 04 returns a valid 855.6 m path with a 15.4 m endpoint gap; tests
+cover its display, strict planner rejection and mixed bus/walking maps.

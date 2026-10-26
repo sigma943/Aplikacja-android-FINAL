@@ -8,6 +8,7 @@ import {MapContainer,TileLayer,CircleMarker,Polyline,Marker,ZoomControl,useMap,u
 import {Maximize2,Minimize2,ScanLine,RotateCcw,LoaderCircle,X} from 'lucide-react';
 import L from 'leaflet';
 import {journeyLegPath,journeyLegStops} from '@/lib/journey-leg-path';
+import {stopDistance} from '@/lib/journey-planner';
 import {journeyPathMidpoint,journeyPointRole,journeyPointSize,journeyPointPriority,spacedJourneyPoints,type JourneyPointRole} from '@/lib/journey-map-markers';
 import {getVehicleColor} from '@/components/map/vehicle-icons';
 import {type Journey,type JourneyLeg} from '@/lib/journey-planner';
@@ -167,6 +168,11 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  const visibleMarkers=legStopIds?markers.filter(marker=>legStopIds.has(marker.stop.id)):markers;
  const selectedMarker=visibleMarkers.find(marker=>marker.stop.id===selectedStop?.id);
  const failed=geometry.key===geometryKey?geometry.failed:[];
+ const walkingGap=Math.max(0,...journey.legs.flatMap((leg,index)=>{
+  const path=paths[index];if(leg.walking===undefined||!path?.length)return [];
+  return [stopDistance(leg.from,{lat:path[0][0],lon:path[0][1]} as Stop),stopDistance(leg.to,{lat:path.at(-1)![0],lon:path.at(-1)![1]} as Stop)];
+ }));
+ const endpointNote=walkingGap>8?<p className="connections-map-endpoint-note">Trasa piesza prowadzi po najbliższej ścieżce, do {Math.ceil(walkingGap)} m od wskazanego punktu. Końcowe dojście nie jest potwierdzone.</p>:null;
  const pending=Object.keys(paths).length+failed.length<journey.legs.length;
  useEffect(()=>{if(!failed.length)return;const retry=()=>setAttempt(v=>v+1);window.addEventListener('online',retry);return()=>window.removeEventListener('online',retry);},[failed.length]);
  function openMap(){
@@ -206,10 +212,11 @@ function JourneyMap({journey,dark,focusLeg=null,focusVersion=0,onFocusLeg}:Journ
  </>;
  return <div className="journey-map" data-panel-theme={dark?'dark':'light'} ref={host}>
   <div className="connections-map-toolbar"><strong>Mapa podróży</strong>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={19}/></button><button aria-label="Powiększ mapę" onClick={openMap}><Maximize2 size={19}/><span>Pełny ekran</span></button></div>
-  {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:mapContent}
+  {expanded?<div className="connections-map-placeholder" style={{height:placeholderHeight||undefined}}/>:<>{mapContent}{endpointNote}</>}
   {expanded&&createPortal(<section ref={dialog} className="connections-map-modal" data-ui-theme={dialogUiTheme} data-panel-theme={dark?'dark':'light'} style={dialogTheme} role="dialog" aria-modal="true" aria-label="Mapa podróży na pełnym ekranie">
    <header className="connections-map-toolbar"><div><strong>Mapa podróży</strong><small>{journeyDepartureLabel(journey.legs[0])} → {journeyDestinationLabel(journey.legs.at(-1)!.to)}</small></div>{status}<button aria-label="Pokaż całą trasę" onClick={()=>focusStage(null)}><ScanLine size={20}/></button><button aria-label="Zamknij pełny ekran mapy" onClick={()=>setExpanded(false)}><Minimize2 size={20}/></button></header>
    {mapContent}
+   {endpointNote}
    <JourneyMapSheet journey={journey} activeLeg={activeLeg} onFocusLeg={index=>{focusStage(index);requestAnimationFrame(()=>dialog.current?.querySelector<HTMLElement>('.leaflet-container')?.focus({preventScroll:true}));}}/>
   </section>,document.body)}
  </div>;

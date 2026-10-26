@@ -24,6 +24,7 @@ export function landscapePalette(state:AstronomyState,glassOpacity=64,day=isLand
   const protective=opacity;
   return {
     '--landscape-surface':`rgba(${surface},${opacity})`,
+    '--landscape-material-opacity':String(opacity),
     '--landscape-ink':day?'rgb(11,27,38)':'rgb(244,248,252)',
     '--landscape-muted':day?'rgb(27,46,60)':'rgb(212,229,240)',
     '--landscape-accent':uiAccentVariables(accent,!day)['--pks-accent-text'],

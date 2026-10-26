@@ -1396,3 +1396,26 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  }
  html[data-landscape-theme='on'] [data-landscape-settings] .personal-note { color:var(--landscape-muted)!important;opacity:1; }
 }
+
+/* Opacity belongs to one panel fill. Map modal chrome remains opaque in the
+   journey-map-isolation layer, so navigation cannot bleed into that dialog. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] :is(.pks-map-search-panel,.pks-navigation,.map-detail-shell,.pks-options-sheet),
+ html[data-landscape-theme='on'] details.personal-group[data-landscape-settings],
+ html[data-landscape-theme='on'] .map-stop-handle,
+ html[data-landscape-theme='on'] [data-map-stop-sheet][data-expanded='false'] {
+  background-color:var(--landscape-surface)!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-glass='on'] :is(.pks-navigation,.map-detail-shell,.pks-options-sheet),
+ html[data-landscape-theme='on'][data-landscape-glass='on'] details.personal-group[data-landscape-settings] {
+  -webkit-backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness,1.8))!important;
+  backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness,1.8))!important;
+ }
+ html[data-landscape-theme='on'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:transparent!important; }
+ html[data-landscape-theme='on'] [data-landscape-window='filter'][data-scene-ready='true'] { opacity:var(--landscape-material-opacity,1)!important; }
+ html[data-landscape-theme='on'][data-landscape-glass='off'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:var(--landscape-solid)!important; }
+ html[data-landscape-theme='on'][data-landscape-glass='off'] [data-landscape-chrome='filter'] { display:none!important; }
+}
+@layer journey-map-isolation {
+ .connections-map-endpoint-note { flex:none;margin:0!important;padding:7px 12px!important;background:var(--cn-solid,#0b1422)!important;color:var(--cn-text)!important;font-size:11px;line-height:1.5;border-radius:0!important; }
+}
