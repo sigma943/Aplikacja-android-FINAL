@@ -408,9 +408,30 @@ uniform vec2 uResolution;
 uniform vec4 uFrame;
 uniform vec3 uSunColor;
 uniform float uHdr;
+uniform float uTime;
 out vec4 fragColor;
 const float PI=3.141592653589793;
 ${optics}
+// Registered foreground only: branch tips flex more than the rooted lower edge.
+// No screen-wide displacement: distant ridges, shores and river stay registered.
+vec2 foliageWind(vec2 uv,vec3 albedo){
+ float leftEdge=mix(.055,.29,smoothstep(.45,.85,uv.y));
+ float left=(1.-smoothstep(leftEdge*.48,leftEdge,uv.x))*smoothstep(.405,.47,uv.y);
+ float right=smoothstep(.87,.98,uv.x)*smoothstep(.79,.88,uv.y);
+ float bottom=smoothstep(.94,.995,uv.y)*(1.-smoothstep(.38,.58,uv.x));
+ float foliage=smoothstep(.012,.09,albedo.g-albedo.b)*smoothstep(-.10,.03,albedo.g-albedo.r);
+ float rooted=1.-.8*smoothstep(.965,1.,uv.y);
+ float weight=max(left,max(right,bottom))*foliage*rooted;
+ // Slow travelling gust envelope, broad branch bend, then small leaf flutter.
+ // Incommensurate frequencies avoid a repeated pendulum beat.
+ float phase=uv.x*19.+uv.y*11.;
+ float gust=.50+.28*sin(uTime*.37-uv.y*4.1)+.16*sin(uTime*.173+uv.x*6.);
+ float bend=sin(uTime*.91+phase*.24)+.35*sin(uTime*1.43-phase*.37);
+ float flutter=sin(uTime*3.7+uv.y*117.+uv.x*63.)*.20
+              +sin(uTime*5.13+uv.x*157.-uv.y*73.)*.09;
+ return weight*gust*vec2(.0048*bend+.0014*flutter,
+                         .00065*sin(uTime*1.17+phase)+.0005*flutter);
+}
 void main(){
  vec2 texUV=gl_FragCoord.xy/uResolution;
  vec2 uv=(vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y)-uFrame.zw)/uFrame.xy;
@@ -420,6 +441,17 @@ void main(){
  float shaftAlpha=light.a;
  color=mix(color,uSunColor,shaftAlpha*.25);
  vec4 terrain=texture(uLitTerrain,texUV);terrain.a*=uTerrainEnabled;
+ vec2 wind=foliageWind(uv,texture(uTerrain,uv).rgb);
+ if(dot(wind,wind)>0.0000000001&&terrain.a>.99){
+  // Pin cutout edges: never pull transparent river/sky holes into the leaves,
+  // or expose the unmoving fallback underneath as a second branch silhouette.
+  vec2 guard=vec2(.006,.003);
+  float coverage=min(min(texture(uTerrain,uv+vec2(guard.x,0.)).a,texture(uTerrain,uv-vec2(guard.x,0.)).a),
+                     min(texture(uTerrain,uv+vec2(0.,guard.y)).a,texture(uTerrain,uv-vec2(0.,guard.y)).a));
+  wind*=smoothstep(.95,1.,coverage);
+  vec2 sampleUV=texUV+vec2(wind.x,-wind.y)*uFrame.xy/uResolution;
+  terrain.rgb=texture(uLitTerrain,clamp(sampleUV,vec2(0.),vec2(1.))).rgb;
+ }
  float surface=min(1.,alpha+terrain.a);
  float haloAlpha=clamp(dot(light.rgb,vec3(.2126,.7152,.0722))*(uHdr>.5?.025:.055),0.,.075);
  vec3 halo=uHdr>.5?waterDisplayColor(light.rgb*.24):clamp(light.rgb,0.,1.);

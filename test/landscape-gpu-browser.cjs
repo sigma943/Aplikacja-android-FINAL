@@ -28,6 +28,26 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    return {ok,changed,opaque,skyAlpha,skyPixels,error,diagnostics:gpu.diagnostics(),canLose:!!extension};
   });
   assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.error,0);assert.ok(result.changed>500);assert.ok(result.opaque>500);assert.ok(result.skyAlpha<result.skyPixels*255*.08,'god rays remain a subtle background effect');assert.equal(result.diagnostics.drawCalls,3);assert.equal(result.diagnostics.scene3D,true);assert.ok(result.diagnostics.sceneVertices>20000);assert.ok(result.diagnostics.treeInstances>100);assert.ok(result.diagnostics.reflectionUpdates>0);assert.ok(result.diagnostics.vertices>3000);assert.ok(result.diagnostics.pixels<=360000);
+  const wind=await page.evaluate(()=>{
+   const gpu=window.gpu,gl=gpu.canvas.getContext('webgl2'),p=gpu.programs[2];
+   // Keep water, shafts and relighting cached: isolate the presentation wind.
+   const at=time=>{gl.useProgram(p.program);gl.uniform1f(gl.getUniformLocation(p.program,'uTime'),time);gl.drawArrays(gl.TRIANGLES,0,3);return window.gpuCopy();};
+   const a=at(0),b=at(2.1),same=at(2.1),w=gpu.canvas.width,h=gpu.canvas.height;
+   let moved=0,peaks=0,banks=0,alpha=0,frozen=0;
+   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=(y*w+x)*4,delta=Math.max(...[0,1,2].map(c=>Math.abs(a[i+c]-b[i+c])));
+    if(delta>2)moved++;if(y<h*.405)peaks=Math.max(peaks,delta);
+    if(y>h*.48&&y<h*.78&&x>w*.32&&x<w*.84)banks=Math.max(banks,delta);
+    alpha=Math.max(alpha,Math.abs(a[i+3]-b[i+3]));
+    for(let c=0;c<4;c++)frozen=Math.max(frozen,Math.abs(same[i+c]-b[i+c]));
+   }
+   return {moved,peaks,banks,alpha,frozen,error:gl.getError()};
+  });
+  assert.ok(wind.moved>1000,'foreground foliage moves visibly');
+  assert.equal(wind.peaks,0,'wind leaves mountains and sky fixed');assert.equal(wind.banks,0,'wind leaves distant shores fixed');
+  assert.equal(wind.alpha,0,'wind cannot expose ghost branch edges or alter river coverage');
+  assert.equal(wind.frozen,0,'frozen animation clock retains the same foliage');assert.equal(wind.error,0);
+  console.log('Foreground wind pixels:',wind);
   const material=await page.evaluate(()=>{
    const gpu=window.gpu,light=window.gpuLight,gl=gpu.canvas.getContext('webgl2');
    const measure=()=>{const t=gpu.targets[2],p=new Uint8Array(t.width*t.height*4);gl.bindFramebuffer(gl.FRAMEBUFFER,t.framebuffer);gl.readPixels(0,0,t.width,t.height,gl.RGBA,gl.UNSIGNED_BYTE,p);gl.bindFramebuffer(gl.FRAMEBUFFER,null);let sum=0,n=0;for(let i=0;i<p.length;i+=4)if(p[i+3]>240){sum+=p[i]+p[i+1]+p[i+2];n++;}return sum/Math.max(n,1);};
