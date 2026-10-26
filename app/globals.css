@@ -1325,8 +1325,8 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
  html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
   color:var(--landscape-ink)!important;background-color:var(--landscape-surface)!important;
   background-image:var(--landscape-milk-glow)!important;border:1px solid var(--landscape-edge);border-radius:var(--personal-card-radius,18px);
-  -webkit-backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
-  backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
+  -webkit-backdrop-filter:blur(var(--personal-blur,12px))!important;
+  backdrop-filter:blur(var(--personal-blur,12px))!important;
  }
  html[data-landscape-theme='on'] :is(.connections-results-heading,.connections-warning,.connections-error,.connections-hint,.journey-error,.journey-hint) { padding:12px 14px; }
  html[data-landscape-theme='on'] [data-admin-sidebar] { border-radius:0!important;box-shadow:12px 0 40px #07132140!important;isolation:isolate; }
@@ -1391,6 +1391,7 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
     a dark valley; their colours follow the same day/night material as panels. */
  html[data-landscape-theme='on'] details.personal-group[data-landscape-settings] {
   background-color:var(--landscape-solid,#f2f8fc)!important;
+  background-image:var(--landscape-user-glow,linear-gradient(transparent,transparent)),var(--personal-pattern-image,linear-gradient(transparent,transparent)),var(--landscape-milk-glow,linear-gradient(transparent,transparent))!important;
   color:var(--landscape-ink,#0b1b26)!important;
   border:1px solid var(--landscape-edge,#2b4f6329)!important;
  }

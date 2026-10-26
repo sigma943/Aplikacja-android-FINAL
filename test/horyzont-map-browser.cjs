@@ -37,6 +37,24 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.evaluate(opacity=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:opacity}));window.dispatchEvent(new Event('pks-interface-appearance'));},opacity);
    await page.waitForFunction(opacity=>[...document.querySelectorAll('[data-opacity-probes]>div,[data-opacity-probes]>article,[data-landscape-settings]')].every(e=>{const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=getComputedStyle(e).backgroundColor;ctx.fillRect(0,0,1,1);const expected=e.hasAttribute('data-adjustable-card')?opacity/100:1;return Math.abs(ctx.getImageData(0,0,1,1).data[3]/255-expected)<.01;}),{},opacity);
   }
+  // Measure transmitted contrast in pixels: alpha alone missed the old
+  // contrast(.2) scrim that visually hid the scenery at 20%, especially at night.
+  for(const [period,iso] of [['day','2026-10-26T12:00:00+01:00'],['night','2026-10-26T20:07:00+01:00']]){
+   await page.evaluate(iso=>{window.__landscapePreview({iso,rate:0,quality:'low',seconds:0});localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:20}));window.dispatchEvent(new Event('pks-interface-appearance'));},iso);
+   await page.waitForFunction(period=>document.documentElement.dataset.landscapePeriod===period,{},period);
+   await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-adjustable-card]')).backgroundColor.endsWith('0.2)'));
+   await page.evaluate(()=>{const host=document.createElement('div');host.id='transmission-probe';host.style.cssText='position:fixed;top:0;left:0;width:160px;height:80px;z-index:30000;background:linear-gradient(to right,#000 50%,#fff 50%);isolation:isolate';const card=document.createElement('div');card.className='transit-card';card.style.cssText='position:absolute;inset:0;border:0;border-radius:0;box-shadow:none';host.append(card);document.body.append(host);});
+   const shot=await page.screenshot({clip:{x:0,y:0,width:160,height:80}}),pixels=await require('sharp')(shot).removeAlpha().raw().toBuffer();
+   const delta=[0,1,2].map(c=>Math.abs(pixels[(40*160+140)*3+c]-pixels[(40*160+20)*3+c]));
+   assert.ok(delta.every(d=>d>170),period+' 20% cards must transmit background contrast: '+delta);
+   await page.evaluate(()=>document.getElementById('transmission-probe').remove());
+   console.log('20% panel transmitted contrast',period,delta);
+  }
+  const glowBefore=await page.$eval('[data-landscape-settings]',e=>getComputedStyle(e).backgroundImage);
+  await page.evaluate(()=>{document.documentElement.dataset.panelGlow='on';document.documentElement.style.setProperty('--panel-glow-image','radial-gradient(at 0% 0%, rgb(10, 240, 100), transparent)');});
+  const glowAfter=await page.$eval('[data-landscape-settings]',e=>getComputedStyle(e).backgroundImage);
+  assert.notEqual(glowAfter,glowBefore,'Horyzont options must react to panel glow');assert.ok(glowAfter.includes('10, 240, 100'));
+  await page.evaluate(()=>{document.documentElement.dataset.panelGlow='off';document.documentElement.style.removeProperty('--panel-glow-image');});
   assert.equal(await page.$eval('[data-landscape-window="filter"]',e=>getComputedStyle(e).opacity),'1','filter sky stays independent of card opacity');
   await page.evaluate(()=>{localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:64}));window.dispatchEvent(new Event('pks-interface-appearance'));});
   await page.evaluate(()=>document.querySelector('[data-landscape-settings]').scrollIntoView());await page.screenshot({path:'test/ui-previews/horyzont-settings.png'});
