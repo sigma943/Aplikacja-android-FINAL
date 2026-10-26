@@ -1390,9 +1390,9 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  /* Dedicated controls need a stable reading surface even over bright rays or
     a dark valley; their colours follow the same day/night material as panels. */
  html[data-landscape-theme='on'] [data-landscape-settings] {
-  background-color:var(--landscape-solid)!important;
-  color:var(--landscape-ink)!important;
-  border:1px solid var(--landscape-edge)!important;
+  background-color:var(--landscape-solid,#f2f8fc)!important;
+  color:var(--landscape-ink,#0b1b26)!important;
+  border:1px solid var(--landscape-edge,#2b4f6329)!important;
  }
  html[data-landscape-theme='on'] [data-landscape-settings] .personal-note { color:var(--landscape-muted)!important;opacity:1; }
 }
