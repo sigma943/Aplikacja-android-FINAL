@@ -10,19 +10,41 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(60000);
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   fs.mkdirSync('test/ui-previews',{recursive:true});
+  const contrast=(a,b)=>{const lum=c=>c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
   for(const theme of ['dark-mountains','dark-cosmos','dark-forest','dark-oled','dark','light','light-warm','light-sky','light-pink'])for(const night of theme==='dark-mountains'?[false,true]:[false]){
    await page.goto(origin+'/?theme='+theme+(night?'&night':''));await page.waitForSelector('[data-statistics-chart]');
    await page.evaluate(()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Dzisiaj').click());
    const stats=await page.evaluate(()=>{const chart=document.querySelector('[data-statistics-chart="requests"]'),plot=chart.querySelector('[data-statistics-plot]'),marks=chart.querySelectorAll('[data-statistics-marks] circle');return {plot:getComputedStyle(plot).fill,marks:[...marks].map(e=>({fill:getComputedStyle(e).fill,r:e.getAttribute('r')})),rects:[...chart.querySelectorAll('rect[role="button"]')].map(e=>getComputedStyle(e).stroke),exportBorder:getComputedStyle(document.querySelector('[data-statistics-export]')).borderTopWidth};});
-   const contrast=(a,b)=>{const lum=c=>c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+
    assert.equal(stats.marks.length,2,'single-day requests and errors both have marks');for(const m of stats.marks)assert.ok(contrast(m.fill,stats.plot)>=3,theme+' series contrast '+JSON.stringify(stats));assert.ok(stats.rects.every(s=>s==='none'));assert.equal(stats.exportBorder,'0px');
    await page.$eval('[data-statistics-chart="requests"]',e=>e.scrollIntoView({block:'center'}));await page.screenshot({path:'test/ui-previews/horyzont-admin-chart-'+theme+(night?'-night':'')+'.png'});
    await page.$eval('[data-statistics-chart="requests"] rect[role="button"]',e=>e.dispatchEvent(new MouseEvent('click',{bubbles:true})));await page.waitForSelector('[data-statistics-tooltip]');assert.match(await page.$eval('[data-statistics-tooltip]',e=>e.textContent),/100/);await page.keyboard.press('Escape');
-   await page.$eval('[aria-label="Otwórz menu statystyk"]',e=>e.click());await new Promise(r=>setTimeout(r,350));
+   await page.$eval('[aria-label="Otwórz menu statystyk"]',e=>e.scrollIntoView());await page.click('[aria-label="Otwórz menu statystyk"]');await new Promise(r=>setTimeout(r,350));
    const sidebar=await page.$eval('[data-admin-sidebar]',e=>({bg:getComputedStyle(e).backgroundColor,ink:getComputedStyle(e).color,width:e.getBoundingClientRect().width,body:document.body.scrollWidth,card:getComputedStyle(document.querySelector('[data-control-card]')).backgroundColor}));
    assert.ok(sidebar.width<=393);assert.ok(sidebar.body<=393,'no sidebar or SVG overflow');
-   if(theme==='dark-mountains'){assert.equal(sidebar.bg,'rgb(245, 249, 252)');assert.ok(contrast(sidebar.bg,sidebar.ink)>7);assert.ok(sidebar.card.endsWith('0.2)'),'other panels keep 20%');}
+   if(theme==='dark-mountains'){assert.equal(sidebar.bg,night?'rgb(16, 29, 44)':'rgb(245, 249, 252)');assert.ok(contrast(sidebar.bg,sidebar.ink)>7);assert.ok(sidebar.card.endsWith('0.2)'),'other panels keep 20%');}
+   if(theme==='dark-mountains'){
+    for(const period of ['night','day',night?'night':'day']){
+     await page.evaluate(period=>document.documentElement.dataset.landscapePeriod=period,period);
+     assert.equal(await page.$eval('[data-admin-sidebar]',e=>getComputedStyle(e).backgroundColor),period==='night'?'rgb(16, 29, 44)':'rgb(245, 249, 252)','open sidebar follows live day/night change');
+    }
+   }
    await page.screenshot({path:'test/ui-previews/horyzont-admin-sidebar-'+theme+(night?'-night':'')+'.png'});console.log('PASS admin',theme,night?'night':'day',stats,sidebar);
+  }
+  for(const theme of ['dark-mountains','dark-cosmos','dark-forest','dark-oled','dark','light','light-warm','light-sky','light-pink'])for(const night of theme==='dark-mountains'?[false,true]:[false])for(const provider of theme==='dark-mountains'?['pks','mpk_rzeszow','marcel']:['pks']){
+   await page.goto(origin+'/?view=bus&theme='+theme+(night?'&night':'')+'&provider='+provider);await page.waitForSelector('[data-map-bus-sheet]');
+   await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-map-bus-sheet]')).opacity==='1');
+   for(const expanded of [false,true,false]){
+    if(expanded!==(await page.$eval('[data-map-bus-sheet]',e=>e.dataset.expanded==='true')))await page.click('[data-vehicle-header]');
+    await page.waitForFunction(expanded=>document.querySelector('[data-map-bus-sheet]').dataset.expanded===String(expanded),{},expanded);await new Promise(r=>setTimeout(r,400));
+    const panel=await page.$eval('[data-map-bus-sheet]',e=>{const h=e.querySelector('[data-vehicle-header]'),s=getComputedStyle(e),hs=getComputedStyle(h),r=e.getBoundingClientRect(),hr=h.getBoundingClientRect();return {fill:s.backgroundColor,image:s.backgroundImage,header:hs.backgroundColor,headerImage:hs.backgroundImage,ink:hs.color,height:r.height,headerHeight:hr.height,bottom:r.bottom,nav:document.querySelector('[data-test-navigation]').getBoundingClientRect().top,text:h.textContent};});
+    assert.match(panel.text,/108/);assert.match(panel.text,/Scania/);assert.ok(panel.height>150&&panel.headerHeight>100,'bus header has its actual size');assert.ok(panel.bottom<=panel.nav+2,'sheet remains above navigation');
+    assert.ok(panel.headerImage!=='none'||/^rgb\(/.test(panel.header),'carrier header must paint an opaque gradient or solid fill: '+JSON.stringify(panel));
+    if(theme==='dark-mountains')assert.ok(/^rgb\(/.test(panel.fill),'landscape bus sheet must retain a solid backing: '+JSON.stringify(panel));
+    const headerColors=panel.headerImage==='none'?[panel.header]:panel.headerImage.match(/rgb\([^)]+\)/g)||[];assert.ok(headerColors.length>0);for(const c of headerColors)assert.ok(contrast(c,panel.ink)>=4.5,'readable vehicle header: '+JSON.stringify(panel));
+    if(provider==='pks')await page.screenshot({path:'test/ui-previews/horyzont-bus-'+theme+(night?'-night':'')+(expanded?'-expanded':'-collapsed')+'.png'});
+   }
+   console.log('PASS bus sheet',theme,night?'night':'day',provider,'collapsed/expanded/collapsed');
   }
   assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}

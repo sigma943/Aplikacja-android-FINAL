@@ -1414,11 +1414,12 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel {
   --landscape-ink:#0b1b26!important;--landscape-muted:#334b5e!important;
   --landscape-field:#e9f2f6!important;--landscape-edge:#b7cbd4!important;--landscape-accent:#006b65!important;
-  background:#f5f9fc!important;color:#0b1b26!important;
+  --admin-sidebar-bg:#f5f9fc;--admin-sidebar-card:#edf4f8;
+  background:var(--admin-sidebar-bg)!important;color:var(--landscape-ink)!important;
   -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
  }
- html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel .pks-personal-card { background:#edf4f8!important;background-image:none!important; }
- html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel svg { color:#006b65!important; }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel .pks-personal-card { background:var(--admin-sidebar-card)!important;background-image:none!important; }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel svg { color:var(--landscape-accent)!important; }
  html[data-landscape-theme='on'] [data-statistics-view] {
   --statistics-plot:#f4f8fc;--statistics-axis:#40566c;--statistics-grid:#bccbd6;--statistics-series:#007f79;--statistics-errors:#be123c;
  }
@@ -1430,5 +1431,24 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
 [data-statistics-view] [data-statistics-export] { border:0!important;box-shadow:none!important; }
 
 @layer pks-performance {
- html[data-landscape-theme='on'][data-personal-light-effects='on'] [data-admin-sidebar].pks-personal-panel { background:#f5f9fc!important; }
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] [data-admin-sidebar].pks-personal-panel { background:var(--admin-sidebar-bg,#f5f9fc)!important; }
+}
+
+@layer landscape-materials {
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-sidebar].pks-personal-panel {
+  --admin-sidebar-bg:#101d2c;--admin-sidebar-card:#17293c;
+  --landscape-ink:#f3f7fb!important;--landscape-muted:#c2d1df!important;
+  --landscape-field:#1c3044!important;--landscape-edge:#425b71!important;--landscape-accent:#a4e3d1!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel>div:first-child>div:first-child>div { color:var(--landscape-accent)!important; }
+ /* The real bus sheet contains a hidden landscape canvas. Its presence must
+    never let the sky-window transparency rule erase the vehicle material. */
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='bus'] {
+  background:var(--landscape-solid)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='bus'] [data-vehicle-header] {
+  background:var(--vehicle-carrier-background,var(--landscape-solid))!important;
+  color:var(--vehicle-carrier-ink,var(--landscape-ink))!important;
+ }
 }
