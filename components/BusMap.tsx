@@ -391,6 +391,7 @@ function BusMap({
         preferCanvas={true}
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
+        attributionControl={false}
       >
         <MapSizeSync active={active}/>
         <MapStateTracker onInteraction={handleInteraction} onViewportChange={onViewportChange} />
@@ -435,6 +436,10 @@ function BusMap({
           onVehicleClick={onVehicleClick}
         />
       </MapContainer>
+      <details data-map-attribution className="map-attribution">
+        <summary aria-label="Źródła mapy" title="Źródła mapy">ⓘ</summary>
+        <div>Mapy: Google · Przystanki: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></div>
+      </details>
     </div>
   );
 }

@@ -49,3 +49,13 @@ test('blur switch survives serialization, keeps its radius, and defaults on for 
  assert.equal(interfaceAppearanceVariables(disabled,true,'#00a3a2',false)['--personal-blur'],'0px');
  assert.equal(interfaceAppearanceVariables({...disabled,glassBlurEnabled:true},true,'#00a3a2',false)['--personal-blur'],'24px');
 });
+
+
+test('chrome choice defaults to modern, persists classic and rejects unknown values',()=>{
+ assert.equal(normalizeInterfaceAppearance({}).chromeStyle,'modern');
+ assert.equal(normalizeInterfaceAppearance({chromeStyle:'bad'}).chromeStyle,'modern');
+ assert.equal(normalizeInterfaceAppearance(JSON.parse(JSON.stringify({chromeStyle:'classic'}))).chromeStyle,'classic');
+ const attrs=new Map(),root={setAttribute:(k,v)=>attrs.set(k,v),removeAttribute:k=>attrs.delete(k),style:{setProperty(){},removeProperty(){}}};
+ const cleanup=require('./load-ts.cjs')('lib/interface-appearance.ts').applyInterfaceAppearance(root,normalizeInterfaceAppearance({chromeStyle:'classic'}),true,'#00a3a2',false);
+ assert.equal(attrs.get('data-personal-chrome'),'classic');cleanup();assert.equal(attrs.has('data-personal-chrome'),false);
+});

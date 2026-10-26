@@ -65,7 +65,7 @@ export function interpolateAstronomy(a:AstronomyState,b:AstronomyState,ms:number
 export const smoothstep=(a:number,b:number,x:number)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
 export function skyState(state:AstronomyState){
   const altitude=state.sun.altitude*180/Math.PI;
-  const day=smoothstep(-7,12,altitude),twilight=smoothstep(-12,-1,altitude)*(1-smoothstep(-.5,10,altitude));
+  const day=smoothstep(-7,12,altitude),twilight=smoothstep(-6,-.833,altitude)*(1-smoothstep(-.5,10,altitude));
   const moonlight=state.illumination.fraction*smoothstep(0,.25,state.moon.altitude)*(1-day);
   return {day,twilight,moonlight,stars:1-smoothstep(-16,-4,altitude),fog:.16+.28*twilight+.07*(1-day)};
 }

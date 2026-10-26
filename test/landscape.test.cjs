@@ -221,3 +221,13 @@ test('morning blue sky returns while the horizon keeps its sunset colour',()=>{
  assert.ok(a.skyState(morning).day>.8);assert.ok(a.skyState(morning).twilight<.3,'no hour-long pink wash over a bright morning');
  assert.ok(a.skyState(sunset).twilight>.95,'the actual sunset retains a rich warm sky');
 });
+
+
+test('Rzeszow early morning stays dark and cool before civil dawn after the DST change',()=>{
+ const state=at('2026-10-26T05:28:00+01:00'),sky=a.skyState(state),events=a.solarEvents(state.ms,place);
+ assert.ok(state.sun.altitude < -6*Math.PI/180);assert.equal(sky.day,0);assert.equal(sky.twilight,0);
+ assert.ok(state.ms<events.dawn&&events.dawn<events.sunrise);
+ const rise=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'}).format(events.sunrise);
+ assert.ok(rise>='06:10'&&rise<='06:13',rise);
+ assert.ok(a.skyState(a.astronomyAt(events.sunrise,place)).twilight>.9);
+});

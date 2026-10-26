@@ -22,7 +22,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   assert.equal(await page.$$eval('[data-landscape-water]',nodes=>nodes.length),1,'one visible GPU surface, no GPU-to-2D copy in the frame path');
   fs.mkdirSync('test/ui-previews',{recursive:true});
   await page.addStyleTag({content:'[data-fixture-controls]{visibility:hidden}html[data-landscape-theme] *{transition-duration:0s!important}'});
-  for(const [name,iso] of [['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:20:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['phone-twilight-low','2026-10-24T18:11:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['filmic-sunset','2026-10-25T16:15:00+01:00'],['filmic-morning','2026-10-23T08:12:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['cloudy-night','2026-10-24T03:00:00+02:00'],['sunrise','2026-10-23T07:10:00+02:00'],['sun-moon-transition','2026-10-25T16:10:00+01:00'],['after-sunset','2026-10-25T16:34:00+01:00']]){
+  for(const [name,iso] of [['early-morning','2026-10-26T05:28:00+01:00'],['day','2026-10-23T12:00:00+02:00'],['golden-hour','2026-10-23T16:20:00+02:00'],['twilight','2026-10-23T18:00:00+02:00'],['phone-twilight-low','2026-10-24T18:11:00+02:00'],['sunset','2026-10-23T17:10:00+02:00'],['filmic-sunset','2026-10-25T16:15:00+01:00'],['filmic-morning','2026-10-23T08:12:00+02:00'],['night','2026-10-26T23:00:00+01:00'],['cloudy-night','2026-10-24T03:00:00+02:00'],['sunrise','2026-10-23T07:10:00+02:00'],['sun-moon-transition','2026-10-25T16:10:00+01:00'],['after-sunset','2026-10-25T16:34:00+01:00']]){
    // Fix wave/cloud phase for repeatable coverage, while keeping both moving.
    await page.evaluate(({iso,seconds,quality})=>window.__landscapePreview({iso,rate:0,quality,seconds}),{iso,quality:name==='phone-twilight-low'?'low':'high',seconds:name==='night'?72:name==='cloudy-night'?168:name==='golden-hour'?78:0});
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
@@ -299,6 +299,26 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    }else await page.click(handle);
    await page.waitForFunction(selector=>document.querySelector(selector)?.getAttribute('aria-expanded')==='false',{},handle);
    await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-collapsed.png'});
+  }
+  await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+  for(const theme of ['light','light-warm','light-pink','light-sky','dark','dark-oled','dark-forest','dark-cosmos'])for(const mode of ['bus','stop']){
+   await page.goto(origin+'/chrome-fixture/?theme='+theme+'&mode='+mode);
+   await page.waitForFunction(()=>document.documentElement.dataset.personalChrome==='modern');
+   assert.ok(await page.evaluate(()=>{const a=document.querySelector('.map-detail-shell').getBoundingClientRect(),b=document.querySelector('.pks-navigation').getBoundingClientRect();return Math.abs(a.left-b.left)<1&&Math.abs(a.right-b.right)<1&&Math.abs(b.top-a.bottom-8)<1;}),'modern dock and '+mode+' sheet align in '+theme);
+   if(theme==='light-sky'||theme==='dark-oled')await page.screenshot({path:'test/ui-previews/chrome-'+theme+'-'+mode+'-modern.png'});
+  }
+  const colors={pks:'rgb(201, 244, 237)',mpk:'rgb(255, 234, 209)',marcel:'rgb(220, 245, 204)'};
+  for(const carrier of Object.keys(colors)){
+   await page.goto(origin+'/chrome-fixture/?carrier='+carrier);
+   await page.waitForSelector('[data-vehicle-route-badge][data-carrier-id="'+carrier+'"]');
+   assert.equal(await page.$eval('[data-vehicle-route-badge]',e=>getComputedStyle(e).backgroundColor),colors[carrier]);
+   await page.screenshot({path:'test/ui-previews/chrome-carrier-'+carrier+'.png'});
+  }
+  for(const mode of ['bus','stop']){
+   await page.goto(origin+'/chrome-fixture/?style=classic&mode='+mode);
+   await page.waitForFunction(()=>document.documentElement.dataset.personalChrome==='classic');
+   assert.ok(await page.evaluate(()=>{const a=document.querySelector('.map-detail-shell').getBoundingClientRect(),nav=document.querySelector('.pks-navigation'),b=nav.getBoundingClientRect();return a.left===0&&b.left===0&&Math.abs(b.width-innerWidth)<1&&Math.abs(a.bottom-b.top)<1&&parseFloat(getComputedStyle(nav).borderTopLeftRadius)===0;}),'classic restores edge-to-edge dock and '+mode+' sheet');
+   await page.screenshot({path:'test/ui-previews/chrome-'+mode+'-classic.png'});
   }
   assert.deepEqual(errors,[]);
   fs.writeFileSync('test/ui-previews/landscape-metrics.json',JSON.stringify({environment:'Headless Chrome CI; not physical Android battery measurements',...metrics},null,2));
