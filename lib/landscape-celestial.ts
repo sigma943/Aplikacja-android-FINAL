@@ -18,6 +18,18 @@ export function moonTexture(){
   }
   c.restore();return canvas;
 }
+// A separable optical streak: feather both sides as well as its length. Cached
+// once, so soft rays need neither per-frame blur nor hard triangle boundaries.
+let sunStreak:HTMLCanvasElement|undefined;
+function sunRayTexture(){
+ if(sunStreak)return sunStreak;
+ const canvas=document.createElement('canvas');canvas.width=512;canvas.height=64;
+ const c=canvas.getContext('2d')!;
+ const along=c.createLinearGradient(0,0,512,0);along.addColorStop(0,'#fff4cf');along.addColorStop(.18,'#ffe3aeb3');along.addColorStop(.55,'#ffd19538');along.addColorStop(1,'#ffc87800');
+ c.fillStyle=along;c.fillRect(0,0,512,64);c.globalCompositeOperation='destination-in';
+ const across=c.createLinearGradient(0,0,0,64);across.addColorStop(0,'#fff0');across.addColorStop(.2,'#fff1');across.addColorStop(.4,'#fffa');across.addColorStop(.5,'#ffff');across.addColorStop(.6,'#fffa');across.addColorStop(.8,'#fff1');across.addColorStop(1,'#fff0');
+ c.fillStyle=across;c.fillRect(0,0,512,64);return sunStreak=canvas;
+}
 export function paintSun(c:CanvasRenderingContext2D,x:number,y:number,warm:number,rays=1){
   c.save();const alpha=c.globalAlpha,strength=Math.max(0,Math.min(2,rays));
   // Canvas ignores globalAlpha > 1. Put the extra energy into gradients and
@@ -30,10 +42,8 @@ export function paintSun(c:CanvasRenderingContext2D,x:number,y:number,warm:numbe
   for(let i=0;i<12;i++){
     c.save();c.rotate(i*Math.PI/6+.19);
     const length=(i%2?310:490)*(1+warm*.25)*(1+.24*Math.max(0,gain-1)),width=(i%2?10:19)*(1+.18*gain);
-    const ray=c.createLinearGradient(0,0,length,0);
-    ray.addColorStop(0,`rgba(255,241,186,${Math.min(.8,(.08+warm*.09)*Math.max(1,gain))})`);
-    ray.addColorStop(.25,`rgba(255,205,121,${Math.min(.5,(.025+warm*.04)*Math.max(1,gain))})`);ray.addColorStop(1,'rgba(255,185,91,0)');
-    c.fillStyle=ray;c.beginPath();c.moveTo(6,-width);c.quadraticCurveTo(length*.45,-width*.25,length,0);c.quadraticCurveTo(length*.45,width*.25,6,width);c.closePath();c.fill();c.restore();
+    c.globalAlpha=alpha*Math.min(.85,gain*(.08+warm*.09));
+    c.drawImage(sunRayTexture(),6,-width,length,width*2);c.restore();
   }
   c.restore();
   const halo=c.createRadialGradient(x,y,8,x,y,250);halo.addColorStop(0,'#fff8cfb0');halo.addColorStop(.14,'#ffe5a85c');halo.addColorStop(.42,`rgba(255,173,82,${.09+warm*.09})`);halo.addColorStop(1,'#ffaf5100');c.fillStyle=halo;c.fillRect(x-250,y-250,500,500);

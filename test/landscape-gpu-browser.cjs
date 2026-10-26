@@ -10,10 +10,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader']});
   const page=await browser.newPage();await page.goto('http://127.0.0.1:'+server.address().port);
   const transpile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
-  const files=['landscape-scene-geometry','landscape-scene-gpu','landscape-water-shaders','landscape-water-gpu'];
+  const files=['landscape-celestial','landscape-scene-geometry','landscape-scene-gpu','landscape-water-shaders','landscape-water-gpu'];
   const modules=Object.fromEntries(files.map(f=>['./'+f,transpile('lib/'+f+'.ts')]));
   const data=Object.fromEntries(['landscape-water-calibration','landscape-water-spectrum','landscape-horizon'].map(f=>['./'+f+'.json',JSON.parse(fs.readFileSync('lib/'+f+'.json','utf8'))]));
-  await page.addScriptTag({content:`(()=>{const sources=${JSON.stringify(modules)},data=${JSON.stringify(data)},cache={};function require(name){if(data[name])return data[name];if(cache[name])return cache[name];if(!sources[name])throw Error(name);const out=cache[name]={};new Function('exports','require',sources[name])(out,require);return out;}window.WaterGPU=require('./landscape-water-gpu').LandscapeWaterGPU;})();`});
+  await page.addScriptTag({content:`(()=>{const sources=${JSON.stringify(modules)},data=${JSON.stringify(data)},cache={};function require(name){if(data[name])return data[name];if(cache[name])return cache[name];if(!sources[name])throw Error(name);const out=cache[name]={};new Function('exports','require',sources[name])(out,require);return out;}window.WaterGPU=require('./landscape-water-gpu').LandscapeWaterGPU;window.paintSun=require('./landscape-celestial').paintSun;})();`});
   const result=await page.evaluate(async()=>{
    const image=name=>new Promise(resolve=>{const i=new Image();i.onload=()=>resolve(i);i.src='/'+name;});
    const gpu=window.gpu=new window.WaterGPU();gpu.setAssets({water:await image('water-mask.png'),terrain:await image('terrain.webp'),geometry:await image('water-uv.png'),perspective:await image('water-perspective.png'),clouds:await image('clouds.webp'),sceneDepth:await image('scene-depth.png'),terrainNormal:await image('terrain-normal.png')});
@@ -150,6 +150,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
   });
   for(const row of effectPixels){assert.ok(row.lower.changed>20,row.key+' lower range: '+JSON.stringify(row));assert.ok(row.upper.changed>20,row.key+' upper range: '+JSON.stringify(row));}
   console.log('Live optical slider pixel differences:',effectPixels);
+  const lens=await page.evaluate(()=>{
+   const c=document.createElement('canvas');c.width=c.height=1000;const ctx=c.getContext('2d');
+   return [0,1,2].map(strength=>{ctx.clearRect(0,0,1000,1000);window.paintSun(ctx,500,500,1,strength);const p=ctx.getImageData(0,0,1000,1000).data;let energy=0;for(let y=0;y<1000;y++)for(let x=0;x<1000;x++)if(Math.hypot(x-500,y-500)>100)energy+=p[(y*1000+x)*4+3];return energy;});
+  });
+  assert.equal(lens[0],0,'0% hides optical rays without hiding the sun disc');assert.ok(lens[1]>1000);assert.ok(lens[2]>lens[1]*1.5,'maximum soft rays remain stronger than default: '+lens);
+  console.log('Feathered sun ray energy:',lens);
   // Test every pixel against the actual water mask, not a rectangular bounding box.
   const outside=await page.evaluate(async()=>{
    const gpu=window.gpu,c=document.createElement('canvas');c.width=gpu.targets[0].width;c.height=gpu.targets[0].height;
