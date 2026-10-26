@@ -1,5 +1,6 @@
 'use client';
 
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import {useRef} from 'react';
 import {useDialogFocus} from '@/lib/use-dialog-focus';
 
@@ -112,6 +113,7 @@ export default function TransportSelectorPanel({
   themeMode,
   transparentUI = false,
 }: TransportSelectorPanelProps) {
+  const reduced=useJourneyReducedMotion();
   const dialog=useRef<HTMLDivElement>(null);
   useDialogFocus(dialog,open,onClose);
   const selectedSet = new Set(selectedIds);
@@ -124,17 +126,17 @@ export default function TransportSelectorPanel({
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={reduced?false:{opacity:0}}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{opacity:reduced?1:0}} transition={{duration:reduced?0:.18}}
           className={`absolute inset-0 z-[120] flex items-end justify-center ${transparentUI ? 'bg-black/15' : 'bg-black/45 backdrop-blur-sm'} p-2 pb-[calc(86px+env(safe-area-inset-bottom))] md:items-center md:p-8`}
           onClick={onClose}
         >
           <motion.div
-            initial={{ opacity: 0, y: 28, scale: 0.985 }}
+            initial={reduced?false:{opacity:0,y:28,scale:.985}}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 22, scale: 0.985 }}
-            transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+            exit={reduced?{opacity:1,y:0,scale:1}:{opacity:0,y:22,scale:.985}}
+            transition={reduced?{duration:0}:{type:'spring',stiffness:360,damping:30}}
             ref={dialog}
             role="dialog" aria-modal="true" aria-label="Przewoźnicy"
             data-carrier-sheet data-glass={transparentUI ? 'on' : 'off'}
@@ -167,7 +169,7 @@ export default function TransportSelectorPanel({
                   return (
                     <motion.button key={option.id} type="button" disabled={!option.enabled}
                       aria-label={name} aria-pressed={selected} onClick={() => option.enabled && onToggle(option.id)}
-                      whileTap={{ scale: 0.96 }}
+                      whileTap={reduced?undefined:{scale:.96}}
                       data-interface-card className={`relative flex min-w-0 flex-col items-center overflow-hidden rounded-[20px] border px-2 pb-3 pt-3 text-center transition-colors disabled:opacity-40 ${theme.cardBase} ${selected ? 'ui-accent-border' : theme.cardIdle}`}
                       style={selected ? { backgroundColor: 'var(--pks-accent-soft)' } : undefined}>
                       <span className={`absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border ${selected ? 'ui-accent-solid border-transparent' : 'border-current opacity-20'}`}>

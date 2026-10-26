@@ -1,3 +1,4 @@
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import CosmicFilterEffects from '@/components/CosmicFilterEffects';
 import {createStopSearchIndex,searchStops} from '@/lib/stop-search';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
@@ -6,7 +7,7 @@ import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect,
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
-import { motion, useReducedMotion } from 'motion/react';
+import { motion } from 'motion/react';
 import VirtualStopCards from './VirtualStopCards';
 
 interface StopListProps {

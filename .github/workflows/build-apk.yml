@@ -95,6 +95,8 @@ jobs:
         run: |
           JOURNEY_PICKER_ONLY=1 node test/journeys-browser.cjs
           node test/light-effects-browser.cjs
+          node --test test/ui-motion.test.cjs
+          node test/ui-interactions-browser.cjs
           node test/journey-live-browser.cjs
           node test/journey-disclosure-browser.cjs
           node test/font-ban-browser.cjs

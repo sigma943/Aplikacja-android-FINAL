@@ -1,5 +1,7 @@
 'use client';
 import {useEffect,useId,useRef,useState,type PointerEvent} from 'react';
+import {AnimatePresence,motion} from 'motion/react';
+import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import {createPortal} from 'react-dom';
 import {Palette,X,Check,RotateCcw} from 'lucide-react';
 import {useAppBack} from '@/lib/use-app-back';
@@ -10,9 +12,10 @@ export default function ColorPicker({label,value,onChange,ariaLabel=label,dark}:
   const [open,setOpen]=useState(false),anchor=useRef<HTMLButtonElement>(null);
   return <><button ref={anchor} type="button" aria-label={ariaLabel} aria-haspopup="dialog" onClick={()=>setOpen(true)} className="personal-color color-picker-trigger ui-accent-focus">
     <Palette size={17} aria-hidden="true"/><span className="min-w-0 flex-1 text-left">{label}</span><span className="font-mono text-[11px] opacity-65">{value.toUpperCase()}</span><span className="color-picker-swatch" style={{backgroundColor:value}}/>
-  </button>{open&&<ColorDialog label={label} value={value} dark={dark} anchor={anchor.current} onClose={()=>setOpen(false)} onApply={color=>{onChange(color);setOpen(false);}}/>}</>;
+  </button><AnimatePresence>{open&&<ColorDialog key="picker" label={label} value={value} dark={dark} anchor={anchor.current} onClose={()=>setOpen(false)} onApply={color=>{onChange(color);setOpen(false);}}/>}</AnimatePresence></>;
 }
 function ColorDialog({label,value,dark,anchor,onClose,onApply}:{label:string;value:string;dark:boolean;anchor:HTMLElement|null;onClose:()=>void;onApply:(hex:string)=>void}){
+  const reduced=useJourneyReducedMotion();
   const initial=parseHexColor(value)||'#00a3a2';
   const [draft,setDraft]=useState(initial),[hex,setHex]=useState(initial),[rgb,setRgb]=useState(colorRgb(initial).join(', ')),[hsv,setHsv]=useState(()=>hexHsv(initial)),[error,setError]=useState('');
   const ref=useRef<HTMLDivElement>(null),id=useId();
@@ -31,8 +34,8 @@ function ColorDialog({label,value,dark,anchor,onClose,onApply}:{label:string;val
     const next:[number,number,number]=[hsv[0],Math.max(0,Math.min(1,(event.clientX-bounds.left)/bounds.width)),1-Math.max(0,Math.min(1,(event.clientY-bounds.top)/bounds.height))];
     update(hsvHex(...next),undefined,undefined,next);
   };
-  return createPortal(<div className="color-picker-overlay" style={{height:viewport.height,top:viewport.top,bottom:'auto'}} data-color-theme={dark?'dark':'light'} onPointerDown={event=>{if(event.target===event.currentTarget)onClose();}}>
-    <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="color-picker-dialog">
+  return createPortal(<motion.div initial={reduced?false:{opacity:0}} animate={{opacity:1}} exit={{opacity:reduced?1:0}} transition={{duration:reduced?0:.18}} className="color-picker-overlay" style={{height:viewport.height,top:viewport.top,bottom:'auto'}} data-color-theme={dark?'dark':'light'} onPointerDown={event=>{if(event.target===event.currentTarget)onClose();}}>
+    <motion.div initial={reduced?false:{y:12,scale:.97}} animate={{y:0,scale:1}} exit={reduced?{y:0,scale:1}:{y:8,scale:.98}} transition={{duration:reduced?0:.22,ease:[.22,1,.36,1]}} ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="color-picker-dialog">
       <header className="color-picker-header"><span className="color-picker-icon ui-accent-soft"><Palette size={22}/></span><div className="min-w-0 flex-1"><h2 id={id}>Wybierz kolor</h2><p>{label}</p></div><button type="button" aria-label="Zamknij wybór koloru" onClick={onClose}><X size={21}/></button></header>
       <div className="color-picker-content">
         <div className="color-picker-plane" role="slider" tabIndex={0} aria-label="Nasycenie i jasność" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(hsv[1]*100)} aria-valuetext={`Nasycenie ${Math.round(hsv[1]*100)}%, jasność ${Math.round(hsv[2]*100)}%`} style={{backgroundColor:hsvHex(hsv[0],1,1)}} onPointerDown={plane} onPointerMove={plane} onKeyDown={event=>{
@@ -46,6 +49,6 @@ function ColorDialog({label,value,dark,anchor,onClose,onApply}:{label:string;val
         <div className="color-picker-preview"><div><span style={{background:initial}}/><span style={{background:draft}}/></div><span><small>Wybrany kolor</small><strong>{draft.toUpperCase()}</strong></span><button type="button" aria-label="Przywróć poprzedni kolor" onClick={()=>update(initial)}><RotateCcw size={17}/></button></div>
       </div>
       <footer><button type="button" onClick={onClose}>Anuluj</button><button type="button" className="ui-accent-solid" disabled={Boolean(error)} onClick={()=>onApply(draft)}><Check size={17}/>Zastosuj kolor</button></footer>
-    </div>
-  </div>,target);
+    </motion.div>
+  </motion.div>,target);
 }

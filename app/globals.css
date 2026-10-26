@@ -1345,3 +1345,16 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
  html [data-map-stop-sheet][data-expanded='false'] { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
  html[data-cosmic-theme='on'] .map-stop-handle { background:#080d1d!important; }
 }
+
+/* Finite interaction motion: decorative performance mode never disables this. */
+.personal-tabs button,.personal-choice,.personal-preview-launch,.personal-font-trigger {
+ transition:background-color .18s ease,border-color .18s ease,color .18s ease;
+}
+.ui-disclosure-chevron { transition:transform .24s cubic-bezier(.22,1,.36,1); }
+[data-ui-details][data-ui-expanded='true']>summary .ui-disclosure-chevron { transform:rotate(180deg); }
+[data-ui-details][data-ui-expanded='false']>summary .ui-disclosure-chevron { transform:rotate(0); }
+html[data-personal-motion='reduced'] :is(.ui-disclosure-chevron,.personal-tabs button,.personal-choice),
+html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:0s!important;animation-duration:0s!important; }
+@media(prefers-reduced-motion:reduce){
+ .ui-disclosure-chevron,.personal-tabs button,.personal-choice {transition:none!important;}
+}

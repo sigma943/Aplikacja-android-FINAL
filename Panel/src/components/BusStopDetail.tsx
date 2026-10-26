@@ -1,3 +1,4 @@
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
@@ -10,7 +11,7 @@ import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { departureIsPast, departureCountdown } from '../../../lib/departure-display';
 import { Stop, Departure } from '../types';
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
 import type { Vehicle } from '../../../components/BusMap';
 import { departureFromLiveVehicle } from '../../../lib/vehicle-stop-timing';

@@ -1,6 +1,8 @@
 'use client';
-import {useEffect,useRef,useState,useId,type CSSProperties} from 'react';
+import {useEffect,useRef,useState,useId,useCallback,type CSSProperties} from 'react';
 import {Eye,ChevronDown} from 'lucide-react';
+import {UIDisclosure,UITabPanel} from './UITransitions';
+import {AnimatePresence} from 'motion/react';
 import {MotionConfig} from 'motion/react';
 import {MapHeader,BottomNavigation} from './ApplicationChrome';
 import MapStopSheet from './MapStopSheet';
@@ -18,16 +20,21 @@ export default function InterfacePreview({chrome,accent,glass,dark,navOrder,canO
  const previewId=useId();
  const wrap=useRef<HTMLDivElement>(null),busHeader=useRef<HTMLDivElement>(null);
  const drag=useSheetGesture(true,noAction,260,260);
- useEffect(()=>{if(!wrap.current)return;const measure=()=>setScale(wrap.current!.clientWidth/393);const observer=new ResizeObserver(measure);observer.observe(wrap.current);measure();return()=>observer.disconnect();},[shown]);
+ const observer=useRef<ResizeObserver|null>(null);
+ const bindPreview=useCallback((node:HTMLDivElement|null)=>{
+  observer.current?.disconnect();wrap.current=node;
+  if(node){const measure=()=>setScale(node.clientWidth/393);observer.current=new ResizeObserver(measure);observer.current.observe(node);measure();}
+ },[]);
+ useEffect(()=>()=>observer.current?.disconnect(),[]);
  return <section data-options-appearance className="personal-preview-wrap">
   <button data-preview-toggle type="button" className="personal-preview-launch ui-accent-focus" aria-expanded={shown} aria-controls={previewId} onClick={()=>setShown(!shown)}>
    <span className="personal-preview-launch-icon"><Eye size={21} aria-hidden="true"/></span>
    <span className="min-w-0 flex-1 text-left"><span className="block font-semibold">Podgląd</span><span className="mt-1 block text-[11px] opacity-65">Zobacz mapę, przystanek i autobus</span></span>
-   <ChevronDown size={18} aria-hidden="true" className={shown?'rotate-180':''}/>
+   <ChevronDown size={18} aria-hidden="true" className={'ui-disclosure-chevron '+(shown?'rotate-180':'')}/>
   </button>
-  {shown&&<div id={previewId} className="personal-preview-content">
+  <UIDisclosure open={shown} id={previewId}><div className="personal-preview-content">
    <div className="personal-choices mb-3">{[['map','Mapa'],['stop','Przystanek'],['bus','Autobus']].map(([id,name])=><button className={`personal-choice ${view===id?'ui-accent-soft':''}`} type="button" key={id} aria-label={`Podgląd: ${name}`} aria-pressed={view===id} onClick={()=>setView(id)}>{name}</button>)}</div>
-   <div ref={wrap} className="personal-preview" data-interface-preview>
+   <AnimatePresence mode="wait" initial={false}><UITabPanel key={view}><div ref={bindPreview} className="personal-preview" data-interface-preview>
     <MotionConfig reducedMotion="always"><div className="personal-preview-map-frame" style={{height:416*scale}}><div className="personal-preview-scene" inert style={{width:393,height:416,transform:`scale(${scale})`}}>
      <PreviewMap dark={dark} onTilesChange={setHasMapTiles}/>
      <div className="absolute left-0 right-0 top-0 p-2"><MapHeader mapGlassPanel={chrome.mapGlassPanel} mapGlassInput={chrome.mapGlassInput} themeColor={accent} transparentUI={glass} isDark={dark} isManualRefreshing={false} showAlertDot={false} isOffline={false} textSub={chrome.textSub} filterRoute="" setFilterRoute={noAction} handleManualRefresh={noAction} closeMapPanelsForSearch={noAction}/></div>
@@ -45,7 +52,7 @@ export default function InterfacePreview({chrome,accent,glass,dark,navOrder,canO
      <BottomNavigation preview isJourneysTabDisabled={!journeysAllowed} canOpenAdminEmbed={canOpenAdminEmbed} order={navOrder} activeTab="map" className={chrome.bottomGlassShell} themeColor={accent} onMap={noAction} onStops={noAction} onOptions={noAction}/>
     </div></MotionConfig>
    </div>
-   <p className="personal-note mt-2">Dane przykładowe.{hasMapTiles&&<span data-preview-map-sources className="block text-[10px]">Mapa: <a href="https://maps.google.com" target="_blank" rel="noreferrer">Google</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a> · <a href="https://leafletjs.com" target="_blank" rel="noreferrer">Leaflet</a></span>}</p>
-  </div>}
+   </UITabPanel></AnimatePresence><p className="personal-note mt-2">Dane przykładowe.{hasMapTiles&&<span data-preview-map-sources className="block text-[10px]">Mapa: <a href="https://maps.google.com" target="_blank" rel="noreferrer">Google</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a> · <a href="https://leafletjs.com" target="_blank" rel="noreferrer">Leaflet</a></span>}</p>
+  </div></UIDisclosure>
  </section>;
 }

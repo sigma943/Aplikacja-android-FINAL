@@ -1,8 +1,9 @@
 'use client';
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 
 import {displayStopCatalogLabel} from '@/lib/stop-label';
 import { Clock, ChevronUp } from 'lucide-react';
-import { motion, useReducedMotion, type MotionStyle } from 'motion/react';
+import { motion, type MotionStyle } from 'motion/react';
 import LandscapeChrome from './LandscapeChrome';
 import {mapCosmicCrop} from '@/lib/cosmic-scene';
 import {useEffect,useState} from 'react';

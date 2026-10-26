@@ -1,7 +1,8 @@
 'use client';
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import {createPortal} from 'react-dom';
 import {useEffect,useRef,useState} from 'react';
-import {motion,useReducedMotion} from 'motion/react';
+import {motion} from 'motion/react';
 import {Battery,Check,LayoutGrid,LoaderCircle,RefreshCw,Search} from 'lucide-react';
 import type {Stop,Departure} from '@/Panel/src/types';
 import type {Vehicle} from '@/components/BusMap';

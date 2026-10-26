@@ -5,7 +5,7 @@ import {usePathname} from 'next/navigation';
 import AppBackBridge from './AppBackBridge';
 import CosmicEffects from './CosmicEffects';
 import {readAppTheme,resolveAppTheme} from '@/lib/app-theme';
-import { MotionConfig } from 'motion/react';
+import { MotionConfig,useReducedMotion } from 'motion/react';
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,applyInterfaceAppearance} from '@/lib/interface-appearance';
 
@@ -20,6 +20,7 @@ export default function UIMotionProvider({children}: {children: ReactNode}) {
 
 function InteractiveMotionProvider({children}: {children: ReactNode}) {
   const [reduced,setReduced]=useState(false);
+  const systemReduced=useReducedMotion();
   const updateRef=useRef<(()=>void)|null>(null);
   useForegroundRefresh('scheduled-appearance',async()=>{updateRef.current?.();},30000,true,30000,false);
   useEffect(()=>{
@@ -61,5 +62,5 @@ function InteractiveMotionProvider({children}: {children: ReactNode}) {
       cleanupAppearance?.();delete root.dataset.panelGlow;for(const key of glowKeys)root.style.removeProperty(key);
     };
   },[]);
-  return <MotionConfig reducedMotion={reduced?'always':'user'} transition={{duration: .24, ease: [.22, 1, .36, 1]}}><AppBackBridge />{children}<CosmicEffects/></MotionConfig>;
+  return <MotionConfig reducedMotion={reduced?'always':'user'} transition={{duration: reduced||systemReduced?0:.24, ease: [.22, 1, .36, 1]}}><AppBackBridge />{children}<CosmicEffects/></MotionConfig>;
 }

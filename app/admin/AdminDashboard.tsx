@@ -1,9 +1,10 @@
 'use client';
+import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import {banDetailsForSave} from '@/lib/admin/ban-details';
 import {storedAdminPermissions} from '@/lib/admin/rbac';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
 import {isNewLoginBlocked,newLoginsEnabled} from '@/lib/login-policy';
-import {motion, useReducedMotion} from 'motion/react';
+import {motion} from 'motion/react';
 import {readStatisticsAccess, statisticsPermission, statisticsAccessChange, type StatisticsAccess} from '@/lib/admin/statistics-access';
 import {uiAccentVariables} from '@/lib/ui-accent';
 
