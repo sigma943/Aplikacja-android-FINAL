@@ -33,19 +33,20 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
    // Keep water, shafts and relighting cached: isolate the presentation wind.
    const at=time=>{gl.useProgram(p.program);gl.uniform1f(gl.getUniformLocation(p.program,'uTime'),time);gl.drawArrays(gl.TRIANGLES,0,3);return window.gpuCopy();};
    const a=at(0),b=at(2.1),same=at(2.1),w=gpu.canvas.width,h=gpu.canvas.height;
-   let moved=0,peaks=0,banks=0,alpha=0,frozen=0;
+   let moved=0,peaks=0,banks=0,alpha=0,frozen=0,visible=0,coverage=0;
    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
     const i=(y*w+x)*4,delta=Math.max(...[0,1,2].map(c=>Math.abs(a[i+c]-b[i+c])));
-    if(delta>2)moved++;if(y<h*.405)peaks=Math.max(peaks,delta);
+    if(delta>2)moved++;if(delta>12)visible++;if(x<w*.2&&y>h*.48&&y<h*.90&&a[i+3]>250&&b[i+3]<200)coverage++;if(y<h*.405)peaks=Math.max(peaks,delta);
     if(y>h*.48&&y<h*.78&&x>w*.32&&x<w*.84)banks=Math.max(banks,delta);
     alpha=Math.max(alpha,Math.abs(a[i+3]-b[i+3]));
     for(let c=0;c<4;c++)frozen=Math.max(frozen,Math.abs(same[i+c]-b[i+c]));
    }
-   return {moved,peaks,banks,alpha,frozen,error:gl.getError()};
+   return {moved,visible,coverage,peaks,banks,alpha,frozen,error:gl.getError()};
   });
   assert.ok(wind.moved>1000,'foreground foliage moves visibly');
   assert.equal(wind.peaks,0,'wind leaves mountains and sky fixed');assert.equal(wind.banks,0,'wind leaves distant shores fixed');
-  assert.equal(wind.alpha,0,'wind cannot expose ghost branch edges or alter river coverage');
+  assert.ok(wind.visible>5000,'branch movement must remain visible at phone resolution');
+  assert.equal(wind.coverage,0,'moving leaves must be backed by the assembled river, with no ghost fallback exposed');
   assert.equal(wind.frozen,0,'frozen animation clock retains the same foliage');assert.equal(wind.error,0);
   console.log('Foreground wind pixels:',wind);
   const material=await page.evaluate(()=>{

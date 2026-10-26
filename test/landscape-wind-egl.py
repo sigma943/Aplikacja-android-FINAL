@@ -24,11 +24,20 @@ delta=np.max(np.abs(aa[:,:,:3].astype(int)-bb[:,:,:3].astype(int)),axis=2)
 assert np.count_nonzero(delta>2)>1000,'foreground visibly moves'
 assert np.max(delta[:int(H*.405)])==0,'sky and mountain peaks remain fixed'
 assert np.max(delta[int(H*.48):int(H*.78),int(W*.32):int(W*.84)])==0,'distant forest and river banks remain fixed'
-assert np.array_equal(aa[:,:,3],bb[:,:,3]),'river holes and cutout coverage unchanged'
+assert np.count_nonzero(np.abs(aa[:,:,3].astype(int)-bb[:,:,3].astype(int))>30)>100,'leaf silhouettes must move, not just their colour'
+assert np.count_nonzero(delta>12)>5000,'motion is visible at phone resolution'
 assert np.array_equal(np.asarray(foliage(2.1)),bb),'frozen animation time is stable'
 assert np.max(np.abs(np.asarray(foliage(2.101))[:,:,:3].astype(int)-bb[:,:,:3].astype(int)))<10,'continuous motion without jumps'
+# Track an actual near-leaf silhouette at phone resolution across a gust.
+# A pixel-count test alone accepted the imperceptible interior-only effect.
+edges=[]
+for t in [0,1.5,3,4.5]:
+ row=np.asarray(foliage(t))[int(H*.8),:int(W*.42),3]
+ edges.append(int(np.where(row>128)[0][-1]))
+assert max(edges)-min(edges)>=4,('leaf contour must travel at least four phone pixels',edges)
+print('PASS: foreground leaf contour positions at 425px width:',edges)
 out=pathlib.Path('test/ui-previews');out.mkdir(exist_ok=True)
 a.save(out/'landscape-wind-start.png');b.save(out/'landscape-wind-gust.png')
 frames=[foliage(t/12).convert('RGB') for t in range(72)]
 frames[0].save(out/'landscape-wind.gif',save_all=True,append_images=frames[1:],duration=83,loop=0)
-print('PASS: foreground wind changes',np.count_nonzero(delta>2),'pixels; stable peaks, banks, alpha and reduced-motion freeze; continuous time.')
+print('PASS: foreground wind changes',np.count_nonzero(delta>2),'pixels; stable peaks/banks, moving leaf silhouettes and reduced-motion freeze; continuous time.')
