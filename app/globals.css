@@ -1411,14 +1411,14 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
 
 /* Admin-only reading materials. Other landscape cards keep their opacity. */
 @layer landscape-materials {
- html[data-landscape-theme='on'] [data-admin-sidebar] {
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel {
   --landscape-ink:#0b1b26!important;--landscape-muted:#334b5e!important;
   --landscape-field:#e9f2f6!important;--landscape-edge:#b7cbd4!important;--landscape-accent:#006b65!important;
   background:#f5f9fc!important;color:#0b1b26!important;
   -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
  }
- html[data-landscape-theme='on'] [data-admin-sidebar] .pks-personal-card { background:#edf4f8!important;background-image:none!important; }
- html[data-landscape-theme='on'] [data-admin-sidebar] svg { color:#006b65!important; }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel .pks-personal-card { background:#edf4f8!important;background-image:none!important; }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel svg { color:#006b65!important; }
  html[data-landscape-theme='on'] [data-statistics-view] {
   --statistics-plot:#f4f8fc;--statistics-axis:#40566c;--statistics-grid:#bccbd6;--statistics-series:#007f79;--statistics-errors:#be123c;
  }
@@ -1430,5 +1430,5 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
 [data-statistics-view] [data-statistics-export] { border:0!important;box-shadow:none!important; }
 
 @layer pks-performance {
- html[data-landscape-theme='on'][data-personal-light-effects='on'] [data-admin-sidebar] { background:#f5f9fc!important; }
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] [data-admin-sidebar].pks-personal-panel { background:#f5f9fc!important; }
 }
