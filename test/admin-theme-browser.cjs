@@ -39,9 +39,13 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
     await page.waitForFunction(expanded=>document.querySelector('[data-map-bus-sheet]').dataset.expanded===String(expanded),{},expanded);await new Promise(r=>setTimeout(r,400));
     const panel=await page.$eval('[data-map-bus-sheet]',e=>{const h=e.querySelector('[data-vehicle-header]'),s=getComputedStyle(e),hs=getComputedStyle(h),r=e.getBoundingClientRect(),hr=h.getBoundingClientRect();return {fill:s.backgroundColor,image:s.backgroundImage,header:hs.backgroundColor,headerImage:hs.backgroundImage,ink:hs.color,height:r.height,headerHeight:hr.height,bottom:r.bottom,nav:document.querySelector('[data-test-navigation]').getBoundingClientRect().top,text:h.textContent};});
     assert.match(panel.text,/108/);assert.match(panel.text,/Scania/);assert.ok(panel.height>150&&panel.headerHeight>100,'bus header has its actual size');assert.ok(panel.bottom<=panel.nav+2,'sheet remains above navigation');
-    assert.ok(panel.headerImage!=='none'||/^rgb\(/.test(panel.header),'carrier header must paint an opaque gradient or solid fill: '+JSON.stringify(panel));
+    // Collapsed sheets intentionally paint their carrier material on the
+    // parent, with a transparent child header. Inspect the composed surface.
+    const headerImage=panel.headerImage!=='none'?panel.headerImage:panel.image;
+    const headerFill=/^rgb\(/.test(panel.header)?panel.header:panel.fill;
+    assert.ok(headerImage!=='none'||/^rgb\(/.test(headerFill),'carrier header or its parent must paint an opaque surface: '+JSON.stringify(panel));
     if(theme==='dark-mountains')assert.ok(/^rgb\(/.test(panel.fill),'landscape bus sheet must retain a solid backing: '+JSON.stringify(panel));
-    const headerColors=panel.headerImage==='none'?[panel.header]:panel.headerImage.match(/rgb\([^)]+\)/g)||[];assert.ok(headerColors.length>0);for(const c of headerColors)assert.ok(contrast(c,panel.ink)>=4.5,'readable vehicle header: '+JSON.stringify(panel));
+    const headerColors=headerImage==='none'?[headerFill]:headerImage.match(/rgb\([^)]+\)/g)||[];assert.ok(headerColors.length>0);for(const c of headerColors)assert.ok(contrast(c,panel.ink)>=4.5,'readable vehicle header: '+JSON.stringify(panel));
     if(provider==='pks')await page.screenshot({path:'test/ui-previews/horyzont-bus-'+theme+(night?'-night':'')+(expanded?'-expanded':'-collapsed')+'.png'});
    }
    console.log('PASS bus sheet',theme,night?'night':'day',provider,'collapsed/expanded/collapsed');
