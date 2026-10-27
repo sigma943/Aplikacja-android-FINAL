@@ -13,6 +13,10 @@ for unit,name,image in [(9,'uLitTerrain',images[1].transpose(Image.Transpose.FLI
  data=C.create_string_buffer(image.tobytes());function('glTexImage2D',None,ui,integer,integer,integer,integer,integer,ui,ui,ptr)(0x0DE1,0,0x1908,image.width,image.height,0,0x1908,0x1401,data)
  function('glUniform1i',None,integer,integer)(location(program,name.encode()),unit)
 for name,unit in [('uMask',0),('uTerrain',1)]:function('glUniform1i',None,integer,integer)(location(program,name.encode()),unit)
+# Match production: the source terrain has a complete mip chain.
+function('glActiveTexture',None,ui)(0x84C0+1)
+function('glGenerateMipmap',None,ui)(0x0DE1)
+param(0x0DE1,0x2801,0x2703)
 uniform('uResolution',W,H);uniform('uFrame',W,H,0,0);uniform('uTerrainEnabled',1)
 function('glBindVertexArray',None,ui)(0)
 def foliage(seconds):
@@ -34,7 +38,12 @@ assert np.max(delta[int(H*.48):int(H*.78),int(W*.32):int(W*.84)])==0,'distant fo
 assert np.count_nonzero(np.abs(aa[:,:,3].astype(int)-bb[:,:,3].astype(int))>30)>100,'leaf silhouettes must move, not just their colour'
 assert np.count_nonzero(delta>12)>5000,'motion is visible at phone resolution'
 assert np.array_equal(np.asarray(foliage(2.1)),bb),'frozen animation time is stable'
-assert np.max(np.abs(np.asarray(foliage(2.101))[:,:,:3].astype(int)-bb[:,:,:3].astype(int)))<10,'continuous motion without jumps'
+next_frame=np.asarray(foliage(2.101)).astype(float)
+# Compare visible premultiplied colour, not hidden RGB in transparent edges.
+visible_next=next_frame[:,:,:3]*next_frame[:,:,3:4]/255
+visible_now=bb[:,:,:3].astype(float)*bb[:,:,3:4]/255
+assert np.max(np.abs(visible_next-visible_now))<10,'continuous visible motion without jumps'
+assert np.max(np.abs(next_frame[:,:,3]-bb[:,:,3]))<10,'continuous leaf coverage'
 # Track an actual near-leaf silhouette at phone resolution across a gust.
 # A pixel-count test alone accepted the imperceptible interior-only effect.
 edges=[]

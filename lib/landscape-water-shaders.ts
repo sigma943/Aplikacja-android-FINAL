@@ -516,11 +516,11 @@ void main(){
  vec2 uv=(vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y)-uFrame.zw)/uFrame.xy;
  vec2 texUV=gl_FragCoord.xy/uResolution;
  vec2 wind=foliageWind(uv);
- float originalLeaf=nearLeaves(uv),shiftedLeaf=nearLeaves(uv+wind);
+ float originalLeaf=nearLeaves(uv);
  // A moving leaf may cover open river, but must never drag an already visible
  // rock or tree. Vacated leaf pixels can reveal the neighbouring background.
  float openPixel=1.-textureLod(uTerrain,uv,0.).a;
- float support=max(originalLeaf,shiftedLeaf*openPixel);
+ float support=max(originalLeaf,openPixel);
  vec2 movedUV=uv+wind*support;
  vec2 terrainUV=clamp(texUV+vec2(wind.x,-wind.y)*support*uFrame.xy/uResolution,
                       .5/uResolution,1.-.5/uResolution);
@@ -533,7 +533,17 @@ void main(){
  vec3 color=uHdr>.5?waterDisplayColor(water.rgb+bloom*.48):clamp(water.rgb+bloom*.25,0.,1.);
  float shaftAlpha=light.a;
  color=mix(color,uSunColor,shaftAlpha*.25);
- vec4 terrain=texture(uLitTerrain,terrainUV);terrain.a*=uTerrainEnabled;
+ vec4 terrain=texture(uLitTerrain,terrainUV);
+ if(originalLeaf<=.001){
+  // Composite a translated leaf onto fixed scenery. Do not let its moving
+  // mask modulate the displacement itself: that makes contours twitch.
+  vec4 fixedTerrain=texture(uLitTerrain,texUV);
+  float leafAlpha=terrain.a*nearLeaves(movedUV);
+  float coverage=leafAlpha+fixedTerrain.a*(1.-leafAlpha);
+  vec3 premult=terrain.rgb*leafAlpha+fixedTerrain.rgb*fixedTerrain.a*(1.-leafAlpha);
+  terrain=coverage>.00001?vec4(premult/coverage,coverage):vec4(0.);
+ }
+ terrain.a*=uTerrainEnabled;
  if(support>.001)alpha=min(alpha,1.-terrain.a);
  float surface=min(1.,alpha+terrain.a);
  float haloAlpha=clamp(dot(bloom,vec3(.2126,.7152,.0722))*(uHdr>.5?.045:.075),0.,.14);
