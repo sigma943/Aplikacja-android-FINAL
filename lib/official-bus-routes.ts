@@ -27,7 +27,7 @@ export async function officialBusStops(provider:string,tripId:unknown) {
   const pattern=index.patterns[index.tripPatterns[String(tripId)]];
   return pattern?.map(id=>index.stops[id])||[];
 }
-export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Array<number|string>,stopCoordinates?:Array<[number,number]>,options?:{completePattern?:boolean}) {
+export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Array<number|string>,stopCoordinates?:Array<[number,number]>,options?:{completePattern?:boolean;coordinateStopIds?:Array<number|string>}) {
   if(provider!=='pks'&&provider!=='mpk_rzeszow')return [];
   const index=await routeIndex(provider);
   const trip=String(tripId||'');
@@ -41,7 +41,19 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
   // must match the actual geometry; equal metadata counts prove nothing.
   const completeCoordinates=!!stopCoordinates && expected.length>=2 &&
     stopCoordinates.length===expected.length;
-  const tripMatches=!expected.length || (pattern && pattern.join('-')===expected.join('-')) || completeCoordinates;
+  // A full live course may contain stops with no published GPS coordinates.
+  // Keep their place in the pattern, and validate the exact operator shape
+  // against the known pins instead of treating those pins as a partial trip.
+  // Explicit IDs prove the coordinate subset is ordered and includes both
+  // endpoints; a bare, truncated coordinate list is still rejected.
+  const coordinateIds=options?.coordinateStopIds?.map(String)||[];
+  let coordinateCursor=0;
+  for(const id of expected)if(id===coordinateIds[coordinateCursor])coordinateCursor++;
+  const anchoredPattern=!!options?.completePattern && !!pattern && !!stopCoordinates &&
+    coordinateIds.length===stopCoordinates.length && coordinateIds.length>=Math.max(2,Math.ceil(expected.length*.7)) &&
+    coordinateCursor===coordinateIds.length && coordinateIds[0]===expected[0] &&
+    coordinateIds.at(-1)===expected.at(-1);
+  const tripMatches=!expected.length || (pattern && pattern.join('-')===expected.join('-')) || completeCoordinates || anchoredPattern;
   const shape=(tripMatches ? index.tripShapes[trip] : '')||index.stopShapes[expected.join('-')];
   // Live course IDs change independently of GTFS, whose internal stop IDs
   // also differ from PKS IDs. Validate actual geometry, not ID prefixes or
@@ -107,4 +119,31 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
 export async function officialBusStopPoints(provider:string):Promise<Array<[number,number]>> {
  const index=await routeIndex(provider);
  return Object.values(index.stops).map(stop=>[stop.lat,stop.lon]);
+}
+
+/** Recover missing PKS GPS pins by unique platform identity, never by proximity.
+ * Live names abbreviate the GTFS names; existing coordinates stay untouched. */
+function platformIdentity(name:string){
+ const words=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l')
+  .replace(/\bd\.?\s*a\.?\b/g,'dworzec autobusowy').replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/);
+ const aliases:Record<string,string>={krol:'krolewska',debniansk:'debnianskie',nadl:'nadlesnictwo',cment:'cmentarz',osr:'osrodek',zdr:'zdrowia',szp:'szpital',mlp:'malopolski'};
+ const tokens=words.filter(w=>!['ul','ulica','al','aleja','aleje','st','stanowisko'].includes(w)).map(w=>/^\d+$/.test(w)?String(Number(w)):aliases[w]||w);
+ // A locality without a platform number must not resolve to an arbitrary side.
+ return tokens.length>=2&&/^\d+$/.test(tokens.at(-1)!)?tokens.join(' '):'';
+}
+export async function completeOfficialBusStopCoordinates<T extends {name:string;lat?:number;lon?:number}>(provider:string,stops:T[]):Promise<T[]>{
+ if(provider!=='pks'||!stops.some(s=>!Number.isFinite(s.lat)||!Number.isFinite(s.lon)))return stops;
+ const index=await routeIndex(provider),byName=new Map<string,Array<{lat:number;lon:number}>>();
+ for(const point of Object.values(index.stops)){
+  const key=platformIdentity(point.name);if(!key||!Number.isFinite(point.lat)||!Number.isFinite(point.lon))continue;
+  const matches=byName.get(key)||[];matches.push(point);byName.set(key,matches);
+ }
+ let changed=false;
+ const completed=stops.map(stop=>{
+  if(Number.isFinite(stop.lat)&&Number.isFinite(stop.lon))return stop;
+  const matches=byName.get(platformIdentity(stop.name));
+  if(!matches?.length||matches.some(p=>roadDistance([p.lat,p.lon],[matches[0].lat,matches[0].lon])>5))return stop;
+  changed=true;return {...stop,lat:matches[0].lat,lon:matches[0].lon};
+ });
+ return changed?completed:stops;
 }

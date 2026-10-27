@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, perf/android-startup-and-rendering]
   pull_request:
-    branches: [main, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242, fix/mpk-diagnostics-242, fix/mpk-mybus-fallback-242, fix/mpk-mybus-timetable-242]
+    branches: [main, fix/landscape-foreground-bus-panel, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242, fix/mpk-diagnostics-242, fix/mpk-mybus-fallback-242, fix/mpk-mybus-timetable-242]
   workflow_dispatch:
     inputs:
       fast_apk:
@@ -92,6 +92,23 @@ jobs:
 
       - name: Build Android Web Assets
         run: npm run build:android:web
+
+      - name: Verify Horyzont controls and map isolation across themes
+        if: contains(github.event.pull_request.title, '[horyzont-check]')
+        run: |
+          node --test test/landscape.test.cjs test/landscape-twilight.test.cjs test/mpk-map-corridor.test.cjs test/route-map-platform.test.cjs test/horyzont-settings.test.cjs test/journey-source-geometry.test.cjs test/journey-geometry.test.cjs test/journey-walking-nearby.test.cjs
+          npx puppeteer browsers install chrome
+          node test/horyzont-map-browser.cjs
+          node test/admin-theme-browser.cjs
+          node test/landscape-gpu-browser.cjs
+
+      - name: Upload Horyzont regression screenshots
+        if: ${{ always() && contains(github.event.pull_request.title, '[horyzont-check]') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: horyzont-map-regression
+          path: test/ui-previews/horyzont-*.png
+          if-no-files-found: ignore
 
       - name: Verify living mountain astronomy and lifecycle
         if: env.FAST_APK != 'true'

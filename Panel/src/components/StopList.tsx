@@ -309,6 +309,7 @@ export default function StopList({
         <div className="ui-accent-search group relative">
           <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchIconClass}`} size={18} />
           <input
+            data-milk-search
             type="text"
             placeholder="Wpisz nazwę, np. Babica, Rejtana..."
             className={`ui-accent-input w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none backdrop-blur-2xl transition-all focus:ring-2 lg:py-3.5 lg:text-[15px] ${searchInputClass}`}
@@ -417,6 +418,7 @@ export default function StopList({
             <div className="ui-accent-search group relative">
               <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchIconClass}`} size={18} />
               <input
+                data-milk-search
                 type="text"
                 placeholder="Wpisz nazwę, np. Babica, Rejtana..."
                 className={`ui-accent-input w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none transition-all focus:ring-2 ${
