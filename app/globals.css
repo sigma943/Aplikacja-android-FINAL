@@ -1520,3 +1520,6 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  :has(>input[data-milk-search])>svg { left:8px!important;width:16px!important;height:16px!important;z-index:1;pointer-events:none; }
  html .connections-view .connections-location { padding-inline-start:10px!important;gap:8px!important;text-align:left!important; }
 }
+
+/* Only the Cosmos map stop panel has no visible outer rim. */
+html[data-cosmic-theme='on'] .map-stop-sheet[data-map-detail-kind='stop'] { border-color:transparent!important; }
