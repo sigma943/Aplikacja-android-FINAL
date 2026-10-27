@@ -1437,7 +1437,7 @@ export default function Home() {
 
          {activeTab==='map'&&!isStopsTabDisabled&&<button className="hidden md:flex absolute bottom-6 left-6 z-[1000] journey-desktop-link" onClick={()=>setActiveTab('journeys')}>Połączenia →</button>}
          {/* Bottom Navigation for Mobile */}
-      <div className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
+      <div data-app-navigation className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
          <BottomNavigation order={interfaceAppearance.navOrder} activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
             onMap={()=>{if(!isMapTabDisabled){setActiveTab('map');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);}}}
             onJourneys={()=>{if(isStopsTabDisabled)return;setActiveTab('journeys');setSelectedBus(null);setSelectedStopId(null);setIsSettingsOpen(false);}}
