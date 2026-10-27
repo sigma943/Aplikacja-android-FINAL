@@ -85,6 +85,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     .map(departure => departureFromLiveVehicle(departure, vehicles))
     .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
   useEffect(()=>{if(active&&selectedDayIndex===0&&!isLoading&&(!warnings.length||departures.length))void syncStopWidgets(stop.id,departures,vehicles,warnings).catch(()=>{});},[stop.id,departures,vehicles,warnings,isLoading,active,selectedDayIndex]);
+  const visibleWarnings = warnings.filter(warning => !departures.length || warning !== 'MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.');
   const reduceMotion = useReducedMotion();
   const animateDepartures = !reduceMotion && !showAllDepartures;
 
@@ -301,7 +302,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Departures List */}
           <div>
-             {warnings.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{warnings.join(' ')}</div>}
+             {visibleWarnings.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{visibleWarnings.join(' ')}</div>}
              <div className="flex flex-col gap-2.5 mb-3 px-1">
                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                  <div data-scene-label className="text-xs font-medium text-slate-400">

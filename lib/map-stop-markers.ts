@@ -72,6 +72,34 @@ export function marcelMapStopPoint(stops:Stop[],id:string,point:StopData):StopDa
   return position?{...point,...position}:point;
 }
 
+/** Share one passenger-platform position between route dots and catalog icons.
+ * This never moves the driving route or matches a neighbouring platform by GPS. */
+export function routeMapCatalogStopId(stops:Stop[],id:string,point:StopData,provider='pks'):string|undefined{
+ if(provider==='marcel'){
+  const canonical=canonicalMapStopId(stops,id,provider,point);
+  return canonical&&stops.some(stop=>stop.id===canonical)?canonical:undefined;
+ }
+ if(provider!=='pks'&&provider!=='mpk_rzeszow')return undefined;
+ const rawId=id.replace(/^(pks|mpk_rzeszow):/,'');
+ const matches=stops.filter(stop=>String(stop.providerStopIds?.[provider]||'').split(',').map(v=>v.trim()).includes(rawId));
+ if(matches.length!==1)return undefined;
+ const position=platformPosition(matches[0]);
+ if(!position||!readBusCoordinates(point.lat,point.lon)||distanceMeters(point.lat,point.lon,position.lat,position.lon)>120)return undefined;
+ return matches[0].id;
+}
+export function routeMapStopPoint(stops:Stop[],id:string,point:StopData,provider='pks'):StopData{
+ const canonical=routeMapCatalogStopId(stops,id,point,provider);
+ const stop=canonical?stops.find(stop=>stop.id===canonical):undefined;
+ const position=stop?platformPosition(stop):null;
+ return position?{...point,...position}:point;
+}
+/** Visual route membership only: never selects a stop or opens its details. */
+export function routeCatalogStopIds(stops:Stop[],ids:Array<string|number>,points:Record<string,StopData>,provider='pks'){
+ const wanted=new Set(ids.map(id=>String(id).replace(/^(pks|mpk_rzeszow):/,'')));
+ const catalog=provider==='marcel'?stops:stops.filter(stop=>String(stop.providerStopIds?.[provider]||'').split(',').some(id=>wanted.has(id.trim())));
+ return new Set(ids.flatMap(id=>{const raw=points[String(id)],canonical=raw?routeMapCatalogStopId(catalog,String(id),raw,provider):undefined;return canonical?[canonical]:[];}));
+}
+
 export function mapStopColor(stop:Pick<Stop,'name'>){
   const name=stop.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   if(/^rzeszow\b/.test(name)&&(/\bd\s*\.?\s*a\s*\.?\s*(?:st\b|stanow|$)/.test(name)||/\b(?:dworzec|dworz\.)\s*(?:autobusowy|pks)\b/.test(name)))return '#14b8a6';
