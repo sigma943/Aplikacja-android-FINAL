@@ -14,6 +14,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   // Exercise the real device card shown in the report, not a synthetic text box.
   for(const theme of ['dark-mountains','dark-cosmos','dark-forest','dark-oled','dark','light','light-warm','light-sky','light-pink'])for(const night of theme==='dark-mountains'?[false,true]:[false]){
    await page.goto(origin+'/?view=devices&theme='+theme+(night?'&night':''));await page.waitForSelector('.admin-device-card');
+   await page.waitForFunction(()=>[...document.querySelectorAll('.admin-device-card')].some(e=>e.getBoundingClientRect().height>100)&&[...document.querySelectorAll('.admin-device-card')].every(e=>getComputedStyle(e.parentElement).opacity==='1'));
    const read=()=>page.evaluate(()=>{const card=document.querySelector('.admin-device-card'),input=document.querySelector('input[data-milk-search]'),text=[...card.querySelectorAll('div')].find(e=>e.textContent==='ID urządzenia'),s=getComputedStyle(card),i=getComputedStyle(input);return {fill:s.backgroundColor,blur:s.backdropFilter,shadow:getComputedStyle(text).textShadow,ink:getComputedStyle(text).color,inputFill:i.backgroundColor,inputImage:i.backgroundImage,inputBlur:i.backdropFilter,placeholder:getComputedStyle(input,'::placeholder').color};});
    const material=await read();
    if(theme==='dark-mountains'){
@@ -23,7 +24,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
     assert.equal(material.inputBlur,'blur(18px)');
     assert.ok(contrast(material.ink,material.inputFill)>7,'readable search milk family');
     await page.evaluate(()=>{const style=document.createElement('style');style.id='before-readability';style.textContent='.admin-device-card,.admin-device-card * {text-shadow:none!important}';document.head.append(style);});
-    const withoutHalo=await read();assert.equal(material.fill,withoutHalo.fill);assert.equal(material.blur,withoutHalo.blur,'glyph halo does not change panel blur');
+    const withoutHalo=await read();if(!night)await page.screenshot({path:'test/ui-previews/horyzont-device-readable-before.png'});assert.equal(material.fill,withoutHalo.fill);assert.equal(material.blur,withoutHalo.blur,'glyph halo does not change panel blur');
     await page.evaluate(()=>document.getElementById('before-readability').remove());
     // Search remains usable; its material is independent of user card opacity.
     await page.type('input[data-milk-search]','Windows');assert.ok(await page.$('.admin-device-card'));

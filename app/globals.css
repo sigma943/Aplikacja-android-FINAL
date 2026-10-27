@@ -1446,7 +1446,7 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
    Keep panel opacity, blur, scenery and all night materials unchanged. */
 @layer landscape-materials {
  html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-surface,.transit-card,.admin-device-card,.pks-personal-card,[data-interface-card],.connections-card,.map-detail-shell,.pks-options-sheet) {
-  text-shadow:0 1px 1px #fff,0 0 3px #ffffffd9,0 0 6px #ffffff80;
+  text-shadow:0 1px 1px #ffffffe6,0 0 3px #ffffffbf;
  }
  html[data-landscape-theme='on'][data-landscape-period='day'] :is(svg,canvas,input,textarea,select,.ui-accent-solid,.ui-accent-solid *,[data-vehicle-header],[data-vehicle-header] *,[data-admin-sidebar],[data-admin-sidebar] *) { text-shadow:none; }
 }
