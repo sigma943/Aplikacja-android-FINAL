@@ -10,7 +10,36 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser error:',e.message);});page.setDefaultTimeout(60000);
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   fs.mkdirSync('test/ui-previews',{recursive:true});
-  const contrast=(a,b)=>{const lum=c=>c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+  const contrast=(a,b)=>{const lum=c=>c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>c.startsWith('color(srgb')?v:v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+  // Disable only the new text layer to compare against the previous material.
+  // Real components must keep every fill, filter, border and glow unchanged.
+  for(const kind of ['stops','connections','devices'])for(const mode of ['day','warm','night','other']){
+   const theme=mode==='other'?'light-sky':'dark-mountains';
+   await page.goto(origin+'/?view='+kind+'&theme='+theme+(mode==='night'?'&night':'')+(mode==='warm'?'&warm':''));
+   const target=kind==='stops'?'[data-departure-row] h4':kind==='connections'?'.connections-location strong':'.admin-device-card';
+   await page.waitForSelector(target);await new Promise(r=>setTimeout(r,550));
+   const compare=await page.evaluate(({kind,target})=>{
+    const material=()=>[...document.querySelectorAll('.transit-surface,.transit-card,.connections-card,.connections-route-fields,.pks-personal-card,.ui-accent-soft,[data-selected],.pks-options-sheet,.pks-navigation,input[data-milk-search]')].map(e=>{const s=getComputedStyle(e);return [s.backgroundColor,s.backgroundImage,s.backdropFilter,s.borderColor,s.boxShadow,s.opacity];});
+    const text=()=>{const s=getComputedStyle(document.querySelector(target));return {color:s.color,weight:s.fontWeight,stroke:s.webkitTextStrokeWidth,shadow:s.textShadow};};
+    const milk=()=>{const e=document.querySelector('[data-unrelated-options]');if(!e)return null;const s=getComputedStyle(e);return [s.backgroundColor,s.color,s.textShadow,s.webkitTextStrokeWidth,s.backdropFilter];};
+    let sheet,index,rule;
+    for(const s of document.styleSheets){const i=[...s.cssRules].findIndex(r=>r.name==='landscape-reading-text'&&r.cssRules);if(i>=0){sheet=s;index=i;rule=s.cssRules[i].cssText;break;}}
+    if(!sheet)throw Error('missing readability layer');
+    sheet.deleteRule(index);const before={material:material(),text:text(),milk:milk()};
+    sheet.insertRule(rule,index);const after={material:material(),text:text(),milk:milk()};
+    const month=document.querySelector('[data-cosmic-panel="stop-days"] .ui-accent-soft');
+    return {before,after,month:month?getComputedStyle(month).color:null};
+   },{kind,target});
+   assert.deepEqual(compare.after.material,compare.before.material,'all original panel materials preserved: '+kind+' '+mode);
+   assert.deepEqual(compare.after.milk,compare.before.milk,'unrelated milk panels are unchanged');
+   if(mode==='day'||mode==='warm'){
+    assert.equal(compare.after.text.stroke,'0.45px','sharp outer glyph edge: '+kind);
+    assert.ok(contrast(compare.after.text.color,'rgb(255,255,255)')>=12,'dark readable text: '+kind);
+    if(kind==='stops')assert.ok(contrast(compare.month,'rgb(255,255,255)')>=7,'calendar month no longer pale on sunrise glass');
+   }else assert.deepEqual(compare.after.text,compare.before.text,'night and other themes unchanged');
+   if(mode==='day'||mode==='warm')await page.screenshot({path:'test/ui-previews/horyzont-reading-'+kind+'-'+mode+'.png'});
+   console.log('PASS text-only contrast, unchanged materials',kind,mode,compare.after.text);
+  }
   // Exercise the real device card shown in the report, not a synthetic text box.
   for(const theme of ['dark-mountains','dark-cosmos','dark-forest','dark-oled','dark','light','light-warm','light-sky','light-pink'])for(const night of theme==='dark-mountains'?[false,true]:[false]){
    await page.goto(origin+'/?view=devices&theme='+theme+(night?'&night':''));await page.waitForSelector('.admin-device-card');

@@ -1,5 +1,6 @@
 @layer journey-map-isolation;
 @layer pks-performance;
+@layer landscape-reading-text;
 @layer landscape-search-milk;
 @import "tailwindcss";
 
@@ -1464,5 +1465,25 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  }
  html[data-landscape-theme='on'] :is(.personal-search,.personal-font-search) input {
   background:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+}
+
+/* Text-only daylight contrast in the three requested views. Do not alter the
+   shared text tokens: some controls also use those tokens to tint their glass. */
+@layer landscape-reading-text {
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :where(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-700,.text-slate-800,.text-slate-900,.text-gray-100,.text-gray-200,.text-gray-700,.text-gray-800,.text-gray-900):not(:where(button,svg,input,[data-landscape-heading] *,[data-scene-label],.connections-heading *,.ui-accent-solid,.ui-accent-solid *,[data-carrier-id],[data-carrier-id] *,[data-admin-sidebar],[data-admin-sidebar] *)) { color:#071822!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :where(.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.text-gray-400,.text-gray-500,.text-gray-600):not(:where(button,svg,input,[data-landscape-heading] *,[data-scene-label],.connections-heading *,.ui-accent-solid *,[data-carrier-id] *,[data-admin-sidebar] *)) { color:#10242d!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] .connections-card :is(small,strong,label) { color:#10242d!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(.transit-surface,.transit-card,.pks-personal-card,.connections-card,[data-interface-card]) {
+  /* A thin outer edge keeps the dark glyph sharp over cloud and forest. */
+  -webkit-text-stroke:.45px #ffffffe6;paint-order:stroke fill;
+  text-shadow:0 1px 1px #ffffff99!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(p,small,time,.font-normal,.font-medium):not(:is(input,textarea,select)) { font-weight:600!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] .transit-view [data-cosmic-panel='stop-days'] :is(.ui-accent-soft,[data-selected='true'] .ui-accent-text) {
+  color:color-mix(in srgb,var(--landscape-accent) 30%,#071822)!important;font-weight:650!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(svg,canvas,input,textarea,select,.ui-accent-solid,.ui-accent-solid *,[data-carrier-id],[data-carrier-id] *,[data-statistics-chart],[data-statistics-chart] *,[data-admin-sidebar],[data-admin-sidebar] *) {
+  -webkit-text-stroke:0!important;text-shadow:none!important;
  }
 }
