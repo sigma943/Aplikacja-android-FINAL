@@ -43,7 +43,7 @@ shader_source = function('glShaderSource', None, ui, integer, C.POINTER(C.c_char
 compile_shader = function('glCompileShader', None, ui)
 get_shader = function('glGetShaderiv', None, ui, ui, C.POINTER(integer))
 get_log = function('glGetShaderInfoLog', None, ui, integer, ptr, ptr)
-source = json.loads(subprocess.check_output(['node', '-e', "const x=require('./test/load-ts.cjs')('lib/landscape-water-shaders.ts');console.log(JSON.stringify({vertex:x.WATER_VERTEX,fragment:x.WATER_FRAGMENT,screen:x.SCREEN_VERTEX,light:x.LIGHT_FRAGMENT,present:x.PRESENT_FRAGMENT,terrain:x.TERRAIN_FRAGMENT,sceneVertex:x.SCENE_VERTEX,scene:x.SCENE_FRAGMENT}));"], text=True))
+source = json.loads(subprocess.check_output(['node', '-e', "const x=require('./test/load-ts.cjs')('lib/landscape-water-shaders.ts');console.log(JSON.stringify({vertex:x.WATER_VERTEX,fragment:x.WATER_FRAGMENT,screen:x.SCREEN_VERTEX,light:x.LIGHT_FRAGMENT,present:x.PRESENT_FRAGMENT,terrain:x.TERRAIN_FRAGMENT,sceneVertex:x.SCENE_VERTEX,scene:x.SCENE_FRAGMENT,bloom:x.BLOOM_FRAGMENT}));"], text=True))
 shaders = []
 for kind, code in [(0x8B31, source['vertex']), (0x8B30, source['fragment'])]:
     shader = create_shader(kind)
@@ -66,7 +66,7 @@ status = integer()
 function('glGetProgramiv', None, ui, ui, C.POINTER(integer))(program, 0x8B82, C.byref(status))
 assert status.value, 'shader link'
 # Compile and link the low-resolution light and ACES presentation stages too.
-for fragment in [source['light'],source['present'],source['terrain'],source['scene']]:
+for fragment in [source['light'],source['present'],source['terrain'],source['scene'],source['bloom']]:
     extra=[]
     for kind,code in [(0x8B31,source['sceneVertex'] if fragment==source['scene'] else source['screen']),(0x8B30,fragment)]:
         sh=create_shader(kind);encoded=C.c_char_p(code.encode());shader_source(sh,1,C.byref(encoded),None);compile_shader(sh);st=integer();get_shader(sh,0x8B81,C.byref(st))

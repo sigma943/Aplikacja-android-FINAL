@@ -28,5 +28,15 @@
     "lon": 21.951202,
     "erroneousLat": 50.112941,
     "erroneousLon": 21.955654
+  },
+  "5974": {
+    "areaId": "3013",
+    "code": "01",
+    "name": "LUTORYŻ, PĘTLA",
+    "gtfsStopId": "261",
+    "lat": 49.962533,
+    "lon": 21.894218,
+    "erroneousLat": 49.96351,
+    "erroneousLon": 21.888526
   }
 }

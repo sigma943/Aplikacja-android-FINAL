@@ -270,7 +270,7 @@ export function MaintenanceView({
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={onMenuClick} className="lg:hidden flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400">
+            <button data-admin-milk-control="menu" onClick={onMenuClick} className="lg:hidden flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400">
               <Menu size={20} />
             </button>
             <div>
@@ -307,6 +307,7 @@ export function MaintenanceView({
             <div className="relative min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
               <input
+                data-milk-search
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Szukaj endpointu..."
@@ -429,7 +430,7 @@ export function MaintenanceView({
               <CheckLine label="Adres HTTPS" ok={draft.url.startsWith('https://')} />
               <CheckLine label="Odpowiedź API" ok={displayedTest?.ok ?? null} value={displayedTest?.statusCode ? `HTTP ${displayedTest.statusCode}` : '-'} />
               <CheckLine label="Czas odpowiedzi" ok={displayedTest?.latencyMs == null ? null : displayedTest.latencyMs < 1000} value={displayedTest?.latencyMs != null ? `${displayedTest.latencyMs} ms` : '-'} />
-              {displayedTest?.message && <p role="status" className="text-xs text-slate-400">{displayedTest.message}</p>}
+              {displayedTest?.message && <p role="status" data-api-test-message className="text-xs text-slate-400">{displayedTest.message}</p>}
               <button
                 type="button"
                 disabled={!ready || Boolean(busy) || !draft.url}
