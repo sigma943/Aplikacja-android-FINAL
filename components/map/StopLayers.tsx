@@ -11,7 +11,7 @@ import {Marker, useMap, CircleMarker, useMapEvents} from 'react-leaflet';
 import L from 'leaflet';
 
 import type {Stop} from '@/Panel/src/types';
-import {mapStopColor, mapStopIconHtml, visibleMapStops, routeMapStopPoint} from '@/lib/map-stop-markers';
+import {mapStopColor, mapStopIconHtml, visibleMapStops, routeMapStopPoint, routeMapCatalogStopId} from '@/lib/map-stop-markers';
 
 import {type Vehicle, type StopData} from '@/lib/transport/vehicle';
 
@@ -39,13 +39,13 @@ const CatalogStopMarker=memo(function CatalogStopMarker({stop,selected,color,onS
   return <Marker position={position} title={label} alt={label} icon={icon} zIndexOffset={selected?4500:-500} eventHandlers={handlers}/>;
 });
 
-function CatalogStopsLayer({stops,selected,selectedColor,onSelect}:{stops:Stop[];selected?:string|null;selectedColor?:string;onSelect?:(stop:Stop)=>void}) {
+function CatalogStopsLayer({stops,selected,selectedColor,onSelect,routeStopIds}:{stops:Stop[];routeStopIds?:ReadonlySet<string>;selected?:string|null;selectedColor?:string;onSelect?:(stop:Stop)=>void}) {
   const map=useMap();
   const [revision,setRevision]=useState(0);
   useMapEvents({moveend:()=>setRevision(value=>value+1),zoomend:()=>setRevision(value=>value+1)});
   const platformRevision=stopPlatformRevision();
   const visible=useMemo(()=>{const bounds=map.getBounds();return visibleMapStops(stops,[bounds.getWest(),bounds.getSouth(),bounds.getEast(),bounds.getNorth()],map.getZoom(),selected);},[map,stops,selected,revision,platformRevision]);
-  return <>{visible.map(stop=><CatalogStopMarker key={stop.id} platformRevision={platformRevision} stop={stop} selected={stop.id===selected}
+  return <>{visible.map(stop=><CatalogStopMarker key={stop.id} platformRevision={platformRevision} stop={stop} selected={stop.id===selected||Boolean(routeStopIds?.has(stop.id))}
     color={stop.id===selected&&selectedColor?selectedColor:mapStopColor(stop)} onSelect={onSelect}/>)}</>;
 }
 
@@ -55,6 +55,7 @@ function RouteStopsLayer({
   catalogStops,
   stopIds,
   highlightedStopId,
+  catalogSelected,
   selectedRouteColor,
   onStopClick,
 }: {
@@ -63,23 +64,27 @@ function RouteStopsLayer({
   catalogStops?: Stop[];
   stopIds: Array<string | number>;
   highlightedStopId?: string | null;
+  catalogSelected?: string | null;
   selectedRouteColor: string;
   onStopClick?: (stopId: string) => void;
 }) {
   const map = useMap();
   const [zoom, setZoom] = useState(map.getZoom());
+  const [viewRevision,setViewRevision]=useState(0);
 
   useMapEvents({
-    zoomend: () => setZoom(map.getZoom()),
+    zoomend: () => {setZoom(map.getZoom());setViewRevision(v=>v+1);},
+    moveend: () => setViewRevision(v=>v+1),
   });
 
   const platformRevision=stopPlatformRevision();
-  const alignedStops=useMemo(()=>{
-    if(!selectedVehicle||selectedVehicle.provider==='pkp_intercity'||!catalogStops?.length)return stopsData;
-    const aligned={...stopsData},ids=new Set(stopIds.map(id=>String(id).replace(/^(pks|mpk_rzeszow):/,'')));
+  const visibleCatalogIds=useMemo(()=>{const b=map.getBounds();return new Set(visibleMapStops(catalogStops||[],[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],zoom,catalogSelected).map(stop=>stop.id));},[map,catalogStops,zoom,viewRevision,platformRevision,catalogSelected]);
+  const routeDisplay=useMemo(()=>{
+    if(!selectedVehicle||selectedVehicle.provider==='pkp_intercity'||!catalogStops?.length)return {stops:stopsData,catalogIds:new Map<string,string>()};
+    const aligned={...stopsData},catalogIds=new Map<string,string>(),ids=new Set(stopIds.map(id=>String(id).replace(/^(pks|mpk_rzeszow):/,'')));
     const catalog=selectedVehicle.provider==='marcel'?catalogStops:catalogStops.filter(stop=>String(stop.providerStopIds?.[selectedVehicle.provider||'pks']||'').split(',').some(id=>ids.has(id.trim())));
-    for(const id of stopIds){const raw=stopsData[String(id)];if(raw)aligned[String(id)]=routeMapStopPoint(catalog,String(id),raw,selectedVehicle.provider);}
-    return aligned;
+    for(const id of stopIds){const raw=stopsData[String(id)];if(!raw)continue;const match=routeMapCatalogStopId(catalog,String(id),raw,selectedVehicle.provider);if(match)catalogIds.set(String(id),match);aligned[String(id)]=routeMapStopPoint(catalog,String(id),raw,selectedVehicle.provider);}
+    return {stops:aligned,catalogIds};
   },[selectedVehicle?.provider,catalogStops,stopsData,stopIds.join(','),platformRevision]);
   const visibleStopIds = selectedVehicle ? stopIds : [];
 
@@ -90,11 +95,13 @@ function RouteStopsLayer({
   return (
     <>
       {visibleStopIds.map((stopId, idx) => {
-        const rawStop = alignedStops[String(stopId)];
+        const rawStop = routeDisplay.stops[String(stopId)];
         const alignedPlatform=rawStop!==stopsData[String(stopId)];
         const position=rawStop&&selectedVehicle.provider!=='pkp_intercity'?(alignedPlatform?{lat:rawStop.lat,lon:rawStop.lon}:platformPosition(rawStop)):null;
         const stop = rawStop && selectedVehicle.provider!=='pkp_intercity' ? (position?{...rawStop,...position}:null) : rawStop;
         if (!stop) return null;
+        const catalogId=routeDisplay.catalogIds.get(String(stopId));
+        if(catalogId&&visibleCatalogIds.has(catalogId))return null;
         const isHighlighted = String(stopId) === highlightedStopId;
 
         return (

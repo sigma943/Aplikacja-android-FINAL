@@ -52,14 +52,24 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   }
   await page.setRequestInterception(true);page.on('request',r=>r.url().includes('/data/stop-platform-index.json')?r.respond({status:404,body:'{}'}):r.url().includes('/data/stop-platforms.json')?r.respond({status:200,contentType:'application/json',body:JSON.stringify({points:[{id:'platform/1',name:'Test wspólny peron 01',lat:50.00007,lon:22.00007}]})}):r.continue());
   for(const provider of ['pks','mpk_rzeszow','marcel']){
-   await page.goto(origin+'/?view=platform&provider='+provider);await page.waitForFunction(()=>window.__platformCenters?.().circles.length===1&&window.__platformCenters().icons.length===1);await page.waitForSelector('.map-catalog-stop');
+   await page.goto(origin+'/?view=platform&provider='+provider);await page.waitForSelector('.map-stop-ring.is-selected');
+   const state=()=>page.evaluate(()=>({circles:window.__platformCenters().circles.length,icons:window.__platformCenters().icons.length,glows:document.querySelectorAll('.map-stop-ring.is-selected').length,panel:!!document.querySelector('[data-stop-details]')}));
+   assert.deepEqual(await state(),{circles:0,icons:2,glows:1,panel:false},'high zoom shows only highlighted catalog stop');
+   await page.evaluate(()=>window.__platformZoom(15));await page.waitForFunction(()=>window.__platformCenters().circles.length===1&&window.__platformCenters().icons.length===0);
+   assert.deepEqual(await state(),{circles:1,icons:0,glows:0,panel:false},'zoom out restores ordinary route dots');
    for(const zoom of [16,19,20]){
-    await page.evaluate(zoom=>window.__platformZoom(zoom),zoom);await new Promise(r=>setTimeout(r,100));
-    const distance=await page.evaluate(()=>{const {circles,icons}=window.__platformCenters();return Math.hypot(circles[0].x-icons[0].x,circles[0].y-icons[0].y);});assert.ok(distance<1.6,'same platform markers join at zoom '+zoom+' '+provider+': '+distance);
+    await page.evaluate(zoom=>window.__platformZoom(zoom),zoom);await page.waitForFunction(()=>window.__platformCenters().circles.length===0&&window.__platformCenters().icons.length===2);
+    assert.deepEqual(await state(),{circles:0,icons:2,glows:1,panel:false},'zoom '+zoom+' '+provider+' hides white dot and glows only the matching stop');
    }
-   await page.evaluate(()=>window.__platformRefresh());await new Promise(r=>setTimeout(r,100));
-   const distance=await page.evaluate(()=>{const {circles,icons}=window.__platformCenters();return Math.hypot(circles[0].x-icons[0].x,circles[0].y-icons[0].y);});assert.ok(distance<1.6,'platform refresh keeps markers aligned: '+distance);
-   await page.screenshot({path:'test/ui-previews/horyzont-platform-join-'+provider+'.png'});console.log('PASS joined platform',provider,'zoom 16/19/20, catalog reload');
+   await page.evaluate(()=>window.__platformRefresh());await new Promise(r=>setTimeout(r,150));assert.deepEqual(await state(),{circles:0,icons:2,glows:1,panel:false},'catalog refresh keeps glow without a duplicate or panel');
+   await page.evaluate(()=>window.__routeVisible(false));await page.waitForFunction(()=>!document.querySelector('.map-stop-ring.is-selected'));assert.deepEqual(await state(),{circles:0,icons:2,glows:0,panel:false},'deselecting route removes automatic glow');
+   await page.evaluate(()=>window.__routeVisible(true));await page.waitForSelector('.map-stop-ring.is-selected');
+   await page.evaluate(()=>window.__catalogVisible(false));await page.waitForFunction(()=>window.__platformCenters().circles.length===1&&window.__platformCenters().icons.length===0);assert.equal((await state()).panel,false,'disabled catalog retains route dots');
+   await page.evaluate(()=>window.__catalogVisible(true));await page.waitForSelector('.map-stop-ring.is-selected');await new Promise(r=>setTimeout(r,300));
+   assert.deepEqual(await state(),{circles:0,icons:2,glows:1,panel:false});assert.notEqual(await page.$eval('.map-stop-ring.is-selected',e=>getComputedStyle(e).boxShadow),'none','same visible halo as a pressed stop');
+   await page.screenshot({path:'test/ui-previews/horyzont-platform-glow-'+provider+'.png'});
+   await page.click('.map-stop-ring.is-selected');await page.waitForSelector('[data-stop-details]');assert.match(await page.$eval('[data-stop-details]',e=>e.textContent),/kliknięcia: 1/,'an explicit click still opens stop details');
+   console.log('PASS route stop glow',provider,'zoom 15/16/19/20, refresh, deselection, hidden catalog; no automatic panel');
   }
   await page.goto(origin+'/?view=clouds');const clouds=await page.evaluate(()=>window.__cloudMaterialCheck);assert.equal(clouds.alphaMismatch,0,'identical cloud silhouettes day and night');assert.ok(clouds.visible>1000);assert.ok(clouds.nightRatio>.25&&clouds.nightRatio<.8,'night clouds keep visible texture without daytime lighting: '+JSON.stringify(clouds));console.log('PASS same cloud asset day/night',clouds);
   assert.deepEqual(errors,[]);

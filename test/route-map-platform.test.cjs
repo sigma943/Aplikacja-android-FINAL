@@ -11,3 +11,11 @@ test('unrelated IDs, ambiguous platforms and excessive displacement cannot merge
  assert.equal(routeMapStopPoint([{...stop,lat:51}],'1',point,'pks'),point);
  assert.equal(routeMapStopPoint([stop],'1',point,'pkp_intercity'),point);
 });
+
+test('automatic route glow uses only unambiguous provider IDs and leaves input untouched',()=>{
+ const {routeCatalogStopIds}=load('lib/map-stop-markers.ts');
+ assert.deepEqual([...routeCatalogStopIds([stop],['1'],{'1':point},'pks')],['shared']);
+ assert.deepEqual([...routeCatalogStopIds([stop],['2'],{'2':point},'pks')],[]);
+ assert.deepEqual([...routeCatalogStopIds([stop,{...stop,id:'duplicate'}],['1'],{'1':point},'pks')],[]);
+ assert.deepEqual([...routeCatalogStopIds([stop],['1'],{'1':point},'pkp_intercity')],[]);
+});

@@ -11,7 +11,7 @@ import {MapContainer, TileLayer, ZoomControl, Pane} from 'react-leaflet';
 import RouteLines from './map/RouteLines';
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
 import type {Stop} from '@/Panel/src/types';
-import {canonicalMapStopId, mapStopColor} from '@/lib/map-stop-markers';
+import {canonicalMapStopId, mapStopColor, routeCatalogStopIds} from '@/lib/map-stop-markers';
 
 import {routeGeometryKey} from '@/lib/route-geometry-key';
 import {officialBusRoute} from '@/lib/official-bus-routes';
@@ -103,7 +103,7 @@ function BusMap({
   }, []);
 
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
-  const [,setPlatformRevision]=useState(0);
+  const [platformRevision,setPlatformRevision]=useState(0);
   const needsPlatforms=mapStops.length>0||Boolean((selectedVehicle||highlightedStopId)&&selectedVehicle?.provider!=='pkp_intercity');
   useEffect(()=>{
     if(!needsPlatforms)return;
@@ -174,6 +174,7 @@ function BusMap({
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const highlightedStop = highlightedStopId ? routeStopsData[highlightedStopId] : undefined;
   const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider,highlightedStop);
+  const routeCatalogIds=useMemo(()=>selectedVehicle?routeCatalogStopIds(mapStops,visibleRouteStopIds,routeStopsData,selectedVehicle.provider):new Set<string>(),[mapStops,visibleRouteStopIdsKey,routeStopsData,selectedVehicle?.provider,Boolean(selectedVehicle),platformRevision]);
   const selectedStopColor = selectedVehicle?.provider === 'pkp_intercity' ? themeColor
     : selectedVehicle ? selectedRouteColor
     : highlightedStop ? mapStopColor({name: highlightedStop.n}) : themeColor;
@@ -409,7 +410,7 @@ function BusMap({
         />
 
         <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} alignToCatalog={selectedVehicle?.provider!=='pkp_intercity'} stops={mapStops} color={selectedStopColor}/>
-        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={selectedCatalogStopId} selectedColor={selectedVehicle?selectedStopColor:undefined} onSelect={onMapStopClick}/>}
+        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} routeStopIds={routeCatalogIds} selected={selectedCatalogStopId} selectedColor={selectedVehicle?selectedStopColor:undefined} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
@@ -425,6 +426,7 @@ function BusMap({
               catalogStops={mapStops}
               stopIds={visibleRouteStopIds}
               highlightedStopId={highlightedStopId}
+              catalogSelected={selectedCatalogStopId}
               selectedRouteColor={themeColor}
               onStopClick={onStopClick}
             />
