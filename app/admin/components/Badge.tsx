@@ -49,7 +49,7 @@ export function Badge({ children, variant = 'default', role, status, isStatus, c
 
   if (isStatus) {
     return (
-      <div className={cn(
+      <div data-admin-badge={v} className={cn(
         "flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all duration-500 whitespace-nowrap w-fit",
         v === 'emerald' ? "bg-emerald-500/5 border-emerald-500/15" : "bg-rose-500/5 border-rose-500/15",
         className
@@ -61,7 +61,7 @@ export function Badge({ children, variant = 'default', role, status, isStatus, c
   }
 
   return (
-    <span className={cn(baseClasses, variants[v as keyof typeof variants], "w-fit", className)}>
+    <span data-admin-badge={v} className={cn(baseClasses, variants[v as keyof typeof variants], "w-fit", className)}>
       <div className="absolute inset-x-0 bottom-0 h-[1px] bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className={cn("w-1 h-1 rounded-full flex-shrink-0", ringVariants[v as keyof typeof ringVariants])} />
       {text}

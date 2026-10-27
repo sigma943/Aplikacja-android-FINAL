@@ -54,6 +54,7 @@ export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,
                 <div className="relative z-[1] shrink-0">
                   <Search className={`absolute left-3 top-2.5 h-4 w-4 opacity-60 ${textSub}`} />
                   <input
+                    data-milk-search
                     type="text"
                     className={`w-full py-2 pl-10 pr-10 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all font-medium placeholder-opacity-60 ${mapGlassInput}`}
                     style={{ '--tw-ring-color': themeColor + '80' } as CSSProperties}
