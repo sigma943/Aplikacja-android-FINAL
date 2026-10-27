@@ -270,7 +270,7 @@ export function MaintenanceView({
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={onMenuClick} className="lg:hidden flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400">
+            <button data-admin-milk-control="menu" onClick={onMenuClick} className="lg:hidden flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400">
               <Menu size={20} />
             </button>
             <div>

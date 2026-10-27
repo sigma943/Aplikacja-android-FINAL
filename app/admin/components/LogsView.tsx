@@ -227,7 +227,7 @@ export function LogsView({
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={onMenuClick}
+              data-admin-milk-control="menu" onClick={onMenuClick}
               className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
             >
               <Menu size={20} />
@@ -263,7 +263,7 @@ export function LogsView({
         <div ref={filtersRef} className="grid grid-cols-2 gap-4">
           <div className="relative">
             <button 
-              onClick={toggleTypeFilter}
+              data-admin-milk-control="filter" onClick={toggleTypeFilter}
               className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">

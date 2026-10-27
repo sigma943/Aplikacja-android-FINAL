@@ -94,7 +94,7 @@ export function OperatorsView({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-4">
             <button 
-              onClick={onMenuClick} 
+              data-admin-milk-control="menu" onClick={onMenuClick}
               className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
             >
               <Menu size={20} />

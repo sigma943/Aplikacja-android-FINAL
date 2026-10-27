@@ -11,6 +11,32 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   fs.mkdirSync('test/ui-previews',{recursive:true});
   const contrast=(a,b)=>{const lum=c=>c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>c.startsWith('color(srgb')?v:v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+  const searchGutter=async selector=>{
+   const layout=await page.$eval(selector,e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect(),icon=e.parentElement.querySelector(':scope>svg');return {align:s.textAlign,indent:s.textIndent,left:parseFloat(s.paddingInlineStart),iconRight:icon?icon.getBoundingClientRect().right-r.left:0,width:r.width};});
+   assert.equal(layout.align,'left');assert.equal(layout.indent,'0px');assert.equal(layout.left,30);assert.ok(layout.iconRight<=layout.left-4,'search icon does not cover the text');
+   await page.type(selector,'108');assert.equal(await page.$eval(selector,e=>e.value),'108');
+  };
+  const controls={};
+  for(const mode of ['day','warm','night']){
+   const suffix=mode==='night'?'&night':mode==='warm'?'&warm':'';
+   await page.goto(origin+'/?view=devices'+suffix);await page.waitForSelector('input[data-milk-search]');
+   controls[mode]=await page.evaluate(()=>[...document.querySelectorAll('[data-admin-milk-control],input[data-milk-search]')].map(e=>{const s=getComputedStyle(e);return {fill:s.backgroundColor,image:s.backgroundImage,blur:s.backdropFilter,ink:s.color};}));
+   for(const c of controls[mode])assert.deepEqual(c,controls[mode][0],'all device toolbar controls use identical solar milk');
+   await searchGutter('input[data-milk-search]');
+   await page.goto(origin+'/?view=bans'+suffix);await page.waitForSelector('[data-admin-milk-control=filter]');
+   const bans=await page.evaluate(()=>[...document.querySelectorAll('[data-admin-milk-control],input[data-milk-search]')].map(e=>{const s=getComputedStyle(e);return {fill:s.backgroundColor,image:s.backgroundImage,blur:s.backdropFilter,ink:s.color};}));
+   for(const c of bans)assert.deepEqual(c,controls[mode][0],'Bans filter matches Device toolbar');
+   await searchGutter('input[data-milk-search]');
+   await page.screenshot({path:'test/ui-previews/horyzont-admin-controls-'+mode+'.png'});
+   await page.goto(origin+'/?view=badges'+suffix);await page.waitForSelector('[data-admin-badge]');
+   const badges=await page.$$eval('[data-admin-badge]',nodes=>nodes.map(e=>{const s=getComputedStyle(e),label=e.querySelector('span');return {text:e.textContent,paper:s.backgroundColor,ink:getComputedStyle(label||e).color,shadow:s.textShadow,stroke:s.webkitTextStrokeWidth};}));
+   assert.equal(badges.length,6);for(const b of badges){assert.match(b.paper,/^rgb\(/,'badge paper is opaque over river highlights');assert.ok(contrast(b.paper,b.ink)>=7,b.text+' remains readable');assert.equal(b.shadow,'none');assert.equal(b.stroke,'0px');}
+   await page.screenshot({path:'test/ui-previews/horyzont-admin-badges-'+mode+'.png'});
+  }
+  assert.notEqual(controls.day[0].fill,controls.warm[0].fill,'milk changes with solar warmth');assert.notEqual(controls.day[0].fill,controls.night[0].fill,'milk turns dark at night');
+  for(const kind of ['searchmap','searchstops']){await page.goto(origin+'/?view='+kind);await page.waitForSelector('input[data-milk-search]');await searchGutter('input[data-milk-search]');}
+  await page.goto(origin+'/?view=connections');await page.waitForSelector('[data-journey-from]');assert.equal(await page.$eval('[data-journey-from]',e=>getComputedStyle(e).paddingInlineStart),'10px');await page.click('[data-journey-from]');await page.waitForSelector('.connections-picker input[data-milk-search]');await searchGutter('.connections-picker input[data-milk-search]');
+  console.log('PASS admin solar milk, Bans filter, six badge labels and left-aligned searches across four panels');
   // Disable only the new text layer to compare against the previous material.
   // Real components must keep every fill, filter, border and glow unchanged.
   for(const kind of ['stops','connections','devices'])for(const mode of ['day','warm','night','other']){
@@ -45,13 +71,13 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   for(const theme of ['dark-mountains','dark-cosmos','dark-forest','dark-oled','dark','light','light-warm','light-sky','light-pink'])for(const night of theme==='dark-mountains'?[false,true]:[false]){
    await page.goto(origin+'/?view=devices&theme='+theme+(night?'&night':''));await page.waitForSelector('.admin-device-card');
    await page.waitForFunction(()=>[...document.querySelectorAll('.admin-device-card')].some(e=>e.getBoundingClientRect().height>100)&&[...document.querySelectorAll('.admin-device-card')].every(e=>getComputedStyle(e.parentElement).opacity==='1'));
-   const read=()=>page.evaluate(()=>{const card=document.querySelector('.admin-device-card'),input=document.querySelector('input[data-milk-search]'),text=[...card.querySelectorAll('div')].find(e=>e.textContent==='ID urządzenia'),s=getComputedStyle(card),i=getComputedStyle(input);return {fill:s.backgroundColor,blur:s.backdropFilter,shadow:getComputedStyle(text).textShadow,ink:getComputedStyle(text).color,inputFill:i.backgroundColor,inputImage:i.backgroundImage,inputBlur:i.backdropFilter,placeholder:getComputedStyle(input,'::placeholder').color};});
+   const read=()=>page.evaluate(()=>{const card=document.querySelector('.admin-device-card'),input=document.querySelector('input[data-milk-search]'),text=[...card.querySelectorAll('div')].find(e=>e.textContent==='ID urządzenia'),s=getComputedStyle(card),i=getComputedStyle(input);return {fill:s.backgroundColor,blur:s.backdropFilter,shadow:getComputedStyle(text).textShadow,ink:getComputedStyle(text).color,inputFill:i.backgroundColor,inputImage:i.backgroundImage,inputBlur:i.backdropFilter,menuFill:getComputedStyle(document.querySelector('[data-admin-milk-control=menu]')).backgroundColor,menuImage:getComputedStyle(document.querySelector('[data-admin-milk-control=menu]')).backgroundImage,placeholder:getComputedStyle(input,'::placeholder').color};});
    const material=await read();
    if(theme==='dark-mountains'){
     assert.ok(material.fill.endsWith('0.2)'),'device card retains the exact 20% fill');
     assert.equal(material.shadow==='none',night,'text halo only in daylight');
-    assert.equal(material.inputFill,night?'rgba(20, 33, 50, 0.96)':'rgba(245, 249, 252, 0.94)');
-    assert.equal(material.inputBlur,'blur(18px)');
+    assert.equal(material.inputFill,material.menuFill,'search and sidebar trigger share solar milk');assert.equal(material.inputImage,material.menuImage);assert.notEqual(material.inputImage,'none');
+    assert.match(material.inputBlur,/blur\(18px\)/);
     assert.ok(contrast(material.ink,material.inputFill)>7,'readable search milk family');
     await page.evaluate(()=>{const style=document.createElement('style');style.id='before-readability';style.textContent='.admin-device-card,.admin-device-card * {text-shadow:none!important}';document.head.append(style);});
     const withoutHalo=await read();if(!night)await page.screenshot({path:'test/ui-previews/horyzont-device-readable-before.png'});assert.equal(material.fill,withoutHalo.fill);assert.equal(material.blur,withoutHalo.blur,'glyph halo does not change panel blur');
