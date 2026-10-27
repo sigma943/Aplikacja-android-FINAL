@@ -50,6 +50,11 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    }
    console.log('PASS bus sheet',theme,night?'night':'day',provider,'collapsed/expanded/collapsed');
   }
+  await page.goto(origin+'/?view=stop&theme=dark-mountains&night');await page.waitForSelector('[data-departure-row]');
+  assert.equal(await page.$('[role="alert"]'),null,'available timetable hides only the requested forecast banner');assert.match(await page.$eval('[data-departure-row]',e=>e.textContent),/05:20/);
+  for(const kind of ['error','mixed']){await page.evaluate(kind=>window.__mapStopCase(kind),kind);await page.waitForSelector('[role="alert"]');const message=await page.$eval('[role="alert"]',e=>e.textContent);assert.match(message,/Nie udało się odświeżyć/);assert.ok(!message.includes('prognozy na żywo'));}
+  await page.evaluate(()=>window.__mapStopCase('empty'));await page.waitForFunction(()=>!document.querySelector('[data-departure-row]'));assert.match(await page.$eval('[role="alert"]',e=>e.textContent),/prognozy na żywo/,'an unavailable timetable still exposes the error');
+  await page.evaluate(()=>window.__mapStopCase('schedule'));await page.waitForSelector('[data-departure-row]');assert.equal(await page.$('[role="alert"]'),null);await page.screenshot({path:'test/ui-previews/horyzont-map-stop-timetable.png'});console.log('PASS map stop warning: timetable shown quietly, real errors preserved');
   await page.setRequestInterception(true);page.on('request',r=>r.url().includes('/data/stop-platform-index.json')?r.respond({status:404,body:'{}'}):r.url().includes('/data/stop-platforms.json')?r.respond({status:200,contentType:'application/json',body:JSON.stringify({points:[{id:'platform/1',name:'Test wspólny peron 01',lat:50.00007,lon:22.00007}]})}):r.continue());
   for(const provider of ['pks','mpk_rzeszow','marcel']){
    await page.goto(origin+'/?view=platform&provider='+provider);await page.waitForSelector('.map-stop-ring.is-selected');

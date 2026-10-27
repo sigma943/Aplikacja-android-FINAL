@@ -14,7 +14,8 @@ import type {Stop} from '@/Panel/src/types';
 import {canonicalMapStopId, mapStopColor, routeCatalogStopIds} from '@/lib/map-stop-markers';
 
 import {routeGeometryKey} from '@/lib/route-geometry-key';
-import {officialBusRoute} from '@/lib/official-bus-routes';
+import {officialBusRoute,officialBusStopPoints} from '@/lib/official-bus-routes';
+import {mpkRouteForPaint} from '@/lib/map/mpk-route-paint';
 import {roadRouteMatchesStops, cleanRoadJunctionLoops, validRoadPoint} from '@/lib/bus-road-geometry';
 import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
@@ -195,6 +196,15 @@ function BusMap({
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
   const suppliedRouteKey=JSON.stringify(selectedVehicle?.routeGeometry||[]);
   const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
+  const [mpkShapePins,setMpkShapePins]=useState<Array<[number,number]>>([]);
+  useEffect(()=>{
+    if(selectedVehicle?.provider!=='mpk_rzeszow')return;
+    let active=true;
+    void officialBusStopPoints('mpk_rzeszow').then(pins=>{if(active)setMpkShapePins(pins);}).catch(()=>{});
+    return()=>{active=false;};
+  },[selectedVehicle?.provider]);
+  const paintedGeometry=useMemo(()=>mpkRouteForPaint(currentGeometry,selectedVehicle?.provider,[...mpkShapePins,...routeGeometryStops.map(stop=>[stop.lat,stop.lon] as [number,number])]),[currentGeometry,selectedVehicle?.provider,mpkShapePins,routeGeometryStops]);
+
 
   useEffect(() => {
     activeRouteRequestIdRef.current += 1;
@@ -414,7 +424,7 @@ function BusMap({
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
-          <RouteLines positions={currentGeometry} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
+          <RouteLines positions={paintedGeometry} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
         </Pane>
 
         {/* Draw Route Stops */}

@@ -2,6 +2,7 @@ import {createRoot} from 'react-dom/client';
 import {useState} from 'react';
 import {StatisticsView} from '../app/admin/components/StatisticsView';
 import BusSheetThemeFixture from './bus-sheet-theme-fixture';
+import MapStopWarningFixture from './map-stop-warning-fixture';
 import MapPlatformJoinFixture from './map-platform-join-fixture';
 import {checkCloudMaterials} from './cloud-material-fixture';
 import {Sidebar} from '../app/admin/components/Sidebar';
@@ -20,4 +21,4 @@ const date=warsawDateIso(),now=Date.now(),history=aggregateApiStatisticsReports(
 function App(){const [open,setOpen]=useState(false);return <div className="pks-theme-root flex h-screen" data-ui-theme={theme} style={{position:'relative',background:theme==='dark-mountains'?"url('/themes/mountains/terrain.webp') center/cover, #587897":dark?'#081321':'#edf3f8'}}><div data-control-card className="transit-card" style={{position:'fixed',width:1,height:1,left:-50}}/><Sidebar isOpen={open} onClose={()=>setOpen(false)} user={{name:'Administrator',role:'Właściciel',initials:'AD'}} activeView="statistics" onViewChange={()=>setOpen(false)} accentColor="#007f79"/>{query.get('view')==='bus'?<BusSheetThemeFixture dark={dark} provider={query.get('provider')||'pks'}/>:<StatisticsView reportsEnabled={false} apiHistory={history} devices={[{id:'a',firstLogin:new Date(now).toISOString(),lastSeenAt:now}]} isDarkTheme={dark} accentColor="#a4e3d1" onMenuClick={()=>setOpen(true)}/>}</div>;}
 document.getElementById('root')!.style.height='100vh';
 if(query.get('view')==='clouds'){(window as any).__cloudMaterialCheck=checkCloudMaterials();}
-createRoot(document.getElementById('root')!).render(query.get('view')==='platform'?<MapPlatformJoinFixture provider={query.get('provider')||'pks'}/>:<App/>);
+createRoot(document.getElementById('root')!).render(query.get('view')==='stop'?<MapStopWarningFixture dark={dark}/>:query.get('view')==='platform'?<MapPlatformJoinFixture provider={query.get('provider')||'pks'}/>:<App/>);
