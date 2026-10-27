@@ -32,7 +32,18 @@ export function reconcileRouteStopCoordinates<T extends NamedPoint>(live:T[],off
  const corrected=live.map((source,i)=>{
   const target=official[i],origin=readBusCoordinates(source.lat,source.lon);
   if(origin&&roadDistance([origin.lat,origin.lon],[target.lat!,target.lon!])<=100)return source;
-  if(!sameRouteStopName(source.name,target.name))return source;
+  if(!sameRouteStopName(source.name,target.name)) {
+   // EINFO and GTFS sometimes number a single turning loop differently.
+   // Only an interior, uniquely named loop in the anchored full course may
+   // cross that namespace boundary; ordinary opposite-side platforms may not.
+   const key=(name:string)=>[...identity(name).words].sort().join(' ');
+   const sourceKey=key(source.name),targetKey=key(target.name);
+   const uniqueLoop=i>0&&i<live.length-1&&identity(source.name).words.has('petla')&&
+    sourceKey===targetKey&&live.filter(s=>key(s.name)===sourceKey).length===1&&
+    official.filter(s=>key(s.name)===targetKey).length===1&&!!origin&&
+    roadDistance([origin.lat,origin.lon],[target.lat!,target.lon!])<=600;
+   if(!uniqueLoop)return source;
+  }
   changed=true;return {...source,lat:target.lat!,lon:target.lon!};
  });
  return changed?corrected:live;

@@ -16,7 +16,7 @@ import {routeGeometryKey} from './route-geometry-key';
 import {mpkSignalTime} from './mpk-vehicle-feed';
 import {getTransportRuntime} from './transport-runtime';
 import {reconcileRouteStopCoordinates} from './reconcile-route-stops';
-import {officialBusStops} from './official-bus-routes';
+import {officialBusStops,completeOfficialBusStopCoordinates} from './official-bus-routes';
 
 import {busOperatingState, transitTimestamp} from './bus-operating-state';
 
@@ -131,14 +131,16 @@ async function fetchPksVehicleDetailsClient(vehicleId: string, includeInactive: 
   const mapped = mapVehicle(rawVehicle, Date.now(), includeInactive, stopsDict, true);
   if(mapped) {
     const officialStops=await officialBusStops('pks',rawVehicle.trip_id).catch(()=>[]);
-    const full=mapped.routeStops||[];
+    const original=mapped.routeStops||[];
+    const full=await completeOfficialBusStopCoordinates('pks',original).catch(()=>original);
+    mapped.routeStops=full;
     const aligned=officialStops.length===full.length && full.every((stop,index)=>!Number.isFinite(stop.lat)||!Number.isFinite(stop.lon)||distanceMeters([stop.lat!,stop.lon!],[officialStops[index].lat,officialStops[index].lon])<1200);
     if(aligned) {
       const reconciled=reconcileRouteStopCoordinates(full,officialStops);
       mapped.routeStops=reconciled!==full?reconciled:full.map((stop,index)=>({...stop,lat:stop.lat??officialStops[index].lat,lon:stop.lon??officialStops[index].lon}));
-      const byId=new Map(mapped.routeStops.map(stop=>[String(stop.id),stop]));
-      mapped.schedule=mapped.schedule?.map(stop=>({...stop,lat:byId.get(String(stop.id))?.lat??stop.lat,lon:byId.get(String(stop.id))?.lon??stop.lon}));
     }
+    const byId=new Map(mapped.routeStops.map(stop=>[String(stop.id),stop]));
+    mapped.schedule=mapped.schedule?.map(stop=>({...stop,lat:byId.get(String(stop.id))?.lat??stop.lat,lon:byId.get(String(stop.id))?.lon??stop.lon}));
   }
   return mapped
     ? {

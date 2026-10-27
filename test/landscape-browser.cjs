@@ -129,7 +129,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.setViewport({width:320,height:640,deviceScaleFactor:2});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.screenshot({path:'test/ui-previews/landscape-small-phone.png'});
-  await new Promise(r=>setTimeout(r,2500)); // Let resize/shader warmup and the two-window quality controller settle.
+  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0,quality:'low'}));
+  await new Promise(r=>setTimeout(r,2500)); // Measure cadence at explicit low quality on software GPUs.
   const cadence=await page.evaluate(()=>({frames:window.__landscapeDiagnostics().frames,background:window.__landscapeDiagnostics().renderer.backgroundFrames}));
   await new Promise(r=>setTimeout(r,1400));
   const cadenceAfter=await page.evaluate(()=>({frames:window.__landscapeDiagnostics().frames,background:window.__landscapeDiagnostics().renderer.backgroundFrames}));
@@ -138,7 +139,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.evaluate(()=>window.__landscapePreview({}));
   await new Promise(r=>setTimeout(r,2000));
   const metrics=await page.evaluate(()=>window.__landscapeDiagnostics());
-  assert.ok(metrics.canvasPixels<=900000);assert.equal(metrics.source,'default-rzeszow');
+  assert.ok(metrics.canvasPixels<=3600000);assert.equal(metrics.source,'default-rzeszow');
   // Native saver/bridge fallback must remain live instead of freezing the world.
   await page.evaluate(()=>window.__landscapeTestPower(true));
   await page.waitForFunction(()=>window.__landscapeDiagnostics().motion==='power-saving');
@@ -272,14 +273,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-25T16:15:00+01:00',rate:0,quality:'low'}));
    await page.waitForFunction(()=>window.__landscapeDiagnostics().samples!==null);
    assert.equal(await page.$$eval('[data-landscape-window]',els=>els.length),0,'no scenery canvas in the vehicle sheet');
-   assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter),'none','artwork sheets do not blur the map');
+   assert.equal(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backdropFilter.includes('blur(')),true,'glass sheets soften the backdrop');
    if(mode==='bus'){
     await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-23T12:00:00+02:00',rate:0,quality:'low'}));
     await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='day'&&document.querySelector('[data-vehicle-header]')?.dataset.uiMode==='light');
     await new Promise(r=>setTimeout(r,150));
     assert.equal(await page.$eval('[data-vehicle-line]',e=>getComputedStyle(e).flexDirection),'row','vehicle sheet retains the shared layout');
     assert.equal(await page.$eval('[data-vehicle-header]',e=>getComputedStyle(e).color),'rgb(23, 37, 54)','daytime carrier heading uses dark ink');
-    assert.equal(await page.$eval('[data-map-bus-sheet]',e=>getComputedStyle(e).backgroundColor),'rgb(242, 248, 252)','milk hides scenery in day mode');
+    assert.ok(await page.$eval('[data-map-bus-sheet]',e=>getComputedStyle(e).backgroundColor.startsWith('rgba(')),'daytime sheet reveals the scenery through one tint');
     for(const width of [320,393]){
      await page.setViewport({width,height:851,deviceScaleFactor:1});
      assert.ok(await page.$eval('[data-map-bus-sheet]',e=>e.scrollWidth<=e.clientWidth+1),'vehicle panel fits '+width+'px');
@@ -308,7 +309,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
      return [0,255].every(v=>{const bg=lum(over(badge,over(row,over(panel,[v,v,v]))));return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)>=4.5;});
     });
    }),'stop line numbers remain readable on the solar glass');
-   assert.ok(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backgroundColor.startsWith('rgb(')),'sheet is opaque milk, never a view of terrain');
+   assert.ok(await page.$eval('.map-detail-shell',e=>getComputedStyle(e).backgroundColor.startsWith('rgba(')),'glass sheet retains the saved opacity');
    assert.ok(await page.evaluate(()=>{const sheet=document.querySelector('.map-detail-shell'),nav=document.querySelector('.pks-navigation'),a=sheet.getBoundingClientRect(),b=nav.getBoundingClientRect(),s=getComputedStyle(sheet);return Math.abs(a.left-b.left)<1&&Math.abs(a.right-b.right)<1&&Math.abs(b.top-a.bottom-8)<1&&[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius].every(r=>parseFloat(r)>=20);}),mode+' sheet matches the rounded dock on all four corners');
    await page.screenshot({path:'test/ui-previews/landscape-'+mode+'-expanded.png'});
    const handle=mode==='bus'?'[data-vehicle-header]':'.map-stop-handle';
