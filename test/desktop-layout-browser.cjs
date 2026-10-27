@@ -23,8 +23,9 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    for(const width of [393,1024]){
     await open(url,width,selector);
     const equal=await page.evaluate(()=>{
-     const sheets=[];for(const sheet of document.styleSheets)for(let i=sheet.cssRules.length-1;i>=0;i--){const r=sheet.cssRules[i];if(r.conditionText==='(min-width:1100px)'){sheets.push([sheet,i,r.cssText]);sheet.deleteRule(i);}}
+     const sheets=[];for(const sheet of document.styleSheets)for(let i=sheet.cssRules.length-1;i>=0;i--){const r=sheet.cssRules[i];if(r.conditionText?.replace(/\s/g,'')==='(min-width:1100px)'){sheets.push([sheet,i,r.cssText]);sheet.deleteRule(i);}}
      const sample=()=>[...document.querySelectorAll('[data-stop-list-header],[data-stop-card-id],[data-options-sheet],.personal-tabs,.connections-content,[data-admin-device-item]')].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return [r.x,r.y,r.width,r.height,s.backgroundColor,s.borderRadius,s.display,s.gridTemplateColumns];});
+     if(!sheets.length)throw Error('Desktop composition layer missing from compiled CSS');
      const before=sample();for(const [sheet,i,text]of sheets.reverse())sheet.insertRule(text,i);return JSON.stringify(before)===JSON.stringify(sample());
     });assert.ok(equal,`mobile/tablet unchanged: ${url} at ${width}`);assert.equal(await overflow(),false);
    }
