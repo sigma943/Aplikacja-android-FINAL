@@ -242,7 +242,7 @@ function BusMap({
       const loadBundledRoute = async()=>routeMode === 'road'
         ? selectedVehicle.provider==='marcel'
           ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon])).catch(()=>[])
-          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon]),{completePattern:!!selectedVehicle.routePath?.length&&routeGeometryStops.length===routeStopIds.length}).catch(()=>[])
+          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon]),{completePattern:!!selectedVehicle.routePath?.length,coordinateStopIds:routeGeometryStops.map(stop=>stop.id!)}).catch(()=>[])
         : [];
       const localRoute = await preferredLocalRoute({
         mode: routeMode,

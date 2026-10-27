@@ -1208,7 +1208,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'] [data-scene-label] { padding:0;border:0;border-radius:0;background:transparent!important;box-shadow:none!important; }
  /* Only headings directly on the artwork get a subtle shadow, never a veil
     across the view or a pill/outline around individual words. */
- html[data-landscape-theme='on'] :is([data-landscape-heading],[data-landscape-heading] *,.connections-heading,.connections-heading *,[data-scene-label]) { color:#f4f8fc!important;text-shadow:0 2px 6px #07132199; }
+ html[data-landscape-theme='on'] :is([data-landscape-heading],[data-landscape-heading] *,.connections-heading,.connections-heading *,[data-scene-label]):not(:where([data-admin-milk-control],[data-admin-milk-control] *)) { color:#f4f8fc!important;text-shadow:0 2px 6px #07132199; }
  html[data-landscape-theme='on'] [data-departure-row] { border:0!important; }
  html[data-landscape-theme='on'][data-personal-card-style='soft'] :is(.transit-card,.pks-personal-card,.pks-option-card,.connections-card) { background-color:color-mix(in srgb,var(--pks-accent) 15%,var(--landscape-surface))!important; }
  html[data-landscape-theme='on'][data-personal-card-style='flat'] :is(.transit-card,.pks-personal-card,.pks-option-card,.connections-card) { border-color:transparent!important;box-shadow:none!important; }

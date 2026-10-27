@@ -27,7 +27,7 @@ export async function officialBusStops(provider:string,tripId:unknown) {
   const pattern=index.patterns[index.tripPatterns[String(tripId)]];
   return pattern?.map(id=>index.stops[id])||[];
 }
-export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Array<number|string>,stopCoordinates?:Array<[number,number]>,options?:{completePattern?:boolean}) {
+export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Array<number|string>,stopCoordinates?:Array<[number,number]>,options?:{completePattern?:boolean;coordinateStopIds?:Array<number|string>}) {
   if(provider!=='pks'&&provider!=='mpk_rzeszow')return [];
   const index=await routeIndex(provider);
   const trip=String(tripId||'');
@@ -41,7 +41,19 @@ export async function officialBusRoute(provider:string,tripId:unknown,stopIds:Ar
   // must match the actual geometry; equal metadata counts prove nothing.
   const completeCoordinates=!!stopCoordinates && expected.length>=2 &&
     stopCoordinates.length===expected.length;
-  const tripMatches=!expected.length || (pattern && pattern.join('-')===expected.join('-')) || completeCoordinates;
+  // A full live course may contain stops with no published GPS coordinates.
+  // Keep their place in the pattern, and validate the exact operator shape
+  // against the known pins instead of treating those pins as a partial trip.
+  // Explicit IDs prove the coordinate subset is ordered and includes both
+  // endpoints; a bare, truncated coordinate list is still rejected.
+  const coordinateIds=options?.coordinateStopIds?.map(String)||[];
+  let coordinateCursor=0;
+  for(const id of expected)if(id===coordinateIds[coordinateCursor])coordinateCursor++;
+  const anchoredPattern=!!options?.completePattern && !!pattern && !!stopCoordinates &&
+    coordinateIds.length===stopCoordinates.length && coordinateIds.length>=Math.max(2,Math.ceil(expected.length*.7)) &&
+    coordinateCursor===coordinateIds.length && coordinateIds[0]===expected[0] &&
+    coordinateIds.at(-1)===expected.at(-1);
+  const tripMatches=!expected.length || (pattern && pattern.join('-')===expected.join('-')) || completeCoordinates || anchoredPattern;
   const shape=(tripMatches ? index.tripShapes[trip] : '')||index.stopShapes[expected.join('-')];
   // Live course IDs change independently of GTFS, whose internal stop IDs
   // also differ from PKS IDs. Validate actual geometry, not ID prefixes or
