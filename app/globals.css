@@ -1325,7 +1325,7 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 @layer landscape-materials {
  html[data-landscape-theme='on'] { --landscape-reading-brightness:1.8; }
  html[data-landscape-theme='on'][data-landscape-period='night'] { --landscape-reading-brightness:.35; }
- html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
+ html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge):not([data-api-test-message]),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
   color:var(--landscape-ink)!important;background-color:var(--landscape-surface)!important;
   background-image:var(--landscape-milk-glow)!important;border:1px solid var(--landscape-edge);border-radius:var(--personal-card-radius,18px);
   -webkit-backdrop-filter:blur(var(--personal-blur,12px))!important;
@@ -1340,7 +1340,7 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 }
 
 @layer pks-performance {
- html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status'],.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status']:not([data-api-test-message]),.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
 }
 
 /* A stop handle is one material in both sheet states, including cosmic art. */
@@ -1419,7 +1419,7 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  }
 }
 [data-statistics-chart] rect[role='button'] { fill:transparent!important;stroke:none!important;outline:none!important; }
-[data-statistics-view] [data-statistics-export] { border:0!important;box-shadow:none!important; }
+[data-statistics-view] [data-statistics-export] { border:1px solid var(--ui-edge); }
 
 @layer pks-performance {
  html[data-landscape-theme='on'][data-personal-light-effects='on'] [data-admin-sidebar].pks-personal-panel { background:var(--admin-sidebar-bg,#f5f9fc)!important; }

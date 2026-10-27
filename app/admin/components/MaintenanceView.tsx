@@ -430,7 +430,7 @@ export function MaintenanceView({
               <CheckLine label="Adres HTTPS" ok={draft.url.startsWith('https://')} />
               <CheckLine label="Odpowiedź API" ok={displayedTest?.ok ?? null} value={displayedTest?.statusCode ? `HTTP ${displayedTest.statusCode}` : '-'} />
               <CheckLine label="Czas odpowiedzi" ok={displayedTest?.latencyMs == null ? null : displayedTest.latencyMs < 1000} value={displayedTest?.latencyMs != null ? `${displayedTest.latencyMs} ms` : '-'} />
-              {displayedTest?.message && <p role="status" className="text-xs text-slate-400">{displayedTest.message}</p>}
+              {displayedTest?.message && <p role="status" data-api-test-message className="text-xs text-slate-400">{displayedTest.message}</p>}
               <button
                 type="button"
                 disabled={!ready || Boolean(busy) || !draft.url}
