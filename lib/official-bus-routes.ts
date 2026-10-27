@@ -108,3 +108,30 @@ export async function officialBusStopPoints(provider:string):Promise<Array<[numb
  const index=await routeIndex(provider);
  return Object.values(index.stops).map(stop=>[stop.lat,stop.lon]);
 }
+
+/** Recover missing PKS GPS pins by unique platform identity, never by proximity.
+ * Live names abbreviate the GTFS names; existing coordinates stay untouched. */
+function platformIdentity(name:string){
+ const words=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l')
+  .replace(/\bd\.?\s*a\.?\b/g,'dworzec autobusowy').replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/);
+ const aliases:Record<string,string>={krol:'krolewska',debniansk:'debnianskie',nadl:'nadlesnictwo',cment:'cmentarz',osr:'osrodek',zdr:'zdrowia',szp:'szpital',mlp:'malopolski'};
+ const tokens=words.filter(w=>!['ul','ulica','al','aleja','aleje','st','stanowisko'].includes(w)).map(w=>/^\d+$/.test(w)?String(Number(w)):aliases[w]||w);
+ // A locality without a platform number must not resolve to an arbitrary side.
+ return tokens.length>=2&&/^\d+$/.test(tokens.at(-1)!)?tokens.join(' '):'';
+}
+export async function completeOfficialBusStopCoordinates<T extends {name:string;lat?:number;lon?:number}>(provider:string,stops:T[]):Promise<T[]>{
+ if(provider!=='pks'||!stops.some(s=>!Number.isFinite(s.lat)||!Number.isFinite(s.lon)))return stops;
+ const index=await routeIndex(provider),byName=new Map<string,Array<{lat:number;lon:number}>>();
+ for(const point of Object.values(index.stops)){
+  const key=platformIdentity(point.name);if(!key||!Number.isFinite(point.lat)||!Number.isFinite(point.lon))continue;
+  const matches=byName.get(key)||[];matches.push(point);byName.set(key,matches);
+ }
+ let changed=false;
+ const completed=stops.map(stop=>{
+  if(Number.isFinite(stop.lat)&&Number.isFinite(stop.lon))return stop;
+  const matches=byName.get(platformIdentity(stop.name));
+  if(!matches?.length||matches.some(p=>roadDistance([p.lat,p.lon],[matches[0].lat,matches[0].lon])>5))return stop;
+  changed=true;return {...stop,lat:matches[0].lat,lon:matches[0].lon};
+ });
+ return changed?completed:stops;
+}

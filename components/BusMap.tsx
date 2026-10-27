@@ -224,6 +224,9 @@ function BusMap({
       startTransition(() => setSnappedRoute([]));
     }
     selectedVehicleIdentityRef.current = currentIdentity;
+    // Preserve a previously validated course while a refresh recovers offline.
+    const previousCourse=refinedRouteByVehicleRef.current.get(currentIdentity);
+    if(previousCourse?.length)startTransition(()=>setSnappedRoute(previousCourse));
 
     const suppliedGeometry=selectedVehicle.routeGeometry;
     if(suppliedGeometry&&suppliedGeometry.length>1&&suppliedGeometry.every(validRoadPoint)&&(routeGeometryStops.length<2||roadRouteMatchesStops(suppliedGeometry,routeGeometryStops.map(s=>[s.lat,s.lon]),180))){
@@ -331,7 +334,6 @@ function BusMap({
 
   return (
     <div ref={mapContainerRef} className={`h-full w-full relative z-0 style-map ${vehicles.length > 35 ? 'is-high-volume' : ''}`}>
-      {routeError===routeIdentity&&selectedVehicle&&currentGeometry.length<2&&<div role="status" data-vehicle-route-error className="absolute top-40 left-3 right-3 z-[1000] rounded-xl border bg-slate-900 p-3 text-sm text-white">Nie udało się wczytać przebiegu trasy. Przystanki i pozycja autobusu pozostają dostępne.<button className="ml-2 underline" onClick={()=>{setRouteError('');setRouteAttempt(v=>v+1);}}>Ponów</button></div>}
       <style>{`
         /* Hide zoom controls on mobile */
         @media (max-width: 768px) {
