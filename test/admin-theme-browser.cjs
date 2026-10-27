@@ -20,7 +20,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.waitForSelector(target);await new Promise(r=>setTimeout(r,550));
    const compare=await page.evaluate(({kind,target})=>{
     const material=()=>[...document.querySelectorAll('.transit-surface,.transit-card,.connections-card,.connections-route-fields,.pks-personal-card,.ui-accent-soft,[data-selected],.pks-options-sheet,.pks-navigation,input[data-milk-search]')].map(e=>{const s=getComputedStyle(e);return [s.backgroundColor,s.backgroundImage,s.backdropFilter,s.borderColor,s.boxShadow,s.opacity];});
-    const text=()=>{const s=getComputedStyle(document.querySelector(target));return {color:s.color,weight:s.fontWeight,stroke:s.webkitTextStrokeWidth,shadow:s.textShadow};};
+    const text=()=>{const s=getComputedStyle(document.querySelector(target));return {color:s.color,weight:s.fontWeight,stroke:s.webkitTextStrokeWidth,shadow:s.textShadow,smallWeight:kind==='connections'?getComputedStyle(document.querySelector('.connections-location small')).fontWeight:null};};
     const milk=()=>{const e=document.querySelector('[data-unrelated-options]');if(!e)return null;const s=getComputedStyle(e);return [s.backgroundColor,s.color,s.textShadow,s.webkitTextStrokeWidth,s.backdropFilter];};
     let sheet,index,rule;
     for(const s of document.styleSheets){const i=[...s.cssRules].findIndex(r=>r.name==='landscape-reading-text'&&r.cssRules);if(i>=0){sheet=s;index=i;rule=s.cssRules[i].cssText;break;}}
@@ -33,6 +33,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    assert.deepEqual(compare.after.material,compare.before.material,'all original panel materials preserved: '+kind+' '+mode);
    assert.deepEqual(compare.after.milk,compare.before.milk,'unrelated milk panels are unchanged');
    if(mode==='day'||mode==='warm'){
+    if(kind==='connections')assert.ok(Number(compare.after.text.smallWeight)>=Number(compare.before.text.smallWeight),'existing bold labels stay bold');
     assert.equal(compare.after.text.stroke,'0.45px','sharp outer glyph edge: '+kind);
     assert.ok(contrast(compare.after.text.color,'rgb(255,255,255)')>=12,'dark readable text: '+kind);
     if(kind==='stops')assert.ok(contrast(compare.month,'rgb(255,255,255)')>=7,'calendar month no longer pale on sunrise glass');

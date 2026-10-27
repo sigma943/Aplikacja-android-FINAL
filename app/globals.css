@@ -1479,7 +1479,7 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
   -webkit-text-stroke:.45px #ffffffe6;paint-order:stroke fill;
   text-shadow:0 1px 1px #ffffff99!important;
  }
- html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(p,small,time,.font-normal,.font-medium):not(:is(input,textarea,select)) { font-weight:600!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(p,time,.font-normal,.font-medium):not(:where(input,textarea,select,.font-semibold,.font-bold,.font-extrabold,.font-black,[data-admin-sidebar],[data-admin-sidebar] *,[data-statistics-chart],[data-statistics-chart] *)) { font-weight:600!important; }
  html[data-landscape-theme='on'][data-landscape-period='day'] .transit-view [data-cosmic-panel='stop-days'] :is(.ui-accent-soft,[data-selected='true'] .ui-accent-text) {
   color:color-mix(in srgb,var(--landscape-accent) 30%,#071822)!important;font-weight:650!important;
  }
