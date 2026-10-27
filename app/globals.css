@@ -1345,9 +1345,10 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 
 /* A stop handle is one material in both sheet states, including cosmic art. */
 @layer landscape-materials {
- html .map-stop-handle { transition-property:transform,opacity!important;background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
- html [data-map-stop-sheet][data-expanded='false'] { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
- html[data-cosmic-theme='on'] .map-stop-handle { background:#080d1d!important; }
+ html .map-stop-handle { transition-property:transform,opacity!important; }
+ html:not([data-cosmic-theme='on']) .map-stop-handle { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
+ html:not([data-cosmic-theme='on']) [data-map-stop-sheet][data-expanded='false'] { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
+ html[data-cosmic-theme='on'] .map-stop-sheet > .map-stop-handle { background:transparent!important; }
 }
 
 /* Finite interaction motion: decorative performance mode never disables this. */
