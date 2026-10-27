@@ -324,7 +324,7 @@ export default function StopList({
   return (
     <motion.div key={isFullListOpen ? "full" : "preview"} initial={reduceMotion ? false : {opacity: 0, y: isFullListOpen ? 18 : -10}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.52, ease: [0.25, 0.1, 0.25, 1]}} data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
       {!isFullListOpen && <>
-      <div className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>
+      <div data-stop-list-header className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>
         <div className="mb-3.5 flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="ui-accent-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"><MapPin size={20} /></span>
