@@ -80,9 +80,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   });
   assert.equal(coveredAfter.uploads,coveredBefore.uploads,'opaque map stops water, reflection and foliage GPU work');
   assert.equal(coveredAfter.quality,coveredBefore.quality,'covering the scene must not downgrade the quality controller');
-  assert.ok(coveredAfter.frames-coveredBefore.frames<=10,'sky-only updates avoid a full animation draw loop');
+  assert.ok(coveredAfter.frames-coveredBefore.frames>10,'visible sky window must not be throttled to four updates per second');
   assert.ok(coveredAfter.changed>30,'filter clouds remain animated while the river is covered');
-  assert.equal(coveredAfter.interval,250);assert.equal(coveredAfter.surfaceHidden,'hidden');
+  assert.equal(coveredAfter.interval,1000/60);assert.equal(coveredAfter.surfaceHidden,'hidden');
   await page.evaluate(()=>document.querySelector('[data-toggle-covered]').click());
   await page.waitForFunction(before=>!window.__landscapeDiagnostics().renderer.sceneCovered&&window.__landscapeDiagnostics().renderer.gpu.uniformUploads>before,{},coveredBefore.uploads);
   assert.equal(await page.evaluate(()=>window.__surfaceBeforeCover===document.querySelector('[data-landscape-water]')),true,'reveal reuses the live GPU context and textures');

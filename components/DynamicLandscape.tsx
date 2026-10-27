@@ -9,7 +9,7 @@ import {WATER_QUALITY,type WaterQuality} from '@/lib/landscape-water-gpu';
 import {cloudDensity} from '@/lib/landscape-clouds';
 import {LandscapeRenderer} from '@/lib/landscape-renderer';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
-import {landscapeMotionPolicy,landscapeFrameBudget} from '@/lib/landscape-motion';
+import {landscapeMotionPolicy,landscapeFrameBudget,landscapeDrawInterval} from '@/lib/landscape-motion';
 import {LANDSCAPE_SETTINGS_EVENT,readLandscapeSettings} from '@/lib/landscape-settings';
 
 const PowerPolicy=registerPlugin<{
@@ -66,9 +66,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       modelTimer=setTimeout(updateModel,preview.iso&&preview.rate!==1?500:15000);
     };
     let fpsStart=performance.now(),fpsFrames=0,actualFps=0;
-    let lastFilter=0;
-    const paintFilter=(mono:number)=>{
-      if(mono-lastFilter<250)return;lastFilter=mono;
+    const paintFilter=()=>{
       for(const target of document.querySelectorAll<HTMLCanvasElement>('[data-landscape-window="filter"]')){
         const rect=target.getBoundingClientRect();if(!rect.width||!rect.height)continue;
         const width=Math.ceil(Math.min(600,rect.width)),height=Math.ceil(rect.height*width/rect.width);
@@ -78,7 +76,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
         target.dataset.sceneReady=element.dataset.assetsReady==='true'?'true':'false';
       }
     };
-    const refreshFilter=()=>{lastFilter=0;paintFilter(performance.now()+250);};
+    const refreshFilter=()=>paintFilter();
     window.addEventListener('pks-landscape-window',refreshFilter);
     const draw=()=>{
       clearTimeout(drawTimer);cancelAnimationFrame(frameRequest);if(!visible()||!alive)return;
@@ -96,7 +94,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
         if(mono-lastGlass>=250&&renderer.lighting){
           lastGlass=mono;updatePalette(state);
         }
-        paintFilter(mono);
+        paintFilter();
         if(recordingCanvas&&recordingContext){
           if(recordingCanvas.width!==element.width||recordingCanvas.height!==element.height){recordingCanvas.width=element.width;recordingCanvas.height=element.height;}
           renderer.copyWindow(recordingContext,0,0,element.width,element.height,element.width,element.height,true);
@@ -107,8 +105,8 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
         frameCost=landscapeFrameBudget(frameCost,cost);
       }
       const next=policy();
-      const interval=covered.current&&!recordingCanvas?Math.max(250,next.interval):next.reason==='active'?1000/WATER_QUALITY[renderer.quality].fps:next.interval;
-      if(next.animate&&(!covered.current||recordingCanvas)){
+      const interval=landscapeDrawInterval(next.reason,next.interval,WATER_QUALITY[renderer.quality].fps,covered.current&&!recordingCanvas);
+      if(next.animate){
         const due=nextFrame||mono;
         nextFrame=due+Math.max(1,Math.floor((mono-due)/interval)+1)*interval;
         frameRequest=requestAnimationFrame(tick);
@@ -180,7 +178,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       debug.__landscapeCapture=()=>{const target=document.createElement('canvas');target.width=element.width;target.height=element.height;renderer.copyWindow(target.getContext('2d')!,0,0,element.width,element.height,target.width,target.height);return target;};
       debug.__landscapePreview=value=>{preview=value;previewStart=Date.parse(value.iso||'');previewMono=performance.now();if(value.iso&&!Number.isFinite(previewStart)){preview={};}samples=null;restart();};
       debug.__landscapeTestPower=(next,isCritical=false)=>{limited=next;critical=isCritical;restart();};
-      debug.__landscapeDiagnostics=()=>({frames,actualFps,averageDrawMs:frames?totalMs/frames:0,maxDrawMs:maxMs,smoothedDrawMs:frameCost,interval:covered.current&&!recordingCanvas?Math.max(250,policy().interval):policy().reason==='active'?1000/WATER_QUALITY[renderer.quality].fps:policy().interval,motion:policy().reason,sceneCovered:covered.current,visible:visible(),source,events,samples,preview,viewport,canvasPixels:element.width*element.height,renderer:renderer.diagnostics()});
+      debug.__landscapeDiagnostics=()=>({frames,actualFps,averageDrawMs:frames?totalMs/frames:0,maxDrawMs:maxMs,smoothedDrawMs:frameCost,interval:landscapeDrawInterval(policy().reason,policy().interval,WATER_QUALITY[renderer.quality].fps,covered.current&&!recordingCanvas),motion:policy().reason,sceneCovered:covered.current,visible:visible(),source,events,samples,preview,viewport,canvasPixels:element.width*element.height,renderer:renderer.diagnostics()});
     }
     // Paint the correct material before enabling its CSS. The worker may take
     // several frames to start; it refines the scene after this initial sample.
