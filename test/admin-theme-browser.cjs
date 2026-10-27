@@ -105,6 +105,17 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    console.log('PASS route stop glow',provider,'zoom 15/16/19/20, refresh, deselection, hidden catalog; no automatic panel');
   }
   await page.goto(origin+'/?view=clouds');const clouds=await page.evaluate(()=>window.__cloudMaterialCheck);assert.equal(clouds.alphaMismatch,0,'identical cloud silhouettes day and night');assert.ok(clouds.visible>1000);assert.ok(clouds.nightRatio>.25&&clouds.nightRatio<.8,'night clouds keep visible texture without daytime lighting: '+JSON.stringify(clouds));console.log('PASS same cloud asset day/night',clouds);
+  await page.goto(origin+'/?view=twilight');await page.waitForFunction(()=>window.__setTwilight||window.__twilightError);
+  const twilight={};
+  for(const [name,iso] of [['night','2026-10-27T02:00:00+01:00'],['0540','2026-10-27T05:40:00+01:00'],['evening','2026-10-27T17:00:00+01:00']]){
+   twilight[name]=await page.evaluate(iso=>window.__setTwilight(iso),iso);
+   assert.ok(twilight[name].gpu.available,'test uses the real landscape GPU');
+   await page.screenshot({path:'test/ui-previews/horyzont-twilight-'+name+'.png'});
+  }
+  assert.ok(twilight['0540'].meanSky>twilight.night.meanSky+30,'reported dawn is visibly lighter than deep night');
+  assert.ok(twilight.evening.meanSky>twilight.night.meanSky+20,'scattered light remains after sunset too');
+  assert.ok(twilight['0540'].altitude<0&&twilight['0540'].sky.blueHour>.95);
+  console.log('PASS actual twilight landscape before sunrise and after sunset',twilight);
   assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

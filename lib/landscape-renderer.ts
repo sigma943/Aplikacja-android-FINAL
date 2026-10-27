@@ -8,6 +8,16 @@ export {mountainHorizon,discVisibility} from './landscape-lighting';
 const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
 const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
+/** Diffuse blue-grey twilight illuminates the sky more than the ground.
+ * Full daytime and astronomical night retain their existing colours. */
+export function landscapeSkyColors(sky:LandscapeLightingState['sky']){
+ const diffuse=(sky.blueHour||0)*.8;
+ return [
+  blend(blend(blend([2,9,31],[28,114,204],sky.day),[80,140,180],diffuse),[92,47,102],sky.twilight*.8),
+  blend(blend(blend([8,21,51],[88,172,231],sky.day),[118,170,196],diffuse),[224,107,128],sky.twilight*.9),
+  blend(blend(blend([22,34,66],[200,222,226],sky.day),[180,202,211],diffuse),[255,148,64],sky.twilight),
+ ];
+}
 export const cloudOffset=(seconds:number)=>((seconds*camera.cloudSpeed)%(2*WIDTH)+2*WIDTH)%(2*WIDTH);
 export const cloudSampleX=(x:number,shift:number)=>{const u=((x-shift/WIDTH)%2+2)%2;return 1-Math.abs(u-1);};
 export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;sceneDepth?:CanvasImageSource;terrainNormal?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
@@ -89,9 +99,10 @@ export class LandscapeRenderer{
   }
   private paintSky(c:CanvasRenderingContext2D,width:number,height:number,sky:LandscapeLightingState['sky'],gradientHeight:number){
     const gradient=c.createLinearGradient(0,0,0,gradientHeight);
-    gradient.addColorStop(0,css(blend(blend([2,9,31],[28,114,204],sky.day),[92,47,102],sky.twilight*.8)));
-    gradient.addColorStop(.6,css(blend(blend([8,21,51],[88,172,231],sky.day),[224,107,128],sky.twilight*.9)));
-    gradient.addColorStop(1,css(blend(blend([22,34,66],[200,222,226],sky.day),[255,148,64],sky.twilight)));
+    const colors=landscapeSkyColors(sky);
+    gradient.addColorStop(0,css(colors[0]));
+    gradient.addColorStop(.6,css(colors[1]));
+    gradient.addColorStop(1,css(colors[2]));
     c.fillStyle=gradient;c.fillRect(0,0,width,height);
   }
   private coordinates(c:CanvasRenderingContext2D){c.setTransform(this.scale,0,0,this.scale,this.offsetX,this.offsetY);}

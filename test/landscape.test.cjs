@@ -223,9 +223,9 @@ test('morning blue sky returns while the horizon keeps its sunset colour',()=>{
 });
 
 
-test('Rzeszow early morning stays dark and cool before civil dawn after the DST change',()=>{
+test('Rzeszow early morning has cool scattered light before civil dawn after the DST change',()=>{
  const state=at('2026-10-26T05:28:00+01:00'),sky=a.skyState(state),events=a.solarEvents(state.ms,place);
- assert.ok(state.sun.altitude < -6*Math.PI/180);assert.equal(sky.day,0);assert.equal(sky.twilight,0);
+ assert.ok(state.sun.altitude < -6*Math.PI/180);assert.ok(sky.day>0&&sky.day<.15);assert.ok(sky.blueHour>.5);assert.equal(sky.twilight,0);
  assert.ok(state.ms<events.dawn&&events.dawn<events.sunrise);
  const rise=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'}).format(events.sunrise);
  assert.ok(rise>='06:10'&&rise<='06:13',rise);
