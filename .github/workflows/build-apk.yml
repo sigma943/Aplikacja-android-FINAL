@@ -93,6 +93,10 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify desktop layout and unchanged phone layouts
+        if: env.FAST_APK != 'true'
+        run: node test/desktop-layout-browser.cjs
+
       - name: Verify Horyzont controls and map isolation across themes
         if: contains(github.event.pull_request.title, '[horyzont-check]')
         run: |
