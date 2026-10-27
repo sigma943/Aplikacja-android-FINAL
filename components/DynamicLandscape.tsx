@@ -1,8 +1,8 @@
 'use client';
-import {useEffect,useRef} from 'react';
+import {useEffect,useLayoutEffect,useRef} from 'react';
 import {App} from '@capacitor/app';
 import {Capacitor,registerPlugin,type PluginListenerHandle} from '@capacitor/core';
-import {DEFAULT_LANDSCAPE_LOCATION,interpolateAstronomy,type AstronomyState} from '@/lib/landscape-astronomy';
+import {DEFAULT_LANDSCAPE_LOCATION,astronomyAt,interpolateAstronomy,type AstronomyState} from '@/lib/landscape-astronomy';
 import {landscapeOptics,landscapeViewport,type LandscapeViewport} from '@/lib/landscape-optics';
 import {landscapePalette,isLandscapeDay} from '@/lib/landscape-palette';
 import {WATER_QUALITY,type WaterQuality} from '@/lib/landscape-water-gpu';
@@ -24,7 +24,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
   const canvas=useRef<HTMLCanvasElement>(null);
   const covered=useRef(sceneCovered),refreshScene=useRef<(()=>void)|null>(null);
   useEffect(()=>{covered.current=sceneCovered;refreshScene.current?.();},[sceneCovered]);
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     if(!active||!canvas.current)return;
     const element=canvas.current,root=document.documentElement;
     const renderer=new LandscapeRenderer(element,true),media=matchMedia('(prefers-reduced-motion: reduce)');
@@ -182,7 +182,17 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       debug.__landscapeTestPower=(next,isCritical=false)=>{limited=next;critical=isCritical;restart();};
       debug.__landscapeDiagnostics=()=>({frames,actualFps,averageDrawMs:frames?totalMs/frames:0,maxDrawMs:maxMs,smoothedDrawMs:frameCost,interval:covered.current&&!recordingCanvas?Math.max(250,policy().interval):policy().reason==='active'?1000/WATER_QUALITY[renderer.quality].fps:policy().interval,motion:policy().reason,sceneCovered:covered.current,visible:visible(),source,events,samples,preview,viewport,canvasPixels:element.width*element.height,renderer:renderer.diagnostics()});
     }
-    root.dataset.landscapeTheme='on';resize();updateModel();
+    // Paint the correct material before enabling its CSS. The worker may take
+    // several frames to start; it refines the scene after this initial sample.
+    const initialMs=now();
+    const initialState=astronomyAt(initialMs,DEFAULT_LANDSCAPE_LOCATION);
+    samples={a:initialState,b:astronomyAt(initialMs+30000,DEFAULT_LANDSCAPE_LOCATION)};
+    solarDay=isLandscapeDay(initialState);
+    updatePalette(initialState);
+    root.dataset.landscapePeriod=solarDay?'day':'night';
+    root.dataset.landscapeTheme='on';
+    window.dispatchEvent(new Event('pks-landscape-period'));
+    resize();updateModel();
     return()=>{
       refreshScene.current=null;
       window.removeEventListener('pks-landscape-window',refreshFilter);
