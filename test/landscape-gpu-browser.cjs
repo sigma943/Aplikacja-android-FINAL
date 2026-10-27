@@ -74,9 +74,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
     alpha=Math.max(alpha,Math.abs(a[i+3]-b[i+3]));
     for(let c=0;c<4;c++)frozen=Math.max(frozen,Math.abs(same[i+c]-b[i+c]));
    }
-   return {moved,visible,coverage,peaks,banks,alpha,frozen,error:gl.getError()};
+   const landmarks={};
+   for(const [name,[x0,y0,x1,y1]] of Object.entries({rocks:[100,680,130,694],lowerConifers:[150,840,175,872],rightConifers:[380,800,393,811],leftForest:[45,492,75,517]})){
+    let max=0;for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){const i=(y*w+x)*4;for(let c=0;c<4;c++)max=Math.max(max,Math.abs(a[i+c]-b[i+c]));}landmarks[name]=max;
+   }
+   return {moved,visible,coverage,peaks,banks,alpha,frozen,landmarks,error:gl.getError()};
   });
   assert.ok(wind.moved>1000,'foreground foliage moves visibly');
+  for(const [name,delta] of Object.entries(wind.landmarks))assert.equal(delta,0,'wind must not move '+name);
   assert.equal(wind.peaks,0,'wind leaves mountains and sky fixed');assert.equal(wind.banks,0,'wind leaves distant shores fixed');
   assert.ok(wind.visible>5000,'branch movement must remain visible at phone resolution');
   assert.equal(wind.coverage,0,'moving leaves must be backed by the assembled river, with no ghost fallback exposed');

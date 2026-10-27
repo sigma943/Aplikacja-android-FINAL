@@ -462,9 +462,38 @@ uniform float uTime;
 out vec4 fragColor;
 const float PI=3.141592653589793;
 ${optics}
-// Warp the assembled foreground (terrain AND river behind it), rather than
-// repainting only opaque leaf interiors over the unchanged photographic cutout.
-// The wide, feathered envelope follows near branches; peaks remain untouched.
+// Select the defocused near leaves from the registered source, never a
+// rectangular slice of the assembled landscape. Rocks are neutral; the sharp
+// conifers and distant shore sit outside these branch-sized supports.
+float leafCluster(vec2 uv,vec2 center,vec2 radius){
+ return 1.-smoothstep(.72,1.,length((uv-center)/radius));
+}
+float nearLeaves(vec2 uv){
+ if(uv.y<.405||(uv.x>.38&&uv.x<.89))return 0.;
+ float region=0.;
+ region=max(region,leafCluster(uv,vec2(.022,.428),vec2(.045,.025)));
+ region=max(region,leafCluster(uv,vec2(.020,.490),vec2(.063,.025)));
+ region=max(region,leafCluster(uv,vec2(.025,.563),vec2(.078,.040)));
+ region=max(region,leafCluster(uv,vec2(.112,.613),vec2(.148,.032)));
+ region=max(region,leafCluster(uv,vec2(.035,.665),vec2(.084,.039)));
+ region=max(region,leafCluster(uv,vec2(.070,.717),vec2(.118,.039)));
+ region=max(region,leafCluster(uv,vec2(.085,.768),vec2(.128,.033)));
+ region=max(region,leafCluster(uv,vec2(.110,.813),vec2(.165,.042)));
+ region=max(region,leafCluster(uv,vec2(.080,.866),vec2(.125,.045)));
+ region=max(region,leafCluster(uv,vec2(.120,.921),vec2(.162,.048)));
+ region=max(region,leafCluster(uv,vec2(.155,.977),vec2(.212,.063)));
+ region=max(region,leafCluster(uv,vec2(.958,.919),vec2(.043,.048)));
+ region=max(region,leafCluster(uv,vec2(.958,.975),vec2(.062,.046)));
+ if(region<.001)return 0.;
+ vec4 source=textureLod(uTerrain,uv,0.);
+ float warm=smoothstep(.78,.96,source.r/max(source.g,.001));
+ float chroma=smoothstep(.08,.16,source.g-source.b)*smoothstep(.05,.12,source.r-source.b);
+ // Blurred leaves have little fine detail. Reject sharp needles and rock edges
+ // even where the photographic layers overlap at a branch boundary.
+ vec3 coarse=textureLod(uTerrain,uv,2.).rgb;
+ float soft=1.-smoothstep(.012,.055,length(source.rgb-coarse));
+ return smoothstep(.10,.45,region*warm*chroma*soft)*source.a;
+}
 vec2 foliageWind(vec2 uv){
  float edge=mix(.15,.40,smoothstep(.43,.99,uv.y));
  float left=(1.-smoothstep(edge-.065,edge,uv.x))*smoothstep(.405,.47,uv.y);
@@ -485,17 +514,27 @@ vec2 foliageWind(vec2 uv){
 }
 void main(){
  vec2 uv=(vec2(gl_FragCoord.x,uResolution.y-gl_FragCoord.y)-uFrame.zw)/uFrame.xy;
+ vec2 texUV=gl_FragCoord.xy/uResolution;
  vec2 wind=foliageWind(uv);
- vec2 texUV=clamp(gl_FragCoord.xy/uResolution+vec2(wind.x,-wind.y)*uFrame.xy/uResolution,
-                  .5/uResolution,1.-.5/uResolution);
- uv+=wind;
- vec4 water=texture(uWater,texUV),light=texture(uLight,texUV);
+ float originalLeaf=nearLeaves(uv),shiftedLeaf=nearLeaves(uv+wind);
+ // A moving leaf may cover open river, but must never drag an already visible
+ // rock or tree. Vacated leaf pixels can reveal the neighbouring background.
+ float openPixel=1.-textureLod(uTerrain,uv,0.).a;
+ float support=max(originalLeaf,shiftedLeaf*openPixel);
+ vec2 movedUV=uv+wind*support;
+ vec2 terrainUV=clamp(texUV+vec2(wind.x,-wind.y)*support*uFrame.xy/uResolution,
+                      .5/uResolution,1.-.5/uResolution);
+ // Water, bloom and rays keep their original screen coordinates. Only river
+ // newly exposed behind a leaf borrows the adjacent river sample.
+ vec2 waterUV=originalLeaf>.001?terrainUV:texUV;
+ vec4 water=texture(uWater,waterUV),light=texture(uLight,texUV);
  vec3 bloom=texture(uBloom,texUV).rgb*pow(max(0.,1.+uBloomOffset),2.);
- float mask=texture(uMask,uv).a,alpha=min(mask,water.a);
+ float mask=texture(uMask,originalLeaf>.001?movedUV:uv).a,alpha=min(mask,water.a);
  vec3 color=uHdr>.5?waterDisplayColor(water.rgb+bloom*.48):clamp(water.rgb+bloom*.25,0.,1.);
  float shaftAlpha=light.a;
  color=mix(color,uSunColor,shaftAlpha*.25);
- vec4 terrain=texture(uLitTerrain,texUV);terrain.a*=uTerrainEnabled;
+ vec4 terrain=texture(uLitTerrain,terrainUV);terrain.a*=uTerrainEnabled;
+ if(support>.001)alpha=min(alpha,1.-terrain.a);
  float surface=min(1.,alpha+terrain.a);
  float haloAlpha=clamp(dot(bloom,vec3(.2126,.7152,.0722))*(uHdr>.5?.045:.075),0.,.14);
  vec3 halo=uHdr>.5?waterDisplayColor(bloom*.4):clamp(bloom,0.,1.);

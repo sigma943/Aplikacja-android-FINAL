@@ -22,6 +22,13 @@ def foliage(seconds):
 a,b=foliage(0),foliage(2.1);aa,bb=np.asarray(a),np.asarray(b)
 delta=np.max(np.abs(aa[:,:,:3].astype(int)-bb[:,:,:3].astype(int)),axis=2)
 assert np.count_nonzero(delta>2)>1000,'foreground visibly moves'
+# These landmarks lie INSIDE the old broad wind envelope. Previously the test
+# checked only the centre of the landscape and missed these moving rocks/pines.
+landmarks={'near-bank rocks':(100,680,130,694),'lower conifers':(150,840,175,872),
+           'right conifers':(380,800,393,811),'left forest':(45,492,75,517)}
+for name,(x0,y0,x1,y1) in landmarks.items():
+ assert np.max(delta[y0:y1,x0:x1])==0,(name,'must remain pixel-identical')
+print('PASS: stationary rocks, lower/right conifers and left forest')
 assert np.max(delta[:int(H*.405)])==0,'sky and mountain peaks remain fixed'
 assert np.max(delta[int(H*.48):int(H*.78),int(W*.32):int(W*.84)])==0,'distant forest and river banks remain fixed'
 assert np.count_nonzero(np.abs(aa[:,:,3].astype(int)-bb[:,:,3].astype(int))>30)>100,'leaf silhouettes must move, not just their colour'
