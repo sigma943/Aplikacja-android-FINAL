@@ -99,6 +99,7 @@ export function BansView({
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input
+              data-milk-search
               type="text"
               placeholder="Szukaj urządzenia lub ID..."
               value={search}

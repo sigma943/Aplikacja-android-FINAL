@@ -475,6 +475,7 @@ export function DeviceTable({
         <div className="relative min-w-0">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input
+            data-milk-search
             type="text"
             placeholder="Szukaj..."
             value={search}

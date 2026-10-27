@@ -11,6 +11,33 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   fs.mkdirSync('test/ui-previews',{recursive:true});
   const contrast=(a,b)=>{const lum=c=>c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+  // Exercise the real device card shown in the report, not a synthetic text box.
+  for(const theme of ['dark-mountains','dark-cosmos','dark-forest','dark-oled','dark','light','light-warm','light-sky','light-pink'])for(const night of theme==='dark-mountains'?[false,true]:[false]){
+   await page.goto(origin+'/?view=devices&theme='+theme+(night?'&night':''));await page.waitForSelector('.admin-device-card');
+   const read=()=>page.evaluate(()=>{const card=document.querySelector('.admin-device-card'),input=document.querySelector('input[data-milk-search]'),text=[...card.querySelectorAll('div')].find(e=>e.textContent==='ID urządzenia'),s=getComputedStyle(card),i=getComputedStyle(input);return {fill:s.backgroundColor,blur:s.backdropFilter,shadow:getComputedStyle(text).textShadow,ink:getComputedStyle(text).color,inputFill:i.backgroundColor,inputImage:i.backgroundImage,inputBlur:i.backdropFilter,placeholder:getComputedStyle(input,'::placeholder').color};});
+   const material=await read();
+   if(theme==='dark-mountains'){
+    assert.ok(material.fill.endsWith('0.2)'),'device card retains the exact 20% fill');
+    assert.equal(material.shadow==='none',night,'text halo only in daylight');
+    assert.equal(material.inputFill,night?'rgba(20, 33, 50, 0.96)':'rgba(245, 249, 252, 0.94)');
+    assert.equal(material.inputBlur,'blur(18px)');
+    assert.ok(contrast(material.ink,material.inputFill)>7,'readable search milk family');
+    await page.evaluate(()=>{const style=document.createElement('style');style.id='before-readability';style.textContent='.admin-device-card,.admin-device-card * {text-shadow:none!important}';document.head.append(style);});
+    const withoutHalo=await read();assert.equal(material.fill,withoutHalo.fill);assert.equal(material.blur,withoutHalo.blur,'glyph halo does not change panel blur');
+    await page.evaluate(()=>document.getElementById('before-readability').remove());
+    // Search remains usable; its material is independent of user card opacity.
+    await page.type('input[data-milk-search]','Windows');assert.ok(await page.$('.admin-device-card'));
+    for(const opacity of [.2,.85]){
+     await page.evaluate(opacity=>document.documentElement.style.setProperty('--landscape-surface','rgba(245,249,252,'+opacity+')'),opacity);
+     assert.equal((await read()).inputFill,material.inputFill);
+    }
+    await page.evaluate(()=>document.documentElement.style.setProperty('--landscape-surface',getComputedStyle(document.documentElement).getPropertyValue('--landscape-solid').trim().replace('rgb(','rgba(').replace(')',',0.2)')));
+    await page.screenshot({path:'test/ui-previews/horyzont-device-readable-'+(night?'night':'day')+'.png'});
+   }else{
+    assert.equal(material.shadow,'none','other theme text unchanged');assert.equal(material.inputImage,'none','other search material unchanged');
+   }
+   console.log('PASS device daylight text/search milk',theme,night?'night':'day',material);
+  }
   for(const theme of ['dark-mountains','dark-cosmos','dark-forest','dark-oled','dark','light','light-warm','light-sky','light-pink'])for(const night of theme==='dark-mountains'?[false,true]:[false]){
    await page.goto(origin+'/?theme='+theme+(night?'&night':''));await page.waitForSelector('[data-statistics-chart]');
    await page.evaluate(()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Dzisiaj').click());

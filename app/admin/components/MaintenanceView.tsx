@@ -307,6 +307,7 @@ export function MaintenanceView({
             <div className="relative min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
               <input
+                data-milk-search
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Szukaj endpointu..."

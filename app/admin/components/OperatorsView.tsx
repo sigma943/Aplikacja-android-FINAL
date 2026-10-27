@@ -117,7 +117,8 @@ export function OperatorsView({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
-              type="text" 
+              data-milk-search
+              type="text"
               placeholder="Szukaj po nazwie lub ID..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
