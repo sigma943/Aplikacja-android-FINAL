@@ -1,4 +1,8 @@
+@layer journey-map-isolation;
 @layer pks-performance;
+@layer admin-horizon-controls;
+@layer landscape-reading-text;
+@layer landscape-search-milk;
 @import "tailwindcss";
 
 .pks-theme-root {
@@ -1204,7 +1208,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'] [data-scene-label] { padding:0;border:0;border-radius:0;background:transparent!important;box-shadow:none!important; }
  /* Only headings directly on the artwork get a subtle shadow, never a veil
     across the view or a pill/outline around individual words. */
- html[data-landscape-theme='on'] :is([data-landscape-heading],[data-landscape-heading] *,.connections-heading,.connections-heading *,[data-scene-label]) { color:#f4f8fc!important;text-shadow:0 2px 6px #07132199; }
+ html[data-landscape-theme='on'] :is([data-landscape-heading],[data-landscape-heading] *,.connections-heading,.connections-heading *,[data-scene-label]):not(:where([data-admin-milk-control],[data-admin-milk-control] *)) { color:#f4f8fc!important;text-shadow:0 2px 6px #07132199; }
  html[data-landscape-theme='on'] [data-departure-row] { border:0!important; }
  html[data-landscape-theme='on'][data-personal-card-style='soft'] :is(.transit-card,.pks-personal-card,.pks-option-card,.connections-card) { background-color:color-mix(in srgb,var(--pks-accent) 15%,var(--landscape-surface))!important; }
  html[data-landscape-theme='on'][data-personal-card-style='flat'] :is(.transit-card,.pks-personal-card,.pks-option-card,.connections-card) { border-color:transparent!important;box-shadow:none!important; }
@@ -1321,11 +1325,11 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 @layer landscape-materials {
  html[data-landscape-theme='on'] { --landscape-reading-brightness:1.8; }
  html[data-landscape-theme='on'][data-landscape-period='night'] { --landscape-reading-brightness:.35; }
- html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
+ html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge):not([data-api-test-message]),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
   color:var(--landscape-ink)!important;background-color:var(--landscape-surface)!important;
   background-image:var(--landscape-milk-glow)!important;border:1px solid var(--landscape-edge);border-radius:var(--personal-card-radius,18px);
-  -webkit-backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
-  backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
+  -webkit-backdrop-filter:blur(var(--personal-blur,12px))!important;
+  backdrop-filter:blur(var(--personal-blur,12px))!important;
  }
  html[data-landscape-theme='on'] :is(.connections-results-heading,.connections-warning,.connections-error,.connections-hint,.journey-error,.journey-hint) { padding:12px 14px; }
  html[data-landscape-theme='on'] [data-admin-sidebar] { border-radius:0!important;box-shadow:12px 0 40px #07132140!important;isolation:isolate; }
@@ -1336,14 +1340,15 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 }
 
 @layer pks-performance {
- html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status'],.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status']:not([data-api-test-message]),.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
 }
 
 /* A stop handle is one material in both sheet states, including cosmic art. */
 @layer landscape-materials {
- html .map-stop-handle { transition-property:transform,opacity!important;background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
- html [data-map-stop-sheet][data-expanded='false'] { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
- html[data-cosmic-theme='on'] .map-stop-handle { background:#080d1d!important; }
+ html .map-stop-handle { transition-property:transform,opacity!important; }
+ html:not([data-cosmic-theme='on']) .map-stop-handle { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
+ html:not([data-cosmic-theme='on']) [data-map-stop-sheet][data-expanded='false'] { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
+ html[data-cosmic-theme='on'] .map-stop-sheet > .map-stop-handle { background:transparent!important; }
 }
 
 /* Finite interaction motion: decorative performance mode never disables this. */
@@ -1358,3 +1363,163 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
 @media(prefers-reduced-motion:reduce){
  .ui-disclosure-chevron,.personal-tabs button,.personal-choice {transition:none!important;}
 }
+
+
+/* Modal map surfaces are opaque in every theme, including landscape glass.
+   This first-declared layer wins important legacy/personalization fills. */
+@layer journey-map-isolation {
+ .connections-map-modal {
+  position:fixed!important;inset:0!important;z-index:20000!important;
+  background:var(--cn-solid,#0b1422)!important;
+  isolation:isolate;opacity:1!important;transform:none!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+ :is(.journey-map,.connections-map-modal) .connections-map-toolbar,
+ .connections-map-modal .connections-map-sheet {
+  background:var(--cn-solid,#0b1422)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  box-shadow:none!important;opacity:1!important;
+ }
+ .connections-map-modal .connections-map-toolbar { color:var(--cn-text)!important; }
+ .connections-map-toolbar>.connections-route-status {
+  display:flex;align-items:center;flex:none;padding:0!important;margin:0!important;
+  border:0!important;background:transparent!important;box-shadow:none!important;
+ }
+ .connections-map-modal>.connections-map-toolbar>div { min-width:0;flex:1; }
+ .connections-map-modal>.connections-map-toolbar small { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+ .connections-map-modal .connections-sheet-handle { background:transparent!important;color:var(--cn-text)!important; }
+}
+
+/* Restore the established milk chrome: ordinary content cards retain the
+   opacity slider; map filters, navigation and map/options sheets stay readable. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:var(--landscape-solid)!important; }
+ html[data-landscape-theme='on'] [data-landscape-window='filter'][data-scene-ready='true'] { opacity:1!important; }
+ html[data-landscape-theme='on'][data-landscape-glass='off'] [data-landscape-chrome='filter'] { display:none!important; }
+}
+@layer journey-map-isolation {
+ .connections-map-endpoint-note { flex:none;margin:0!important;padding:7px 12px!important;background:var(--cn-solid,#0b1422)!important;color:var(--cn-text)!important;font-size:11px;line-height:1.5;border-radius:0!important; }
+}
+
+/* Admin-only reading materials. Other landscape cards keep their opacity. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel {
+  --landscape-ink:#0b1b26!important;--landscape-muted:#334b5e!important;
+  --landscape-field:#e9f2f6!important;--landscape-edge:#b7cbd4!important;--landscape-accent:#006b65!important;
+  --admin-sidebar-bg:#f5f9fc;--admin-sidebar-card:#edf4f8;
+  background:var(--admin-sidebar-bg)!important;color:var(--landscape-ink)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel .pks-personal-card { background:var(--admin-sidebar-card)!important;background-image:none!important; }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel svg { color:var(--landscape-accent)!important; }
+ html[data-landscape-theme='on'] [data-statistics-view] {
+  --statistics-plot:#f4f8fc;--statistics-axis:#40566c;--statistics-grid:#bccbd6;--statistics-series:#007f79;--statistics-errors:#be123c;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-statistics-view] {
+  --statistics-plot:#101d2c;--statistics-axis:#b8c8dc;--statistics-grid:#64748b;--statistics-series:#5eead4;--statistics-errors:#ff8fa3;
+ }
+}
+[data-statistics-chart] rect[role='button'] { fill:transparent!important;stroke:none!important;outline:none!important; }
+[data-statistics-view] [data-statistics-export] { border:1px solid var(--ui-edge); }
+
+@layer pks-performance {
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] [data-admin-sidebar].pks-personal-panel { background:var(--admin-sidebar-bg,#f5f9fc)!important; }
+}
+
+@layer landscape-materials {
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-sidebar].pks-personal-panel {
+  --admin-sidebar-bg:#101d2c;--admin-sidebar-card:#17293c;
+  --landscape-ink:#f3f7fb!important;--landscape-muted:#c2d1df!important;
+  --landscape-field:#1c3044!important;--landscape-edge:#425b71!important;--landscape-accent:#a4e3d1!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel>div:first-child>div:first-child>div { color:var(--landscape-accent)!important; }
+ /* The real bus sheet contains a hidden landscape canvas. Its presence must
+    never let the sky-window transparency rule erase the vehicle material. */
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='bus'] {
+  background:var(--landscape-solid)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='bus'] [data-vehicle-header] {
+  background:var(--vehicle-carrier-background,var(--landscape-solid))!important;
+  color:var(--vehicle-carrier-ink,var(--landscape-ink))!important;
+ }
+}
+
+/* Daylight readability belongs to the glyphs, not another panel scrim.
+   Keep panel opacity, blur, scenery and all night materials unchanged. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-surface,.transit-card,.admin-device-card,.pks-personal-card,[data-interface-card],.connections-card,.map-detail-shell,.pks-options-sheet) {
+  text-shadow:0 1px 1px #ffffffe6,0 0 3px #ffffffbf;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(svg,canvas,input,textarea,select,.ui-accent-solid,.ui-accent-solid *,[data-vehicle-header],[data-vehicle-header] *,[data-admin-sidebar],[data-admin-sidebar] *) { text-shadow:none; }
+}
+@layer landscape-search-milk {
+ /* Search milk is deliberately independent of the card-opacity slider.
+    At night use dark milk, never a white rectangle over the night scenery. */
+ html[data-landscape-theme='on'] :is(input[data-milk-search],.personal-search,.personal-font-search) {
+  background:linear-gradient(135deg,rgba(255,255,255,.4),rgba(233,243,249,.16)),rgba(245,249,252,.94)!important;
+  color:var(--landscape-ink)!important;border-color:var(--landscape-edge)!important;
+  -webkit-backdrop-filter:blur(18px)!important;backdrop-filter:blur(18px)!important;
+  text-shadow:none;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='night'] :is(input[data-milk-search],.personal-search,.personal-font-search) {
+  background:linear-gradient(135deg,rgba(68,91,117,.2),rgba(15,27,43,.12)),rgba(20,33,50,.96)!important;
+ }
+ html[data-landscape-theme='on'] :is(.personal-search,.personal-font-search) input {
+  background:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+}
+
+/* Text-only daylight contrast in the three requested views. Do not alter the
+   shared text tokens: some controls also use those tokens to tint their glass. */
+@layer landscape-reading-text {
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :where(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-700,.text-slate-800,.text-slate-900,.text-gray-100,.text-gray-200,.text-gray-700,.text-gray-800,.text-gray-900):not(:where(button,svg,input,[data-landscape-heading] *,[data-scene-label],.connections-heading *,.ui-accent-solid,.ui-accent-solid *,[data-carrier-id],[data-carrier-id] *,[data-admin-sidebar],[data-admin-sidebar] *)) { color:#071822!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :where(.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.text-gray-400,.text-gray-500,.text-gray-600):not(:where(button,svg,input,[data-landscape-heading] *,[data-scene-label],.connections-heading *,.ui-accent-solid *,[data-carrier-id] *,[data-admin-sidebar] *)) { color:#10242d!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] .connections-card :is(small,strong,label) { color:#10242d!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(.transit-surface,.transit-card,.pks-personal-card,.connections-card,[data-interface-card]) {
+  /* A thin outer edge keeps the dark glyph sharp over cloud and forest. */
+  -webkit-text-stroke:.45px #ffffffe6;paint-order:stroke fill;
+  text-shadow:0 1px 1px #ffffff99!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(p,time,.font-normal,.font-medium):not(:where(input,textarea,select,.font-semibold,.font-bold,.font-extrabold,.font-black,[data-admin-sidebar],[data-admin-sidebar] *,[data-statistics-chart],[data-statistics-chart] *)) { font-weight:600!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] .transit-view [data-cosmic-panel='stop-days'] :is(.ui-accent-soft,[data-selected='true'] .ui-accent-text) {
+  color:color-mix(in srgb,var(--landscape-accent) 30%,#071822)!important;font-weight:650!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(svg,canvas,input,textarea,select,.ui-accent-solid,.ui-accent-solid *,[data-carrier-id],[data-carrier-id] *,[data-statistics-chart],[data-statistics-chart] *,[data-admin-sidebar],[data-admin-sidebar] *) {
+  -webkit-text-stroke:0!important;text-shadow:none!important;
+ }
+}
+
+/* Shared solar milk for admin search and navigation/filter controls. */
+@layer admin-horizon-controls {
+ html[data-landscape-theme='on'] :is([data-admin-viewport] input[data-milk-search],[data-admin-milk-control]) {
+  background-color:color-mix(in srgb,var(--landscape-solid) 82%,transparent)!important;
+  background-image:var(--landscape-milk-glow,none)!important;
+  border-color:var(--landscape-edge)!important;color:var(--landscape-ink)!important;
+  -webkit-backdrop-filter:blur(18px) saturate(135%)!important;backdrop-filter:blur(18px) saturate(135%)!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-milk-control] svg { color:var(--landscape-ink)!important; }
+ html[data-landscape-theme='on'] [data-admin-badge] {
+  --badge-paper:#e9eff5;--badge-ink:#253c50;--badge-edge:#9bafc1;
+  background:var(--badge-paper)!important;color:var(--badge-ink)!important;border-color:var(--badge-edge)!important;
+  -webkit-text-stroke:0!important;text-shadow:none!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-badge='purple'] { --badge-paper:#f1eafb;--badge-ink:#49206d;--badge-edge:#b9a5ce; }
+ html[data-landscape-theme='on'] [data-admin-badge='blue'] { --badge-paper:#e7f3ff;--badge-ink:#124779;--badge-edge:#9ebbd6; }
+ html[data-landscape-theme='on'] [data-admin-badge='emerald'] { --badge-paper:#e3f5ec;--badge-ink:#14503b;--badge-edge:#8dbda6; }
+ html[data-landscape-theme='on'] [data-admin-badge='rose'] { --badge-paper:#ffebef;--badge-ink:#8f1434;--badge-edge:#d7a1af; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge] { --badge-paper:#223447;--badge-ink:#e0ebf6;--badge-edge:#526a82; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge='purple'] { --badge-paper:#302442;--badge-ink:#ead7ff;--badge-edge:#8f74a9; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge='blue'] { --badge-paper:#19354d;--badge-ink:#d1eaff;--badge-edge:#6e98bb; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge='emerald'] { --badge-paper:#183c30;--badge-ink:#d0f8e5;--badge-edge:#669c85; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge='rose'] { --badge-paper:#491f2d;--badge-ink:#ffe0e7;--badge-edge:#b8798b; }
+ html[data-landscape-theme='on'] [data-admin-badge] span { color:var(--badge-ink)!important;-webkit-text-stroke:0!important;text-shadow:none!important; }
+ /* Short, consistent icon gutter; keep room for the clear button. */
+ input[data-milk-search] { text-align:left!important;text-indent:0!important;padding-inline-start:30px!important;padding-inline-end:36px!important; }
+ input[data-milk-search]::placeholder { text-align:left!important;text-indent:0!important; }
+ :has(>input[data-milk-search])>svg { left:8px!important;width:16px!important;height:16px!important;z-index:1;pointer-events:none; }
+ html .connections-view .connections-location { padding-inline-start:10px!important;gap:8px!important;text-align:left!important; }
+}
+
+/* Only the Cosmos map stop panel has no visible outer rim. */
+html[data-cosmic-theme='on'] .map-stop-sheet[data-map-detail-kind='stop'] { border-color:transparent!important; }

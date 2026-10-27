@@ -20,7 +20,7 @@ export function journeyLegPath(leg:JourneyLeg):Promise<Point[]>{
  const coords=journeyLegRoutePoints(leg);
  if(coords.length<2||!coords.every(validRoadPoint))return Promise.reject(Error('Brak współrzędnych odcinka.'));
  if(leg.path?.length&&roadRouteMatchesStops(leg.path,coords,35))return Promise.resolve(leg.walking!==undefined?leg.path:journeyBusCorridor(leg.path,coords,8));
- if(leg.walking!==undefined)return journeyWalkingRoute(leg.from,leg.to).then(r=>r.points);
+ if(leg.walking!==undefined)return journeyWalkingRoute(leg.from,leg.to,{allowNearbyEndpoints:true}).then(r=>r.points);
  const key=JSON.stringify([leg.provider,leg.course,leg.routePattern,coords]);
  if(!pending.has(key))pending.set(key,(async()=>{
   const full=leg.provider==='marcel' ? await bundledMarcelJourneyRoute(leg.routePattern||coords,true).catch(()=>[] as Point[]) : await officialBusRoute(leg.provider==='mpk'?'mpk_rzeszow':leg.provider,leg.course.split(':')[1],[]).catch(()=>[] as Point[]);

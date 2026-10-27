@@ -2,7 +2,7 @@
 module.exports=function(p,light,frame,quality,w,h,width,height,linear){
   const gl=this.gl,sx=w/frame.width,sy=h/frame.height;
     gl.uniform2f(this.uniform(p,'uResolution'),w,h);gl.uniform4f(this.uniform(p,'uFrame'),1000*frame.scale*sx,(1000*1850/850)*frame.scale*sy,frame.x*sx,frame.y*sy);
-    gl.uniform1f(this.uniform(p,'uTime'),light.time);gl.uniform1f(this.uniform(p,'uQuality'),quality==='high'?2:quality==='medium'?1:0);gl.uniform1f(this.uniform(p,'uFrameInterval'),1/({high:30,medium:24,low:15}[quality]));gl.uniform1f(this.uniform(p,'uHdr'),this.hdr?1:0);
+    gl.uniform1f(this.uniform(p,'uTime'),light.time);gl.uniform1f(this.uniform(p,'uQuality'),quality==='high'?2:quality==='medium'?1:0);gl.uniform1f(this.uniform(p,'uFrameInterval'),1/({high:60,medium:30,low:15}[quality]));gl.uniform1f(this.uniform(p,'uHdr'),this.hdr?1:0);
     gl.uniform1f(this.uniform(p,'uSceneEnabled'),this.assets?.sceneDepth?1:0);
     gl.uniform1f(this.uniform(p,'uTerrainEnabled'),this.targets[2]?1:0);
     gl.uniform1f(this.uniform(p,'uDay'),light.sky.day);gl.uniform1f(this.uniform(p,'uWarm'),light.sky.twilight);gl.uniform1f(this.uniform(p,'uMoonIllumination'),light.moon.illumination);gl.uniform2f(this.uniform(p,'uWaterResolution'),width,height);

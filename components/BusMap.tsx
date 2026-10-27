@@ -11,10 +11,11 @@ import {MapContainer, TileLayer, ZoomControl, Pane} from 'react-leaflet';
 import RouteLines from './map/RouteLines';
 import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
 import type {Stop} from '@/Panel/src/types';
-import {canonicalMapStopId, mapStopColor} from '@/lib/map-stop-markers';
+import {canonicalMapStopId, mapStopColor, routeCatalogStopIds} from '@/lib/map-stop-markers';
 
 import {routeGeometryKey} from '@/lib/route-geometry-key';
-import {officialBusRoute} from '@/lib/official-bus-routes';
+import {officialBusRoute,officialBusStopPoints} from '@/lib/official-bus-routes';
+import {mpkRouteForPaint} from '@/lib/map/mpk-route-paint';
 import {roadRouteMatchesStops, cleanRoadJunctionLoops, validRoadPoint} from '@/lib/bus-road-geometry';
 import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
@@ -103,7 +104,7 @@ function BusMap({
   }, []);
 
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
-  const [,setPlatformRevision]=useState(0);
+  const [platformRevision,setPlatformRevision]=useState(0);
   const needsPlatforms=mapStops.length>0||Boolean((selectedVehicle||highlightedStopId)&&selectedVehicle?.provider!=='pkp_intercity');
   useEffect(()=>{
     if(!needsPlatforms)return;
@@ -174,6 +175,7 @@ function BusMap({
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const highlightedStop = highlightedStopId ? routeStopsData[highlightedStopId] : undefined;
   const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider,highlightedStop);
+  const routeCatalogIds=useMemo(()=>selectedVehicle?routeCatalogStopIds(mapStops,visibleRouteStopIds,routeStopsData,selectedVehicle.provider):new Set<string>(),[mapStops,visibleRouteStopIdsKey,routeStopsData,selectedVehicle?.provider,Boolean(selectedVehicle),platformRevision]);
   const selectedStopColor = selectedVehicle?.provider === 'pkp_intercity' ? themeColor
     : selectedVehicle ? selectedRouteColor
     : highlightedStop ? mapStopColor({name: highlightedStop.n}) : themeColor;
@@ -194,6 +196,15 @@ function BusMap({
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
   const suppliedRouteKey=JSON.stringify(selectedVehicle?.routeGeometry||[]);
   const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
+  const [mpkShapePins,setMpkShapePins]=useState<Array<[number,number]>>([]);
+  useEffect(()=>{
+    if(selectedVehicle?.provider!=='mpk_rzeszow')return;
+    let active=true;
+    void officialBusStopPoints('mpk_rzeszow').then(pins=>{if(active)setMpkShapePins(pins);}).catch(()=>{});
+    return()=>{active=false;};
+  },[selectedVehicle?.provider]);
+  const paintedGeometry=useMemo(()=>mpkRouteForPaint(currentGeometry,selectedVehicle?.provider,[...mpkShapePins,...routeGeometryStops.map(stop=>[stop.lat,stop.lon] as [number,number])]),[currentGeometry,selectedVehicle?.provider,mpkShapePins,routeGeometryStops]);
+
 
   useEffect(() => {
     activeRouteRequestIdRef.current += 1;
@@ -213,6 +224,9 @@ function BusMap({
       startTransition(() => setSnappedRoute([]));
     }
     selectedVehicleIdentityRef.current = currentIdentity;
+    // Preserve a previously validated course while a refresh recovers offline.
+    const previousCourse=refinedRouteByVehicleRef.current.get(currentIdentity);
+    if(previousCourse?.length)startTransition(()=>setSnappedRoute(previousCourse));
 
     const suppliedGeometry=selectedVehicle.routeGeometry;
     if(suppliedGeometry&&suppliedGeometry.length>1&&suppliedGeometry.every(validRoadPoint)&&(routeGeometryStops.length<2||roadRouteMatchesStops(suppliedGeometry,routeGeometryStops.map(s=>[s.lat,s.lon]),180))){
@@ -228,7 +242,7 @@ function BusMap({
       const loadBundledRoute = async()=>routeMode === 'road'
         ? selectedVehicle.provider==='marcel'
           ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon])).catch(()=>[])
-          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon]),{completePattern:!!selectedVehicle.routePath?.length&&routeGeometryStops.length===routeStopIds.length}).catch(()=>[])
+          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon]),{completePattern:!!selectedVehicle.routePath?.length,coordinateStopIds:routeGeometryStops.map(stop=>stop.id!)}).catch(()=>[])
         : [];
       const localRoute = await preferredLocalRoute({
         mode: routeMode,
@@ -320,7 +334,6 @@ function BusMap({
 
   return (
     <div ref={mapContainerRef} className={`h-full w-full relative z-0 style-map ${vehicles.length > 35 ? 'is-high-volume' : ''}`}>
-      {routeError===routeIdentity&&selectedVehicle&&currentGeometry.length<2&&<div role="status" data-vehicle-route-error className="absolute top-40 left-3 right-3 z-[1000] rounded-xl border bg-slate-900 p-3 text-sm text-white">Nie udało się wczytać przebiegu trasy. Przystanki i pozycja autobusu pozostają dostępne.<button className="ml-2 underline" onClick={()=>{setRouteError('');setRouteAttempt(v=>v+1);}}>Ponów</button></div>}
       <style>{`
         /* Hide zoom controls on mobile */
         @media (max-width: 768px) {
@@ -408,12 +421,12 @@ function BusMap({
           maxZoom={19}
         />
 
-        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} alignToCatalog={selectedVehicle?.provider==='marcel'} stops={mapStops} color={selectedStopColor}/>
-        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={selectedCatalogStopId} selectedColor={selectedVehicle?selectedStopColor:undefined} onSelect={onMapStopClick}/>}
+        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} alignToCatalog={selectedVehicle?.provider!=='pkp_intercity'} stops={mapStops} color={selectedStopColor}/>
+        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} routeStopIds={routeCatalogIds} selected={selectedCatalogStopId} selectedColor={selectedVehicle?selectedStopColor:undefined} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
-          <RouteLines positions={currentGeometry} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
+          <RouteLines positions={paintedGeometry} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
         </Pane>
 
         {/* Draw Route Stops */}
@@ -425,6 +438,7 @@ function BusMap({
               catalogStops={mapStops}
               stopIds={visibleRouteStopIds}
               highlightedStopId={highlightedStopId}
+              catalogSelected={selectedCatalogStopId}
               selectedRouteColor={themeColor}
               onStopClick={onStopClick}
             />
