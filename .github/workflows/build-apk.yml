@@ -96,7 +96,7 @@ jobs:
       - name: Verify coordinate entry
         if: contains(github.event.pull_request.title, '[coordinates-check]')
         run: |
-          node --test test/journey-coordinates.test.cjs test/journey-places.test.cjs
+          node --test test/google-maps-link.test.cjs test/journey-coordinates.test.cjs test/journey-places.test.cjs
           npx puppeteer browsers install chrome
           node test/coordinate-entry-browser.cjs
 

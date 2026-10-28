@@ -5,7 +5,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
  try{
   await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'development',devtool:false,plugins:[new webpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],entry:path.join(root,'test/coordinate-entry-fixture.tsx'),output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')},{test:/\.css$/,use:path.join(root,'test/journey-css-loader.cjs')}]},optimization:{minimize:false}});compiler.run((e,stats)=>compiler.close(()=>e||stats.hasErrors()?reject(e||Error(stats.toString({all:false,errors:true}))):resolve()));});
   const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
-  server=http.createServer((req,res)=>{if(req.url==='/fixture.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(path.join(temp,'fixture.js')));}res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
+  server=http.createServer((req,res)=>{if(req.url.startsWith('/api/maps-link?')){res.setHeader('Content-Type','application/json');if(req.url.includes('%2Fslow'))return setTimeout(()=>res.end(JSON.stringify({lat:50.0333987,lon:22.0025521})),1200);return res.end(JSON.stringify({lat:50.0333987,lon:22.0025521}));}if(req.url==='/fixture.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(path.join(temp,'fixture.js')));}res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});page=await browser.newPage();const queries=[],errors=[];
   page.on('pageerror',e=>errors.push(e.message));await page.setRequestInterception(true);
@@ -30,10 +30,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    assert.match(await page.$eval('.connections-place-confirm',e=>e.textContent),/50.03897, 22.00282/,'invalid input does not replace the chosen point');
    await enter('Pro-Familia');await page.waitForFunction(()=>document.querySelector('.connections-coordinate-entry').textContent.includes('poprawne współrzędne'));
    await enter('-33.86, 151.2');await page.waitForFunction(()=>document.querySelector('.connections-place-confirm').textContent.includes('-33.86000, 151.20000'));
-   assert.equal(queries.length,0,'coordinate entry never calls Photon');
+   await enter('https://www.google.com/maps/place/Test/@49,21,15z/data=!3d50.0333987!4d22.0025521');
+   await page.waitForFunction(()=>document.querySelector('.connections-place-confirm').textContent.includes('50.03340, 22.00255'));
+   await enter('https://maps.app.goo.gl/WQrwmxa35S1vurqb6');await page.waitForFunction(()=>!document.querySelector('.connections-coordinate-entry button').disabled);
+   await page.waitForFunction(()=>document.querySelector('.connections-place-confirm').textContent.includes('50.03340, 22.00255'));
+   assert.equal(queries.length,0,'link support never calls Photon');
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    await page.screenshot({path:`test/ui-previews/coordinate-entry-${width}.png`});
   }
+  await enter('https://maps.app.goo.gl/slow');await new Promise(r=>setTimeout(r,100));await enter('50.04, 22.01');await new Promise(r=>setTimeout(r,1500));assert.match(await page.$eval('.connections-place-confirm',e=>e.textContent),/50.04000, 22.01000/,'late link lookup cannot overwrite a newer point');
   assert.deepEqual(errors,[]);console.log('PASS coordinate entry/paste, invalid ranges, preserved selection, no place search or geocoding, mobile/desktop layouts');
  }catch(error){
   if(page){await page.screenshot({path:'test/ui-previews/coordinate-entry-error.png',fullPage:true});console.log('SEARCH DOM',await page.evaluate(()=>[...document.querySelectorAll('.connections-coordinate-entry,.connections-place-confirm')].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {text:e.textContent,rect:{x:r.x,y:r.y,w:r.width,h:r.height},display:s.display,visibility:s.visibility};})));}throw error;
