@@ -34,12 +34,12 @@ test('redirects cannot escape Google Maps, loop indefinitely or publish after ca
 });
 test('native reader uses explicit redirects; ordinary coordinates never access the network',async()=>{
  const calls=[];
- const {resolveJourneyInput}=load('lib/resolve-journey-input.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>true},CapacitorHttp:{get:async options=>{
-  calls.push(options);return options.url===short?{status:302,headers:{location:'https://www.google.com/maps?q=50.03,22.002'},data:''}:{status:200,headers:{},data:''};
- }}}});
+ const {resolveJourneyInput}=load('lib/resolve-journey-input.ts',{'@capacitor/core':{Capacitor:{isNativePlatform:()=>true},registerPlugin:name=>({get:async options=>{
+  calls.push(options);return options.url===short?{status:302,headers:{location:'https://www.google.com/maps?q=50.03,22.002'},text:''}:{status:200,headers:{},text:''};
+ }})}});
  const signal=new AbortController().signal;
  assert.equal((await resolveJourneyInput('50.03,22.002',signal)).lat,50.03);assert.equal(calls.length,0);
- const point=await resolveJourneyInput(short,signal);assert.equal(point.lat,50.03);assert.ok(calls.every(c=>c.disableRedirects===true));
+ const point=await resolveJourneyInput(short,signal);assert.equal(point.lat,50.03);assert.equal(calls.length,1,'single-hop native reader returns the Location header directly');
  const shared=await resolveJourneyInput('Fontanna Multimedialna\naleja Lubomirskich, Rzeszów\n'+short,signal);
  assert.equal(shared.lat,50.03);assert.equal(shared.lon,22.002);
  assert.equal(googleMapsLink(short+'\nhttps://maps.app.goo.gl/other'),null,'multiple destinations are ambiguous');
@@ -53,4 +53,8 @@ test('Android deep links use only their safe Google Maps web fallback and upgrad
  assert.equal(googleMapsRedirect('intent://example.test/#Intent;scheme=https;S.browser_fallback_url='+encodeURIComponent('https://evil.test/maps')+';end',base),null);
  const calls=[],point=await resolveGoogleMapsLink(short,async url=>{calls.push(url);return {status:302,headers:{Location:intent},text:''};},new AbortController().signal);
  assert.equal(point.lat,50.03);assert.equal(point.lon,22.002);assert.deepEqual(calls,[short],'coordinates in a redirect avoid unnecessary additional redirects');
+});
+
+test('the supplied short share link also accepts trailing sentence punctuation',()=>{
+ assert.equal(googleMapsLink('https://maps.app.goo.gl/fPMXwpSaTGh31K3h8.').href,'https://maps.app.goo.gl/fPMXwpSaTGh31K3h8');
 });

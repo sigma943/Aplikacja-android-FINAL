@@ -1611,14 +1611,14 @@ html[data-native-edge='true'] .pks-theme-root > [data-app-content] {
  margin-top:var(--safe-top);margin-left:var(--safe-left);margin-right:var(--safe-right);overflow:visible;
 }
 html[data-native-edge='true'] [data-app-content] > [data-map-canvas] {
- top:calc(0px - var(--safe-top));left:calc(0px - var(--safe-left));right:calc(0px - var(--safe-right));
+ left:calc(0px - var(--safe-left));right:calc(0px - var(--safe-right));
 }
 html[data-native-edge='true'] [data-map-toolbar] {
- top:var(--safe-top);left:var(--safe-left);right:var(--safe-right);
+ left:var(--safe-left);right:var(--safe-right);
 }
 @media(max-width:1099px) {
  html[data-native-edge='true'] .pks-theme-root > [data-app-navigation] {
-  left:var(--safe-left);right:var(--safe-right);
+  left:var(--safe-left);right:var(--safe-right);bottom:var(--safe-bottom);
  }
 }
 @media(min-width:1100px) {
@@ -1630,3 +1630,12 @@ html[data-native-edge='true'] .connections-picker-host .connections-picker {
 html[data-native-edge='true'] [data-options-overlay] {
  padding-top:calc(var(--safe-top) + 8px);
 }
+
+/* Only the map tab opts into drawing beneath the status icons. */
+html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root[data-cosmic-tab='map'] [data-app-content] > [data-map-canvas] { top:calc(0px - var(--safe-top)); }
+html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root[data-cosmic-tab='map'] [data-map-toolbar] { top:var(--safe-top); }
+[data-native-status-background] { display:none; }
+html[data-native-edge='true'] [data-native-status-background] { position:absolute;top:0;left:0;right:0;height:var(--safe-top);z-index:10001;pointer-events:none;background:var(--ui-canvas); }
+html[data-native-edge='true'] .pks-theme-root:not([data-cosmic-tab='map']) > [data-native-status-background],
+html[data-native-edge='true'] .pks-theme-root[data-options-open='true'] > [data-native-status-background],
+html[data-native-edge='true']:not([data-personal-status-bar-overlay='true']) .pks-theme-root > [data-native-status-background] { display:block; }

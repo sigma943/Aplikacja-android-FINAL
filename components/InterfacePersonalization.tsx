@@ -40,7 +40,7 @@ export default function InterfacePersonalization(p:Props){
   };
   const reset=()=>{localStorage.setItem(SCHEDULE_KEY,JSON.stringify({...readSchedule(),enabled:false}));window.dispatchEvent(new Event('pks-profiles-changed'));p.onChange({...DEFAULT_INTERFACE_APPEARANCE});p.setTheme('dark-oled');p.setAccent('#00A3A2');p.setGlass(true);p.setGlow(false);p.setGlowStrength(40);};
   const preset=(next:InterfacePreset)=>{
-    try{p.onChange({...next.appearance});p.setTheme(next.theme);p.setAccent(next.accent);p.setGlass(next.glass);p.setGlow(next.glow);p.setGlowStrength(next.glowStrength);}catch{p.setTheme('system');}
+    try{p.onChange({...next.appearance,statusBarOverlay:v.statusBarOverlay});p.setTheme(next.theme);p.setAccent(next.accent);p.setGlass(next.glass);p.setGlow(next.glow);p.setGlowStrength(next.glowStrength);}catch{p.setTheme('system');}
   };
   const colorPicker=(label:string,color:string,onChange:(value:string)=>void,customLabel:string,inputLabel:string,prefix:string)=><>
     <fieldset className="personal-field"><legend>{label}</legend><div className="grid grid-cols-4 gap-2">{accents.map(([name,next])=><button type="button" key={name} aria-label={`${prefix}: ${({'Turkus':'Turkusowy','Fiolet':'Fioletowy','Róż':'Różowy','Bursztyn':'Bursztynowy'} as Record<string,string>)[name]||name}`} aria-pressed={color.toLowerCase()===next} onClick={()=>onChange(next)} className={`${selected(color.toLowerCase()===next)} flex flex-col items-center gap-2`}><span className="flex h-6 w-6 items-center justify-center rounded-full" style={{background:next}}>{color.toLowerCase()===next&&<Check size={14} style={{color:name==='Bursztyn'?'#172536':'white'}}/>}</span><span className="text-[10px]">{name}</span></button>)}</div></fieldset>
@@ -58,6 +58,7 @@ export default function InterfacePersonalization(p:Props){
     })}</div></div>
     <label className="personal-search"><SlidersHorizontal size={16}/><input aria-label="Szukaj ustawień personalizacji" placeholder="Znajdź ustawienie…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button type="button" onClick={()=>setQuery('')} aria-label="Wyczyść wyszukiwanie personalizacji">×</button>}</label>
     {group('colors','Motyw i kolory','Motywy, paleta i własny akcent',<Palette size={19}/>,<>
+      {toggle('Mapa pod paskiem powiadomień',v.statusBarOverlay,on=>set('statusBarOverlay',on),'Na telefonie mapa może sięgać pod godzinę i ikony. Inne zakładki zachowują tło swojego motywu.')}
       <div className="grid grid-cols-3 gap-2">{[['system','Systemowy'],['light','Jasny'],['light-warm','Piaskowy'],['dark','Ciemny'],['dark-oled','AMOLED'],['dark-cosmos','Kosmos'],['light-pink','Różowy'],['dark-forest','Leśny'],['light-sky','Niebo']].map(([key,name])=><button type="button" key={key} aria-pressed={p.theme===key} className={selected(p.theme===key)} onClick={()=>{if(key==='dark-forest'||key==='light-sky'||key==='dark-cosmos'){preset(INTERFACE_PRESETS.find(next=>next.theme===key)!);return;}p.setTheme(key);if(key==='light-pink')p.setAccent('#c02674');}}>{name}</button>)}</div>
       {colorPicker('Kolor akcentu',p.accent,p.setAccent,'Własny kolor akcentu','Własny akcent interfejsu','Kolor akcentu')}
       {choices('surfaceTint','Zabarwienie paneli',[['original','Według motywu'],['accent','Akcent'],['warm','Ciepłe'],['custom','Własne']])}
@@ -65,7 +66,7 @@ export default function InterfacePersonalization(p:Props){
       {v.surfaceTint!=='original'&&slider('panelTintStrength','Siła zabarwienia paneli',5,55,5,'%')}
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
-    </>,'akcent własny kolor jasny ciemny amoled aurora')}
+    </>,'akcent własny kolor jasny ciemny amoled aurora pasek powiadomień godzina mapa ekran')}
     {cosmicVisible&&<CosmicThemeOptions searchOpen={Boolean(search)} disabled={p.lightEffects||v.reducedMotion}/>}
     {landscapeVisible&&<LandscapeThemeOptions searchOpen={Boolean(search)}/>}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}

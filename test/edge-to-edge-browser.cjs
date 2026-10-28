@@ -6,14 +6,26 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),puppeteer=requi
   const page=await browser.newPage();
   for(const [width,height,insets] of [[393,851,{top:32,bottom:24,left:0,right:0}],[851,393,{top:24,bottom:0,left:32,right:48}],[1366,900,{top:0,bottom:0,left:0,right:0}]]){
    await page.setViewport({width,height});
-   await page.setContent('<style>'+css+'</style><div class="pks-theme-root fixed inset-0 flex flex-col"><div data-app-content class="flex-1 relative min-h-0"><div data-map-canvas class="absolute inset-0"><div data-map-toolbar class="absolute top-0 left-0 right-0 p-2"><button>PKS Live</button></div></div><div data-test-content class="absolute inset-0" hidden></div></div><div data-app-navigation class="absolute bottom-0 left-0 right-0"><div class="pks-navigation" style="height:calc(64px + var(--safe-bottom));padding-bottom:var(--safe-bottom)"><button>Mapa</button></div></div></div>');
-   await page.evaluate(insets=>{const r=document.documentElement;r.dataset.nativeEdge='true';for(const [side,value]of Object.entries(insets))r.style.setProperty('--native-'+side,value+'px');},insets);
-   const metrics=await page.evaluate(()=>{const rect=q=>{const r=document.querySelector(q).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};};return {map:rect('[data-map-canvas]'),toolbar:rect('[data-map-toolbar]'),content:rect('[data-app-content]'),nav:rect('[data-app-navigation]'),overflow:document.documentElement.scrollWidth>innerWidth};});
+   await page.setContent('<style>'+css+'</style><div class="pks-theme-root fixed inset-0 flex flex-col" data-cosmic-tab="map" data-ui-theme="light-sky"><div data-native-status-background></div><div data-app-content class="flex-1 relative min-h-0"><div data-map-canvas class="absolute inset-0" style="background:rgb(255,0,0)"><div data-map-toolbar class="absolute top-0 left-0 right-0 p-2"><button>PKS Live</button></div></div></div><div data-app-navigation class="absolute bottom-0 left-0 right-0"><div class="pks-navigation h-16"><button>Mapa</button></div></div></div>');
+   await page.evaluate(insets=>{const r=document.documentElement;r.dataset.nativeEdge='true';r.dataset.personalStatusBarOverlay='true';for(const [side,value]of Object.entries(insets))r.style.setProperty('--native-'+side,value+'px');},insets);
+   const measure=()=>page.evaluate(()=>{const rect=q=>{const r=document.querySelector(q).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};};return {map:rect('[data-map-canvas]'),toolbar:rect('[data-map-toolbar]'),content:rect('[data-app-content]'),nav:rect('[data-app-navigation]'),panel:rect('.pks-navigation'),backdrop:getComputedStyle(document.querySelector('[data-native-status-background]')).display,topIsMap:Boolean(document.elementFromPoint(innerWidth/2,5)?.closest('[data-map-canvas]')),overflow:document.documentElement.scrollWidth>innerWidth};});
+   let metrics=await measure();
    assert.equal(metrics.map.top,0);assert.equal(metrics.map.left,0);assert.equal(metrics.map.bottom,height);assert.equal(metrics.map.right,width);
    assert.equal(metrics.content.top,insets.top);assert.equal(metrics.content.left,insets.left);
-   assert.ok(metrics.toolbar.top>=insets.top);assert.ok(metrics.toolbar.left>=insets.left);
-   assert.equal(metrics.nav.bottom,height-(width>=1100?18:0));assert.equal(metrics.overflow,false);
+   assert.equal(metrics.toolbar.top,insets.top);assert.equal(metrics.backdrop,'none');
+   assert.equal(metrics.panel.height,width>=1100?72:64,'navigation never grows by the gesture inset');
+   assert.equal(metrics.nav.bottom,height-insets.bottom-(width>=1100?18:0));assert.equal(metrics.overflow,false);
+   if(insets.top)assert.equal(metrics.topIsMap,true,'map is actually visible under system icons');
+   for(const tab of ['stops','journeys','admin']){
+    await page.evaluate(tab=>document.querySelector('.pks-theme-root').dataset.cosmicTab=tab,tab);
+    metrics=await measure();assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'block');
+    if(insets.top)assert.equal(metrics.topIsMap,false,tab+' never leaks the map into its status area');
+   }
+   await page.evaluate(()=>{document.querySelector('.pks-theme-root').dataset.cosmicTab='map';document.documentElement.dataset.personalStatusBarOverlay='false';});
+   metrics=await measure();assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'block');assert.equal(metrics.toolbar.top,insets.top);
+   if(insets.top)assert.equal(metrics.topIsMap,false,'switch off really removes the map from behind the clock');
+   await page.evaluate(()=>document.documentElement.dataset.personalStatusBarOverlay='true');metrics=await measure();assert.equal(metrics.map.top,0);assert.equal(metrics.backdrop,'none');
   }
-  await browser.close();console.log('PASS edge-to-edge full map, safe header/content/navigation, portrait/landscape/desktop');
+  console.log('PASS compact navigation above gestures, map-only status overlay on/off, no map behind other tabs, phone/tablet/desktop');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -96,7 +96,7 @@ jobs:
       - name: Verify coordinate entry
         if: contains(github.event.pull_request.title, '[coordinates-check]')
         run: |
-          node --test test/system-bars.test.cjs test/google-maps-link.test.cjs test/journey-coordinates.test.cjs test/journey-places.test.cjs
+          node --test test/interface-appearance.test.cjs test/interface-presets.test.cjs test/system-bars.test.cjs test/google-maps-link.test.cjs test/journey-coordinates.test.cjs test/journey-places.test.cjs
           npx puppeteer browsers install chrome
           node test/coordinate-entry-browser.cjs
           node test/edge-to-edge-browser.cjs
@@ -214,7 +214,7 @@ jobs:
           cd android
           chmod +x ./gradlew
           if [ "$FAST_APK" = "true" ]; then
-            ./gradlew testDebugUnitTest --tests pl.pkslive.app.SystemBarsAppearanceTest
+            ./gradlew testDebugUnitTest --tests pl.pkslive.app.SystemBarsAppearanceTest --tests pl.pkslive.app.GoogleMapsHttpTest
             ./gradlew assembleRelease
           elif [ "$FULL_VERIFICATION" = "true" ]; then
             ./gradlew testDebugUnitTest testReleaseUnitTest testReleaseTestUnitTest assembleDebug assembleRelease assembleReleaseTest

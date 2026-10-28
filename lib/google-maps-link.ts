@@ -11,7 +11,9 @@ export function googleMapsLink(value:string):URL|null{
   // Accept one unambiguous HTTPS URL, not a list of different destinations.
   const links=value.trim().match(/https:\/\/[^\s<>"']+/g);
   if(!links||links.length!==1)return null;
-  const url=new URL(links[0]);
+  // Sentence punctuation after a pasted short share link isn't part of its ID.
+  const text=links[0].replace(/^(https:\/\/(?:maps\.app\.goo\.gl\/|goo\.gl\/maps\/)[\w-]+)[.,;!?)]*$/,'$1');
+  const url=new URL(text);
   if(url.protocol!=='https:'||url.username||url.password||url.port||!hosts.has(url.hostname))return null;
   if(url.hostname==='maps.app.goo.gl')return /^\/[\w-]+\/?$/.test(url.pathname)?url:null;
   if(url.hostname==='goo.gl')return /^\/maps\/[\w-]+\/?$/.test(url.pathname)?url:null;

@@ -29,6 +29,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(AppearanceBackupPlugin.class);
     registerPlugin(LandscapePowerPolicyPlugin.class);
     registerPlugin(SystemBarsPlugin.class);
+    registerPlugin(GoogleMapsHttpPlugin.class);
     super.onCreate(savedInstanceState);
     PhoneOrientation.apply(this);
     WindowCompat.setDecorFitsSystemWindows(getWindow(),false);

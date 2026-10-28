@@ -78,7 +78,7 @@ type NavigationProps={preview?:boolean;order?:readonly NavItem[];activeTab:strin
 export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,className,themeColor,isMapTabDisabled=false,isStopsTabDisabled=false,isJourneysTabDisabled=false,canOpenAdminEmbed=false,onMap,onStops,onAdmin,onOptions,onJourneys}:NavigationProps){
  const reducedMotion=useJourneyReducedMotion();
  const items={journeys:{label:'Połączenia',Icon:JourneyIcon,disabled:isJourneysTabDisabled,onClick:onJourneys},map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
- return <div data-navigation-preview={preview||undefined} className={`relative isolate pointer-events-auto flex h-[calc(64px+var(--safe-bottom))] w-full items-center justify-around border-t pb-[var(--safe-bottom)] transition-colors ${className}`}>
+ return <div data-navigation-preview={preview||undefined} className={`relative isolate pointer-events-auto flex h-16 w-full items-center justify-around border-t transition-colors ${className}`}>
   <LandscapeChrome variant="navigation"/>
   <svg data-cosmic-nav-stars viewBox="0 0 393 64" preserveAspectRatio="none" aria-hidden="true">
    <g fill="#bfeaff"><path d="M25 5l1.2 3.8L30 10l-3.8 1.2L25 15l-1.2-3.8L20 10l3.8-1.2Z"/><circle cx="163" cy="8" r=".8"/></g>
