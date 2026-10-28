@@ -58,7 +58,6 @@ export default function InterfacePersonalization(p:Props){
     })}</div></div>
     <label className="personal-search"><SlidersHorizontal size={16}/><input aria-label="Szukaj ustawień personalizacji" placeholder="Znajdź ustawienie…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button type="button" onClick={()=>setQuery('')} aria-label="Wyczyść wyszukiwanie personalizacji">×</button>}</label>
     {group('colors','Motyw i kolory','Motywy, paleta i własny akcent',<Palette size={19}/>,<>
-      {toggle('Mapa pod paskiem powiadomień',v.statusBarOverlay,on=>set('statusBarOverlay',on),'Na telefonie mapa może sięgać pod godzinę i ikony. Inne zakładki zachowują tło swojego motywu.')}
       <div className="grid grid-cols-3 gap-2">{[['system','Systemowy'],['light','Jasny'],['light-warm','Piaskowy'],['dark','Ciemny'],['dark-oled','AMOLED'],['dark-cosmos','Kosmos'],['light-pink','Różowy'],['dark-forest','Leśny'],['light-sky','Niebo']].map(([key,name])=><button type="button" key={key} aria-pressed={p.theme===key} className={selected(p.theme===key)} onClick={()=>{if(key==='dark-forest'||key==='light-sky'||key==='dark-cosmos'){preset(INTERFACE_PRESETS.find(next=>next.theme===key)!);return;}p.setTheme(key);if(key==='light-pink')p.setAccent('#c02674');}}>{name}</button>)}</div>
       {colorPicker('Kolor akcentu',p.accent,p.setAccent,'Własny kolor akcentu','Własny akcent interfejsu','Kolor akcentu')}
       {choices('surfaceTint','Zabarwienie paneli',[['original','Według motywu'],['accent','Akcent'],['warm','Ciepłe'],['custom','Własne']])}
@@ -66,6 +65,7 @@ export default function InterfacePersonalization(p:Props){
       {v.surfaceTint!=='original'&&slider('panelTintStrength','Siła zabarwienia paneli',5,55,5,'%')}
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
+      {toggle('Tło pod paskiem powiadomień',v.statusBarOverlay,on=>set('statusBarOverlay',on),'Pokazuje tło bieżącego widoku pod godziną i ikonami systemu, również po otwarciu opcji.')}
     </>,'akcent własny kolor jasny ciemny amoled aurora pasek powiadomień godzina mapa ekran')}
     {cosmicVisible&&<CosmicThemeOptions searchOpen={Boolean(search)} disabled={p.lightEffects||v.reducedMotion}/>}
     {landscapeVisible&&<LandscapeThemeOptions searchOpen={Boolean(search)}/>}

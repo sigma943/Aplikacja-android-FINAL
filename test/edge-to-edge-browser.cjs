@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),puppeteer=require('puppeteer');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),puppeteer=require('puppeteer'),{PNG}=require('pngjs');
 const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
 (async()=>{
  const root=process.cwd(),temp=fs.mkdtempSync(path.join(os.tmpdir(),'native-navigation-'));
@@ -14,6 +14,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.addScriptTag({content:fs.readFileSync(path.join(temp,'fixture.js'),'utf8')});await page.waitForSelector('[data-nav-item]');
    await page.evaluate(insets=>{const r=document.documentElement;r.dataset.nativeEdge='true';r.dataset.personalStatusBarOverlay='true';for(const [side,value]of Object.entries(insets))r.style.setProperty('--native-'+side,value+'px');},insets);
    const measure=()=>page.evaluate(()=>{const rect=q=>{const r=document.querySelector(q).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};};return {map:rect('[data-map-canvas]'),toolbar:rect('[data-map-toolbar]'),content:rect('[data-app-content]'),nav:rect('[data-app-navigation]'),panel:rect('.pks-navigation'),backdrop:getComputedStyle(document.querySelector('[data-native-status-background]')).display,topIsMap:Boolean(document.elementFromPoint(innerWidth/2,5)?.closest('[data-map-canvas]')),overflow:document.documentElement.scrollWidth>innerWidth};});
+   const topPixel=async()=>[...PNG.sync.read(await page.screenshot({clip:{x:Math.floor(width/2),y:5,width:1,height:1}})).data];
+   const optionsCheck=async()=>{
+    const before=insets.top?await topPixel():null;
+    await page.evaluate(()=>{const root=document.querySelector('.pks-theme-root');root.dataset.optionsOpen='true';const overlay=document.createElement('div');overlay.dataset.optionsOverlay='';overlay.className='absolute inset-0';overlay.style.cssText='z-index:6000;background:rgba(0,0,0,.5);backdrop-filter:blur(4px)';root.appendChild(overlay);});
+    assert.equal((await measure()).backdrop,'none','opening options keeps status area transparent');
+    assert.equal(await page.$eval('[data-options-overlay]',e=>e.getBoundingClientRect().top),insets.top,'options dimming starts below system icons');
+    if(before)assert.deepEqual(await topPixel(),before,'options do not darken or recolour the status area');
+    await page.evaluate(()=>{document.querySelector('[data-options-overlay]').remove();delete document.querySelector('.pks-theme-root').dataset.optionsOpen;});
+   };
    let metrics=await measure();
    assert.equal(metrics.map.top,0);assert.equal(metrics.map.left,0);assert.equal(metrics.map.bottom,height);assert.equal(metrics.map.right,width);
    assert.equal(metrics.content.top,insets.top);assert.equal(metrics.content.left,insets.left);
@@ -21,9 +30,11 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    assert.equal(metrics.panel.height,width>=1100?72:64,'navigation never grows by the gesture inset');
    assert.equal(metrics.nav.bottom,height-insets.bottom-(width>=1100?18:0));assert.equal(metrics.overflow,false);
    if(insets.top)assert.equal(metrics.topIsMap,true,'map is actually visible under system icons');
+   await optionsCheck();
    for(const tab of ['stops','journeys','admin']){
     await page.evaluate(tab=>document.querySelector('.pks-theme-root').dataset.cosmicTab=tab,tab);
-    metrics=await measure();assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'block');
+    metrics=await measure();assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'none');
+    await optionsCheck();
     if(insets.top)assert.equal(metrics.topIsMap,false,tab+' never leaks the map into its status area');
    }
    await page.evaluate(()=>{document.querySelector('.pks-theme-root').dataset.cosmicTab='map';document.documentElement.dataset.personalStatusBarOverlay='false';});
@@ -33,6 +44,6 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    assert.equal(await page.$eval('[data-native-status-background]',e=>getComputedStyle(e).backgroundColor),'rgb(220, 235, 245)','Horyzont uses its solid day/night material behind system icons');
    await page.evaluate(()=>document.documentElement.dataset.personalStatusBarOverlay='true');metrics=await measure();assert.equal(metrics.map.top,0);assert.equal(metrics.backdrop,'none');
   }
-  console.log('PASS compact navigation above gestures, map-only status overlay on/off, no map behind other tabs, phone/tablet/desktop');
+  console.log('PASS compact navigation, transparent status area on every tab and while opening options, overlay switch on/off, phone/tablet/desktop');
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exit(1);});
