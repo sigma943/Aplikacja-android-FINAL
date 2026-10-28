@@ -16,7 +16,8 @@ export default function PlaceSearch({bias,onPick}:{bias:[number,number];onPick:(
  // Keep the search focus stable while the selected pin/map moves.
  const biasRef=useRef(bias);biasRef.current=bias;
  useEffect(()=>{
-  const controller=new AbortController(),value=query.trim();
+  const controller=new AbortController(),value=query.trim(),immediate=submitted.current;
+  submitted.current=false;
   setResults([]);setMessage('');setBusy(false);
   if(!value){setOpen(false);return()=>controller.abort();}
   const coordinates=parsePlaceCoordinates(value);
@@ -24,7 +25,7 @@ export default function PlaceSearch({bias,onPick}:{bias:[number,number];onPick:(
   if(looksLikePlaceCoordinates(value)){setMessage('Wpisz poprawne współrzędne, np. 50.03897, 22.00282.');setOpen(true);return()=>controller.abort();}
   if(value.length<3){setMessage('Wpisz co najmniej 3 znaki.');setOpen(true);return()=>controller.abort();}
   setOpen(true);setBusy(true);
-  const delay=submitted.current?0:700;submitted.current=false;
+  const delay=immediate?0:700;
   const timer=setTimeout(()=>{
    void searchPlaces(value,biasRef.current,controller.signal).then(next=>{
     if(controller.signal.aborted)return;setResults(next);setMessage(next.length?'':'Brak wyników. Dopisz miejscowość lub wklej współrzędne.');
