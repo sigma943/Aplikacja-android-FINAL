@@ -33,7 +33,7 @@ createRoot(document.getElementById('root')!).render(<App/>);
 // Pixel regression for the real cloud relighting cache, including its alpha mask.
 (window as any).__checkCloudTop=()=>{
  const results=[];
- for(const [width,height] of [[393,851],[393,873],[851,393]]){
+ for(const [width,height] of [[393,851],[393,873],[360,800]]){
   const canvas=document.createElement('canvas'),renderer:any=new LandscapeRenderer(canvas);
   renderer.resize(width,height,1);
   const cloud=document.createElement('canvas');cloud.width=850;cloud.height=1850;
