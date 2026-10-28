@@ -93,19 +93,19 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
-      - name: Verify place search and coordinate picker
-        if: contains(github.event.pull_request.title, '[place-search-check]')
+      - name: Verify coordinate entry
+        if: contains(github.event.pull_request.title, '[coordinates-check]')
         run: |
-          node --test test/place-search.test.cjs test/journey-places.test.cjs
+          node --test test/journey-coordinates.test.cjs test/journey-places.test.cjs
           npx puppeteer browsers install chrome
-          node test/place-search-browser.cjs
+          node test/coordinate-entry-browser.cjs
 
-      - name: Upload place search previews
-        if: always() && contains(github.event.pull_request.title, '[place-search-check]')
+      - name: Upload coordinate entry previews
+        if: always() && contains(github.event.pull_request.title, '[coordinates-check]')
         uses: actions/upload-artifact@v4
         with:
-          name: place-search-previews
-          path: test/ui-previews/place-search-*.png
+          name: coordinate-entry-previews
+          path: test/ui-previews/coordinate-entry-*.png
           if-no-files-found: ignore
 
       - name: Verify desktop layout and unchanged phone layouts

@@ -430,20 +430,11 @@
 .connections-map-status button{margin-left:8px;color:var(--cn-accent);text-decoration:underline}
 @media(prefers-reduced-motion:reduce){.connections-disclosure-chevron svg,.connections-result{transition:none}}
 
-/* Place lookup belongs only to the journey map picker. */
-.connections-place-search{position:relative;z-index:1100;flex-shrink:0;min-width:0}
-.connections-place-search form{display:flex;align-items:center;gap:8px;min-height:48px;padding:6px 8px 6px 12px;border:1px solid var(--cn-edge);border-radius:14px;background:var(--cn-surface);color:var(--cn-text)}
-.connections-place-search form>svg{color:var(--cn-muted);flex-shrink:0}
-.connections-place-search input{min-width:0;flex:1;width:100%;padding:5px 0;border:0;outline:0;background:transparent;color:inherit;font-size:13px}
-.connections-place-search form button{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;border:0;border-radius:10px;background:transparent;color:var(--cn-accent)}
-.connections-place-search form button:focus-visible{outline:2px solid var(--cn-accent)}
-.connections-place-search-results{position:absolute;inset:calc(100% + 5px) 0 auto;max-height:min(280px,40dvh);overflow:auto;border:1px solid var(--cn-edge);border-radius:14px;background:var(--cn-surface);color:var(--cn-text);box-shadow:0 12px 32px #0004;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
-.connections-place-search-results [role=option]{display:flex;align-items:center;gap:10px;width:100%;padding:12px;text-align:left;border:0;border-bottom:1px solid var(--cn-edge);background:transparent;color:inherit}
-.connections-place-search-results [role=option]>svg{flex-shrink:0;color:var(--cn-accent)}
-.connections-place-search-results [role=option]>span{min-width:0}
-.connections-place-search-results strong{display:block;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
-.connections-place-search-results small{display:block;font-size:10px;line-height:1.5;color:var(--cn-muted);overflow-wrap:anywhere}
-.connections-place-search-results [role=option]:is(:hover,:focus-visible){background:color-mix(in srgb,var(--cn-accent) 12%,transparent);outline-offset:-2px}
-.connections-place-search-results p{font-size:12px;line-height:1.5;margin:12px}
-.connections-place-search-source{padding:8px 12px 0}
-.connections-place-search-dismiss{margin:4px 8px 8px;padding:6px;border:0;background:transparent;color:var(--cn-accent);font-size:11px}
+/* Local coordinate entry, without place search or external requests. */
+.connections-coordinate-entry{flex-shrink:0;min-width:0;color:var(--cn-text)}
+.connections-coordinate-entry label{display:block;margin-bottom:6px;font-size:12px;font-weight:650}
+.connections-coordinate-entry>div{display:flex;gap:8px;min-width:0}
+.connections-coordinate-entry input{flex:1;min-width:0;width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--cn-edge);border-radius:12px;background:var(--cn-surface);color:inherit;font-size:13px}
+.connections-coordinate-entry button{flex-shrink:0;min-height:44px;padding:10px 12px;border:1px solid var(--cn-edge);border-radius:12px;background:var(--cn-surface);color:var(--cn-accent);font-size:12px;font-weight:650}
+.connections-coordinate-entry small{display:block;margin-top:5px;font-size:10px;line-height:1.5;color:var(--cn-muted)}
+.connections-coordinate-entry p{margin:6px 0 0;font-size:11px;line-height:1.5;color:var(--cn-text)}
