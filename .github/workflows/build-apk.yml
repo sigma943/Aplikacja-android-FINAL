@@ -100,13 +100,16 @@ jobs:
           npx puppeteer browsers install chrome
           node test/coordinate-entry-browser.cjs
           node test/edge-to-edge-browser.cjs
+          node test/theme-status-browser.cjs
 
       - name: Upload coordinate entry previews
         if: always() && contains(github.event.pull_request.title, '[coordinates-check]')
         uses: actions/upload-artifact@v4
         with:
           name: coordinate-entry-previews
-          path: test/ui-previews/coordinate-entry-*.png
+          path: |
+            test/ui-previews/coordinate-entry-*.png
+            test/ui-previews/theme-status-*.png
           if-no-files-found: ignore
 
       - name: Verify desktop layout and unchanged phone layouts

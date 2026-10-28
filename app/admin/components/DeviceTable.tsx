@@ -339,7 +339,7 @@ export function DeviceTable({
   );
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+7rem)] sm:p-8 sm:pb-[calc(var(--safe-bottom)+4rem)]">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+7rem)] sm:p-8 sm:pb-[calc(var(--safe-bottom)+4rem)]">
       <AnimatePresence>
         {deleteDevice && (
           <motion.div

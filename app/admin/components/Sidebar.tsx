@@ -60,7 +60,7 @@ export function Sidebar({
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="min-h-0 overflow-y-auto">
-          <div className="p-6 flex items-center justify-between">
+          <div data-admin-sidebar-header className="p-6 flex items-center justify-between">
             <div className="flex items-center gap-2 font-extrabold tracking-tight" style={{ color: accentColor }}>
               <Bus className="h-6 w-6 shrink-0 md:h-7 md:w-7" strokeWidth={2.25} aria-hidden />
               <span className="text-lg md:text-xl">PKS Live</span>

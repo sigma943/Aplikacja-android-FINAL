@@ -1208,6 +1208,7 @@ export default function Home() {
          <AnimatePresence mode="wait">
             {activeTab === 'admin' && canOpenAdminEmbed && (
                <motion.div
+                  data-native-view="admin"
                   key="admin-embed"
                   initial={false}
                   animate={{ opacity: 1 }}
@@ -1397,9 +1398,10 @@ export default function Home() {
               </AnimatePresence>
 
             </div>
-         {!isJourneysTabDisabled&&(hasOpenedJourneys||activeTab==='journeys')&&<div hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
+         {!isJourneysTabDisabled&&(hasOpenedJourneys||activeTab==='journeys')&&<div data-native-view="journeys" hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
          {/* ============== NEW STOPS VIEW ============== */}
          <motion.div
+            data-native-view="stops"
             key="new-stops-panel"
             initial={false}
             animate={{ opacity: activeTab === 'stops' ? 1 : 0 }}

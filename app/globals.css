@@ -1633,8 +1633,38 @@ html[data-native-edge='true'] [data-options-overlay] {
 
 /* The map extends under status icons only on its own tab. Other views reveal
    their existing full-screen theme/scenery when the overlay preference is on. */
-html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root[data-cosmic-tab='map'] [data-app-content] > [data-map-canvas] { top:calc(0px - var(--safe-top)); }
+html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root[data-cosmic-tab='map'] [data-app-content] > [data-map-canvas] { top:0; }
 html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root[data-cosmic-tab='map'] [data-map-toolbar] { top:var(--safe-top); }
 [data-native-status-background] { display:none; }
 html[data-native-edge='true'] [data-native-status-background] { position:absolute;top:0;left:0;right:0;height:var(--safe-top);z-index:10001;pointer-events:none;background:var(--landscape-solid,var(--ui-canvas)); }
 html[data-native-edge='true']:not([data-personal-status-bar-overlay='true']) .pks-theme-root > [data-native-status-background] { display:block; }
+
+/* Full-bleed view canvases own their background, including the system area.
+   Insets belong to interactive content, never to the background container. */
+html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root > [data-app-content] {
+ margin-top:0;--native-content-top:var(--safe-top);--admin-content-top:var(--safe-top);
+}
+html[data-native-edge='true'] [data-native-view='stops'] .transit-view { padding-top:var(--native-content-top,0px); }
+html[data-native-edge='true'] [data-native-view='journeys'] > .connections-view { padding-top:calc(18px + var(--native-content-top,0px)); }
+html[data-native-edge='true'] [data-admin-view-canvas],
+html[data-native-edge='true'] [data-admin-safe-header] { padding-top:calc(16px + var(--admin-content-top,0px)); }
+html[data-native-edge='true'] [data-admin-sidebar-header] { padding-top:calc(24px + var(--native-content-top,0px)); }
+html[data-native-edge='true'] [data-native-view='admin'] .admin-topbar { padding-top:calc(16px + var(--native-content-top,0px)); }
+@media(min-width:640px) {
+ html[data-native-edge='true'] [data-admin-view-canvas],
+ html[data-native-edge='true'] [data-admin-safe-header] { padding-top:calc(32px + var(--admin-content-top,0px)); }
+}
+@media(min-width:768px) {
+ html[data-native-edge='true'] [data-admin-viewport] { --admin-content-top:0px; }
+ html[data-native-edge='true'] [data-native-view='journeys'] > .connections-view { padding-top:calc(30px + var(--native-content-top,0px)); }
+}
+@media(min-width:1100px) {
+ html[data-native-edge='true'] [data-native-view='journeys'] > .connections-view { padding-top:calc(32px + var(--native-content-top,0px)); }
+}
+/* The theme's real repeating artwork spans the same canvas as its colour. */
+html[data-native-edge='true'][data-personal-status-bar-overlay='true']:not([data-personal-light-effects='on'])
+ .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-native-view]
+ :is([data-admin-view-canvas],[data-statistics-view],.transit-view,.connections-view:not(.connections-picker-host)) {
+ background-image:var(--theme-decoration)!important;background-repeat:repeat!important;
+ background-position:left top!important;background-size:320px 180px!important;
+}

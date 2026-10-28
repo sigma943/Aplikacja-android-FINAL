@@ -72,7 +72,7 @@ export function BansView({
   const visibleBans = useMemo(() => filteredBans.slice(0, visibleCount), [filteredBans, visibleCount]);
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+6rem)] sm:p-8 sm:pb-8">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+6rem)] sm:p-8 sm:pb-8">
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex items-center gap-4 mb-4">
           <button

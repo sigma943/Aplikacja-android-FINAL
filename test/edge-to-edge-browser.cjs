@@ -25,19 +25,19 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    };
    let metrics=await measure();
    assert.equal(metrics.map.top,0);assert.equal(metrics.map.left,0);assert.equal(metrics.map.bottom,height);assert.equal(metrics.map.right,width);
-   assert.equal(metrics.content.top,insets.top);assert.equal(metrics.content.left,insets.left);
+   assert.equal(metrics.content.top,0);assert.equal(metrics.content.left,insets.left);
    assert.equal(metrics.toolbar.top,insets.top);assert.equal(metrics.backdrop,'none');
    assert.equal(metrics.panel.height,width>=1100?72:64,'navigation never grows by the gesture inset');
    assert.equal(metrics.nav.bottom,height-insets.bottom-(width>=1100?18:0));assert.equal(metrics.overflow,false);
    if(insets.top)assert.equal(metrics.topIsMap,true,'map is actually visible under system icons');
    await optionsCheck();
    for(const tab of ['stops','journeys','admin']){
-    await page.evaluate(tab=>document.querySelector('.pks-theme-root').dataset.cosmicTab=tab,tab);
-    metrics=await measure();assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'none');
+    await page.evaluate(tab=>{const root=document.querySelector('.pks-theme-root');root.dataset.cosmicTab=tab;let view=root.querySelector('[data-native-view]');if(!view){view=document.createElement('div');view.dataset.nativeView=tab;view.className='absolute inset-0';view.style.background='var(--ui-canvas)';document.querySelector('[data-app-content]').appendChild(view);}},tab);
+    metrics=await measure();assert.equal(metrics.map.top,0);assert.equal(metrics.backdrop,'none');
     await optionsCheck();
     if(insets.top)assert.equal(metrics.topIsMap,false,tab+' never leaks the map into its status area');
    }
-   await page.evaluate(()=>{document.querySelector('.pks-theme-root').dataset.cosmicTab='map';document.documentElement.dataset.personalStatusBarOverlay='false';});
+   await page.evaluate(()=>{document.querySelector('[data-native-view]')?.remove();document.querySelector('.pks-theme-root').dataset.cosmicTab='map';document.documentElement.dataset.personalStatusBarOverlay='false';});
    metrics=await measure();assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'block');assert.equal(metrics.toolbar.top,insets.top);
    if(insets.top)assert.equal(metrics.topIsMap,false,'switch off really removes the map from behind the clock');
    await page.evaluate(()=>{const root=document.querySelector('.pks-theme-root');root.dataset.uiTheme='dark-mountains';root.style.setProperty('--landscape-solid','rgb(220,235,245)');});
