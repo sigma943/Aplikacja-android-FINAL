@@ -15,7 +15,7 @@ import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Raw, single-hop Maps reads: no WebView cookies, automatic redirects or JSON
+/** Raw, single-hop Maps reads: no automatic redirects or JSON
  * conversion. The JS resolver validates each Location and the selected place. */
 @CapacitorPlugin(name="GoogleMapsHttp")
 public class GoogleMapsHttpPlugin extends Plugin {

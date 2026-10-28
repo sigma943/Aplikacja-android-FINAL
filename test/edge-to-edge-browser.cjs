@@ -1,14 +1,15 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),puppeteer=require('puppeteer');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),puppeteer=require('puppeteer');
 const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
 (async()=>{
  const root=process.cwd(),temp=fs.mkdtempSync(path.join(os.tmpdir(),'native-navigation-'));
  await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'development',devtool:false,plugins:[new webpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],entry:path.join(root,'test/native-navigation-fixture.tsx'),output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')},{test:/\.css$/,use:path.join(root,'test/journey-css-loader.cjs')}]},optimization:{minimize:false}});compiler.run((e,stats)=>compiler.close(()=>e||stats.hasErrors()?reject(e||Error(stats.toString({all:false,errors:true}))):resolve()));});
  const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
+ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><body></body></html>');});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
  const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
  try{
-  const page=await browser.newPage();
+  const page=await browser.newPage();page.on('pageerror',error=>console.log('NAVIGATION PAGE ERROR',error.stack||error.message));
   for(const [width,height,insets] of [[393,851,{top:32,bottom:24,left:0,right:0}],[851,393,{top:24,bottom:0,left:32,right:48}],[1366,900,{top:0,bottom:0,left:0,right:0}]]){
-   await page.setViewport({width,height});
+   await page.setViewport({width,height});await page.goto(origin);
    await page.setContent('<style>'+css+'</style><div class="pks-theme-root fixed inset-0 flex flex-col" data-cosmic-tab="map" data-ui-theme="light-sky"><div data-native-status-background></div><div data-app-content class="flex-1 relative min-h-0"><div data-map-canvas class="absolute inset-0" style="background:rgb(255,0,0)"><div data-map-toolbar class="absolute top-0 left-0 right-0 p-2"><button>PKS Live</button></div></div></div><div id="navigation-root" data-app-navigation class="absolute bottom-0 left-0 right-0"></div></div>');
    await page.addScriptTag({content:fs.readFileSync(path.join(temp,'fixture.js'),'utf8')});await page.waitForSelector('[data-nav-item]');
    await page.evaluate(insets=>{const r=document.documentElement;r.dataset.nativeEdge='true';r.dataset.personalStatusBarOverlay='true';for(const [side,value]of Object.entries(insets))r.style.setProperty('--native-'+side,value+'px');},insets);
@@ -31,5 +32,5 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.evaluate(()=>document.documentElement.dataset.personalStatusBarOverlay='true');metrics=await measure();assert.equal(metrics.map.top,0);assert.equal(metrics.backdrop,'none');
   }
   console.log('PASS compact navigation above gestures, map-only status overlay on/off, no map behind other tabs, phone/tablet/desktop');
- }finally{await browser.close();fs.rmSync(temp,{recursive:true,force:true});}
+ }finally{await browser.close();await new Promise(resolve=>server.close(resolve));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exit(1);});
