@@ -34,7 +34,7 @@ import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops, upcomingTimedVehicleStops} from '@/lib/vehicle-stop-timing';
 
-import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
+import {lazy, Suspense, startTransition, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
 import dynamic from 'next/dynamic';
 import {Capacitor} from '@capacitor/core';
 import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOff, Shield, Check} from 'lucide-react';
@@ -922,6 +922,9 @@ export default function Home() {
   const actualTheme = resolveAppTheme(appTheme,systemIsDark);
   const landscapeDay=useLandscapeDay(actualTheme==='dark-mountains');
   const isDark = actualTheme.startsWith('dark')&&!landscapeDay;
+  useLayoutEffect(()=>{
+    document.documentElement.dataset.systemBarIcons=isDark?'light':'dark';
+  },[isDark]);
   const isOled = actualTheme === 'dark-oled' || actualTheme === 'dark-cosmos';
   const isLightPink = actualTheme === 'light-pink';
   const isPink = actualTheme === 'dark-pink';

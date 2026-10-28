@@ -1,6 +1,6 @@
 import {Capacitor,CapacitorHttp} from '@capacitor/core';
 import {parseJourneyCoordinates} from './journey-coordinates';
-import {coordinatesFromGoogleMapsLink,googleMapsLink,resolveGoogleMapsLink} from './google-maps-link';
+import {coordinatesFromGoogleMapsLink,googleMapsLink,resolveGoogleMapsLink,GOOGLE_MAPS_HEADERS} from './google-maps-link';
 import {withRequestDeadline} from './request-deadline';
 import {journeyMapPoint} from './journey-places';
 
@@ -10,7 +10,7 @@ export async function resolveJourneyInput(value:string,signal:AbortSignal){
  if(!googleMapsLink(value))throw Error('Wklej poprawne współrzędne lub link Google Maps.');
  return withRequestDeadline(async active=>{
   if(Capacitor.isNativePlatform())return resolveGoogleMapsLink(value,async url=>{
-   const response=await CapacitorHttp.get({url,responseType:'text',disableRedirects:true,connectTimeout:5000,readTimeout:7000,headers:{Accept:'text/html,application/json','User-Agent':'Mozilla/5.0'}});
+   const response=await CapacitorHttp.get({url,responseType:'text',disableRedirects:true,connectTimeout:5000,readTimeout:7000,headers:GOOGLE_MAPS_HEADERS});
    return {status:response.status,headers:response.headers,text:typeof response.data==='string'?response.data:JSON.stringify(response.data)};
   },active);
   const response=await fetch('/api/maps-link?'+new URLSearchParams({url:value}),{signal:active,cache:'no-store'});

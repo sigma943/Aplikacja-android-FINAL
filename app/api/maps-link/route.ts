@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {googleMapsLink,resolveGoogleMapsLink} from '@/lib/google-maps-link';
+import {googleMapsLink,resolveGoogleMapsLink,GOOGLE_MAPS_HEADERS} from '@/lib/google-maps-link';
 import {withRequestDeadline} from '@/lib/request-deadline';
 export const dynamic='force-dynamic';
 export async function GET(request:Request){
@@ -7,7 +7,7 @@ export async function GET(request:Request){
  if(value.length>4096||!googleMapsLink(value))return NextResponse.json({error:'Nieprawidłowy link Google Maps.'},{status:400});
  try{
   const point=await withRequestDeadline(signal=>resolveGoogleMapsLink(value,async(url,active)=>{
-   const response=await fetch(url,{signal:active,redirect:'manual',cache:'no-store',headers:{Accept:'text/html,application/json','User-Agent':'Mozilla/5.0'}});
+   const response=await fetch(url,{signal:active,redirect:'manual',cache:'no-store',headers:GOOGLE_MAPS_HEADERS});
    const length=Number(response.headers.get('content-length')||0);if(length>2000000)throw Error('Odpowiedź linku jest zbyt duża.');
    return {status:response.status,headers:Object.fromEntries(response.headers.entries()),text:response.status>=300&&response.status<400?'':await response.text()};
   },signal),request.signal,18000);

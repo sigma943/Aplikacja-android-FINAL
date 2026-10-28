@@ -44,3 +44,13 @@ test('native reader uses explicit redirects; ordinary coordinates never access t
  assert.equal(shared.lat,50.03);assert.equal(shared.lon,22.002);
  assert.equal(googleMapsLink(short+'\nhttps://maps.app.goo.gl/other'),null,'multiple destinations are ambiguous');
 });
+test('Android deep links use only their safe Google Maps web fallback and upgrade HTTP before reading',async()=>{
+ const {googleMapsRedirect}=load('lib/google-maps-link.ts'),base=new URL(short),target='https://www.google.com/maps?q=50.03,22.002';
+ assert.equal(googleMapsRedirect('http://www.google.com/maps?q=50.03,22.002',base).href,target);
+ assert.equal(googleMapsRedirect('intent://maps.google.com/maps?q=50.03,22.002#Intent;scheme=http;package=com.google.android.apps.maps;end',base).protocol,'https:');
+ const intent='intent://maps.app.goo.gl/test#Intent;scheme=https;S.browser_fallback_url='+encodeURIComponent(target)+';end';
+ assert.equal(googleMapsRedirect(intent,base).href,target);
+ assert.equal(googleMapsRedirect('intent://example.test/#Intent;scheme=https;S.browser_fallback_url='+encodeURIComponent('https://evil.test/maps')+';end',base),null);
+ const calls=[],point=await resolveGoogleMapsLink(short,async url=>{calls.push(url);return {status:302,headers:{Location:intent},text:''};},new AbortController().signal);
+ assert.equal(point.lat,50.03);assert.equal(point.lon,22.002);assert.deepEqual(calls,[short],'coordinates in a redirect avoid unnecessary additional redirects');
+});

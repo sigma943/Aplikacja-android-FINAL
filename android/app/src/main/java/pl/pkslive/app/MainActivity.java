@@ -2,7 +2,7 @@ package pl.pkslive.app;
 
 import android.os.Bundle;
 import android.os.Build;
-import android.graphics.Color;
+import android.content.res.Configuration;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import androidx.core.graphics.Insets;
@@ -30,36 +30,30 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(LandscapePowerPolicyPlugin.class);
     registerPlugin(SystemBarsPlugin.class);
     super.onCreate(savedInstanceState);
+    PhoneOrientation.apply(this);
     WindowCompat.setDecorFitsSystemWindows(getWindow(),false);
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-    getWindow().setStatusBarColor(Color.TRANSPARENT);
-    getWindow().setNavigationBarColor(Color.TRANSPARENT);
+    SystemBarsAppearance.apply(getWindow(),false);
     if(Build.VERSION.SDK_INT>=28) {
-      getWindow().setNavigationBarDividerColor(Color.TRANSPARENT);
       WindowManager.LayoutParams params=getWindow().getAttributes();
       params.layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
       getWindow().setAttributes(params);
     }
-    if(Build.VERSION.SDK_INT>=29) {
-      getWindow().setStatusBarContrastEnforced(false);
-      getWindow().setNavigationBarContrastEnforced(false);
-    }
-    WindowCompat.getInsetsController(getWindow(),getWindow().getDecorView()).setAppearanceLightStatusBars(false);
-    WindowCompat.getInsetsController(getWindow(),getWindow().getDecorView()).setAppearanceLightNavigationBars(false);
     ViewGroup content=findViewById(android.R.id.content);
-    SystemBarProtection protection=new SystemBarProtection(this);
-    content.addView(protection,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
     ViewCompat.setOnApplyWindowInsetsListener(content,(view,insets)->{
       safeInsets=insets.getInsets(WindowInsetsCompat.Type.systemBars()|WindowInsetsCompat.Type.displayCutout());
       Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());
       int keyboard=insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
       // Resize the WebView for the IME while keeping backgrounds behind system bars.
       view.setPadding(0,0,0,keyboard>bars.bottom?keyboard:0);
-      protection.setInsets(bars);
       if(bridge!=null&&bridge.getWebView()!=null) bridge.getWebView().evaluateJavascript(
         "window.dispatchEvent(new CustomEvent('pks-insets',{detail:"+systemInsets().toString()+"}))",null);
       return WindowInsetsCompat.CONSUMED;
     });
     ViewCompat.requestApplyInsets(content);
+  }
+  @Override public void onConfigurationChanged(Configuration config) {
+    super.onConfigurationChanged(config);
+    PhoneOrientation.apply(this);
   }
 }

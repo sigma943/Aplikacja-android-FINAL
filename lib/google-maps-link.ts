@@ -4,6 +4,7 @@ import type {Stop} from '@/Panel/src/types';
 type Reply={status:number;headers:Record<string,string>;text:string};
 export type MapsLinkReader=(url:string,signal:AbortSignal)=>Promise<Reply>;
 const hosts=new Set(['maps.app.goo.gl','goo.gl','google.com','www.google.com','maps.google.com','google.pl','www.google.pl','maps.google.pl']);
+export const GOOGLE_MAPS_HEADERS={Accept:'text/html,application/json','User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'};
 export function googleMapsLink(value:string):URL|null{
  try{
   // Android's share sheet can paste a place name and address around the link.
@@ -42,6 +43,27 @@ export function coordinatesFromGoogleMapsLink(value:string):Stop|null{
  return pair?parseJourneyCoordinates(pair[1]+', '+pair[2]):null;
 }
 function unescapeHtml(value:string){return value.replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'");}
+/** Google's Android deep-link redirects have a web equivalent. Never launch an
+ * intent or follow a fallback to an unrelated host; HTTP is upgraded before I/O. */
+export function googleMapsRedirect(value:string,base:URL):URL|null{
+ try{
+  let target=value.trim();
+  if(target.startsWith('intent://')){
+   const split=target.indexOf('#Intent;');if(split<0)return null;
+   const settings=target.slice(split+8).split(';');
+   const fallback=settings.find(s=>s.startsWith('S.browser_fallback_url='));
+   if(fallback)target=decodeURIComponent(fallback.slice('S.browser_fallback_url='.length));
+   else{
+    const scheme=settings.find(s=>s.startsWith('scheme='))?.slice(7);
+    if(scheme!=='https'&&scheme!=='http')return null;
+    target=scheme+'://'+target.slice(9,split);
+   }
+  }
+  const url=new URL(target,base);
+  if(url.protocol==='http:'&&hosts.has(url.hostname))url.protocol='https:';
+  return googleMapsLink(url.href);
+ }catch{return null;}
+}
 /** Read only the selected place record, never a viewport or nearby/recommended POI. */
 export function pointFromMapsPreview(text:string,expected:string):Stop|null{
  try{
@@ -58,10 +80,11 @@ export async function resolveGoogleMapsLink(value:string,read:MapsLinkReader,sig
  const readFinal=async(start:URL):Promise<{url:URL;text:string}>=>{
   let current=start;
   for(let hop=0;hop<6;hop++){
+   if(coordinatesFromGoogleMapsLink(current.href))return {url:current,text:''};
    signal.throwIfAborted();const reply=await read(current.href,signal);signal.throwIfAborted();
    if(reply.status>=300&&reply.status<400){
     const location=Object.entries(reply.headers).find(([key])=>key.toLowerCase()==='location')?.[1];
-    const target=location&&googleMapsLink(new URL(location,current).href);
+    const target=location&&googleMapsRedirect(location,current);
     if(!target)throw Error('Nieprawidłowe przekierowanie linku Google Maps.');current=target;continue;
    }
    if(reply.status!==200||reply.text.length>2000000)throw Error('Nie udało się odczytać linku Google Maps.');
