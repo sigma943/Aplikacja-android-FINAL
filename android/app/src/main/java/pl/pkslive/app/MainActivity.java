@@ -31,6 +31,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(SystemBarsPlugin.class);
     super.onCreate(savedInstanceState);
     WindowCompat.setDecorFitsSystemWindows(getWindow(),false);
+    getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     getWindow().setStatusBarColor(Color.TRANSPARENT);
     getWindow().setNavigationBarColor(Color.TRANSPARENT);
     if(Build.VERSION.SDK_INT>=28) {

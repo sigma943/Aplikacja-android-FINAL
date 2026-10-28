@@ -12,7 +12,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),puppeteer=requi
    assert.equal(metrics.map.top,0);assert.equal(metrics.map.left,0);assert.equal(metrics.map.bottom,height);assert.equal(metrics.map.right,width);
    assert.equal(metrics.content.top,insets.top);assert.equal(metrics.content.left,insets.left);
    assert.ok(metrics.toolbar.top>=insets.top);assert.ok(metrics.toolbar.left>=insets.left);
-   assert.equal(metrics.nav.bottom,height);assert.equal(metrics.overflow,false);
+   assert.equal(metrics.nav.bottom,height-(width>=1100?18:0));assert.equal(metrics.overflow,false);
   }
   await browser.close();console.log('PASS edge-to-edge full map, safe header/content/navigation, portrait/landscape/desktop');
  }finally{await browser.close();}

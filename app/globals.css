@@ -1616,9 +1616,17 @@ html[data-native-edge='true'] [data-app-content] > [data-map-canvas] {
 html[data-native-edge='true'] [data-map-toolbar] {
  top:var(--safe-top);left:var(--safe-left);right:var(--safe-right);
 }
-html[data-native-edge='true'] .pks-theme-root > [data-app-navigation] {
- left:var(--safe-left);right:var(--safe-right);
+@media(max-width:1099px) {
+ html[data-native-edge='true'] .pks-theme-root > [data-app-navigation] {
+  left:var(--safe-left);right:var(--safe-right);
+ }
 }
-html[data-native-edge='true'] [data-options-open='true'] > [class*='z-[6000]'] {
+@media(min-width:1100px) {
+ html[data-native-edge='true'] .pks-theme-root > [data-app-navigation] { bottom:calc(18px + var(--safe-bottom)); }
+}
+html[data-native-edge='true'] .connections-picker-host .connections-picker {
+ top:var(--safe-top);left:var(--safe-left);right:var(--safe-right);
+}
+html[data-native-edge='true'] [data-options-overlay] {
  padding-top:calc(var(--safe-top) + 8px);
 }

@@ -28,16 +28,18 @@ public class SystemBarProtection extends View {
     paint.setShader(null); paint.setColor(SCRIM);
     if(bars.top>0) {
       canvas.drawRect(0,0,getWidth(),bars.top,paint);
+      paint.setColor(Color.WHITE);
       paint.setShader(new LinearGradient(0,bars.top,0,bars.top+fade,SCRIM,Color.TRANSPARENT,Shader.TileMode.CLAMP));
       canvas.drawRect(0,bars.top,getWidth(),bars.top+fade,paint);
     }
-    paint.setShader(null);
+    paint.setShader(null);paint.setColor(SCRIM);
     if(bars.bottom>0) {
       canvas.drawRect(0,getHeight()-bars.bottom,getWidth(),getHeight(),paint);
+      paint.setColor(Color.WHITE);
       paint.setShader(new LinearGradient(0,getHeight()-bars.bottom-fade,0,getHeight()-bars.bottom,Color.TRANSPARENT,SCRIM,Shader.TileMode.CLAMP));
       canvas.drawRect(0,getHeight()-bars.bottom-fade,getWidth(),getHeight()-bars.bottom,paint);
     }
-    paint.setShader(null);
+    paint.setShader(null);paint.setColor(SCRIM);
     if(bars.left>0) canvas.drawRect(0,0,bars.left,getHeight(),paint);
     if(bars.right>0) canvas.drawRect(getWidth()-bars.right,0,getWidth(),getHeight(),paint);
   }
