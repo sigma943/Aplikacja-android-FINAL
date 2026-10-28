@@ -9,10 +9,12 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.robolectric.annotation.GraphicsMode;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk=35)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class SystemBarProtectionTest {
  @Test public void whiteSystemIconsKeepContrastOverTheBrightestThemeWithoutCoveringContent(){
   Activity activity=Robolectric.buildActivity(Activity.class).setup().get();
