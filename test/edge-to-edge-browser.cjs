@@ -13,7 +13,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.setContent('<style>'+css+'</style><div class="pks-theme-root fixed inset-0 flex flex-col" data-cosmic-tab="map" data-ui-theme="light-sky"><div data-native-status-background></div><div data-app-content class="flex-1 relative min-h-0"><div data-map-canvas class="absolute inset-0" style="background:rgb(255,0,0)"><div data-map-toolbar class="absolute top-0 left-0 right-0 p-2"><button>PKS Live</button></div></div></div><div id="navigation-root" data-app-navigation class="absolute bottom-0 left-0 right-0"></div></div>');
    await page.addScriptTag({content:fs.readFileSync(path.join(temp,'fixture.js'),'utf8')});await page.waitForSelector('[data-nav-item]');
    await page.evaluate(insets=>{const r=document.documentElement;r.dataset.nativeEdge='true';r.dataset.personalStatusBarOverlay='true';for(const [side,value]of Object.entries(insets))r.style.setProperty('--native-'+side,value+'px');},insets);
-   const measure=()=>page.evaluate(()=>{const rect=q=>{const r=document.querySelector(q).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};};return {map:rect('[data-map-canvas]'),toolbar:rect('[data-map-toolbar]'),content:rect('[data-app-content]'),nav:rect('[data-app-navigation]'),panel:rect('.pks-navigation'),backdrop:getComputedStyle(document.querySelector('[data-native-status-background]')).display,topIsMap:Boolean(document.elementFromPoint(innerWidth/2,5)?.closest('[data-map-canvas]')),overflow:document.documentElement.scrollWidth>innerWidth};});
+   const measure=()=>page.evaluate(()=>{const rect=q=>{const r=document.querySelector(q).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};};return {map:rect('[data-map-canvas]'),toolbar:rect('[data-map-toolbar]'),toolbarPadding:parseFloat(getComputedStyle(document.querySelector('[data-map-toolbar]')).paddingTop),content:rect('[data-app-content]'),nav:rect('[data-app-navigation]'),panel:rect('.pks-navigation'),backdrop:getComputedStyle(document.querySelector('[data-native-status-background]')).display,topIsMap:Boolean(document.elementFromPoint(innerWidth/2,5)?.closest('[data-map-canvas]')),overflow:document.documentElement.scrollWidth>innerWidth};});
    const topPixel=async()=>[...PNG.sync.read(await page.screenshot({clip:{x:Math.floor(width/2),y:5,width:1,height:1}})).data];
    const optionsCheck=async()=>{
     const before=insets.top?await topPixel():null;
@@ -26,7 +26,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    let metrics=await measure();
    assert.equal(metrics.map.top,0);assert.equal(metrics.map.left,0);assert.equal(metrics.map.bottom,height);assert.equal(metrics.map.right,width);
    assert.equal(metrics.content.top,0);assert.equal(metrics.content.left,insets.left);
-   assert.equal(metrics.toolbar.top,insets.top);assert.equal(metrics.backdrop,'none');
+   assert.equal(metrics.toolbar.top,insets.top);assert.equal(metrics.toolbarPadding,width<768?4:8,'phone overlay keeps a compact safe gap');assert.equal(metrics.backdrop,'none');
    assert.equal(metrics.panel.height,width>=1100?72:64,'navigation never grows by the gesture inset');
    assert.equal(metrics.nav.bottom,height-insets.bottom-(width>=1100?18:0));assert.equal(metrics.overflow,false);
    if(insets.top)assert.equal(metrics.topIsMap,true,'map is actually visible under system icons');
@@ -38,7 +38,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
     if(insets.top)assert.equal(metrics.topIsMap,false,tab+' never leaks the map into its status area');
    }
    await page.evaluate(()=>{document.querySelector('[data-native-view]')?.remove();document.querySelector('.pks-theme-root').dataset.cosmicTab='map';document.documentElement.dataset.personalStatusBarOverlay='false';});
-   metrics=await measure();assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'block');assert.equal(metrics.toolbar.top,insets.top);
+   metrics=await measure();assert.equal(metrics.toolbarPadding,8,'switch off restores original toolbar spacing');assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'block');assert.equal(metrics.toolbar.top,insets.top);
    if(insets.top)assert.equal(metrics.topIsMap,false,'switch off really removes the map from behind the clock');
    await page.evaluate(()=>{const root=document.querySelector('.pks-theme-root');root.dataset.uiTheme='dark-mountains';root.style.setProperty('--landscape-solid','rgb(220,235,245)');});
    assert.equal(await page.$eval('[data-native-status-background]',e=>getComputedStyle(e).backgroundColor),'rgb(220, 235, 245)','Horyzont uses its solid day/night material behind system icons');
