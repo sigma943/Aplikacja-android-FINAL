@@ -87,7 +87,7 @@ export function OperatorsView({
   }, [operators, search, filterRole]);
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-[calc(env(safe-area-inset-bottom)+4rem)]">
+    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+7rem)] sm:p-8 sm:pb-[calc(var(--safe-bottom)+4rem)]">
       <div className="mx-auto max-w-4xl space-y-6">
         
         {/* Header */}

@@ -172,7 +172,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1] }}
       data-ui-mode={isDarkTheme ? "dark" : "light"}
       data-cosmic-view={`stop:${stop.id}`}
-      className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
+      className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(var(--safe-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
     >
 
       <div className="w-full max-w-3xl min-w-0 mx-auto">

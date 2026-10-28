@@ -6,7 +6,11 @@ export type MapsLinkReader=(url:string,signal:AbortSignal)=>Promise<Reply>;
 const hosts=new Set(['maps.app.goo.gl','goo.gl','google.com','www.google.com','maps.google.com','google.pl','www.google.pl','maps.google.pl']);
 export function googleMapsLink(value:string):URL|null{
  try{
-  const url=new URL(value.trim());
+  // Android's share sheet can paste a place name and address around the link.
+  // Accept one unambiguous HTTPS URL, not a list of different destinations.
+  const links=value.trim().match(/https:\/\/[^\s<>"']+/g);
+  if(!links||links.length!==1)return null;
+  const url=new URL(links[0]);
   if(url.protocol!=='https:'||url.username||url.password||url.port||!hosts.has(url.hostname))return null;
   if(url.hostname==='maps.app.goo.gl')return /^\/[\w-]+\/?$/.test(url.pathname)?url:null;
   if(url.hostname==='goo.gl')return /^\/maps\/[\w-]+\/?$/.test(url.pathname)?url:null;

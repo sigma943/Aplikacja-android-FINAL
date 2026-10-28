@@ -113,7 +113,7 @@ export function Sidebar({
           </div>
         </div>
 
-        <div className="p-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] lg:pb-4">
+        <div className="p-4 pb-[calc(var(--safe-bottom)+5.5rem)] lg:pb-4">
           <div className="pks-personal-card w-full flex items-center justify-between p-4 rounded-3xl bg-[#0F131D] border border-white/5 shadow-xl">
             <div className="flex items-center gap-3 min-w-0">
               <div

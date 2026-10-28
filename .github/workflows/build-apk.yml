@@ -99,6 +99,7 @@ jobs:
           node --test test/google-maps-link.test.cjs test/journey-coordinates.test.cjs test/journey-places.test.cjs
           npx puppeteer browsers install chrome
           node test/coordinate-entry-browser.cjs
+          node test/edge-to-edge-browser.cjs
 
       - name: Upload coordinate entry previews
         if: always() && contains(github.event.pull_request.title, '[coordinates-check]')
@@ -213,6 +214,7 @@ jobs:
           cd android
           chmod +x ./gradlew
           if [ "$FAST_APK" = "true" ]; then
+            ./gradlew testDebugUnitTest --tests pl.pkslive.app.SystemBarProtectionTest
             ./gradlew assembleRelease
           elif [ "$FULL_VERIFICATION" = "true" ]; then
             ./gradlew testDebugUnitTest testReleaseUnitTest testReleaseTestUnitTest assembleDebug assembleRelease assembleReleaseTest

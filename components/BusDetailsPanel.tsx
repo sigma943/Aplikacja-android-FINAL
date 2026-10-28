@@ -79,7 +79,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   animate={{ y: 0, opacity: 1 }}
                   exit={reducedMotion?{y:0,opacity:1}:{y:"100%",opacity:.5}}
                   transition={reducedMotion?{duration:0}:SHEET_SPRING}
-                  className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
+                  className={`absolute bottom-[calc(64px+var(--safe-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
 
                   <LandscapeChrome variant="panel"/>

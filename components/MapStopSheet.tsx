@@ -53,7 +53,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: '100%', opacity: 0 }}
       transition={reduceMotion ? {duration: 0} : SHEET_SPRING}
-      className="map-stop-sheet map-detail-shell absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-2 right-2 z-40 flex min-h-0 flex-col overflow-hidden rounded-[24px] border md:bottom-4 md:left-4 md:right-auto md:w-[380px]"
+      className="map-stop-sheet map-detail-shell absolute bottom-[calc(64px+var(--safe-bottom))] left-2 right-2 z-40 flex min-h-0 flex-col overflow-hidden rounded-[24px] border md:bottom-4 md:left-4 md:right-auto md:w-[380px]"
       style={{height:drag.height,'--map-cosmos-crop':mapCosmicCrop(`stop:${name}:${code||''}`)} as MotionStyle}
     >
       <LandscapeChrome variant="panel"/>

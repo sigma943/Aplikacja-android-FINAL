@@ -40,4 +40,7 @@ test('native reader uses explicit redirects; ordinary coordinates never access t
  const signal=new AbortController().signal;
  assert.equal((await resolveJourneyInput('50.03,22.002',signal)).lat,50.03);assert.equal(calls.length,0);
  const point=await resolveJourneyInput(short,signal);assert.equal(point.lat,50.03);assert.ok(calls.every(c=>c.disableRedirects===true));
+ const shared=await resolveJourneyInput('Fontanna Multimedialna\naleja Lubomirskich, Rzeszów\n'+short,signal);
+ assert.equal(shared.lat,50.03);assert.equal(shared.lon,22.002);
+ assert.equal(googleMapsLink(short+'\nhttps://maps.app.goo.gl/other'),null,'multiple destinations are ambiguous');
 });
