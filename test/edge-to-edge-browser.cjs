@@ -29,6 +29,8 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.evaluate(()=>{document.querySelector('.pks-theme-root').dataset.cosmicTab='map';document.documentElement.dataset.personalStatusBarOverlay='false';});
    metrics=await measure();assert.equal(metrics.map.top,insets.top);assert.equal(metrics.backdrop,'block');assert.equal(metrics.toolbar.top,insets.top);
    if(insets.top)assert.equal(metrics.topIsMap,false,'switch off really removes the map from behind the clock');
+   await page.evaluate(()=>{const root=document.querySelector('.pks-theme-root');root.dataset.uiTheme='dark-mountains';root.style.setProperty('--landscape-solid','rgb(220,235,245)');});
+   assert.equal(await page.$eval('[data-native-status-background]',e=>getComputedStyle(e).backgroundColor),'rgb(220, 235, 245)','Horyzont uses its solid day/night material behind system icons');
    await page.evaluate(()=>document.documentElement.dataset.personalStatusBarOverlay='true');metrics=await measure();assert.equal(metrics.map.top,0);assert.equal(metrics.backdrop,'none');
   }
   console.log('PASS compact navigation above gestures, map-only status overlay on/off, no map behind other tabs, phone/tablet/desktop');
