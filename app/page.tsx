@@ -953,7 +953,7 @@ export default function Home() {
      : (isDark ? 'bg-slate-700' : 'bg-slate-200');
   const bottomGlassShell = `pks-navigation ${transparentUI ? 'pks-glass' : ''}`;
   const optionsOverlay = transparentUI
-     ? (isDark ? 'bg-black/16 backdrop-blur-sm' : 'bg-slate-950/8 backdrop-blur-sm')
+     ? (isDark ? 'bg-black/16' : 'bg-slate-950/8')
      : (isDark ? 'bg-black/48' : 'bg-slate-950/20');
   const optionsSheet = `pks-options-sheet ${transparentUI ? 'pks-glass' : ''}`;
   const optionsCard = 'pks-option-card';
@@ -1472,7 +1472,7 @@ export default function Home() {
             expanded={isOptionsExpanded}
             onExpandedChange={setIsOptionsExpanded}
             onClose={() => setIsSettingsOpen(false)}
-            overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
+            overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
             className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(var(--safe-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
 

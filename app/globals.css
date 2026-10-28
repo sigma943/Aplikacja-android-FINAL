@@ -1627,6 +1627,11 @@ html[data-native-edge='true'] [data-map-toolbar] {
 html[data-native-edge='true'] .connections-picker-host .connections-picker {
  top:var(--safe-top);left:var(--safe-left);right:var(--safe-right);
 }
+/* Opening settings must not blur the whole active tab. Glass is confined to
+   the sheet itself, consistently across themes and personalization settings. */
+.pks-theme-root [data-options-overlay] {
+ -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+}
 html[data-native-edge='true'] [data-options-overlay] {
  top:var(--safe-top);padding-top:8px;
 }

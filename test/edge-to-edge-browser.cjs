@@ -19,6 +19,11 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
     const before=insets.top?await topPixel():null;
     await page.evaluate(()=>{const root=document.querySelector('.pks-theme-root');root.dataset.optionsOpen='true';const overlay=document.createElement('div');overlay.dataset.optionsOverlay='';overlay.className='absolute inset-0';overlay.style.cssText='z-index:6000;background:rgba(0,0,0,.5);backdrop-filter:blur(4px)';root.appendChild(overlay);});
     assert.equal((await measure()).backdrop,'none','opening options keeps status area transparent');
+    for(const theme of ['light','light-pink','dark','dark-forest','light-sky','dark-cosmos','dark-mountains']){
+     await page.$eval('.pks-theme-root',(e,theme)=>{e.dataset.uiTheme=theme;},theme);
+     assert.equal(await page.$eval('[data-options-overlay]',e=>getComputedStyle(e).backdropFilter),'none',theme+' options never blur the whole active tab');
+    }
+    await page.$eval('.pks-theme-root',e=>{e.dataset.uiTheme='light-sky';});
     assert.equal(await page.$eval('[data-options-overlay]',e=>e.getBoundingClientRect().top),insets.top,'options dimming starts below system icons');
     if(before)assert.deepEqual(await topPixel(),before,'options do not darken or recolour the status area');
     await page.evaluate(()=>{document.querySelector('[data-options-overlay]').remove();delete document.querySelector('.pks-theme-root').dataset.optionsOpen;});
