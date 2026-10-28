@@ -5,6 +5,7 @@ import {StatisticsView} from '../app/admin/components/StatisticsView';
 import StopList from '../Panel/src/components/StopList';
 import JourneyPlanner from '../components/journeys/JourneyPlanner';
 import DynamicLandscape from '../components/DynamicLandscape';
+import {LandscapeRenderer} from '../lib/landscape-renderer';
 import {BottomNavigation} from '../components/ApplicationChrome';
 import {applyInterfaceAppearance,DEFAULT_INTERFACE_APPEARANCE} from '../lib/interface-appearance';
 import {themeDecoration,THEME_SCREEN_COLORS} from '../lib/app-theme';
@@ -28,3 +29,25 @@ function App(){return <div className="pks-theme-root fixed inset-0 flex flex-col
  <div data-app-navigation className="absolute bottom-0 left-0 right-0"><BottomNavigation activeTab={tab} className="pks-navigation" themeColor="#00a3a2" onMap={noop} onStops={noop} onJourneys={noop} onAdmin={noop} onOptions={noop}/></div>
 </div>;}
 createRoot(document.getElementById('root')!).render(<App/>);
+
+// Pixel regression for the real cloud relighting cache, including its alpha mask.
+(window as any).__checkCloudTop=()=>{
+ const results=[];
+ for(const [width,height] of [[393,851],[393,873],[851,393]]){
+  const canvas=document.createElement('canvas'),renderer:any=new LandscapeRenderer(canvas);
+  renderer.resize(width,height,1);
+  const cloud=document.createElement('canvas');cloud.width=850;cloud.height=1850;
+  const c=cloud.getContext('2d')!;
+  c.fillStyle='rgba(255,255,255,.8)';c.fillRect(700,0,150,200);
+  const empty=document.createElement('canvas');empty.width=850;empty.height=1850;
+  renderer.setAssets({terrain:empty,clouds:cloud,water:empty});
+  for(const day of [0,1]){
+   renderer.relight(day,0,0,.5);
+   const cache=renderer.clouds,context=cache.getContext('2d'),x=cache.width-5;
+   const alpha=(x:number,y:number)=>context.getImageData(x,y,1,1).data[3];
+   results.push({width,height,day,offset:renderer.offsetY,top:alpha(x,0),clear:alpha(5,0),below:alpha(x,Math.max(0,Math.ceil(renderer.offsetY)+2))});
+  }
+  renderer.dispose();
+ }
+ return results;
+};

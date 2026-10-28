@@ -110,18 +110,32 @@ export class LandscapeRenderer{
     if(!this.assets)return;
     for(const [canvas,image,isCloud]of [[this.terrain,this.assets.terrain,false],[this.clouds,this.assets.clouds,true]] as const){
       const c=canvas.getContext('2d')!;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,canvas.width,canvas.height);c.setTransform(this.scale,0,0,this.scale,isCloud?0:this.offsetX,this.offsetY);
-      c.drawImage(image,0,0,WIDTH,HEIGHT);
+      // Framing can place the source's top edge below the viewport top. Extend
+      // only the cloud cache above that edge with a mirrored continuation, so
+      // the original cloud silhouettes, terrain and reflection stay registered.
+      const drawSource=()=>{
+        c.drawImage(image,0,0,WIDTH,HEIGHT);
+        if(isCloud&&this.offsetY>0){c.save();c.scale(1,-1);c.drawImage(image,0,0,WIDTH,HEIGHT);c.restore();}
+      };
+      const top=isCloud&&this.offsetY>0?-this.offsetY/this.scale:0;
+      drawSource();
       // Multiplication preserves photographic shading. Reapply original alpha
       // after tinting, so transparent sky/river holes never become coloured plates.
       c.globalCompositeOperation='multiply';
       const shade=blend([12+moon*5,20+moon*7,44+moon*10],[245,250,255],day);
-      c.fillStyle=css(isCloud?cloudRelightColor(day,warm,moon):blend(shade,[255,180,126],warm*.35));c.fillRect(0,0,WIDTH,HEIGHT);
+      c.fillStyle=css(isCloud?cloudRelightColor(day,warm,moon):blend(shade,[255,180,126],warm*.35));c.fillRect(0,top,WIDTH,HEIGHT-top);
       if(isCloud&&warm>0){
         const rim=c.createRadialGradient(sunX*WIDTH,HEIGHT*.48,10,sunX*WIDTH,HEIGHT*.48,WIDTH*.65);
         rim.addColorStop(0,`rgba(255,175,70,${warm*.28})`);rim.addColorStop(1,'transparent');
-        c.globalCompositeOperation='screen';c.fillStyle=rim;c.fillRect(0,0,WIDTH,HEIGHT);
+        c.globalCompositeOperation='screen';c.fillStyle=rim;c.fillRect(0,top,WIDTH,HEIGHT-top);
       }
-      c.globalCompositeOperation='destination-in';c.drawImage(image,0,0,WIDTH,HEIGHT);
+      c.globalCompositeOperation='destination-in';
+      // Clip each mask draw to its own half; an unclipped destination-in
+      // operation would erase the opposite half of the cloud layer.
+      if(top<0){
+        c.save();c.beginPath();c.rect(0,top,WIDTH,-top);c.clip();c.scale(1,-1);c.drawImage(image,0,0,WIDTH,HEIGHT);c.restore();
+        c.save();c.beginPath();c.rect(0,0,WIDTH,HEIGHT);c.clip();c.drawImage(image,0,0,WIDTH,HEIGHT);c.restore();
+      }else drawSource();
       c.globalCompositeOperation='source-over';
     }
   }

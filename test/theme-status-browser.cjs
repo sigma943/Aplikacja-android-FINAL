@@ -27,6 +27,18 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    if(theme==='dark-mountains')assert.equal(await page.$eval('[data-landscape-stage]',e=>e.getBoundingClientRect().top),0,'real Horyzont canvas includes status area');
    await page.screenshot({path:'test/ui-previews/theme-status-'+theme+'-'+tab+'.png'});
   }
+  await page.goto(origin+'/?theme=dark-mountains&tab=journeys');
+  await page.waitForFunction(()=>typeof window.__checkCloudTop==='function');
+  for(const sample of await page.evaluate(()=>window.__checkCloudTop())){
+   if(sample.offset>0){assert.ok(sample.top>150,'cloud alpha extends above source edge: '+JSON.stringify(sample));assert.ok(Math.abs(sample.top-sample.below)<=2,'no alpha seam at source edge');}
+   assert.equal(sample.clear,0,'transparent sky stays transparent');
+  }
+  await page.waitForFunction(()=>typeof window.__landscapePreview==='function');
+  await page.evaluate(()=>window.__landscapePreview({iso:'2026-10-28T16:45:00Z',rate:0,seconds:240}));
+  await page.waitForSelector('[data-landscape-stage][data-assets-ready="true"]');
+  await page.waitForFunction(()=>document.documentElement.dataset.landscapePeriod==='night');
+  await new Promise(r=>setTimeout(r,500));
+  await page.screenshot({path:'test/ui-previews/theme-status-horyzont-night-clouds.png'});
   await page.goto(origin+'/?theme=dark-forest&tab=admin&off');await page.waitForSelector('[data-admin-view-canvas]');assert.equal(await page.$eval('[data-app-content]',e=>e.getBoundingClientRect().top),32,'disabled mode retains reserved status area');
   assert.equal(await page.$eval('[data-admin-view-canvas] h1',e=>e.getBoundingClientRect().top)>=32,true);
   assert.deepEqual(errors,[]);console.log('PASS real admin/stops/journeys backgrounds and artwork cover status area across seven themes, controls stay safe, actual Horyzont renderer reaches top');
