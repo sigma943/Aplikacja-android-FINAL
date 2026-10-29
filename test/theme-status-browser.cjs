@@ -28,32 +28,20 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.screenshot({path:'test/ui-previews/theme-status-'+theme+'-'+tab+'.png'});
   }
   for(const theme of ['dark','dark-oled','light','light-warm','light-pink','light-sky','dark-forest','dark-cosmos','dark-mountains'])for(const night of (theme==='dark-mountains'?[false,true]:[false])){
-   await page.goto(origin+'/?theme='+theme+'&tab=statistics');await page.waitForSelector('[data-statistics-note]');
+   await page.goto(origin+'/?theme='+theme+'&tab=statistics');await page.waitForSelector('[data-statistics-view]');
    if(theme==='dark-mountains'){
     await page.waitForFunction(()=>typeof window.__landscapePreview==='function');
     await page.evaluate(night=>window.__landscapePreview({iso:night?'2026-10-28T20:00:00Z':'2026-06-21T12:00:00Z',rate:0}),night);
     await page.waitForSelector('[data-landscape-stage][data-assets-ready="true"]');
     await page.waitForFunction(night=>document.documentElement.dataset.landscapePeriod===(night?'night':'day'),{},night);
    }
-   await page.$eval('[data-statistics-note]',e=>e.scrollIntoView({block:'end'}));
-   await page.evaluate(()=>document.fonts.ready);
-   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-   const surfaces=await page.evaluate(()=>{
-    const colour=(value)=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const c=canvas.getContext('2d');c.fillStyle=value;c.fillRect(0,0,1,1);return [...c.getImageData(0,0,1,1).data];};
-    const note=document.querySelector('[data-statistics-note]'),style=getComputedStyle(note),text=getComputedStyle(note.querySelector('p'));
-    return {plot:[...document.querySelectorAll('[data-statistics-plot]')].map(e=>getComputedStyle(e).fill),background:colour(style.backgroundColor),text:colour(text.color)};
-   });
+   const surfaces=await page.evaluate(()=>({
+    plot:[...document.querySelectorAll('[data-statistics-plot]')].map(e=>getComputedStyle(e).fill),
+    note:document.querySelector('[data-statistics-note]')!==null,
+   }));
    assert.equal(surfaces.plot.length,2);assert.ok(surfaces.plot.every(fill=>fill==='transparent'||fill==='rgba(0, 0, 0, 0)'),theme+' charts have no solid white plot');
-   assert.equal(surfaces.background[3],255,theme+' explanatory text has its own solid surface');
-   const luminance=rgb=>rgb.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
-   if(theme==='dark-mountains'&&night&&luminance(surfaces.text)<.1)console.log('NIGHT_NOTE_CASCADE',JSON.stringify(await page.evaluate(()=>{
-    const note=document.querySelector('[data-statistics-note]'),p=note.querySelector('p'),rules=[];
-    const walk=(list,layers=[])=>{for(const r of list){if(r.selectorText&&r.style?.color&&(note.matches(r.selectorText)||p.matches(r.selectorText)))rules.push({selector:r.selectorText,color:r.style.color,layers});if(r.cssRules)walk(r.cssRules,[...layers,r.name||r.conditionText||r.constructor.name]);}};
-    for(const sheet of document.styleSheets)walk(sheet.cssRules);
-    return {html:document.documentElement.outerHTML.slice(0,600),dataset:{...document.documentElement.dataset},note:note.outerHTML.slice(0,300),noteColor:getComputedStyle(note).color,pColor:getComputedStyle(p).color,ink:getComputedStyle(p).getPropertyValue('--landscape-ink'),rules};
-   })));
-   const a=luminance(surfaces.background),b=luminance(surfaces.text);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,theme+' '+(night?'night':'day')+' note meets 4.5:1 contrast: '+JSON.stringify(surfaces));
-   await page.$eval('[data-statistics-note]',e=>e.scrollIntoView({block:'end'}));
+   assert.equal(surfaces.note,false,theme+' statistics omit the removed explanatory block');
+   await page.$eval('[data-statistics-view] main',e=>e.lastElementChild.scrollIntoView({block:'end'}));
    await page.screenshot({path:'test/ui-previews/theme-status-statistics-'+theme+(night?'-night':'')+'.png'});
   }
   await page.goto(origin+'/?theme=dark-mountains&tab=journeys');
