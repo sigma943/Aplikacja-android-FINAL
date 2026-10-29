@@ -18,6 +18,7 @@ export function vehicleHeaderStyle(color:string,glass:boolean,isDark=true){
 export const NAV_ITEMS=['map','stops','journeys','admin','options'] as const;
 export type NavItem=typeof NAV_ITEMS[number];
 export interface InterfaceAppearance {
+  statusBarOverlay:boolean;
   startScreen:'map'|'journeys'|'stops'|'admin';navOrder:NavItem[];departureView:'simple'|'detailed';
   markerSize:number;markerLabel:'line'|'carrier'|'icon';
   panelRadius:number; cardRadius:number; controlRadius:number;
@@ -37,6 +38,7 @@ export interface InterfaceAppearance {
   glowSpread:number; glowPlacement:'corners'|'center'|'diagonal';
 }
 export const DEFAULT_INTERFACE_APPEARANCE:InterfaceAppearance={
+  statusBarOverlay:true,
   startScreen:'map',navOrder:[...NAV_ITEMS],departureView:'detailed',markerSize:100,markerLabel:'line',
   panelRadius:24,cardRadius:20,controlRadius:12,borderStrength:12,shadowStrength:30,
   glassOpacity:64,glassBlur:18,glassBlurEnabled:true,glassSaturation:135,surfaceTint:'original',panelColor:'#64748b',panelTintStrength:35,cardStyle:'original',buttonStyle:'original',
@@ -58,6 +60,7 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   const choice=<K extends keyof InterfaceAppearance>(key:K,values:readonly InterfaceAppearance[K][])=>values.includes(v[key] as InterfaceAppearance[K])?v[key] as InterfaceAppearance[K]:d[key];
   const flag=(key:keyof InterfaceAppearance)=>typeof v[key]==='boolean'?v[key] as boolean:d[key] as boolean;
   return {
+    statusBarOverlay:flag('statusBarOverlay'),
     startScreen:choice('startScreen',['map','journeys','stops','admin']),
     navOrder:normalizeNavOrder(v.navOrder),
     departureView:choice('departureView',['simple','detailed']),markerSize:n('markerSize',80,140),markerLabel:choice('markerLabel',['line','carrier','icon']),
@@ -113,6 +116,7 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
 export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,dark:boolean,accent:string,lightEffects:boolean,theme=''){
   const defaults=DEFAULT_INTERFACE_APPEARANCE;
   const attrs:Record<string,string>={
+    statusBarOverlay:String(v.statusBarOverlay),
     radius:String(v.panelRadius!==defaults.panelRadius),cardRadius:String(v.cardRadius!==defaults.cardRadius),controlRadius:String(v.controlRadius!==defaults.controlRadius),
     border:String(v.borderStrength!==defaults.borderStrength),shadow:String(v.shadowStrength!==defaults.shadowStrength),
     blurRadiusCustom:String(v.glassBlur!==defaults.glassBlur),

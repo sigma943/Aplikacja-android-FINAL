@@ -8,7 +8,7 @@ import pksLines from '@/public/data/pks-stop-lines.json';
 import {formatPksStops} from './providers/pks-stops';
 type Raw={id:string;name:string;lat?:number;lon?:number;areaId?:string;code?:string};
 async function json(path:string){const r=await fetch(path,{cache:'force-cache',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('Nie udało się wczytać przystanków.');return r.json();}
-export async function loadJourneyCatalog(input:Raw[],includeMarcel=false):Promise<Stop[]>{
+export async function loadJourneyCatalog(input:Raw[],includeMarcel=false,signal?:AbortSignal):Promise<Stop[]>{
  const cached=await readStopsCatalogCache();
  const [pks,mpk]=await Promise.all([
   input.length?input:cached?.pks?.length?cached.pks:json('/data/pks-stop-points.json').then(snapshot=>{
@@ -18,7 +18,9 @@ export async function loadJourneyCatalog(input:Raw[],includeMarcel=false):Promis
   cached?.mpk?.length?cached.mpk:json('/data/mpk-stop-points.json').then(snapshot=>snapshot.stops.map((s:Record<string,unknown>)=>({id:String(s.stop_id),name:String(s.stop_name),lat:Number(s.stop_lat),lon:Number(s.stop_lon),lines:String(s.lines||'').split(',').filter(Boolean)}))),
   loadStopPlatforms(),
  ]);
- const marcel=includeMarcel?await getMarcelStopsIndex(warsawDateIso()).catch(()=>cached?.marcel||[]):cached?.marcel||[];
+ signal?.throwIfAborted();
+ const marcel=includeMarcel?await getMarcelStopsIndex(warsawDateIso(),{signal}).catch(()=>cached?.marcel||[]):cached?.marcel||[];
+ signal?.throwIfAborted();
  const key='journeys:v2:'+stopCollectionSignature(pks)+':'+stopCollectionSignature(mpk)+':'+stopCollectionSignature(marcel);
  const list=await buildStopsCatalogAsync(pks,mpk,marcel,key),mpkLines=new Map<string,string[]>(mpk.map((s:{id:string;lines:string[]})=>[s.id,s.lines]));
  return list.filter(s=>s.type==='bus').map(stop=>{

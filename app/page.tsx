@@ -34,7 +34,7 @@ import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops, upcomingTimedVehicleStops} from '@/lib/vehicle-stop-timing';
 
-import {lazy, Suspense, startTransition, useState, useEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
+import {lazy, Suspense, startTransition, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, useDeferredValue} from 'react';
 import dynamic from 'next/dynamic';
 import {Capacitor} from '@capacitor/core';
 import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOff, Shield, Check} from 'lucide-react';
@@ -216,7 +216,7 @@ export default function Home() {
   const stopsLoadPendingRef = useRef(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [selectedExternalStop, setSelectedExternalStop] = useState<StopsPanelStop | null>(null);
-  const mapStops=useMapStops(showMapStops,stopsList,activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus);
+  const mapStops=useMapStops(showMapStops,stopsList,activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus&&activeProviders.includes('marcel'));
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(7000);
   const [favsState, setFavsState] = useState<string[]>([]);
@@ -922,6 +922,9 @@ export default function Home() {
   const actualTheme = resolveAppTheme(appTheme,systemIsDark);
   const landscapeDay=useLandscapeDay(actualTheme==='dark-mountains');
   const isDark = actualTheme.startsWith('dark')&&!landscapeDay;
+  useLayoutEffect(()=>{
+    document.documentElement.dataset.systemBarIcons=isDark?'light':'dark';
+  },[isDark]);
   const isOled = actualTheme === 'dark-oled' || actualTheme === 'dark-cosmos';
   const isLightPink = actualTheme === 'light-pink';
   const isPink = actualTheme === 'dark-pink';
@@ -950,7 +953,7 @@ export default function Home() {
      : (isDark ? 'bg-slate-700' : 'bg-slate-200');
   const bottomGlassShell = `pks-navigation ${transparentUI ? 'pks-glass' : ''}`;
   const optionsOverlay = transparentUI
-     ? (isDark ? 'bg-black/16 backdrop-blur-sm' : 'bg-slate-950/8 backdrop-blur-sm')
+     ? (isDark ? 'bg-black/16' : 'bg-slate-950/8')
      : (isDark ? 'bg-black/48' : 'bg-slate-950/20');
   const optionsSheet = `pks-options-sheet ${transparentUI ? 'pks-glass' : ''}`;
   const optionsCard = 'pks-option-card';
@@ -1117,6 +1120,7 @@ export default function Home() {
 
   return (
     <div data-options-open={isSettingsOpen?'true':undefined} data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+      <div data-native-status-background aria-hidden="true"/>
       <DynamicLandscape active={actualTheme==='dark-mountains'} glass={transparentUI} sceneCovered={activeTab==='map'}/>
       <style>{`
         .dark-mode-map .leaflet-layer,
@@ -1189,7 +1193,7 @@ export default function Home() {
             initial={{ opacity: 0, y: -18, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: -18, x: '-50%' }}
-            className={`fixed left-1/2 top-[calc(env(safe-area-inset-top)+5rem)] z-[11000] flex items-center gap-3 rounded-2xl border px-5 py-3 shadow-2xl pointer-events-auto backdrop-blur-2xl ${isDark ? 'border-rose-400/20 bg-slate-950/88 text-white' : 'border-rose-200 bg-white/92 text-slate-950'}`}
+            className={`fixed left-1/2 top-[calc(var(--safe-top)+5rem)] z-[11000] flex items-center gap-3 rounded-2xl border px-5 py-3 shadow-2xl pointer-events-auto backdrop-blur-2xl ${isDark ? 'border-rose-400/20 bg-slate-950/88 text-white' : 'border-rose-200 bg-white/92 text-slate-950'}`}
           >
             <CloudOff className="h-5 w-5 shrink-0 text-rose-500" />
             <span className="whitespace-nowrap text-sm font-black tracking-tight">Jesteś obecnie offline</span>
@@ -1204,6 +1208,7 @@ export default function Home() {
          <AnimatePresence mode="wait">
             {activeTab === 'admin' && canOpenAdminEmbed && (
                <motion.div
+                  data-native-view="admin"
                   key="admin-embed"
                   initial={false}
                   animate={{ opacity: 1 }}
@@ -1393,9 +1398,10 @@ export default function Home() {
               </AnimatePresence>
 
             </div>
-         {!isJourneysTabDisabled&&(hasOpenedJourneys||activeTab==='journeys')&&<div hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
+         {!isJourneysTabDisabled&&(hasOpenedJourneys||activeTab==='journeys')&&<div data-native-view="journeys" hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
          {/* ============== NEW STOPS VIEW ============== */}
          <motion.div
+            data-native-view="stops"
             key="new-stops-panel"
             initial={false}
             animate={{ opacity: activeTab === 'stops' ? 1 : 0 }}
@@ -1466,8 +1472,8 @@ export default function Home() {
             expanded={isOptionsExpanded}
             onExpandedChange={setIsOptionsExpanded}
             onClose={() => setIsSettingsOpen(false)}
-            overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center backdrop-blur-sm px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
-            className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
+            overlayClassName={`absolute inset-0 z-[6000] flex items-end justify-center px-2 pb-2 md:items-center md:p-6 ${optionsOverlay}`}
+            className={`flex w-full max-w-2xl flex-col pointer-events-auto overflow-hidden rounded-[1.5rem] border px-3 pb-[calc(var(--safe-bottom)+0.75rem)] pt-3 backdrop-blur-3xl md:max-w-[500px] md:p-5 ${optionsSheet}`}
           >
 
             <OptionsContent journeysAllowed={!isJourneysTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed} chrome={optionsChrome} appearance={interfaceAppearance} saveAppearance={saveInterfaceAppearance} onOpenPersonalization={expandOptions} panelGlow={panelGlow} glowStrength={glowStrength} savePanelGlow={savePanelGlow} saveGlowStrength={saveGlowStrength} showMapStops={showMapStops} saveMapStops={saveMapStops} themeColor={themeColor} textSub={textSub} optionsCard={optionsCard} isDark={isDark} isWarm={isWarm} appTheme={appTheme} optionsButton={optionsButton} isOptionsExpanded={isOptionsExpanded} saveAppTheme={saveAppTheme} saveThemeColor={saveThemeColor} transparentUI={transparentUI} saveTransparentUI={saveTransparentUI} showInactive={showInactive} saveInactive={saveInactive} lightEffects={lightEffects} saveLightEffects={saveLightEffects}/>

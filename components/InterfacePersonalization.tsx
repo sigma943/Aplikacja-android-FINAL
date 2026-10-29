@@ -11,6 +11,7 @@ import PresetThumbnail from './PresetThumbnail';
 import PersonalizationTools from './PersonalizationTools';
 import InterfacePreview from './InterfacePreview';
 import CosmicThemeOptions from './CosmicThemeOptions';
+import LandscapeThemeOptions from './LandscapeThemeOptions';
 import PersonalizationGroup from './PersonalizationGroup';
 import type {PreviewChrome} from './OptionsContent';
 
@@ -25,7 +26,8 @@ export default function InterfacePersonalization(p:Props){
   const search=query.trim().toLocaleLowerCase('pl');
   const matches=(text:string)=>!search||text.toLocaleLowerCase('pl').includes(search);
   const cosmicVisible=p.theme==='dark-cosmos'&&matches('Głębia kosmosu Paralaksa kosmosu Ruch warstw przy przechyleniu telefonu mgławice planety kursor');
-  let matchedGroups=cosmicVisible?1:0;
+  const landscapeVisible=p.theme==='dark-mountains'&&matches('Horyzont jakość światło woda poświata odbicia promienie prędkość fal jasność');
+  let matchedGroups=(cosmicVisible?1:0)+(landscapeVisible?1:0);
   const set=<K extends keyof InterfaceAppearance>(key:K,next:InterfaceAppearance[K])=>p.onChange({...v,[key]:next});
   const selected=(active:boolean)=>`personal-choice ui-accent-focus ${active?'ui-accent-soft':'bg-current/[.035] border-current/10'}`;
   const slider=(key:NumericKey,label:string,min:number,max:number,step:number,unit='')=><label className="personal-slider"><span className="flex items-center justify-between gap-3"><span>{label}</span><output>{v[key]}{unit}</output></span><input aria-label={label} type="range" min={min} max={max} step={step} value={v[key]} onChange={e=>set(key,Number(e.target.value))}/></label>;
@@ -38,7 +40,7 @@ export default function InterfacePersonalization(p:Props){
   };
   const reset=()=>{localStorage.setItem(SCHEDULE_KEY,JSON.stringify({...readSchedule(),enabled:false}));window.dispatchEvent(new Event('pks-profiles-changed'));p.onChange({...DEFAULT_INTERFACE_APPEARANCE});p.setTheme('dark-oled');p.setAccent('#00A3A2');p.setGlass(true);p.setGlow(false);p.setGlowStrength(40);};
   const preset=(next:InterfacePreset)=>{
-    try{p.onChange({...next.appearance});p.setTheme(next.theme);p.setAccent(next.accent);p.setGlass(next.glass);p.setGlow(next.glow);p.setGlowStrength(next.glowStrength);}catch{p.setTheme('system');}
+    try{p.onChange({...next.appearance,statusBarOverlay:v.statusBarOverlay});p.setTheme(next.theme);p.setAccent(next.accent);p.setGlass(next.glass);p.setGlow(next.glow);p.setGlowStrength(next.glowStrength);}catch{p.setTheme('system');}
   };
   const colorPicker=(label:string,color:string,onChange:(value:string)=>void,customLabel:string,inputLabel:string,prefix:string)=><>
     <fieldset className="personal-field"><legend>{label}</legend><div className="grid grid-cols-4 gap-2">{accents.map(([name,next])=><button type="button" key={name} aria-label={`${prefix}: ${({'Turkus':'Turkusowy','Fiolet':'Fioletowy','Róż':'Różowy','Bursztyn':'Bursztynowy'} as Record<string,string>)[name]||name}`} aria-pressed={color.toLowerCase()===next} onClick={()=>onChange(next)} className={`${selected(color.toLowerCase()===next)} flex flex-col items-center gap-2`}><span className="flex h-6 w-6 items-center justify-center rounded-full" style={{background:next}}>{color.toLowerCase()===next&&<Check size={14} style={{color:name==='Bursztyn'?'#172536':'white'}}/>}</span><span className="text-[10px]">{name}</span></button>)}</div></fieldset>
@@ -63,8 +65,10 @@ export default function InterfacePersonalization(p:Props){
       {v.surfaceTint!=='original'&&slider('panelTintStrength','Siła zabarwienia paneli',5,55,5,'%')}
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
-    </>,'akcent własny kolor jasny ciemny amoled aurora')}
+      {toggle('Tło pod paskiem powiadomień',v.statusBarOverlay,on=>set('statusBarOverlay',on),'Pokazuje tło bieżącego widoku pod godziną i ikonami systemu, również po otwarciu opcji.')}
+    </>,'akcent własny kolor jasny ciemny amoled aurora pasek powiadomień godzina mapa ekran')}
     {cosmicVisible&&<CosmicThemeOptions searchOpen={Boolean(search)} disabled={p.lightEffects||v.reducedMotion}/>}
+    {landscapeVisible&&<LandscapeThemeOptions searchOpen={Boolean(search)}/>}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}
     {group('shapes' ,'Kształty i głębia','Rogi, obramowania i cienie',<Shapes size={19}/>,<>{slider('panelRadius','Zaokrąglenie paneli',0,36,2,' px')}{slider('cardRadius','Zaokrąglenie kart',0,30,2,' px')}{slider('controlRadius','Zaokrąglenie przycisków',0,24,2,' px')}{slider('borderStrength','Widoczność obramowań',0,40,2,'%')}{slider('shadowStrength','Siła cieni',0,100,5,'%')}</>,'zaokrąglenie paneli kart przycisków widoczność obramowań siła cieni')}
     {group('glass','Szkło i przezroczystość','Przezroczyste lub pełne panele',<Layers size={19}/>,<>{toggle('Efekt szkła',p.glass,p.setGlass,'Przezroczyste panele z ochroną czytelności')}<UIDisclosure open={p.glass}><div className="grid gap-5">{slider('glassOpacity','Krycie tła paneli',20,100,5,'%')}{toggle('Rozmycie tła paneli',frostEnabled,on=>p.onChange({...v,glassBlurEnabled:on}),'Wyłącz, aby zachować ostre tło. Tekst nadal chroni ciemniejsza warstwa szkła.')}<UIDisclosure open={frostEnabled}>{slider('glassBlur','Rozmycie szkła',0,p.lightEffects?6:28,2,' px')}</UIDisclosure></div></UIDisclosure>{p.lightEffects&&<p className="personal-note">Lżejsze efekty są włączone. Szkło, rozmycie i animowane dekoracje są wyłączone; płynne przejścia interfejsu pozostają aktywne.</p>}</>,'efekt szkła krycie tła rozmycie przezroczystość')}

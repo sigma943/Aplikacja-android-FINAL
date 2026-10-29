@@ -1,3 +1,4 @@
+import {cloudRelightColor} from './landscape-clouds';
 import camera from './landscape-water-calibration.json';
 import {paintSun,moonTexture,MOON_RADIUS} from './landscape-celestial';
 import {projectCelestial,moonPresentationOpacity,smoothstep,type AstronomyState} from './landscape-astronomy';
@@ -7,6 +8,16 @@ export {mountainHorizon,discVisibility} from './landscape-lighting';
 const TAU=Math.PI*2,WIDTH=1000,HEIGHT=1000*1850/850;
 const blend=(a:number[],b:number[],t:number)=>a.map((v,i)=>v+(b[i]-v)*t);
 const css=(c:number[])=>`rgb(${c.map(Math.round).join(',')})`;
+/** Diffuse blue-grey twilight illuminates the sky more than the ground.
+ * Full daytime and astronomical night retain their existing colours. */
+export function landscapeSkyColors(sky:LandscapeLightingState['sky']){
+ const diffuse=(sky.blueHour||0)*.8;
+ return [
+  blend(blend(blend([2,9,31],[28,114,204],sky.day),[80,140,180],diffuse),[92,47,102],sky.twilight*.8),
+  blend(blend(blend([8,21,51],[88,172,231],sky.day),[118,170,196],diffuse),[224,107,128],sky.twilight*.9),
+  blend(blend(blend([22,34,66],[200,222,226],sky.day),[180,202,211],diffuse),[255,148,64],sky.twilight),
+ ];
+}
 export const cloudOffset=(seconds:number)=>((seconds*camera.cloudSpeed)%(2*WIDTH)+2*WIDTH)%(2*WIDTH);
 export const cloudSampleX=(x:number,shift:number)=>{const u=((x-shift/WIDTH)%2+2)%2;return 1-Math.abs(u-1);};
 export type LandscapeAssets={terrain:CanvasImageSource;clouds:CanvasImageSource;water:CanvasImageSource;moon?:CanvasImageSource;geometry?:CanvasImageSource;perspective?:CanvasImageSource;sceneDepth?:CanvasImageSource;terrainNormal?:CanvasImageSource;cloudAlpha?:Uint8ClampedArray};
@@ -20,6 +31,11 @@ export class LandscapeRenderer{
   private gpu:LandscapeWaterGPU|null=null;
   private gpuAttempted=false;
   quality:WaterQuality='high';
+  effects={bloom:1,reflections:1,rays:1,waveSpeed:1,exposure:1};
+  setEffects(effects:typeof this.effects){
+    if(Object.keys(effects).some(key=>effects[key as keyof typeof effects]!==this.effects[key as keyof typeof effects]))this.lastBackground=-Infinity;
+    this.effects={...effects};
+  }
   lighting:LandscapeLightingState|null=null;
   private lunarTexture:CanvasImageSource;
   private lastBackground=-Infinity;
@@ -41,10 +57,10 @@ export class LandscapeRenderer{
   suspend(){this.gpu?.suspend();}
   dispose(){this.gpu?.dispose();this.gpu=null;this.assets=null;for(const layer of [this.terrain,this.clouds,this.water])layer.width=layer.height=1;}
   getGpuMs(){return this.gpu?.getGpuMs()??0;}
-  diagnostics(){return {quality:this.quality,presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,coveredFrames:this.coveredFrames,sceneCovered:this.sceneCovered,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
+  diagnostics(){return {quality:this.quality,effects:{...this.effects},presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,coveredFrames:this.coveredFrames,sceneCovered:this.sceneCovered,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
   sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
   resize(w:number,h:number,dpr:number){
-    const density=Math.min(dpr,1.25,Math.sqrt(900000/(w*h)));
+    const density=Math.min(dpr,3,Math.sqrt(3600000/(w*h)));
     this.width=this.canvas.width=Math.round(w*density);this.height=this.canvas.height=Math.round(h*density);
     for(const layer of [this.terrain,this.water]){layer.width=this.width;layer.height=this.height;}
     // Uniform scale; phones crop at most a narrow edge instead of stretching artwork.
@@ -57,7 +73,7 @@ export class LandscapeRenderer{
     if(this.directWater&&this.gpu&&this.gpu.diagnostics().available&&!this.gpu.diagnostics().lost){
       // Within the draw task the freshly rendered GPU buffer is still valid.
       // Sheet snapshots share it instead of issuing three extra passes per card.
-      if(!waterFresh&&this.lighting)this.gpu.render(this.lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality);
+      if(!waterFresh&&this.lighting)this.gpu.render(this.lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality,this.effects);
       const gx=this.gpu.canvas.width/this.width,gy=this.gpu.canvas.height/this.height;
       context.drawImage(this.gpu.canvas,sx*gx,sy*gy,sw*gx,sh*gy,0,0,width,height);
     }
@@ -83,9 +99,10 @@ export class LandscapeRenderer{
   }
   private paintSky(c:CanvasRenderingContext2D,width:number,height:number,sky:LandscapeLightingState['sky'],gradientHeight:number){
     const gradient=c.createLinearGradient(0,0,0,gradientHeight);
-    gradient.addColorStop(0,css(blend(blend([2,9,31],[28,114,204],sky.day),[92,47,102],sky.twilight*.8)));
-    gradient.addColorStop(.6,css(blend(blend([8,21,51],[88,172,231],sky.day),[224,107,128],sky.twilight*.9)));
-    gradient.addColorStop(1,css(blend(blend([22,34,66],[200,222,226],sky.day),[255,148,64],sky.twilight)));
+    const colors=landscapeSkyColors(sky);
+    gradient.addColorStop(0,css(colors[0]));
+    gradient.addColorStop(.6,css(colors[1]));
+    gradient.addColorStop(1,css(colors[2]));
     c.fillStyle=gradient;c.fillRect(0,0,width,height);
   }
   private coordinates(c:CanvasRenderingContext2D){c.setTransform(this.scale,0,0,this.scale,this.offsetX,this.offsetY);}
@@ -93,18 +110,32 @@ export class LandscapeRenderer{
     if(!this.assets)return;
     for(const [canvas,image,isCloud]of [[this.terrain,this.assets.terrain,false],[this.clouds,this.assets.clouds,true]] as const){
       const c=canvas.getContext('2d')!;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,canvas.width,canvas.height);c.setTransform(this.scale,0,0,this.scale,isCloud?0:this.offsetX,this.offsetY);
-      c.drawImage(image,0,0,WIDTH,HEIGHT);
+      // Framing can place the source's top edge below the viewport top. Extend
+      // only the cloud cache above that edge with a mirrored continuation, so
+      // the original cloud silhouettes, terrain and reflection stay registered.
+      const drawSource=()=>{
+        c.drawImage(image,0,0,WIDTH,HEIGHT);
+        if(isCloud&&this.offsetY>0){c.save();c.scale(1,-1);c.drawImage(image,0,0,WIDTH,HEIGHT);c.restore();}
+      };
+      const top=isCloud&&this.offsetY>0?-this.offsetY/this.scale:0;
+      drawSource();
       // Multiplication preserves photographic shading. Reapply original alpha
       // after tinting, so transparent sky/river holes never become coloured plates.
       c.globalCompositeOperation='multiply';
       const shade=blend([12+moon*5,20+moon*7,44+moon*10],[245,250,255],day);
-      c.fillStyle=css(blend(shade,[255,180,126],warm*(isCloud?.65:.35)));c.fillRect(0,0,WIDTH,HEIGHT);
+      c.fillStyle=css(isCloud?cloudRelightColor(day,warm,moon):blend(shade,[255,180,126],warm*.35));c.fillRect(0,top,WIDTH,HEIGHT-top);
       if(isCloud&&warm>0){
         const rim=c.createRadialGradient(sunX*WIDTH,HEIGHT*.48,10,sunX*WIDTH,HEIGHT*.48,WIDTH*.65);
         rim.addColorStop(0,`rgba(255,175,70,${warm*.28})`);rim.addColorStop(1,'transparent');
-        c.globalCompositeOperation='screen';c.fillStyle=rim;c.fillRect(0,0,WIDTH,HEIGHT);
+        c.globalCompositeOperation='screen';c.fillStyle=rim;c.fillRect(0,top,WIDTH,HEIGHT-top);
       }
-      c.globalCompositeOperation='destination-in';c.drawImage(image,0,0,WIDTH,HEIGHT);
+      c.globalCompositeOperation='destination-in';
+      // Clip each mask draw to its own half; an unclipped destination-in
+      // operation would erase the opposite half of the cloud layer.
+      if(top<0){
+        c.save();c.beginPath();c.rect(0,top,WIDTH,-top);c.clip();c.scale(1,-1);c.drawImage(image,0,0,WIDTH,HEIGHT);c.restore();
+        c.save();c.beginPath();c.rect(0,0,WIDTH,HEIGHT);c.clip();c.drawImage(image,0,0,WIDTH,HEIGHT);c.restore();
+      }else drawSource();
       c.globalCompositeOperation='source-over';
     }
   }
@@ -151,7 +182,7 @@ export class LandscapeRenderer{
       this.gpuAttempted=true;this.gpu=new LandscapeWaterGPU();this.gpu.setAssets(this.assets);
       if(this.directWater){this.gpu.canvas.dataset.landscapeWater='';this.gpu.canvas.setAttribute('aria-hidden','true');this.canvas.insertAdjacentElement('afterend',this.gpu.canvas);}
     }
-    const gpuReady=this.gpu?.render(lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality)??false;
+    const gpuReady=this.gpu?.render(lighting,{width:this.width,height:this.height,scale:this.scale,x:this.offsetX,y:this.offsetY},this.quality,this.effects)??false;
     if(this.directWater&&this.gpu){
       const style=`position:absolute;inset:0;width:100%;height:${this.canvas.style.height||'100%'};z-index:-1;pointer-events:none;visibility:${gpuReady?'visible':'hidden'}`;
       if(this.gpu.canvas.getAttribute('style')!==style)this.gpu.canvas.setAttribute('style',style);
@@ -171,7 +202,7 @@ export class LandscapeRenderer{
     }c.globalAlpha=1;
     const sx=sun.x*WIDTH,sy=sun.y*HEIGHT,mx=moon.x*WIDTH,my=moon.y*HEIGHT;
     if(state.sun.altitude>-.06){
-      paintSun(c,sx,sy,sky.twilight);
+      paintSun(c,sx,sy,sky.twilight,this.effects.rays);
     }
     if(state.moon.altitude>-.04){
       const glow=c.createRadialGradient(mx,my,15,mx,my,100);glow.addColorStop(0,`rgba(222,229,245,${state.illumination.fraction*.2*(1-sky.day)})`);glow.addColorStop(1,'#cadfff00');c.fillStyle=glow;c.fillRect(mx-100,my-100,200,200);

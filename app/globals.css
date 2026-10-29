@@ -1,4 +1,8 @@
+@layer journey-map-isolation;
 @layer pks-performance;
+@layer admin-horizon-controls;
+@layer landscape-reading-text;
+@layer landscape-search-milk;
 @import "tailwindcss";
 
 .pks-theme-root {
@@ -267,7 +271,7 @@ body {
 
 @layer utilities {
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 20px);
+    padding-bottom: var(--safe-bottom);
   }
 
   .no-scrollbar::-webkit-scrollbar {
@@ -408,7 +412,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--pks-accent); }
   .pks-theme-root button:active { scale: 1; }
 }
 
-.admin-modal-overlay { position: fixed; inset-inline: 0; top: var(--admin-viewport-top, 0px); height: var(--admin-viewport-height, 100dvh); z-index: 15000; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+.admin-modal-overlay { position: fixed; inset-inline: 0; top: var(--admin-viewport-top, 0px); height: var(--admin-viewport-height, 100dvh); z-index: 15000; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: max(12px, var(--safe-top)) max(12px, var(--safe-right)) max(12px, var(--safe-bottom)) max(12px, var(--safe-left)); }
 .admin-modal-overlay > * { min-width: 0; }
 
 /* Opt-in performance setting preserves layout, accent and carrier colours. */
@@ -1060,7 +1064,7 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 /* Shared application colour editor; never delegates to the Android picker. */
 .color-picker-trigger { width:100%; cursor:pointer; gap:10px; text-align:left; flex-wrap:nowrap; padding:12px; margin-top:10px; border:1px solid var(--ui-edge,#ffffff20); border-radius:14px; background:var(--ui-glass-row,#ffffff08); }
 .color-picker-swatch { flex-shrink:0; width:30px; height:30px; border-radius:10px; border:1px solid #ffffff40; box-shadow:0 2px 8px #0002; }
-.color-picker-overlay { --picker-surface:#111827; --picker-field:#080f1e; --picker-ink:#edf2ff; --picker-edge:rgba(255,255,255,.14); position:fixed; inset:0; z-index:24000; display:flex; align-items:center; justify-content:center; padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom)); background:rgba(2,6,18,.72); backdrop-filter:blur(10px); color:var(--picker-ink); }
+.color-picker-overlay { --picker-surface:#111827; --picker-field:#080f1e; --picker-ink:#edf2ff; --picker-edge:rgba(255,255,255,.14); position:fixed; inset:0; z-index:24000; display:flex; align-items:center; justify-content:center; padding:max(12px,var(--safe-top)) 12px max(12px,var(--safe-bottom)); background:rgba(2,6,18,.72); backdrop-filter:blur(10px); color:var(--picker-ink); }
 .color-picker-overlay[data-color-theme='light'] { --picker-surface:#f8fafc; --picker-field:#ffffff; --picker-ink:#172536; --picker-edge:rgba(15,23,42,.16); background:rgba(15,23,42,.42); }
 .color-picker-dialog { display:flex; flex-direction:column; width:100%; max-width:400px; max-height:100%; border:1px solid var(--picker-edge); border-radius:26px; background:linear-gradient(135deg,color-mix(in srgb,var(--pks-accent,#00a3a2) 8%,var(--picker-surface)),var(--picker-surface) 55%); box-shadow:0 24px 90px #0006; overflow:hidden; }
 .color-picker-header { display:flex; gap:12px; align-items:center; padding:18px 20px; border-bottom:1px solid var(--picker-edge); flex-shrink:0; }
@@ -1093,12 +1097,12 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 .personal-font-candidates legend { font-size:11px; opacity:.7; margin-bottom:10px; }
 
 /* Journey planning is scoped to its own view; existing map and stop panels keep their layout. */
-.journey-view{--journey-panel:color-mix(in srgb,var(--ui-surface,#0e1524) 87%,transparent);--journey-ink:var(--ui-text,#e7eaf1);--journey-muted:var(--ui-muted,#aeb7ca);position:absolute;inset:0;overflow:auto;color:var(--journey-ink);background:var(--ui-canvas,#080d18);padding:18px 14px calc(90px + env(safe-area-inset-bottom));}
+.journey-view{--journey-panel:color-mix(in srgb,var(--ui-surface,#0e1524) 87%,transparent);--journey-ink:var(--ui-text,#e7eaf1);--journey-muted:var(--ui-muted,#aeb7ca);position:absolute;inset:0;overflow:auto;color:var(--journey-ink);background:var(--ui-canvas,#080d18);padding:18px 14px calc(90px + var(--safe-bottom));}
 .journey-view[data-panel-theme=light]{--journey-panel:var(--ui-glass,#ffffffdc);--journey-ink:var(--ui-text,#172033);--journey-muted:var(--ui-muted,#546176);background:var(--ui-canvas,#edf2f7);}
 .journey-content{position:relative;z-index:1;max-width:760px;margin:auto;display:grid;gap:16px;}
 .journey-card{position:relative;isolation:isolate;border:1px solid color-mix(in srgb,currentColor 16%,transparent);border-radius:24px;padding:20px;background:var(--journey-panel);backdrop-filter:blur(22px);box-shadow:0 12px 32px #00000015;min-width:0;}
 .journey-heading{display:flex;align-items:center;gap:15px}.journey-view h1{font-size:25px;font-weight:750;line-height:1.3}.journey-view h2{font-size:18px;font-weight:700;margin-bottom:12px}.journey-view h3{font-size:15px;font-weight:650}.journey-heading p,.journey-hint{font-size:12px;color:var(--journey-muted);line-height:1.65}.journey-icon{color:var(--pks-accent,#a78bfa);background:color-mix(in srgb,var(--pks-accent,#a78bfa) 12%,transparent);border:1px solid color-mix(in srgb,var(--pks-accent,#a78bfa) 28%,transparent);border-radius:16px;padding:12px;flex-shrink:0}.journey-view button,.journey-desktop-link{border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:14px;padding:12px 14px;background:color-mix(in srgb,var(--journey-ink,#e7eaf1) 4%,transparent);font-size:13px;min-height:44px;transition:background .15s;}
-.journey-view button:focus-visible,.journey-view input:focus-visible,.journey-view select:focus-visible{outline:2px solid var(--pks-accent,#a78bfa);outline-offset:3px}.journey-view button[aria-pressed=true]{color:var(--pks-accent,#a78bfa);border-color:var(--pks-accent,#a78bfa);background:color-mix(in srgb,var(--pks-accent,#a78bfa) 13%,transparent)}.journey-view button:disabled{opacity:.5}.journey-form{display:grid;gap:12px}.journey-location{display:flex;align-items:center;gap:13px;text-align:left;min-height:78px!important}.journey-location svg{color:var(--pks-accent,#a78bfa);flex-shrink:0}.journey-location span{overflow-wrap:anywhere}.journey-location small{display:block;font-size:10px;letter-spacing:1.5px;color:var(--journey-muted);margin-bottom:5px}.journey-swap{justify-self:end;margin:-24px 14px;z-index:2;background:var(--journey-panel)!important;padding:9px!important}.journey-row{display:flex;gap:8px;align-items:stretch;min-width:0}.journey-row>label,.journey-row>button{flex:1;min-width:0}.journey-row>label{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--journey-muted)}.journey-row button,.journey-primary,.journey-preferences{display:flex;align-items:center;justify-content:center;gap:8px}.journey-view input:not([type=checkbox]):not([type=range]),.journey-view select{width:100%;min-width:0;color:var(--journey-ink);background:color-mix(in srgb,var(--journey-panel) 90%,#000 10%);border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:12px;padding:12px;font-size:14px;min-height:44px;color-scheme:dark}.journey-view[data-panel-theme=light] input,.journey-view[data-panel-theme=light] select{color-scheme:light}.journey-view input[type=range],.journey-view input[type=checkbox]{accent-color:var(--pks-accent,#a78bfa)}.journey-primary{background:var(--pks-accent,#a78bfa)!important;color:var(--pks-accent-on,#08121d);border-color:transparent!important;font-weight:750!important}.journey-preferences{justify-content:space-between!important}.journey-preference-body{display:grid;gap:16px;padding:8px 0}.journey-preference-body>label{display:grid;gap:9px;font-size:13px}.journey-preference-body fieldset{border:0;display:grid;gap:10px}.journey-preference-body legend{font-size:13px;margin-bottom:10px}.journey-check{display:flex;gap:10px;align-items:center;font-size:13px}.journey-check input{width:18px;height:18px}.journey-error{display:flex;gap:8px;align-items:flex-start;color:#fb7185;font-size:13px}.journey-results{display:grid;gap:12px}.journey-result{display:grid!important;grid-template-columns:1fr auto;gap:10px!important;width:100%;text-align:left;border:0!important;background:transparent!important;padding:0!important}.journey-result strong{font-size:21px}.journey-result b{color:var(--pks-accent,#a78bfa)}.journey-result>span,.journey-badges{grid-column:1/-1}.journey-result>span{font-size:12px;color:var(--journey-muted)}.journey-badges{display:flex;flex-wrap:wrap;gap:7px}.journey-badges span{display:flex;align-items:center;gap:5px;background:#14b8a61a;color:#2dd4bf;border-radius:8px;padding:6px 8px;font-size:12px}.journey-badges [data-provider=mpk]{color:#fb923c;background:#f973161a}.journey-badges [data-provider=marcel]{color:#a3e635;background:#84cc161a}.journey-badges [data-provider=walk]{color:var(--journey-muted);background:#94a3b81a}.journey-timeline{margin-top:20px;border-top:1px solid #94a3b82a;padding-top:20px;display:grid;gap:14px}.journey-leg{position:relative;border-left:2px solid color-mix(in srgb,var(--pks-accent,#a78bfa) 40%,transparent);padding:0 0 15px 20px;margin-left:6px}.journey-leg small{color:var(--pks-accent,#a78bfa)}.journey-leg p{font-size:13px;line-height:1.8;color:var(--journey-muted)}.journey-timeline-dot{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--pks-accent,#a78bfa);left:-6px;top:4px}.journey-map{border-radius:16px;overflow:hidden}.journey-map>.journey-hint{padding:10px}.journey-picker{position:absolute;z-index:10;inset:12px 10px calc(82px + env(safe-area-inset-bottom));border:1px solid #94a3b850;border-radius:24px;background:var(--journey-panel);backdrop-filter:blur(40px);display:flex;flex-direction:column;padding:18px;box-shadow:0 0 0 50vmax #0008}.journey-picker-header{display:flex;justify-content:space-between;align-items:center;gap:8px}.journey-picker-header h2{margin:0}.journey-search{display:flex;align-items:center;gap:10px;margin:15px 0}.journey-stop-list{overflow:auto;min-height:0;display:grid;gap:9px}.journey-stop-list>button{display:flex;gap:12px;text-align:left;align-items:center}.journey-stop-list strong{display:block;font-size:14px}.journey-stop-list small{display:block;font-size:11px;color:var(--journey-muted);line-height:1.7}.journey-favorite{text-align:left;justify-content:flex-start!important;overflow-wrap:anywhere}.journey-desktop-link{background:#101827e8;color:#e7eaf1;backdrop-filter:blur(20px)}
+.journey-view button:focus-visible,.journey-view input:focus-visible,.journey-view select:focus-visible{outline:2px solid var(--pks-accent,#a78bfa);outline-offset:3px}.journey-view button[aria-pressed=true]{color:var(--pks-accent,#a78bfa);border-color:var(--pks-accent,#a78bfa);background:color-mix(in srgb,var(--pks-accent,#a78bfa) 13%,transparent)}.journey-view button:disabled{opacity:.5}.journey-form{display:grid;gap:12px}.journey-location{display:flex;align-items:center;gap:13px;text-align:left;min-height:78px!important}.journey-location svg{color:var(--pks-accent,#a78bfa);flex-shrink:0}.journey-location span{overflow-wrap:anywhere}.journey-location small{display:block;font-size:10px;letter-spacing:1.5px;color:var(--journey-muted);margin-bottom:5px}.journey-swap{justify-self:end;margin:-24px 14px;z-index:2;background:var(--journey-panel)!important;padding:9px!important}.journey-row{display:flex;gap:8px;align-items:stretch;min-width:0}.journey-row>label,.journey-row>button{flex:1;min-width:0}.journey-row>label{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--journey-muted)}.journey-row button,.journey-primary,.journey-preferences{display:flex;align-items:center;justify-content:center;gap:8px}.journey-view input:not([type=checkbox]):not([type=range]),.journey-view select{width:100%;min-width:0;color:var(--journey-ink);background:color-mix(in srgb,var(--journey-panel) 90%,#000 10%);border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:12px;padding:12px;font-size:14px;min-height:44px;color-scheme:dark}.journey-view[data-panel-theme=light] input,.journey-view[data-panel-theme=light] select{color-scheme:light}.journey-view input[type=range],.journey-view input[type=checkbox]{accent-color:var(--pks-accent,#a78bfa)}.journey-primary{background:var(--pks-accent,#a78bfa)!important;color:var(--pks-accent-on,#08121d);border-color:transparent!important;font-weight:750!important}.journey-preferences{justify-content:space-between!important}.journey-preference-body{display:grid;gap:16px;padding:8px 0}.journey-preference-body>label{display:grid;gap:9px;font-size:13px}.journey-preference-body fieldset{border:0;display:grid;gap:10px}.journey-preference-body legend{font-size:13px;margin-bottom:10px}.journey-check{display:flex;gap:10px;align-items:center;font-size:13px}.journey-check input{width:18px;height:18px}.journey-error{display:flex;gap:8px;align-items:flex-start;color:#fb7185;font-size:13px}.journey-results{display:grid;gap:12px}.journey-result{display:grid!important;grid-template-columns:1fr auto;gap:10px!important;width:100%;text-align:left;border:0!important;background:transparent!important;padding:0!important}.journey-result strong{font-size:21px}.journey-result b{color:var(--pks-accent,#a78bfa)}.journey-result>span,.journey-badges{grid-column:1/-1}.journey-result>span{font-size:12px;color:var(--journey-muted)}.journey-badges{display:flex;flex-wrap:wrap;gap:7px}.journey-badges span{display:flex;align-items:center;gap:5px;background:#14b8a61a;color:#2dd4bf;border-radius:8px;padding:6px 8px;font-size:12px}.journey-badges [data-provider=mpk]{color:#fb923c;background:#f973161a}.journey-badges [data-provider=marcel]{color:#a3e635;background:#84cc161a}.journey-badges [data-provider=walk]{color:var(--journey-muted);background:#94a3b81a}.journey-timeline{margin-top:20px;border-top:1px solid #94a3b82a;padding-top:20px;display:grid;gap:14px}.journey-leg{position:relative;border-left:2px solid color-mix(in srgb,var(--pks-accent,#a78bfa) 40%,transparent);padding:0 0 15px 20px;margin-left:6px}.journey-leg small{color:var(--pks-accent,#a78bfa)}.journey-leg p{font-size:13px;line-height:1.8;color:var(--journey-muted)}.journey-timeline-dot{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--pks-accent,#a78bfa);left:-6px;top:4px}.journey-map{border-radius:16px;overflow:hidden}.journey-map>.journey-hint{padding:10px}.journey-picker{position:absolute;z-index:10;inset:12px 10px calc(82px + var(--safe-bottom));border:1px solid #94a3b850;border-radius:24px;background:var(--journey-panel);backdrop-filter:blur(40px);display:flex;flex-direction:column;padding:18px;box-shadow:0 0 0 50vmax #0008}.journey-picker-header{display:flex;justify-content:space-between;align-items:center;gap:8px}.journey-picker-header h2{margin:0}.journey-search{display:flex;align-items:center;gap:10px;margin:15px 0}.journey-stop-list{overflow:auto;min-height:0;display:grid;gap:9px}.journey-stop-list>button{display:flex;gap:12px;text-align:left;align-items:center}.journey-stop-list strong{display:block;font-size:14px}.journey-stop-list small{display:block;font-size:11px;color:var(--journey-muted);line-height:1.7}.journey-favorite{text-align:left;justify-content:flex-start!important;overflow-wrap:anywhere}.journey-desktop-link{background:#101827e8;color:#e7eaf1;backdrop-filter:blur(20px)}
 .pks-theme-root[data-ui-theme=dark-cosmos] .journey-view{background:linear-gradient(#060b1680,#060b1680),var(--theme-decoration);background-size:cover;background-attachment:local;}
 
 /* Shared stop lists use the active app artwork in both preview and full mode. */
@@ -1204,7 +1208,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'] [data-scene-label] { padding:0;border:0;border-radius:0;background:transparent!important;box-shadow:none!important; }
  /* Only headings directly on the artwork get a subtle shadow, never a veil
     across the view or a pill/outline around individual words. */
- html[data-landscape-theme='on'] :is([data-landscape-heading],[data-landscape-heading] *,.connections-heading,.connections-heading *,[data-scene-label]) { color:#f4f8fc!important;text-shadow:0 2px 6px #07132199; }
+ html[data-landscape-theme='on'] :is([data-landscape-heading],[data-landscape-heading] *,.connections-heading,.connections-heading *,[data-scene-label]):not(:where([data-admin-milk-control],[data-admin-milk-control] *)) { color:#f4f8fc!important;text-shadow:0 2px 6px #07132199; }
  html[data-landscape-theme='on'] [data-departure-row] { border:0!important; }
  html[data-landscape-theme='on'][data-personal-card-style='soft'] :is(.transit-card,.pks-personal-card,.pks-option-card,.connections-card) { background-color:color-mix(in srgb,var(--pks-accent) 15%,var(--landscape-surface))!important; }
  html[data-landscape-theme='on'][data-personal-card-style='flat'] :is(.transit-card,.pks-personal-card,.pks-option-card,.connections-card) { border-color:transparent!important;box-shadow:none!important; }
@@ -1275,7 +1279,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
    border:1px solid var(--landscape-edge)!important;border-radius:var(--personal-panel-radius,24px)!important;
   }
   html[data-landscape-theme='on'] :is([data-map-bus-sheet],[data-map-stop-sheet]) {
-   left:10px;right:10px;bottom:calc(80px + env(safe-area-inset-bottom));
+   left:10px;right:10px;bottom:calc(80px + var(--safe-bottom));
   }
  }
 }
@@ -1295,9 +1299,9 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
   html:not([data-personal-chrome='classic']) .pks-navigation:not([data-navigation-preview]) {
    width:calc(100% - 20px)!important;margin:0 10px 8px;border:1px solid var(--landscape-edge,var(--ui-edge))!important;border-radius:var(--personal-panel-radius,24px)!important;
   }
-  html:not([data-personal-chrome='classic']) :is([data-map-bus-sheet],[data-map-stop-sheet]) { left:10px!important;right:10px!important;bottom:calc(80px + env(safe-area-inset-bottom))!important; }
+  html:not([data-personal-chrome='classic']) :is([data-map-bus-sheet],[data-map-stop-sheet]) { left:10px!important;right:10px!important;bottom:calc(80px + var(--safe-bottom))!important; }
   html[data-personal-chrome='classic'] .pks-navigation:not([data-navigation-preview]) { width:100%!important;margin:0!important;border-radius:0!important;border-width:1px 0 0!important; }
-  html[data-personal-chrome='classic'] :is([data-map-bus-sheet],[data-map-stop-sheet]) { left:0!important;right:0!important;bottom:calc(64px + env(safe-area-inset-bottom))!important;border-radius:24px 24px 0 0!important;border-bottom-width:0!important; }
+  html[data-personal-chrome='classic'] :is([data-map-bus-sheet],[data-map-stop-sheet]) { left:0!important;right:0!important;bottom:calc(64px + var(--safe-bottom))!important;border-radius:24px 24px 0 0!important;border-bottom-width:0!important; }
  }
 }
 
@@ -1321,11 +1325,11 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 @layer landscape-materials {
  html[data-landscape-theme='on'] { --landscape-reading-brightness:1.8; }
  html[data-landscape-theme='on'][data-landscape-period='night'] { --landscape-reading-brightness:.35; }
- html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
+ html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge):not([data-api-test-message]),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
   color:var(--landscape-ink)!important;background-color:var(--landscape-surface)!important;
   background-image:var(--landscape-milk-glow)!important;border:1px solid var(--landscape-edge);border-radius:var(--personal-card-radius,18px);
-  -webkit-backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
-  backdrop-filter:blur(var(--personal-blur,12px)) contrast(.2) brightness(var(--landscape-reading-brightness))!important;
+  -webkit-backdrop-filter:blur(var(--personal-blur,12px))!important;
+  backdrop-filter:blur(var(--personal-blur,12px))!important;
  }
  html[data-landscape-theme='on'] :is(.connections-results-heading,.connections-warning,.connections-error,.connections-hint,.journey-error,.journey-hint) { padding:12px 14px; }
  html[data-landscape-theme='on'] [data-admin-sidebar] { border-radius:0!important;box-shadow:12px 0 40px #07132140!important;isolation:isolate; }
@@ -1336,14 +1340,15 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 }
 
 @layer pks-performance {
- html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status'],.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status']:not([data-api-test-message]),.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
 }
 
 /* A stop handle is one material in both sheet states, including cosmic art. */
 @layer landscape-materials {
- html .map-stop-handle { transition-property:transform,opacity!important;background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
- html [data-map-stop-sheet][data-expanded='false'] { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
- html[data-cosmic-theme='on'] .map-stop-handle { background:#080d1d!important; }
+ html .map-stop-handle { transition-property:transform,opacity!important; }
+ html:not([data-cosmic-theme='on']) .map-stop-handle { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
+ html:not([data-cosmic-theme='on']) [data-map-stop-sheet][data-expanded='false'] { background-color:var(--landscape-solid,var(--ui-surface,#1b2937))!important;background-image:var(--landscape-milk-glow,none)!important; }
+ html[data-cosmic-theme='on'] .map-stop-sheet > .map-stop-handle { background:transparent!important; }
 }
 
 /* Finite interaction motion: decorative performance mode never disables this. */
@@ -1358,3 +1363,336 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
 @media(prefers-reduced-motion:reduce){
  .ui-disclosure-chevron,.personal-tabs button,.personal-choice {transition:none!important;}
 }
+
+
+/* Modal map surfaces are opaque in every theme, including landscape glass.
+   This first-declared layer wins important legacy/personalization fills. */
+@layer journey-map-isolation {
+ .connections-map-modal {
+  position:fixed!important;inset:0!important;z-index:20000!important;
+  background:var(--cn-solid,#0b1422)!important;
+  isolation:isolate;opacity:1!important;transform:none!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+ :is(.journey-map,.connections-map-modal) .connections-map-toolbar,
+ .connections-map-modal .connections-map-sheet {
+  background:var(--cn-solid,#0b1422)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  box-shadow:none!important;opacity:1!important;
+ }
+ .connections-map-modal .connections-map-toolbar { color:var(--cn-text)!important; }
+ .connections-map-toolbar>.connections-route-status {
+  display:flex;align-items:center;flex:none;padding:0!important;margin:0!important;
+  border:0!important;background:transparent!important;box-shadow:none!important;
+ }
+ .connections-map-modal>.connections-map-toolbar>div { min-width:0;flex:1; }
+ .connections-map-modal>.connections-map-toolbar small { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+ .connections-map-modal .connections-sheet-handle { background:transparent!important;color:var(--cn-text)!important; }
+}
+
+/* Restore the established milk chrome: ordinary content cards retain the
+   opacity slider; map filters, navigation and map/options sheets stay readable. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] .pks-map-search-panel:has([data-landscape-window='filter']) { background-color:var(--landscape-solid)!important; }
+ html[data-landscape-theme='on'] [data-landscape-window='filter'][data-scene-ready='true'] { opacity:1!important; }
+ html[data-landscape-theme='on'][data-landscape-glass='off'] [data-landscape-chrome='filter'] { display:none!important; }
+}
+@layer journey-map-isolation {
+ .connections-map-endpoint-note { flex:none;margin:0!important;padding:7px 12px!important;background:var(--cn-solid,#0b1422)!important;color:var(--cn-text)!important;font-size:11px;line-height:1.5;border-radius:0!important; }
+}
+
+/* Admin-only reading materials. Other landscape cards keep their opacity. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel {
+  --landscape-ink:#0b1b26!important;--landscape-muted:#334b5e!important;
+  --landscape-field:#e9f2f6!important;--landscape-edge:#b7cbd4!important;--landscape-accent:#006b65!important;
+  --admin-sidebar-bg:#f5f9fc;--admin-sidebar-card:#edf4f8;
+  background:var(--admin-sidebar-bg)!important;color:var(--landscape-ink)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel .pks-personal-card { background:var(--admin-sidebar-card)!important;background-image:none!important; }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel svg { color:var(--landscape-accent)!important; }
+ html[data-landscape-theme='on'] [data-statistics-view] {
+  --statistics-plot:#f4f8fc;--statistics-axis:#40566c;--statistics-grid:#bccbd6;--statistics-series:#007f79;--statistics-errors:#be123c;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-statistics-view] {
+  --statistics-plot:#101d2c;--statistics-axis:#b8c8dc;--statistics-grid:#64748b;--statistics-series:#5eead4;--statistics-errors:#ff8fa3;
+ }
+}
+[data-statistics-chart] rect[role='button'] { fill:transparent!important;stroke:none!important;outline:none!important; }
+[data-statistics-view] [data-statistics-export] { border:1px solid var(--ui-edge); }
+
+@layer pks-performance {
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] [data-admin-sidebar].pks-personal-panel { background:var(--admin-sidebar-bg,#f5f9fc)!important; }
+}
+
+@layer landscape-materials {
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-sidebar].pks-personal-panel {
+  --admin-sidebar-bg:#101d2c;--admin-sidebar-card:#17293c;
+  --landscape-ink:#f3f7fb!important;--landscape-muted:#c2d1df!important;
+  --landscape-field:#1c3044!important;--landscape-edge:#425b71!important;--landscape-accent:#a4e3d1!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-sidebar].pks-personal-panel>div:first-child>div:first-child>div { color:var(--landscape-accent)!important; }
+ /* The real bus sheet contains a hidden landscape canvas. Its presence must
+    never let the sky-window transparency rule erase the vehicle material. */
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='bus'] {
+  background:var(--landscape-solid)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='bus'] [data-vehicle-header] {
+  background:var(--vehicle-carrier-background,var(--landscape-solid))!important;
+  color:var(--vehicle-carrier-ink,var(--landscape-ink))!important;
+ }
+}
+
+/* Daylight readability belongs to the glyphs, not another panel scrim.
+   Keep panel opacity, blur, scenery and all night materials unchanged. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-surface,.transit-card,.admin-device-card,.pks-personal-card,[data-interface-card],.connections-card,.map-detail-shell,.pks-options-sheet) {
+  text-shadow:0 1px 1px #ffffffe6,0 0 3px #ffffffbf;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(svg,canvas,input,textarea,select,.ui-accent-solid,.ui-accent-solid *,[data-vehicle-header],[data-vehicle-header] *,[data-admin-sidebar],[data-admin-sidebar] *) { text-shadow:none; }
+}
+@layer landscape-search-milk {
+ /* Search milk is deliberately independent of the card-opacity slider.
+    At night use dark milk, never a white rectangle over the night scenery. */
+ html[data-landscape-theme='on'] :is(input[data-milk-search],.personal-search,.personal-font-search) {
+  background:linear-gradient(135deg,rgba(255,255,255,.4),rgba(233,243,249,.16)),rgba(245,249,252,.94)!important;
+  color:var(--landscape-ink)!important;border-color:var(--landscape-edge)!important;
+  -webkit-backdrop-filter:blur(18px)!important;backdrop-filter:blur(18px)!important;
+  text-shadow:none;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='night'] :is(input[data-milk-search],.personal-search,.personal-font-search) {
+  background:linear-gradient(135deg,rgba(68,91,117,.2),rgba(15,27,43,.12)),rgba(20,33,50,.96)!important;
+ }
+ html[data-landscape-theme='on'] :is(.personal-search,.personal-font-search) input {
+  background:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+}
+
+/* Text-only daylight contrast in the three requested views. Do not alter the
+   shared text tokens: some controls also use those tokens to tint their glass. */
+@layer landscape-reading-text {
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :where(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-700,.text-slate-800,.text-slate-900,.text-gray-100,.text-gray-200,.text-gray-700,.text-gray-800,.text-gray-900):not(:where(button,svg,input,[data-landscape-heading] *,[data-scene-label],.connections-heading *,.ui-accent-solid,.ui-accent-solid *,[data-carrier-id],[data-carrier-id] *,[data-admin-sidebar],[data-admin-sidebar] *)) { color:#071822!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :where(.text-slate-300,.text-slate-400,.text-slate-500,.text-slate-600,.text-gray-400,.text-gray-500,.text-gray-600):not(:where(button,svg,input,[data-landscape-heading] *,[data-scene-label],.connections-heading *,.ui-accent-solid *,[data-carrier-id] *,[data-admin-sidebar] *)) { color:#10242d!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] .connections-card :is(small,strong,label) { color:#10242d!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(.transit-surface,.transit-card,.pks-personal-card,.connections-card,[data-interface-card]) {
+  /* A thin outer edge keeps the dark glyph sharp over cloud and forest. */
+  -webkit-text-stroke:.45px #ffffffe6;paint-order:stroke fill;
+  text-shadow:0 1px 1px #ffffff99!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(p,time,.font-normal,.font-medium):not(:where(input,textarea,select,.font-semibold,.font-bold,.font-extrabold,.font-black,[data-admin-sidebar],[data-admin-sidebar] *,[data-statistics-chart],[data-statistics-chart] *)) { font-weight:600!important; }
+ html[data-landscape-theme='on'][data-landscape-period='day'] .transit-view [data-cosmic-panel='stop-days'] :is(.ui-accent-soft,[data-selected='true'] .ui-accent-text) {
+  color:color-mix(in srgb,var(--landscape-accent) 30%,#071822)!important;font-weight:650!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='day'] :is(.transit-view,.connections-view,[data-admin-viewport],[data-statistics-view]) :is(svg,canvas,input,textarea,select,.ui-accent-solid,.ui-accent-solid *,[data-carrier-id],[data-carrier-id] *,[data-statistics-chart],[data-statistics-chart] *,[data-admin-sidebar],[data-admin-sidebar] *) {
+  -webkit-text-stroke:0!important;text-shadow:none!important;
+ }
+}
+
+/* Shared solar milk for admin search and navigation/filter controls. */
+@layer admin-horizon-controls {
+ html[data-landscape-theme='on'] :is([data-admin-viewport] input[data-milk-search],[data-admin-milk-control]) {
+  background-color:color-mix(in srgb,var(--landscape-solid) 82%,transparent)!important;
+  background-image:var(--landscape-milk-glow,none)!important;
+  border-color:var(--landscape-edge)!important;color:var(--landscape-ink)!important;
+  -webkit-backdrop-filter:blur(18px) saturate(135%)!important;backdrop-filter:blur(18px) saturate(135%)!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-milk-control] svg { color:var(--landscape-ink)!important; }
+ html[data-landscape-theme='on'] [data-admin-badge] {
+  --badge-paper:#e9eff5;--badge-ink:#253c50;--badge-edge:#9bafc1;
+  background:var(--badge-paper)!important;color:var(--badge-ink)!important;border-color:var(--badge-edge)!important;
+  -webkit-text-stroke:0!important;text-shadow:none!important;
+ }
+ html[data-landscape-theme='on'] [data-admin-badge='purple'] { --badge-paper:#f1eafb;--badge-ink:#49206d;--badge-edge:#b9a5ce; }
+ html[data-landscape-theme='on'] [data-admin-badge='blue'] { --badge-paper:#e7f3ff;--badge-ink:#124779;--badge-edge:#9ebbd6; }
+ html[data-landscape-theme='on'] [data-admin-badge='emerald'] { --badge-paper:#e3f5ec;--badge-ink:#14503b;--badge-edge:#8dbda6; }
+ html[data-landscape-theme='on'] [data-admin-badge='rose'] { --badge-paper:#ffebef;--badge-ink:#8f1434;--badge-edge:#d7a1af; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge] { --badge-paper:#223447;--badge-ink:#e0ebf6;--badge-edge:#526a82; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge='purple'] { --badge-paper:#302442;--badge-ink:#ead7ff;--badge-edge:#8f74a9; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge='blue'] { --badge-paper:#19354d;--badge-ink:#d1eaff;--badge-edge:#6e98bb; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge='emerald'] { --badge-paper:#183c30;--badge-ink:#d0f8e5;--badge-edge:#669c85; }
+ html[data-landscape-theme='on'][data-landscape-period='night'] [data-admin-badge='rose'] { --badge-paper:#491f2d;--badge-ink:#ffe0e7;--badge-edge:#b8798b; }
+ html[data-landscape-theme='on'] [data-admin-badge] span { color:var(--badge-ink)!important;-webkit-text-stroke:0!important;text-shadow:none!important; }
+ /* Short, consistent icon gutter; keep room for the clear button. */
+ input[data-milk-search] { text-align:left!important;text-indent:0!important;padding-inline-start:30px!important;padding-inline-end:36px!important; }
+ input[data-milk-search]::placeholder { text-align:left!important;text-indent:0!important; }
+ :has(>input[data-milk-search])>svg { left:8px!important;width:16px!important;height:16px!important;z-index:1;pointer-events:none; }
+ html .connections-view .connections-location { padding-inline-start:10px!important;gap:8px!important;text-align:left!important; }
+}
+
+/* Only the Cosmos map stop panel has no visible outer rim. */
+html[data-cosmic-theme='on'] .map-stop-sheet[data-map-detail-kind='stop'] { border-color:transparent!important; }
+
+/* Desktop composition only. Keep phone/tablet layout and all data flows intact. */
+@media (min-width:1100px) {
+  .pks-theme-root > [data-app-navigation] {
+    left:50%;right:auto;bottom:18px;width:min(760px,calc(100% - 64px));
+    transform:translateX(-50%);
+  }
+  [data-app-navigation] > .pks-navigation {
+    height:72px;border:1px solid var(--ui-edge);border-radius:24px;
+    padding:0 14px;box-shadow:0 12px 40px #0003;
+  }
+  [data-app-navigation] [data-nav-item] { min-width:112px; }
+
+  /* A single content measure aligns the search, filters and catalog cards. */
+  .pks-theme-root [data-stop-list-mode] {
+    width:min(1240px,100%);margin-inline:auto;padding-top:12px;
+  }
+  .pks-theme-root [data-stop-list-header] { margin:12px 24px 0;padding:24px; }
+  .pks-theme-root [data-stop-list-header] > div:first-child { margin-bottom:18px; }
+  .pks-theme-root [data-stop-list-header] h1 { font-size:26px;line-height:1.25; }
+  .pks-theme-root [data-stop-list-header] input { max-width:100%; }
+  .pks-theme-root [data-stop-list-mode] > [data-stop-list-scroll] {
+    width:100%;max-width:none;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:14px;padding:22px 24px 116px;
+  }
+  .pks-theme-root [data-stop-list-mode] [data-stop-card-id] { padding:20px;border-radius:20px; }
+  .pks-theme-root [data-stop-list-mode] [data-stop-card-id] h3 { font-size:16px;line-height:1.4; }
+  .pks-theme-root [data-full-stop-list] { padding-bottom:96px; }
+  .pks-theme-root [data-full-stop-list] > [data-stop-list-scroll] { padding-bottom:28px; }
+
+  /* The stop identity stays beside its timetable instead of occupying a full row. */
+  .pks-theme-root .transit-view[data-cosmic-view^='stop:'] { padding:28px 32px 116px; }
+  .pks-theme-root .transit-view[data-cosmic-view^='stop:'] > div {
+    display:grid;grid-template-columns:320px minmax(0,1fr);align-items:start;
+    gap:24px;width:100%;max-width:1180px;margin-inline:auto;
+  }
+  .pks-theme-root .transit-view[data-cosmic-view^='stop:'] [data-cosmic-panel='stop-header'] {
+    position:sticky;top:0;margin:0;padding:22px;
+  }
+  .pks-theme-root .transit-view[data-cosmic-view^='stop:'] > div > div:last-child { margin:0;padding-inline:0;min-width:0; }
+
+  .pks-theme-root .connections-view { padding:32px 40px 116px; }
+  .pks-theme-root .connections-content { max-width:1180px; }
+  .pks-theme-root .connections-workspace { grid-template-columns:minmax(340px,400px) minmax(0,1fr);gap:28px; }
+  .pks-theme-root .connections-heading { padding-bottom:24px; }
+  .pks-theme-root .connections-heading h1 { font-size:28px; }
+  .pks-theme-root .connections-result-card { margin-bottom:16px; }
+  .pks-theme-root .connections-picker { max-height:calc(100dvh - 100px); }
+
+  /* Settings are a desktop dialog, not a narrow phone sheet. */
+  .pks-theme-root [data-options-overlay] { padding:32px;align-items:center; }
+  .pks-theme-root [data-options-sheet] {
+    width:min(960px,calc(100vw - 64px));max-width:960px;
+    height:min(820px,calc(100dvh - 64px))!important;
+    max-height:calc(100dvh - 64px);padding:24px;border-radius:28px;
+  }
+  .pks-theme-root [data-options-sheet] > button:first-child { display:none; }
+  .pks-theme-root [data-options-sheet] .personal-tabs { max-width:440px;margin-bottom:20px; }
+  .pks-theme-root [data-options-scroll] { padding-right:8px;scrollbar-gutter:stable; }
+  .pks-theme-root [data-options-sheet] .personal-presets-grid { grid-template-columns:repeat(3,minmax(0,1fr));gap:14px; }
+  .pks-theme-root [data-options-sheet] .personal-preset { padding:16px;border-radius:20px; }
+  .pks-theme-root [data-options-sheet] .personal-preset-description { line-height:1.6; }
+  .pks-theme-root [data-options-sheet] .personal-search { margin-block:20px; }
+  .pks-theme-root [data-options-sheet] .personal-group summary { padding:18px 20px; }
+  .pks-theme-root [data-options-sheet] .personal-group-body { padding:24px; }
+  .pks-theme-root [data-options-extra] { grid-template-columns:repeat(2,minmax(0,1fr));gap:16px; }
+
+  .pks-theme-root [data-admin-viewport] { padding-bottom:104px; }
+  [data-admin-viewport] [data-cosmic-content] > * {
+    width:100%;max-width:1440px;margin-inline:auto;min-width:0;
+  }
+  [data-statistics-view] > header { padding:28px 32px 8px; }
+  [data-statistics-view] > main { max-width:1240px;padding:24px 32px 48px; }
+  .pks-theme-root .map-stop-sheet { width:400px;left:24px;bottom:24px; }
+}
+
+/* Native insets are physical Android bars/cutouts converted to CSS pixels.
+   Browsers retain their own safe areas; desktop layout stays unchanged. */
+:root {
+ --safe-top:var(--native-top,env(safe-area-inset-top,0px));
+ --safe-bottom:var(--native-bottom,env(safe-area-inset-bottom,0px));
+ --safe-left:var(--native-left,env(safe-area-inset-left,0px));
+ --safe-right:var(--native-right,env(safe-area-inset-right,0px));
+}
+html[data-native-edge='true'] .pks-theme-root > [data-app-content] {
+ margin-top:var(--safe-top);margin-left:var(--safe-left);margin-right:var(--safe-right);overflow:visible;
+}
+html[data-native-edge='true'] [data-app-content] > [data-map-canvas] {
+ left:calc(0px - var(--safe-left));right:calc(0px - var(--safe-right));
+}
+html[data-native-edge='true'] [data-map-toolbar] {
+ left:var(--safe-left);right:var(--safe-right);
+}
+@media(max-width:1099px) {
+ html[data-native-edge='true'] .pks-theme-root > [data-app-navigation] {
+  left:var(--safe-left);right:var(--safe-right);bottom:var(--safe-bottom);
+ }
+}
+@media(min-width:1100px) {
+ html[data-native-edge='true'] .pks-theme-root > [data-app-navigation] { bottom:calc(18px + var(--safe-bottom)); }
+}
+/* Classic navigation covers the Android gesture area without stretching its controls.
+   The floating dock deliberately retains its open space below. */
+@media(max-width:1099px) {
+ html[data-native-edge='true'][data-personal-chrome='classic'] .pks-theme-root > [data-app-navigation]::after {
+  content:'';position:absolute;top:100%;height:var(--safe-bottom);
+  left:calc(0px - var(--safe-left));right:calc(0px - var(--safe-right));
+  background:var(--ui-raised,#111623);pointer-events:none;
+ }
+}
+
+html[data-native-edge='true'] .connections-picker-host .connections-picker {
+ top:var(--safe-top);left:var(--safe-left);right:var(--safe-right);
+}
+/* Opening settings must not blur the whole active tab. Glass is confined to
+   the sheet itself, consistently across themes and personalization settings. */
+.pks-theme-root [data-options-overlay] {
+ -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+}
+html[data-native-edge='true'] [data-options-overlay] {
+ top:var(--safe-top);padding-top:8px;
+}
+
+/* The map extends under status icons only on its own tab. Other views reveal
+   their existing full-screen theme/scenery when the overlay preference is on. */
+html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root[data-cosmic-tab='map'] [data-app-content] > [data-map-canvas] { top:0; }
+html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root[data-cosmic-tab='map'] [data-map-toolbar] { top:var(--safe-top); }
+/* Keep a small gap below status icons when the phone map is edge-to-edge.
+   Switching the preference off restores the toolbar's original p-2 spacing. */
+@media(max-width:767px) {
+ html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root[data-cosmic-tab='map'] [data-map-toolbar] { padding-top:4px; }
+}
+[data-native-status-background] { display:none; }
+html[data-native-edge='true'] [data-native-status-background] { position:absolute;top:0;left:0;right:0;height:var(--safe-top);z-index:10001;pointer-events:none;background:var(--landscape-solid,var(--ui-canvas)); }
+html[data-native-edge='true']:not([data-personal-status-bar-overlay='true']) .pks-theme-root > [data-native-status-background] { display:block; }
+
+/* Full-bleed view canvases own their background, including the system area.
+   Insets belong to interactive content, never to the background container. */
+html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root > [data-app-content] {
+ margin-top:0;--native-content-top:var(--safe-top);--admin-content-top:var(--safe-top);
+}
+html[data-native-edge='true'] [data-native-view='stops'] .transit-view { padding-top:var(--native-content-top,0px); }
+html[data-native-edge='true'] [data-native-view='journeys'] > .connections-view { padding-top:calc(18px + var(--native-content-top,0px)); }
+html[data-native-edge='true'] [data-admin-view-canvas],
+html[data-native-edge='true'] [data-admin-safe-header] { padding-top:calc(16px + var(--admin-content-top,0px)); }
+html[data-native-edge='true'] [data-admin-sidebar-header] { padding-top:calc(24px + var(--native-content-top,0px)); }
+html[data-native-edge='true'] [data-native-view='admin'] .admin-topbar { padding-top:calc(16px + var(--native-content-top,0px)); }
+@media(min-width:640px) {
+ html[data-native-edge='true'] [data-admin-view-canvas],
+ html[data-native-edge='true'] [data-admin-safe-header] { padding-top:calc(32px + var(--admin-content-top,0px)); }
+}
+@media(min-width:768px) {
+ html[data-native-edge='true'] [data-admin-viewport] { --admin-content-top:0px; }
+ html[data-native-edge='true'] [data-native-view='journeys'] > .connections-view { padding-top:calc(30px + var(--native-content-top,0px)); }
+}
+@media(min-width:1100px) {
+ html[data-native-edge='true'] [data-native-view='journeys'] > .connections-view { padding-top:calc(32px + var(--native-content-top,0px)); }
+}
+/* The theme's real repeating artwork spans the same canvas as its colour. */
+html[data-native-edge='true'][data-personal-status-bar-overlay='true']:not([data-personal-light-effects='on'])
+ .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-native-view]
+ :is([data-admin-view-canvas],[data-statistics-view],.transit-view,.connections-view:not(.connections-picker-host)) {
+ background-image:var(--theme-decoration)!important;background-repeat:repeat!important;
+ background-position:left top!important;background-size:320px 180px!important;
+}
+
+/* Statistics tracks share the surrounding theme material. */
+[data-statistics-view] [data-statistics-track] { background:color-mix(in srgb,var(--ui-text,#8293a5) 12%,transparent)!important; }
+
+/* App labels behave like native UI; editable fields retain typing and paste. */
+body,body * { -webkit-user-select:none;user-select:none;-webkit-touch-callout:none; }
+body :is(input,textarea,[contenteditable="true"],[contenteditable=""]),
+body :is([contenteditable="true"],[contenteditable=""]) * { -webkit-user-select:text;user-select:text;-webkit-touch-callout:default; }

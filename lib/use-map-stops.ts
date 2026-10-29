@@ -43,7 +43,7 @@ export function useMapStops(enabled:boolean,pks:RawStop[],loadMarcel=false){
       const publishMarcel=(rows:CatalogSnapshot['marcel'])=>{if(!active)return;marcel=rows;marcelSnapshot.current=rows;apply(raw,mpk,marcel);};
       // Fetch the shared timetable catalog only when a stop's departures are opened.
       // PKS/MPK markers and their departures remain available while it loads.
-      if(loadMarcel)void getMarcelStopsIndex(selectedDateIso(0),{onPartial:publishMarcel}).then(publishMarcel).catch(()=>{});
+      if(loadMarcel)void getMarcelStopsIndex(selectedDateIso(0),{signal:controller.signal,onPartial:publishMarcel}).then(publishMarcel).catch(()=>{});
       mpk=await fetchMpkRzeszowStopsClient({signal:controller.signal}).then(rows=>rows.map(stop=>({id:String(stop.stop_id),
         name:ensureMpkCityPrefix(stop.stop_name,Number(stop.stop_lat),Number(stop.stop_lon)),lat:readBusCoordinates(stop.stop_lat,stop.stop_lon)?.lat,lon:readBusCoordinates(stop.stop_lat,stop.stop_lon)?.lon,
         lines:String(stop.lines||'').split(',').map(line=>line.trim()).filter(Boolean)}))).catch(()=>cached?.mpk||[]);

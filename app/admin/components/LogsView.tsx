@@ -166,7 +166,7 @@ export function LogsView({
   };
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-[calc(env(safe-area-inset-bottom)+4rem)]">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+7rem)] sm:p-8 sm:pb-[calc(var(--safe-bottom)+4rem)]">
       <AnimatePresence>
         {showClearConfirm && (
           <motion.div
@@ -227,7 +227,7 @@ export function LogsView({
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={onMenuClick}
+              data-admin-milk-control="menu" onClick={onMenuClick}
               className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
             >
               <Menu size={20} />
@@ -263,7 +263,7 @@ export function LogsView({
         <div ref={filtersRef} className="grid grid-cols-2 gap-4">
           <div className="relative">
             <button 
-              onClick={toggleTypeFilter}
+              data-admin-milk-control="filter" onClick={toggleTypeFilter}
               className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
@@ -365,7 +365,8 @@ export function LogsView({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
-              type="text" 
+              data-milk-search
+              type="text"
               placeholder="Szukaj..."
               value={search}
               onChange={e => setSearch(e.target.value)}

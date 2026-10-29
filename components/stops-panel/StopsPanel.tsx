@@ -93,8 +93,10 @@ export default function StopsPanel({
     return () => { active = false; };
   }, []);
 
+  const panelActive=active;
+  const needsMarcelCatalog=stopsSearchState.carrierFilter==='marcel'||Boolean(selectedStop?.sourceProviderIds?.includes('marcel'));
   useEffect(() => {
-    if (!cacheReady) return;
+    if (!cacheReady || !panelActive) return;
     const controller = new AbortController();
     let active = true;
     const dateIso = selectedDateIso(0);
@@ -131,7 +133,7 @@ export default function StopsPanel({
 
     const loadMarcelStopsSnapshot = async () => {
       try {
-        const cachedStops = await getMarcelStopsIndex(dateIso, {onPartial: partial => {
+        const cachedStops = await getMarcelStopsIndex(dateIso, {signal:controller.signal,onPartial: partial => {
           if (active && partial.length) setMarcelStops(current => stopCollectionSignature(current) === stopCollectionSignature(partial) ? current : partial);
         }});
         if (!active) return;
@@ -145,14 +147,14 @@ export default function StopsPanel({
 
     loadMpkStopsSnapshot();
     window.addEventListener('pks-live:mpk-stops-updated',loadMpkStopsSnapshot);
-    loadMarcelStopsSnapshot();
+    if(needsMarcelCatalog)loadMarcelStopsSnapshot();
 
     return () => {
       active = false;
       controller.abort();
       window.removeEventListener('pks-live:mpk-stops-updated',loadMpkStopsSnapshot);
     };
-  }, [catalogAttempt, cacheReady]);
+  }, [catalogAttempt, cacheReady, panelActive, needsMarcelCatalog]);
 
   const refreshVisibleLines = useCallback((visible: Stop[]) => {
     const points = visible.flatMap(stop => stop.pksStopPoints || []);

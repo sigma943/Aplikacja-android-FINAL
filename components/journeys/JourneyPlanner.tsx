@@ -56,10 +56,10 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
  useEffect(()=>{if(!active){generation.current++;controller.current?.abort();liveController.current?.abort();queueMicrotask(()=>{setBusy(false);setRefining(false);setMap(false);setPicker(null);setMapPicker(false);});}},[active]);
  useEffect(()=>{if(!active||!now)return;let alive=true;const update=()=>{if(alive){setDate(warsawDateIso());setTime(warsawClock(Date.now()));}};queueMicrotask(update);const timer=setInterval(update,30000);return()=>{alive=false;clearInterval(timer);};},[active,now]);
  const includeMarcel=options.providers.includes('marcel');
- useEffect(()=>{let alive=true;
-  void Promise.resolve().then(async()=>{if(!alive)return;setCatalogLoading(true);setCatalogError('');try{const base=await loadJourneyCatalog(stops,false);if(!alive)return;setCatalog(base);if(includeMarcel){const list=await loadJourneyCatalog(stops,true);if(alive)setCatalog(list);}}catch{if(alive)setCatalogError('Nie udało się wczytać listy przystanków. Spróbuj ponownie.');}finally{if(alive)setCatalogLoading(false);}});
-  return()=>{alive=false;};
- },[stops,attempt,includeMarcel]);
+ useEffect(()=>{if(!active)return;let alive=true;const catalogController=new AbortController();
+  void Promise.resolve().then(async()=>{if(!alive)return;setCatalogLoading(true);setCatalogError('');try{const base=await loadJourneyCatalog(stops,false,catalogController.signal);if(!alive)return;setCatalog(base);if(includeMarcel){const list=await loadJourneyCatalog(stops,true,catalogController.signal);if(alive)setCatalog(list);}}catch{if(alive)setCatalogError('Nie udało się wczytać listy przystanków. Spróbuj ponownie.');}finally{if(alive)setCatalogLoading(false);}});
+  return()=>{alive=false;catalogController.abort();};
+ },[stops,attempt,includeMarcel,active]);
  useAppBack(active&&Boolean(picker||preferences||map||selected),()=>{if(picker){if(mapPicker)setMapPicker(false);else setPicker(null);}else if(map)setMap(false);else if(selected)setSelected(null);else setPreferences(false);return true;},60);
  useAppBack(active,()=>{onClose();return true;},10);
  const places=useMemo(()=>journeyPickerStops(catalog),[catalog]);

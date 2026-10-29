@@ -60,7 +60,7 @@ export default function GenerateStopWidget({stop,lines,departures,vehicles,dark,
         {error&&<p role="alert" className="text-rose-500 text-sm">{error}</p>}
         {!canGenerateWidget()&&<p className="text-xs opacity-60">Otwórz aplikację na Androidzie, aby dodać widżet.</p>}
       </div>
-      <footer className="shrink-0 border-t border-current/10 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)]"><button disabled={busy||invalidRefresh||!canGenerateWidget()||(scope==='selected'&&!selected.length)} onClick={()=>void generate()} className="ui-accent-solid w-full rounded-2xl p-3.5 text-sm font-bold flex justify-center gap-2 disabled:opacity-40">{busy&&<LoaderCircle className="animate-spin" size={18}/>}Generuj widżet</button></footer>
+      <footer className="shrink-0 border-t border-current/10 px-5 pt-3 pb-[calc(var(--safe-bottom)+1rem)]"><button disabled={busy||invalidRefresh||!canGenerateWidget()||(scope==='selected'&&!selected.length)} onClick={()=>void generate()} className="ui-accent-solid w-full rounded-2xl p-3.5 text-sm font-bold flex justify-center gap-2 disabled:opacity-40">{busy&&<LoaderCircle className="animate-spin" size={18}/>}Generuj widżet</button></footer>
       </>}
     </motion.div>
   </motion.div>,document.body);

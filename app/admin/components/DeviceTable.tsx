@@ -339,7 +339,7 @@ export function DeviceTable({
   );
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-[calc(env(safe-area-inset-bottom)+4rem)]">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+7rem)] sm:p-8 sm:pb-[calc(var(--safe-bottom)+4rem)]">
       <AnimatePresence>
         {deleteDevice && (
           <motion.div
@@ -455,7 +455,7 @@ export function DeviceTable({
       <div className="flex flex-col gap-6 mb-8">
         <div data-landscape-heading className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={onMenuClick} className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer">
+            <button data-admin-milk-control="menu" onClick={onMenuClick} className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer">
               <Menu size={20} />
             </button>
             <div>
@@ -475,6 +475,7 @@ export function DeviceTable({
         <div className="relative min-w-0">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input
+            data-milk-search
             type="text"
             placeholder="Szukaj..."
             value={search}
@@ -487,7 +488,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button onClick={toggleSortDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button data-admin-milk-control="filter" onClick={toggleSortDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <ArrowUpDown size={14} className="text-slate-500 group-hover:text-white transition-colors" />
             <span className="truncate">{sortLabel}{sortConfig ? (sortConfig.dir === 'desc' ? ' ↓' : ' ↑') : ''}</span>
           </button>
@@ -510,7 +511,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button onClick={toggleFilterDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button data-admin-milk-control="filter" onClick={toggleFilterDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <Filter size={14} className={cn('text-slate-500 group-hover:text-white transition-all duration-300', showFilterDropdown && 'rotate-180')} />
             <span>{filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : filterRole === 'ADMIN' ? 'Administratorzy' : filterRole === 'BLOCKED' ? 'Zablokowani' : 'Użytkownicy'}</span>
           </button>

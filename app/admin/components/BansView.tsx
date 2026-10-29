@@ -72,11 +72,11 @@ export function BansView({
   const visibleBans = useMemo(() => filteredBans.slice(0, visibleCount), [filteredBans, visibleCount]);
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:p-8 sm:pb-8">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+6rem)] sm:p-8 sm:pb-8">
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex items-center gap-4 mb-4">
           <button
-            onClick={onMenuClick}
+            data-admin-milk-control="menu" onClick={onMenuClick}
             className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
           >
             <Menu size={20} />
@@ -99,6 +99,7 @@ export function BansView({
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input
+              data-milk-search
               type="text"
               placeholder="Szukaj urządzenia lub ID..."
               value={search}
@@ -108,7 +109,7 @@ export function BansView({
           </div>
           <div ref={filtersRef} className="relative shrink-0">
             <button
-              onClick={() => setShowFilters(!showFilters)}
+              data-admin-milk-control="filter" onClick={() => setShowFilters(!showFilters)}
               className="flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 sm:px-5 py-3.5 rounded-2xl text-sm font-bold text-slate-300 transition-all h-full cursor-pointer active:scale-95 shadow-lg"
             >
               Filtry

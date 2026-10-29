@@ -129,7 +129,7 @@ export default function TransportSelectorPanel({
           initial={reduced?false:{opacity:0}}
           animate={{ opacity: 1 }}
           exit={{opacity:reduced?1:0}} transition={{duration:reduced?0:.18}}
-          className={`absolute inset-0 z-[120] flex items-end justify-center ${transparentUI ? 'bg-black/15' : 'bg-black/45 backdrop-blur-sm'} p-2 pb-[calc(86px+env(safe-area-inset-bottom))] md:items-center md:p-8`}
+          className={`absolute inset-0 z-[120] flex items-end justify-center ${transparentUI ? 'bg-black/15' : 'bg-black/45 backdrop-blur-sm'} p-2 pb-[calc(86px+var(--safe-bottom))] md:items-center md:p-8`}
           onClick={onClose}
         >
           <motion.div
@@ -141,7 +141,7 @@ export default function TransportSelectorPanel({
             role="dialog" aria-modal="true" aria-label="Przewoźnicy"
             data-carrier-sheet data-glass={transparentUI ? 'on' : 'off'}
             onClick={(event) => event.stopPropagation()}
-            className={`flex max-h-[calc(100dvh-96px-env(safe-area-inset-bottom))] w-full flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:max-h-[min(720px,calc(100dvh-64px))] md:max-w-[600px] ${theme.shell}`}
+            className={`flex max-h-[calc(100dvh-96px-var(--safe-bottom))] w-full flex-col overflow-hidden rounded-[28px] border shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:max-h-[min(720px,calc(100dvh-64px))] md:max-w-[600px] ${theme.shell}`}
           >
             <div className={`flex items-start justify-between gap-3 px-5 pb-2 pt-5 md:px-6 md:pt-6 ${theme.header}`}>
               <div className="min-w-0">
