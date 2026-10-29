@@ -15,8 +15,8 @@ export type {MarcelRoute,MarcelCourse,MarcelCourseStopPublic} from './providers/
 import {routeGeometryKey} from './route-geometry-key';
 import {mpkSignalTime} from './mpk-vehicle-feed';
 import {getTransportRuntime} from './transport-runtime';
-import {reconcileRouteStopCoordinates} from './reconcile-route-stops';
-import {officialBusStops,completeOfficialBusStopCoordinates} from './official-bus-routes';
+import {bundledRoadNetworkRoute} from './bundled-road-network';
+import {resolvePksRouteStops} from './official-bus-routes';
 
 import {busOperatingState, transitTimestamp} from './bus-operating-state';
 
@@ -130,15 +130,7 @@ async function fetchPksVehicleDetailsClient(vehicleId: string, includeInactive: 
 
   const mapped = mapVehicle(rawVehicle, Date.now(), includeInactive, stopsDict, true);
   if(mapped) {
-    const officialStops=await officialBusStops('pks',rawVehicle.trip_id).catch(()=>[]);
-    const original=mapped.routeStops||[];
-    const full=await completeOfficialBusStopCoordinates('pks',original).catch(()=>original);
-    mapped.routeStops=full;
-    const aligned=officialStops.length===full.length && full.every((stop,index)=>!Number.isFinite(stop.lat)||!Number.isFinite(stop.lon)||distanceMeters([stop.lat!,stop.lon!],[officialStops[index].lat,officialStops[index].lon])<1200);
-    if(aligned) {
-      const reconciled=reconcileRouteStopCoordinates(full,officialStops);
-      mapped.routeStops=reconciled!==full?reconciled:full.map((stop,index)=>({...stop,lat:stop.lat??officialStops[index].lat,lon:stop.lon??officialStops[index].lon}));
-    }
+    mapped.routeStops=await resolvePksRouteStops(rawVehicle.trip_id,mapped.routeStops||[]).catch(()=>mapped.routeStops||[]);
     const byId=new Map(mapped.routeStops.map(stop=>[String(stop.id),stop]));
     mapped.schedule=mapped.schedule?.map(stop=>({...stop,lat:byId.get(String(stop.id))?.lat??stop.lat,lon:byId.get(String(stop.id))?.lon??stop.lon}));
   }
@@ -533,7 +525,8 @@ async function fetchRouteGeometryClientImpl(
       void writePersistentRouteGeometry(routeGeometryKey(request.mode || 'road',request.carrier,
         request.line,request.direction,request.stops,request.variant||'default'),points,request.dataVersion||'');
     };
-    const fallbackPoints = await fetchRoadRouteForStops(
+    const localPoints=await bundledRoadNetworkRoute(stopCoords).catch(()=>[]);
+    const fallbackPoints = localPoints.length>1?localPoints:await fetchRoadRouteForStops(
       stopCoords,
       [
         request.carrier,
@@ -543,6 +536,7 @@ async function fetchRouteGeometryClientImpl(
       ].join(':'),
       { strictShortSegments: request.carrier === 'mpk_rzeszow',stopWaypoints:true,signal:options?.signal,onResolved:persist },
     );
+    if(localPoints.length>1)persist(localPoints);
     if (fallbackPoints.length <= 1) {
       return {
         carrier: request.carrier,
@@ -574,7 +568,7 @@ async function fetchRouteGeometryClientImpl(
         type: 'LineString',
         coordinates: fallbackPoints.map(([lat, lon]) => [lon, lat]),
       },
-      source: 'bus-road-routing',
+      source: localPoints.length>1?'bundled-bus-road-network':'bus-road-routing',
       sourceQuality: 'fallback',
       isSynthetic: false,
       cached: false,

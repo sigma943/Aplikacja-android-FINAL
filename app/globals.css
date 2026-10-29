@@ -1696,3 +1696,8 @@ html[data-native-edge='true'][data-personal-status-bar-overlay='true']:not([data
   color:inherit!important;-webkit-text-stroke:0!important;text-shadow:none!important;
  }
 }
+
+/* App labels behave like native UI; editable fields retain typing and paste. */
+body,body * { -webkit-user-select:none;user-select:none;-webkit-touch-callout:none; }
+body :is(input,textarea,[contenteditable="true"],[contenteditable=""]),
+body :is([contenteditable="true"],[contenteditable=""]) * { -webkit-user-select:text;user-select:text;-webkit-touch-callout:default; }

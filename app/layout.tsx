@@ -6,6 +6,7 @@ import StatisticsCollector from '@/components/StatisticsCollector';
 import ApiStatisticsSync from '@/components/ApiStatisticsSync';
 import AppProviders from '@/components/AppProviders';
 import NativeSystemBars from '@/components/NativeSystemBars';
+import TextSelectionGuard from '@/components/TextSelectionGuard';
 import type {Viewport} from 'next';
 
 export const viewport:Viewport={width:'device-width',initialScale:1,viewportFit:'cover'};
@@ -33,6 +34,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       </head>
       <body suppressHydrationWarning>
         <NativeSystemBars />
+        <TextSelectionGuard />
         <AppProviders>
           <StatisticsCollector />
           <ApiStatisticsSync />

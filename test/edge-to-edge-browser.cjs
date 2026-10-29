@@ -12,6 +12,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    await page.setViewport({width,height});await page.goto(origin);
    await page.setContent('<style>'+css+'</style><div class="pks-theme-root fixed inset-0 flex flex-col" data-cosmic-tab="map" data-ui-theme="light-sky"><div data-native-status-background></div><div data-app-content class="flex-1 relative min-h-0"><div data-map-canvas class="absolute inset-0" style="background:rgb(255,0,0)"><div data-map-toolbar class="absolute top-0 left-0 right-0 p-2"><button>PKS Live</button></div></div></div><div id="navigation-root" data-app-navigation class="absolute bottom-0 left-0 right-0"></div></div>');
    await page.addScriptTag({content:fs.readFileSync(path.join(temp,'fixture.js'),'utf8')});await page.waitForSelector('[data-nav-item]');
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(resolve)));
+   const selection=await page.evaluate(()=>{
+    const host=document.createElement('div');host.innerHTML='<p>Tekst aplikacji</p><input value="50.03897, 22.00282"><textarea>Tekst</textarea>';document.body.appendChild(host);
+    const p=host.querySelector('p'),input=host.querySelector('input'),area=host.querySelector('textarea');
+    const cancelled=(el,type)=>!el.dispatchEvent(new Event(type,{bubbles:true,cancelable:true}));
+    input.focus();input.setSelectionRange(0,4);
+    const result={label:getComputedStyle(p).userSelect,field:getComputedStyle(input).userSelect,select:cancelled(p,'selectstart'),context:cancelled(p,'contextmenu'),input:cancelled(input,'contextmenu'),textarea:cancelled(area,'selectstart'),range:input.selectionEnd-input.selectionStart};host.remove();return result;
+   });
+   assert.deepEqual(selection,{label:'none',field:'text',select:true,context:true,input:false,textarea:false,range:4},'long-press selection/copy is disabled for labels while editable fields retain selection and paste menu');
    await page.evaluate(insets=>{const r=document.documentElement;r.dataset.nativeEdge='true';r.dataset.personalStatusBarOverlay='true';for(const [side,value]of Object.entries(insets))r.style.setProperty('--native-'+side,value+'px');},insets);
    const measure=()=>page.evaluate(()=>{const rect=q=>{const r=document.querySelector(q).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};};return {map:rect('[data-map-canvas]'),toolbar:rect('[data-map-toolbar]'),toolbarPadding:parseFloat(getComputedStyle(document.querySelector('[data-map-toolbar]')).paddingTop),content:rect('[data-app-content]'),nav:rect('[data-app-navigation]'),panel:rect('.pks-navigation'),backdrop:getComputedStyle(document.querySelector('[data-native-status-background]')).display,topIsMap:Boolean(document.elementFromPoint(innerWidth/2,5)?.closest('[data-map-canvas]')),overflow:document.documentElement.scrollWidth>innerWidth};});
    const topPixel=async()=>[...PNG.sync.read(await page.screenshot({clip:{x:Math.floor(width/2),y:5,width:1,height:1}})).data];
