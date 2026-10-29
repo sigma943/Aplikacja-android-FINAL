@@ -44,6 +44,19 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    assert.equal(metrics.panel.height,width>=1100?72:64,'navigation never grows by the gesture inset');
    assert.equal(metrics.nav.bottom,height-insets.bottom-(width>=1100?18:0));assert.equal(metrics.overflow,false);
    if(insets.top)assert.equal(metrics.topIsMap,true,'map is actually visible under system icons');
+   if(width<768&&insets.bottom){
+    for(const theme of ['light','dark','dark-oled','light-warm','light-pink','light-sky','dark-forest','dark-cosmos','dark-mountains']){
+     await page.evaluate(theme=>{document.documentElement.dataset.personalChrome='classic';document.querySelector('.pks-theme-root').dataset.uiTheme=theme;},theme);
+     const classic=await measure();assert.equal(classic.panel.height,64,theme+' classic controls retain their height');
+     const surface=await page.$eval('[data-app-navigation]',e=>{const s=getComputedStyle(e,'::after');return {content:s.content,height:parseFloat(s.height),background:s.backgroundColor,expected:getComputedStyle(e).getPropertyValue('--ui-raised').trim()};});
+     assert.equal(surface.content,'""');assert.equal(surface.height,insets.bottom);
+     const screenshot=PNG.sync.read(await page.screenshot());const y=height-Math.ceil(insets.bottom/2),x=Math.floor(width/2);const pixel=[...screenshot.data.subarray((y*width+x)*4,(y*width+x)*4+3)];
+     assert.notDeepEqual(pixel,[255,0,0],theme+' classic gesture area hides the map');
+     await page.evaluate(()=>document.documentElement.dataset.personalChrome='floating');
+     const floating=PNG.sync.read(await page.screenshot());assert.deepEqual([...floating.data.subarray((y*width+x)*4,(y*width+x)*4+3)],[255,0,0],theme+' floating dock keeps its original gap');
+    }
+    await page.evaluate(()=>{delete document.documentElement.dataset.personalChrome;document.querySelector('.pks-theme-root').dataset.uiTheme='light-sky';});
+   }
    await optionsCheck();
    for(const tab of ['stops','journeys','admin']){
     await page.evaluate(tab=>{const root=document.querySelector('.pks-theme-root');root.dataset.cosmicTab=tab;let view=root.querySelector('[data-native-view]');if(!view){view=document.createElement('div');view.dataset.nativeView=tab;view.className='absolute inset-0';view.style.background='var(--ui-canvas)';document.querySelector('[data-app-content]').appendChild(view);}},tab);

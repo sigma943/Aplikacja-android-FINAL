@@ -1624,6 +1624,16 @@ html[data-native-edge='true'] [data-map-toolbar] {
 @media(min-width:1100px) {
  html[data-native-edge='true'] .pks-theme-root > [data-app-navigation] { bottom:calc(18px + var(--safe-bottom)); }
 }
+/* Classic navigation covers the Android gesture area without stretching its controls.
+   The floating dock deliberately retains its open space below. */
+@media(max-width:1099px) {
+ html[data-native-edge='true'][data-personal-chrome='classic'] .pks-theme-root > [data-app-navigation]::after {
+  content:'';position:absolute;top:100%;height:var(--safe-bottom);
+  left:calc(0px - var(--safe-left));right:calc(0px - var(--safe-right));
+  background:var(--ui-raised,#111623);pointer-events:none;
+ }
+}
+
 html[data-native-edge='true'] .connections-picker-host .connections-picker {
  top:var(--safe-top);left:var(--safe-left);right:var(--safe-right);
 }
