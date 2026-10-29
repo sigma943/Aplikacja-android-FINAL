@@ -132,8 +132,17 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
   }
   const journeys = [...live];
   for (const journey of scheduled) {
-    const duplicate = live.some((row: any) => row.line_name === journey.line_name && row.route_description === journey.route_description && row.timetable_time === journey.timetable_time);
-    if (!duplicate) journeys.push(journey);
+    const duplicates = live.filter((row: any) => row.line_name === journey.line_name && row.route_description === journey.route_description && row.timetable_time === journey.timetable_time);
+    if (!duplicates.length) journeys.push(journey);
+    else {
+      // Rural boards often omit both deviation and journey_id. Retain the
+      // timetable's course identity so live vehicle telemetry can correct it.
+      // Only a unique scheduled course may supply the missing identity.
+      const matches = scheduled.filter(row => row.line_name === journey.line_name && row.route_description === journey.route_description && row.timetable_time === journey.timetable_time);
+      if (new Set(matches.map(row => String(row.journey_id ?? '')).filter(Boolean)).size === 1) {
+        for (const row of duplicates) row.journey_id ??= journey.journey_id;
+      }
+    }
   }
   return {journeys: journeys.filter((journey: any) => {
     const ms = Date.parse(journey.timetable_time);
