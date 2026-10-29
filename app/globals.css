@@ -1692,12 +1692,7 @@ html[data-native-edge='true'][data-personal-status-bar-overlay='true']:not([data
 }
 
 @layer landscape-reading-text {
- html[data-landscape-theme='on'] .pks-theme-root [data-statistics-view] [data-statistics-note],
  html[data-landscape-theme='on'] .pks-theme-root [data-statistics-view] [data-statistics-note] p {
-  color:#0b1b26!important;-webkit-text-stroke:0!important;text-shadow:none!important;
+  color:inherit!important;-webkit-text-stroke:0!important;text-shadow:none!important;
  }
-}
-@layer landscape-reading-text {
- html[data-landscape-theme='on'][data-landscape-period='night'] .pks-theme-root [data-statistics-view] [data-statistics-note],
- html[data-landscape-theme='on'][data-landscape-period='night'] .pks-theme-root [data-statistics-view] [data-statistics-note] p { color:#f4f8fc!important; }
 }
