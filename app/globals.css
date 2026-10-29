@@ -1678,3 +1678,12 @@ html[data-native-edge='true'][data-personal-status-bar-overlay='true']:not([data
  background-image:var(--theme-decoration)!important;background-repeat:repeat!important;
  background-position:left top!important;background-size:320px 180px!important;
 }
+
+/* Statistics plots share the surrounding theme material, without a white slab.
+   Long explanatory copy needs its own solid surface over photographic scenery. */
+[data-statistics-view] [data-statistics-track] { background:color-mix(in srgb,var(--ui-text,#8293a5) 12%,transparent)!important; }
+.pks-theme-root [data-statistics-view] [data-statistics-note] {
+ background:var(--landscape-solid,var(--ui-raised,#111623))!important;
+ color:var(--landscape-ink,var(--ui-text,#e7eaf1))!important;
+ -webkit-backdrop-filter:none!important;backdrop-filter:none!important;text-shadow:none!important;
+}

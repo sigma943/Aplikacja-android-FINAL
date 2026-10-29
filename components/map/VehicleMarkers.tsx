@@ -222,13 +222,8 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
     const paddedBounds = map.getBounds().pad(0.2);
     return renderVehicles.filter((vehicle) => paddedBounds.contains([vehicle.lat, vehicle.lon]));
   }, [map, renderVehicles, viewTick, zoom]);
-  // Keep timetable/cache warming independent of whether the map can be seen.
-  const badgeVehicles=useMemo(()=>{
-    if(active)return visibleVehicles;
-    if(vehicles.length<=35)return vehicles;
-    const bounds=map.getBounds().pad(0.2);
-    return vehicles.filter(vehicle=>bounds.contains([vehicle.lat,vehicle.lon]));
-  },[active,map,vehicles,visibleVehicles,viewTick]);
+  // Hidden map layers must not download course timetables for badges.
+  const badgeVehicles=useMemo(()=>active?visibleVehicles:[],[active,visibleVehicles]);
   useEffect(() => {
     const courseIds = new Set(badgeVehicles.filter(v => v.provider === 'marcel')
       .map(v => String(v.tripId || v.journeyId || '')));
@@ -237,7 +232,7 @@ const VehicleMarkerLayer = memo(function VehicleMarkerLayer({
     });
     const bounds = map.getBounds().pad(0.2);
     warmMarcelBadgeCourses(badgeVehicles, [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
-    return unsubscribe;
+    return ()=>{unsubscribe();warmMarcelBadgeCourses([], [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);};
   }, [active, map, badgeVehicles, viewTick]);
 
   const viewportVehicles = useMemo(() => visibleVehicles.map(vehicle => withCachedMarcelDelay(vehicle)),

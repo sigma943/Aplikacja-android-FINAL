@@ -216,7 +216,7 @@ export default function Home() {
   const stopsLoadPendingRef = useRef(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [selectedExternalStop, setSelectedExternalStop] = useState<StopsPanelStop | null>(null);
-  const mapStops=useMapStops(showMapStops,stopsList,activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus);
+  const mapStops=useMapStops(showMapStops,stopsList,activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus&&activeProviders.includes('marcel'));
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(7000);
   const [favsState, setFavsState] = useState<string[]>([]);

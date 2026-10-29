@@ -30,7 +30,7 @@ import {distanceMeters, computeObservedSpeedKmh} from './transport/vehicle-speed
 import {mapTransportVehicleToClient} from './transport/vehicle-adapter';
 import {fetchRoadRouteForStops} from './transport/road-routing';
 import {isAbortLikeError, fetchPkpIntercityVehiclesDirect, fetchPkpIntercityPortalGpsVehicles, fetchPkpIntercityVehicleDetailsDirect} from './providers/pkp-client';
-import {readMarcelTimestamp, warmMarcelBadgeCourses, fetchMarcelVehiclesDirect, fetchMarcelVehicleDetailsDirect, fetchMarcelPositionSnapshot} from './providers/marcel-client';
+import {readMarcelTimestamp, fetchMarcelVehiclesDirect, fetchMarcelVehicleDetailsDirect, fetchMarcelPositionSnapshot} from './providers/marcel-client';
 import {loadStopPointIndex} from './providers/pks-stops';
 import {fetchMpkVehicleFeed, fetchMpkRzeszowVehiclesDirect, fetchMpkRzeszowVehicleDetailsDirect} from './providers/mpk-vehicles';
 
@@ -175,9 +175,9 @@ async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: 
   }
 }
 
-async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal, viewport?: PkpQueryViewport) {
+async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
   const vehicles = await fetchMarcelVehiclesDirect(includeInactive, signal);
-  if (!signal?.aborted && viewport?.bbox) warmMarcelBadgeCourses(vehicles, viewport.bbox);
+  // Course details are warmed by visible map markers, never fleet polling.
   return vehicles;
 }
 
@@ -350,7 +350,7 @@ export async function fetchVehiclesClient(
       });
     }
     if (provider === 'marcel') {
-      return fetchMarcelVehiclesClient(includeInactive, options?.signal, options?.pkpViewport).catch((error) => {
+      return fetchMarcelVehiclesClient(includeInactive, options?.signal).catch((error) => {
         if ((error as any)?.name === 'AbortError') throw error;
         console.warn('Marcel provider unavailable:', error);
         return [];
