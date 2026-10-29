@@ -43,7 +43,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    assert.equal(surfaces.plot.length,2);assert.ok(surfaces.plot.every(fill=>fill==='transparent'||fill==='rgba(0, 0, 0, 0)'),theme+' charts have no solid white plot');
    assert.equal(surfaces.background[3],255,theme+' explanatory text has its own solid surface');
    const luminance=rgb=>rgb.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
-   const a=luminance(surfaces.background),b=luminance(surfaces.text);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,theme+' note meets 4.5:1 contrast');
+   const a=luminance(surfaces.background),b=luminance(surfaces.text);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,theme+' '+(night?'night':'day')+' note meets 4.5:1 contrast: '+JSON.stringify(surfaces));
    await page.$eval('[data-statistics-note]',e=>e.scrollIntoView({block:'end'}));
    await page.screenshot({path:'test/ui-previews/theme-status-statistics-'+theme+(night?'-night':'')+'.png'});
   }

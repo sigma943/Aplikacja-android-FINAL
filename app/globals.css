@@ -1690,3 +1690,10 @@ html[data-native-edge='true'][data-personal-status-bar-overlay='true']:not([data
  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;text-shadow:none!important;
 }
 }
+
+@layer landscape-reading-text {
+ html[data-landscape-theme='on'] .pks-theme-root [data-statistics-view] [data-statistics-note],
+ html[data-landscape-theme='on'] .pks-theme-root [data-statistics-view] [data-statistics-note] p {
+  color:var(--landscape-ink)!important;-webkit-text-stroke:0!important;text-shadow:none!important;
+ }
+}
