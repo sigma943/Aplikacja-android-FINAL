@@ -52,3 +52,25 @@ test('other bus providers retain their current timetable and explicit passage be
     assert.deepEqual(upcomingTimedVehicleStops({...vehicle,provider,routeStops:[previous,{...next,isPast:true},later]},now-60_000).map(s=>s.id),[3]);
   }
 });
+
+// Exercise the actual map visibility expression, not only the timing helper.
+test('map route dots retain PKS stops until confirmed progress, regardless of the clock',()=>{
+  const fs=require('node:fs'),ts=require('typescript');
+  const source=ts.createSourceFile('BusMap.tsx',fs.readFileSync('components/BusMap.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  let expression;
+  function visit(node){
+    if(ts.isVariableDeclaration(node)&&node.name.getText(source)==='visibleRouteStopIds')expression=node.initializer.getText(source);
+    ts.forEachChild(node,visit);
+  }
+  visit(source);assert.ok(expression,'map marker visibility expression exists');
+  const script=ts.transpile(`const result = ${expression};`,{target:ts.ScriptTarget.ES2022});
+  const visible=new Function('selectedVehicle','routeStopIds','routeStopsSource','clockMs','upcomingTimedVehicleStops','upcomingVehicleStops',script+';return result;');
+  const timing=loadTs('lib/vehicle-stop-timing.ts');
+  const upcoming=loadTs('lib/vehicle-upcoming-stops.ts').upcomingVehicleStops;
+  const ids=(bus,clock)=>visible(bus,[1,2,3],timing.timedVehicleStops(bus),clock,upcomingTimedVehicleStops,upcoming);
+  assert.deepEqual(ids(vehicle,now),['2','3']);
+  assert.deepEqual(ids({...vehicle,delay:-480},now+600_000),['2','3']);
+  assert.deepEqual(ids({...vehicle,lastStopId:2,schedule:[later]},now),['3']);
+  assert.deepEqual(ids({...vehicle,provider:'mpk_rzeszow'},now),['3']);
+  assert.deepEqual(ids({...vehicle,provider:'pkp_intercity',type:'train'},now),[1,2,3]);
+});

@@ -9,7 +9,7 @@ import {loadStopPlatforms} from '@/lib/stop-platform-position';
 import {memo, startTransition, useEffect, useState, useRef, useCallback, useMemo} from 'react';
 import {MapContainer, TileLayer, ZoomControl, Pane} from 'react-leaflet';
 import RouteLines from './map/RouteLines';
-import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
+import {timedVehicleStops,upcomingTimedVehicleStops} from '@/lib/vehicle-stop-timing';
 import type {Stop} from '@/Panel/src/types';
 import {canonicalMapStopId, mapStopColor, routeCatalogStopIds} from '@/lib/map-stop-markers';
 
@@ -17,7 +17,6 @@ import {routeGeometryKey} from '@/lib/route-geometry-key';
 import {officialBusRoute,officialBusStopPoints} from '@/lib/official-bus-routes';
 import {mpkRouteForPaint} from '@/lib/map/mpk-route-paint';
 import {roadRouteMatchesStops, cleanRoadJunctionLoops, validRoadPoint} from '@/lib/bus-road-geometry';
-import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
 import {withRequestDeadline} from '@/lib/request-deadline';
 import {loadRouteWithRetry} from '@/lib/route-load-retry';
@@ -147,7 +146,7 @@ function BusMap({
   }, [selectedVehicle]);
   const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
     ? routeStopIds
-    : upcomingVehicleStops(routeStopsSource, clockMs||Date.now(), selectedVehicle?.lastStopId).map(stop => String(stop.id));
+    : selectedVehicle ? upcomingTimedVehicleStops(selectedVehicle, clockMs||Date.now()).map(stop => String(stop.id)) : [];
   const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
   const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
     const next: RouteGeometryStop[] = [];
