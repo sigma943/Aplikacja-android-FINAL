@@ -44,7 +44,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     const visible=()=>!document.hidden&&nativeActive&&sceneVisible;
     let reduced=false,light=false,appearance=normalizeInterfaceAppearance(null),accent='#00a3a2',settings=readLandscapeSettings();
     const readPreferences=()=>{
-      settings=readLandscapeSettings();renderer.setEffects({bloom:settings.bloom/100,reflections:settings.reflections/100,rays:settings.rays/100,waveSpeed:settings.waveSpeed/100,exposure:settings.exposure/100});
+      settings=readLandscapeSettings();root.dataset.landscapeFilterBackground=settings.filterBackground;renderer.setEffects({bloom:settings.bloom/100,reflections:settings.reflections/100,rays:settings.rays/100,waveSpeed:settings.waveSpeed/100,exposure:settings.exposure/100});
       reduced=false;light=false;appearance=normalizeInterfaceAppearance(null);accent='#00a3a2';
       try{appearance=normalizeInterfaceAppearance(JSON.parse(localStorage.getItem(INTERFACE_APPEARANCE_KEY)||'{}'));reduced=appearance.reducedMotion;accent=localStorage.getItem('mks_theme')||accent;light=localStorage.getItem('mks_light_effects')==='true';}catch{}
     };readPreferences();
@@ -67,6 +67,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     };
     let fpsStart=performance.now(),fpsFrames=0,actualFps=0;
     const paintFilter=()=>{
+      if(settings.filterBackground==='solid')return;
       for(const target of document.querySelectorAll<HTMLCanvasElement>('[data-landscape-window="filter"]')){
         const rect=target.getBoundingClientRect();if(!rect.width||!rect.height)continue;
         const width=Math.ceil(Math.min(600,rect.width)),height=Math.ceil(rect.height*width/rect.width);
@@ -201,7 +202,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       if(recordingCanvas)recordingCanvas.width=recordingCanvas.height=1;recordingCanvas=null;recordingContext=null;
       delete debug.__landscapeRecording;delete debug.__landscapeCapture;delete debug.__landscapePreview;delete debug.__landscapeDiagnostics;
       delete debug.__landscapeTestPower;delete root.dataset.landscapeMotion;
-      delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;delete root.dataset.landscapeGlass;for(const key of paletteKeys)root.style.removeProperty(key);
+      delete root.dataset.landscapeFilterBackground;delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;delete root.dataset.landscapeGlass;for(const key of paletteKeys)root.style.removeProperty(key);
     };
   },[active,glass]);
   return active?<canvas ref={canvas} data-landscape-stage aria-hidden="true"/>:null;

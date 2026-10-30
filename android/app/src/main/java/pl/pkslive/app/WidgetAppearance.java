@@ -54,9 +54,11 @@ final class WidgetAppearance {
       double amount=softBackgroundStrength/100.;
       paint.setShader(null);
       paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP));
-      softPatch(canvas,paint,width,height,-.08f,.06f,.95f,.65f,Color.rgb(10,15,20),amount*(dark?.22:.28),.75f);
-      softPatch(canvas,paint,width,height,1.08f,1f,.9f,.85f,Color.rgb(2,6,12),amount*(dark?.38:.18),.8f);
-      softPatch(canvas,paint,width,height,.92f,.02f,.65f,.55f,accent,amount*(dark?.1:.07),.8f);
+      // Same patches and stacking order as the preview. SRC_ATOP preserves
+      // the background opacity and rounded corners while keeping the effect visible.
+      softPatch(canvas,paint,width,height,.88f,.12f,.6f,.55f,accent,amount*(dark?.18:.12),.8f);
+      softPatch(canvas,paint,width,height,.82f,.85f,.9f,.9f,Color.parseColor(dark?"#02060c":"#64748b"),amount*(dark?.38:.18),.9f);
+      softPatch(canvas,paint,width,height,.18f,.2f,.85f,.8f,dark?mix(accent,Color.WHITE,.2):accent,amount*(dark?.32:.24),.85f);
       paint.setXfermode(null);
     }
     if(opacity>0){paint.setShader(null);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1);paint.setColor(alpha(readable(accent),56));canvas.drawRoundRect(bounds,cornerRadius,cornerRadius,paint);}

@@ -71,10 +71,10 @@ public class WidgetAppearanceTest {
     }
   }
   @Test public void softBackgroundAddsDepthWithoutChangingOpacityOrCorners()throws Exception{
-    for(int transparency:new int[]{0,65,100}){
+    for(boolean dark:new boolean[]{false,true})for(int strength:new int[]{40,100})for(int transparency:new int[]{0,65,100}){
       String common="{\"appearance\":{\"transparency\":"+transparency;
-      WidgetAppearance plain=new WidgetAppearance(new JSONObject(common+"}}"),false);
-      WidgetAppearance soft=new WidgetAppearance(new JSONObject(common+",\"softBackground\":true,\"softBackgroundStrength\":100}}"),false);
+      WidgetAppearance plain=new WidgetAppearance(new JSONObject(common+"}}"),dark);
+      WidgetAppearance soft=new WidgetAppearance(new JSONObject(common+",\"softBackground\":true,\"softBackgroundStrength\":"+strength+"}}"),dark);
       Bitmap a=plain.background(320,180,true),b=soft.background(320,180,true);
       int x=a.getWidth()/4,y=a.getHeight()/4;
       assertEquals(Color.alpha(a.getPixel(x,y)),Color.alpha(b.getPixel(x,y)));

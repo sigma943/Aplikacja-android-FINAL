@@ -1262,12 +1262,12 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('#widget-transparency');
     assert.equal(await page.$eval('[aria-label="Miękkie tło widżetu"]',el=>el.checked),false);
     await page.$eval('[aria-label="Miękkie tło widżetu"]',el=>el.click());
-    await page.waitForFunction(()=>document.querySelector('[data-widget-preview]').style.background.includes('radial-gradient'));
+    await page.waitForFunction(()=>document.querySelector('[data-widget-background]').style.background.includes('radial-gradient'));
     await page.focus('#widget-soft-background-strength');await page.keyboard.press('End');
     await page.waitForFunction(()=>document.querySelector('#widget-soft-background-strength').value==='100');
     await screenshot('widget-soft-background');
     await page.focus('#widget-transparency');await page.keyboard.press('End');
-    await page.waitForFunction(()=>(document.querySelector('[data-widget-preview]').style.background.match(/rgba\([^)]*, 0\)/g)||[]).length===2);
+    await page.waitForFunction(()=>document.querySelector('[data-widget-background]').style.opacity==='0');
     assert.equal(await page.$eval('[data-widget-preview]',el=>getComputedStyle(el).opacity),'1','full transparency affects background, not text');
     await page.focus('#widget-transparency');await page.keyboard.press('Home');
     await page.waitForFunction(()=>document.querySelector('#widget-transparency').value==='0');

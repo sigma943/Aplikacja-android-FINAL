@@ -26,7 +26,7 @@ export default function InterfacePersonalization(p:Props){
   const search=query.trim().toLocaleLowerCase('pl');
   const matches=(text:string)=>!search||text.toLocaleLowerCase('pl').includes(search);
   const cosmicVisible=p.theme==='dark-cosmos'&&matches('Głębia kosmosu Paralaksa kosmosu Ruch warstw przy przechyleniu telefonu mgławice planety kursor');
-  const landscapeVisible=p.theme==='dark-mountains'&&matches('Horyzont jakość światło woda poświata odbicia promienie prędkość fal jasność');
+  const landscapeVisible=p.theme==='dark-mountains'&&matches('Horyzont jakość światło woda poświata odbicia promienie prędkość fal jasność panel filtrowania mapa niebo jednolity kolor');
   let matchedGroups=(cosmicVisible?1:0)+(landscapeVisible?1:0);
   const set=<K extends keyof InterfaceAppearance>(key:K,next:InterfaceAppearance[K])=>p.onChange({...v,[key]:next});
   const selected=(active:boolean)=>`personal-choice ui-accent-focus ${active?'ui-accent-soft':'bg-current/[.035] border-current/10'}`;

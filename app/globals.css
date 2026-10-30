@@ -1696,3 +1696,15 @@ html[data-native-edge='true'][data-personal-status-bar-overlay='true']:not([data
 body,body * { -webkit-user-select:none;user-select:none;-webkit-touch-callout:none; }
 body :is(input,textarea,[contenteditable="true"],[contenteditable=""]),
 body :is([contenteditable="true"],[contenteditable=""]) * { -webkit-user-select:text;user-select:text;-webkit-touch-callout:default; }
+
+/* Horyzont filter choice and readable widget dialogs stay scoped to their surfaces. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'][data-landscape-filter-background='solid'] .pks-map-search-panel {
+  background-color:var(--landscape-solid)!important;background-image:none!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-filter-background='solid'] [data-landscape-chrome='filter'] { display:none!important; }
+ html[data-landscape-theme='on'] .widget-generator.transit-view[role='dialog'] {
+  background:var(--widget-dialog-surface)!important;color:var(--widget-dialog-ink)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+ }
+}

@@ -222,7 +222,7 @@ jobs:
           cd android
           chmod +x ./gradlew
           if [ "$FAST_APK" = "true" ]; then
-            ./gradlew testDebugUnitTest --tests pl.pkslive.app.SystemBarsAppearanceTest --tests pl.pkslive.app.GoogleMapsHttpTest
+            ./gradlew testDebugUnitTest --tests pl.pkslive.app.SystemBarsAppearanceTest --tests pl.pkslive.app.GoogleMapsHttpTest --tests pl.pkslive.app.WidgetAppearanceTest
             ./gradlew assembleRelease
           elif [ "$FULL_VERIFICATION" = "true" ]; then
             ./gradlew testDebugUnitTest testReleaseUnitTest testReleaseTestUnitTest assembleDebug assembleRelease assembleReleaseTest
