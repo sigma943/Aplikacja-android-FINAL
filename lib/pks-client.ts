@@ -2,6 +2,7 @@ import {foregroundRequest} from './app-activity';
 import {writePersistentRouteGeometry} from './map/route-cache';
 import {getEffectiveMpkDelay, fetchMpkTripSchedule} from './providers/mpk-vehicles';
 import {sharedInflight} from './shared-inflight';
+import {createPksSnapshotSelection} from './pks-snapshot-selection';
 import {verifiedCachedPksStops} from './providers/pks-stops';
 import {formatPksStops} from './providers/pks-stops';
 import {writePersistentClientCache} from './transport/cache';
@@ -35,8 +36,12 @@ import {loadStopPointIndex} from './providers/pks-stops';
 import {fetchMpkVehicleFeed, fetchMpkRzeszowVehiclesDirect, fetchMpkRzeszowVehicleDetailsDirect} from './providers/mpk-vehicles';
 
 const fetchPksVehiclesSnapshot = sharedInflight(fetchPksVehiclesSnapshotUnshared);
+const pksSnapshotSelection=createPksSnapshotSelection();
+let pksSnapshotVersion=0;
 
 async function fetchPksVehiclesSnapshotUnshared(signal?: AbortSignal) {
+  const version=++pksSnapshotVersion;
+  const remember=(source:string,rows:any[])=>{pksSnapshotSelection.remember(source,rows,version,Date.now());return rows;};
   const panelFeedUrl = isNative() ? 'http://185.214.67.112/api/its/vehicles' : '/api/pks/vehicles';
   const panelRequest = requestJson<any>(panelFeedUrl, {
     signal,
@@ -46,14 +51,15 @@ async function fetchPksVehiclesSnapshotUnshared(signal?: AbortSignal) {
           Accept: 'application/json',
         }
       : { Accept: 'application/json' },
-  }).then((feed) => Array.isArray(feed?.items) ? feed.items : Array.isArray(feed) ? feed : []);
-  const directRequest = requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal });
+  }).then((feed) => remember('panel',Array.isArray(feed?.items) ? feed.items : Array.isArray(feed) ? feed : []));
+  const directRequest = requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal }).then(rows=>remember('direct',rows));
   try {
-    return await Promise.any([panelRequest, directRequest].map(async (request) => {
+    const rows=await Promise.any([panelRequest, directRequest].map(async (request) => {
       const items = await request;
       if (!Array.isArray(items) || items.length === 0) throw new Error('Empty PKS snapshot');
       return items;
     }));
+    return pksSnapshotSelection.select(rows,Date.now());
   } catch (error) {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
   }

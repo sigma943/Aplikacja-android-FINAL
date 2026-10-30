@@ -1,5 +1,7 @@
 
 import type {Vehicle} from '@/components/BusMap';
+import {warsawDateIso} from '@/lib/transit-time';
+import {transitTimestamp} from '@/lib/bus-operating-state';
 
 import {type TransportProviderId} from '@/lib/pks-client';
 
@@ -52,6 +54,20 @@ const hasUsableRouteDetails = (vehicle?: Vehicle | null) => {
   return false;
 };
 
+/** Course IDs are separate namespaces; a matching trip pattern does not permit
+ * details from a different journey, direction or service day. */
+export function sameVehicleCourse(base:Vehicle,details:Vehicle){
+  for(const key of ['provider','id','tripId','journeyId','serviceId','direction'] as const){
+    const a=base[key],b=details[key];
+    if(a!=null&&b!=null&&String(a).trim()&&String(b).trim()&&String(a).trim()!==String(b).trim())return false;
+  }
+  // GPS dates in ISO UTC can straddle a service midnight without a new course;
+  // compare the provider schedule day instead when both are available.
+  const day=(v:Vehicle)=>{const at=transitTimestamp((v.routeStops?.length?v.routeStops:v.schedule||[]).find(s=>s.planned)?.planned);return Number.isFinite(at)?warsawDateIso(0,new Date(at)):'';};
+  const x=day(base),y=day(details);
+  return !(x&&y&&x!==y);
+}
+
 const vehicleRouteDetailsCacheKey = (vehicle: Vehicle, provider: TransportProviderId, includeInactive: boolean) => {
   const routeIdentity = String(
     vehicle.journeyId ??
@@ -63,6 +79,10 @@ const vehicleRouteDetailsCacheKey = (vehicle: Vehicle, provider: TransportProvid
     'current',
   ).trim();
   const identity = [provider, vehicle.id, routeIdentity || 'current', includeInactive ? 'inactive' : 'active'];
+  if(provider==='pks'){
+    const at=Date.parse(vehicle.lastSignalTime||'');
+    identity.push(String(vehicle.tripId??''),String(vehicle.journeyId??''),vehicle.direction||'',Number.isFinite(at)?warsawDateIso(0,new Date(at)):'');
+  }
   // PKS details contain next_stop_points as well as the static route. Refresh
   // the remaining sequence when live telemetry reports another stop passage.
   if (provider === 'pks') identity.push(String(vehicle.lastStopId ?? 'before-first-stop'));

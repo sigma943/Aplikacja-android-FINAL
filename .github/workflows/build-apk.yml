@@ -90,6 +90,10 @@ jobs:
           node test/journey-recents-browser.cjs
           node test/journey-engine-browser.cjs
 
+      - name: Verify current bus courses and stop progression
+        if: contains(github.event.pull_request.title, '[course-check]')
+        run: node --test test/pks-current-course.test.cjs test/bus-stop-passage.test.cjs test/vehicle-stop-progress.test.cjs test/shared-inflight.test.cjs test/bus-routes.test.cjs test/physical-routing-regressions.test.cjs test/vehicle-trip-finished.test.cjs
+
       - name: Build Android Web Assets
         run: npm run build:android:web
 

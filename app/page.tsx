@@ -52,7 +52,7 @@ import {fetchStopsClient, fetchVehicleDetailsClient, fetchVehiclesClient, type P
 import {useFirebase} from '@/components/FirebaseProvider';
 import {canAccessAdminDashboard,canUseJourneys} from '@/lib/admin/rbac';
 
-import {formatGpsSignalClock, hasUsableRouteDetails, vehicleRouteDetailsCacheKey, latestPksRemainingSchedule, withAlpha, getVehicleDisplayNumber} from '@/lib/home/vehicle-display';
+import {formatGpsSignalClock, hasUsableRouteDetails, sameVehicleCourse, vehicleRouteDetailsCacheKey, latestPksRemainingSchedule, withAlpha, getVehicleDisplayNumber} from '@/lib/home/vehicle-display';
 import {AVAILABLE_TRANSPORT_PROVIDERS, PKP_INTERCITY_REFRESH_MS, hasInternetReachability, sanitizeProvidersWithVisibility, readStoredTransportProviders, sameTransportProviders, VEHICLE_PROVIDER_STALE_GRACE_MS} from '@/lib/home/provider-settings';
 
 const PKS_COLOR = '#14b8a6';
@@ -447,9 +447,7 @@ export default function Home() {
 
   const mergeVehicleDetails = useCallback((base: Vehicle, details?: Vehicle | null) => {
     if (!details) return base;
-    const baseTrip=base.tripId||base.journeyId;
-    const detailTrip=details.tripId||details.journeyId;
-    if(baseTrip && detailTrip && String(baseTrip)!==String(detailTrip)) return base;
+    if(!sameVehicleCourse(base,details)) return base;
 
     const baseSchedule = base.schedule || [];
     const detailsSchedule = details.schedule || [];
@@ -500,8 +498,8 @@ export default function Home() {
       lat: base.lat,
       lon: base.lon,
       delay: base.delay ?? details.delay,
-      nextTripStartAtMs: base.provider === 'mpk_rzeszow' && base.status !== 'break' ? undefined : base.nextTripStartAtMs ?? details.nextTripStartAtMs,
-      nextTripFirstStopId: base.provider === 'mpk_rzeszow' && base.status !== 'break' ? undefined : base.nextTripFirstStopId ?? details.nextTripFirstStopId,
+      nextTripStartAtMs: base.status !== 'break' ? undefined : base.nextTripStartAtMs,
+      nextTripFirstStopId: base.status !== 'break' ? undefined : base.nextTripFirstStopId,
       status: base.status,
       statusText: base.statusText,
       dataAgeSec: base.dataAgeSec,
