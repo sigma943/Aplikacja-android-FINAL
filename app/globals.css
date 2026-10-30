@@ -1724,7 +1724,7 @@ body :is([contenteditable="true"],[contenteditable=""]) * { -webkit-user-select:
   overflow-wrap:anywhere;
   text-shadow:none;
 }
-@layer landscape-materials {
+@layer landscape-reading-text {
  html[data-landscape-theme='on'] .scene-message {
   background:var(--landscape-solid)!important;
   color:var(--landscape-ink)!important;
