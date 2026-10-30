@@ -76,3 +76,16 @@ test('an uncontradicted future PKS course retains its real countdown, including 
   assert.equal(result.status,'break');assert.equal(result.nextTripStartAtMs,now+92*60_000);
  }
 });
+
+test('actual bus panel labels a confirmed future assignment as the next course, not current direction',()=>{
+ const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+ const Panel=load('components/BusDetailsPanel.tsx').default;
+ const props={preview:true,busDrag:{height:200,syncHeight:()=>{}},busHeaderRef:{current:null},isBusPanelExpanded:false,setIsBusPanelExpanded:()=>{},
+  transparentUI:true,isDark:false,mapDetailPanel:'',mapDetailContent:'',mapDetailCard:'',mapDetailDivider:'',mapDetailLine:'',selectedBusHeaderStyle:{},
+  selectedVehicleIsTrain:false,selectedBusStatusLabel:'Przerwa',selectedBusGpsSignalClock:'14:51',breakCountdownLabel:'92:37',selectedBusIsWaitingForDeparture:true,
+  selectedBusScheduleLoading:false,selectedBusDisplayedStops:[],selectedStopId:null,selectedVehicleColor:'#14b8a6',textSub:'',textMain:'',themeColor:'#14b8a6',openVehicleRouteStop:()=>{},formatScheduleStopName:n=>n};
+ const vehicle={id:'117',provider:'pks',direction:'Gwoźnica Górna',status:'break',nextTripStartAtMs:Date.now()+92*60_000};
+ const render=v=>renderToStaticMarkup(React.createElement(Panel,{...props,selectedBus:v}));
+ assert.match(render(vehicle),/Następny kurs:/);
+ assert.match(render({...vehicle,direction:'Rzeszów D.A.',status:'active',nextTripStartAtMs:undefined}),/Kierunek:/);
+});
