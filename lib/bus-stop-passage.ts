@@ -2,17 +2,18 @@ import type {Vehicle,StopSchedule} from './transport/vehicle';
 import {readBusCoordinates} from './bus-coordinates';
 import {transitTimestamp} from './bus-operating-state';
 import {distanceMeters} from './transport/vehicle-speed';
+import {prepareBusRouteProgress,routeConfirmedPassedStop,type BusRouteProgress} from './bus-route-progress';
 
 type Point = [number,number];
 type Visit = {index:number;point:Point;nextDistance?:number};
-type Progress = {course:string;passed:number;signal:number;point?:Point;visit?:Visit};
+type Progress = {course:string;passed:number;signal:number;point?:Point;visit?:Visit;reliable?:boolean;route?:Point[];routeKey?:string;stopPointsKey?:string;model?:BusRouteProgress;modelSignal?:number};
 const point = (value:{lat?:number;lon?:number}):Point|undefined => {
   const position=readBusCoordinates(value.lat,value.lon);
   return position ? [position.lat,position.lon] : undefined;
 };
 
-/** A clock/ETA is never passage evidence. Observe arrival and subsequent movement
- * away on the same course; ambiguous, stale or jumping GPS keeps the stop visible. */
+/** A clock/ETA is never passage evidence. Use an unambiguous supplied route or
+ * observe a stop visit; stale, ambiguous or jumping GPS keeps the stop visible. */
 export function createBusStopPassageTracker() {
   const progress=new Map<string,Progress>();
   return (vehicle:Vehicle,stops:StopSchedule[],nowMs:number):StopSchedule[] => {
@@ -35,11 +36,12 @@ export function createBusStopPassageTracker() {
     }
     const position=point(vehicle),signal=vehicle.positionObservedAtMs??transitTimestamp(vehicle.lastSignalTime);
     const fresh=Number.isFinite(signal)&&nowMs-signal<=120_000&&signal<=nowMs+5_000&&
-      (vehicle.dataAgeSec??0)<=120&&!vehicle.isHistorical&&(!vehicle.status||vehicle.status==='active');
-    if(!fresh||!position)state.visit=undefined;
+      (vehicle.dataAgeSec??0)<=120&&!vehicle.isHistorical&&vehicle.positionQuality!=='estimated'&&(!vehicle.status||vehicle.status==='active');
+    if(!fresh||!position){state.visit=undefined;state.reliable=false;}
     else if(signal>state.signal) {
       const elapsed=(signal-state.signal)/1000;
       const jump=state.point&&distanceMeters(position,state.point)/elapsed>140/3.6;
+      state.reliable=!jump;
       if(jump||elapsed>120)state.visit=undefined;
       if(!jump) {
         const visit=state.visit;
@@ -64,6 +66,22 @@ export function createBusStopPassageTracker() {
       }
       state.signal=signal;
       state.point=position;
+    }
+    // Map geometry may arrive after the panel has consumed this same GPS fix.
+    // Retain its course-scoped model for the panel, but never bypass jump checks.
+    if(fresh&&position&&state.reliable&&signal===state.signal&&state.point&&distanceMeters(position,state.point)<1){
+      const stopPointsKey=JSON.stringify(stops.map(stop=>[stop.lat,stop.lon]));
+      if(state.stopPointsKey!==stopPointsKey){state.model=undefined;state.routeKey=undefined;state.modelSignal=undefined;}
+      if(vehicle.routeGeometry?.length&&(!state.routeKey||state.route!==vehicle.routeGeometry||state.stopPointsKey!==stopPointsKey)){
+        const routeKey=JSON.stringify([vehicle.routeGeometry,stopPointsKey]);
+        if(state.routeKey!==routeKey){state.model=prepareBusRouteProgress(vehicle.routeGeometry,stops);state.routeKey=routeKey;state.modelSignal=undefined;}
+        state.route=vehicle.routeGeometry;
+      }
+      state.stopPointsKey=stopPointsKey;
+      if(state.model&&state.modelSignal!==signal){
+        state.passed=Math.max(state.passed,routeConfirmedPassedStop(state.model,position,state.passed));
+        state.modelSignal=signal;
+      }
     }
     return stops.slice(state.passed+1).map(stop=>({...stop,isPast:false}));
   };

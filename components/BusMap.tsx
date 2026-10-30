@@ -148,10 +148,6 @@ function BusMap({
     if (routeStops.length > 0) return dedupeStableStopIds(routeStops);
     return dedupeStableStopIds((selectedVehicle?.schedule || []).map((s: any) => s.id));
   }, [selectedVehicle?.routePath,selectedVehicle?.routeStops,selectedVehicle?.schedule]);
-  const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
-    ? routeStopIds
-    : selectedVehicle ? upcomingTimedVehicleStops(selectedVehicle, clockMs||Date.now()).map(stop => String(stop.id)) : [];
-  const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
   const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
     const next: RouteGeometryStop[] = [];
     for (let index = 0; index < routeStopIds.length; index += 1) {
@@ -179,7 +175,6 @@ function BusMap({
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const highlightedStop = highlightedStopId ? routeStopsData[highlightedStopId] : undefined;
   const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider,highlightedStop);
-  const routeCatalogIds=useMemo(()=>selectedVehicle?routeCatalogStopIds(mapStops,visibleRouteStopIds,routeStopsData,selectedVehicle.provider):new Set<string>(),[mapStops,visibleRouteStopIdsKey,routeStopsData,selectedVehicle?.provider,Boolean(selectedVehicle),platformRevision]);
   const selectedStopColor = selectedVehicle?.provider === 'pkp_intercity' ? themeColor
     : selectedVehicle ? selectedRouteColor
     : highlightedStop ? mapStopColor({name: highlightedStop.n}) : themeColor;
@@ -201,6 +196,11 @@ function BusMap({
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
   const suppliedRouteKey=useMemo(()=>JSON.stringify(selectedVehicle?.routeGeometry||[]),[selectedVehicle?.routeGeometry]);
   const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:EMPTY_ROUTE_POINTS;
+  const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
+    ? routeStopIds
+    : selectedVehicle ? upcomingTimedVehicleStops(selectedVehicle, clockMs||Date.now(),currentGeometry).map(stop => String(stop.id)) : [];
+  const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
+  const routeCatalogIds=useMemo(()=>selectedVehicle?routeCatalogStopIds(mapStops,visibleRouteStopIds,routeStopsData,selectedVehicle.provider):new Set<string>(),[mapStops,visibleRouteStopIdsKey,routeStopsData,selectedVehicle?.provider,Boolean(selectedVehicle),platformRevision]);
   const [mpkShapePins,setMpkShapePins]=useState<Array<[number,number]>>([]);
   useEffect(()=>{
     if(selectedVehicle?.provider!=='mpk_rzeszow')return;

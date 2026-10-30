@@ -59,3 +59,75 @@ test('map and bus panel timing helper ignores Marcel time-derived isPast flags',
  const v=bus('marcel',22,now,{routeStops:stops.map(s=>({...s,isPast:true})),schedule:[]});
  assert.deepEqual(upcomingTimedVehicleStops(v,now+600_000).map(s=>s.id),[1,2,3]);
 });
+
+const geometry=stops.map(s=>[s.lat,s.lon]);
+for(const provider of ['mpk_rzeszow','marcel']){
+ test(`${provider}: opening mid-course removes already passed stops without an observed arrival`,()=>{
+  const track=createBusStopPassageTracker();
+  assert.deepEqual(track(bus(provider,22.015,now,{routeGeometry:geometry}),stops,now).map(s=>s.id),[3]);
+ });
+ test(`${provider}: sparse fixes can pass a stop without hitting its 60 metre circle`,()=>{
+  const track=createBusStopPassageTracker(),v=(lon,t)=>bus(provider,lon,now+t,{routeGeometry:geometry});
+  assert.deepEqual(track(v(22.0085,0),stops,now).map(s=>s.id),[2,3]);
+  assert.deepEqual(track(v(22.0115,30_000),stops,now+30_000).map(s=>s.id),[3]);
+ });
+ test(`${provider}: approach, a road bend and a current stop remain visible despite passed ETAs`,()=>{
+  for(const lon of [22.008,22.0095,22.01,22.0105]){
+   const track=createBusStopPassageTracker();
+   assert.deepEqual(track(bus(provider,lon,now,{routeGeometry:geometry}),stops,now).map(s=>s.id),[2,3],String(lon));
+  }
+  const bend=[[50,22],[50.01,22],[50.01,22.01],[50,22.01],[50,22.02]];
+  const track=createBusStopPassageTracker();
+  assert.deepEqual(track({...bus(provider,22.008),lat:50.01,routeGeometry:bend},stops,now).map(s=>s.id),[2,3]);
+ });
+ test(`${provider}: stale, estimated, off-route and jumping positions cannot seed route passage`,()=>{
+  for(const extra of [{dataAgeSec:121},{isHistorical:true},{positionQuality:'estimated'},{status:'break'},{lastSignalTime:new Date(now-121_000).toISOString()}]){
+   const track=createBusStopPassageTracker();
+   assert.deepEqual(track(bus(provider,22.015,now,{routeGeometry:geometry,...extra}),stops,now).map(s=>s.id),[1,2,3]);
+  }
+  const off=createBusStopPassageTracker();
+  assert.deepEqual(off({...bus(provider,22.015),lat:50.01,routeGeometry:geometry},stops,now).map(s=>s.id),[1,2,3]);
+  const jump=createBusStopPassageTracker();jump(bus(provider,21.999,now,{routeGeometry:geometry}),stops,now);
+  const jumped=bus(provider,22.015,now+1000,{routeGeometry:geometry});
+  assert.deepEqual(jump(jumped,stops,now+1000).map(s=>s.id),[1,2,3]);
+  assert.deepEqual(jump(jumped,stops,now+1000).map(s=>s.id),[1,2,3],'second consumer cannot bypass the jump check');
+ });
+ test(`${provider}: crossing and overlapping outward/return geometry remain ambiguous`,()=>{
+  for(const route of [
+   [[50,22],[50,22.02],[50.01,22.02],[50.01,22],[50,22],[50,22.02]],
+   [[50,22],[50,22.02],[50,22]],
+  ]){
+   const track=createBusStopPassageTracker();
+   assert.deepEqual(track(bus(provider,22.015,now,{routeGeometry:route}),stops,now).map(s=>s.id),[1,2,3]);
+  }
+ });
+ test(`${provider}: late map geometry shares progress with the panel on the same GPS snapshot`,()=>{
+  const track=createBusStopPassageTracker(),v=bus(provider,22.015);
+  assert.deepEqual(track(v,stops,now).map(s=>s.id),[1,2,3]);
+  assert.deepEqual(track({...v,routeGeometry:geometry},stops,now).map(s=>s.id),[3]);
+  assert.deepEqual(track(v,stops,now).map(s=>s.id),[3]);
+  assert.deepEqual(track({...v,tripId:'new'},stops,now).map(s=>s.id),[1,2,3],'course changes clear inherited geometry');
+ });
+}
+
+test('map geometry is forwarded through the timing helper used by map and panel',()=>{
+ const {upcomingTimedVehicleStops}=load('lib/vehicle-stop-timing.ts');
+ const vehicle=bus('mpk_rzeszow',22.015,now,{id:'late-map-geometry',routeStops:stops});
+ assert.deepEqual(upcomingTimedVehicleStops(vehicle,now).map(s=>s.id),[1,2,3]);
+ assert.deepEqual(upcomingTimedVehicleStops(vehicle,now,geometry).map(s=>s.id),[3]);
+ assert.deepEqual(upcomingTimedVehicleStops(vehicle,now).map(s=>s.id),[3]);
+});
+
+test('clock renders and alternating map/panel consumers reuse route analysis and the same GPS projection',()=>{
+ const real=load('lib/bus-route-progress.ts');let preparations=0,projections=0;
+ const {createBusStopPassageTracker}=load('lib/bus-stop-passage.ts',{'./bus-route-progress':{
+  ...real,prepareBusRouteProgress:(...args)=>{preparations++;return real.prepareBusRouteProgress(...args);},
+  routeConfirmedPassedStop:(...args)=>{projections++;return real.routeConfirmedPassedStop(...args);},
+ }});
+ const track=createBusStopPassageTracker(),v=bus('mpk_rzeszow',22.015);
+ for(let i=0;i<240;i++){
+  track({...v,routeGeometry:geometry.map(p=>[...p])},stops,now+i*100);
+  track(v,stops,now+i*100);
+ }
+ assert.equal(preparations,1);assert.equal(projections,1);
+});

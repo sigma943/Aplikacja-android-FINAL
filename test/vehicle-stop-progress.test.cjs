@@ -64,13 +64,17 @@ test('map route dots retain PKS stops until confirmed progress, regardless of th
   }
   visit(source);assert.ok(expression,'map marker visibility expression exists');
   const script=ts.transpile(`const result = ${expression};`,{target:ts.ScriptTarget.ES2022});
-  const visible=new Function('selectedVehicle','routeStopIds','routeStopsSource','clockMs','upcomingTimedVehicleStops','upcomingVehicleStops',script+';return result;');
+  const visible=new Function('selectedVehicle','routeStopIds','routeStopsSource','clockMs','upcomingTimedVehicleStops','upcomingVehicleStops','currentGeometry',script+';return result;');
   const timing=loadTs('lib/vehicle-stop-timing.ts');
   const upcoming=loadTs('lib/vehicle-upcoming-stops.ts').upcomingVehicleStops;
-  const ids=(bus,clock)=>visible(bus,[1,2,3],timing.timedVehicleStops(bus),clock,upcomingTimedVehicleStops,upcoming);
+  const ids=(bus,clock)=>visible(bus,[1,2,3],timing.timedVehicleStops(bus),clock,upcomingTimedVehicleStops,upcoming,bus.routeGeometry||[]);
   assert.deepEqual(ids(vehicle,now),['2','3']);
   assert.deepEqual(ids({...vehicle,delay:-480},now+600_000),['2','3']);
   assert.deepEqual(ids({...vehicle,lastStopId:2,schedule:[later]},now),['3']);
   assert.deepEqual(ids({...vehicle,provider:'mpk_rzeszow'},now),['2','3']);
   assert.deepEqual(ids({...vehicle,provider:'pkp_intercity',type:'train'},now),[1,2,3]);
+  const gpsStops=[previous,next,later].map((stop,i)=>({...stop,lat:50,lon:22+i*.01}));
+  const mpk={...vehicle,id:'830-geometry-integration',provider:'mpk_rzeszow',tripId:'15-Olbrachta',lastStopId:undefined,
+    lat:50,lon:22.015,lastSignalTime:new Date(now).toISOString(),routeStops:gpsStops,routeGeometry:gpsStops.map(s=>[s.lat,s.lon])};
+  assert.deepEqual(ids(mpk,now),['3'],'actual marker expression passes current route geometry to GPS progress');
 });

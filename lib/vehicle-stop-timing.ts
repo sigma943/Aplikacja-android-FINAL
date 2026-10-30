@@ -56,7 +56,7 @@ export function timedVehicleStops(vehicle:Vehicle):StopSchedule[] {
 
 /** PKS next_stop_points is the remaining sequence at the last GPS update.
  * Timetable/predicted times are estimates, not confirmation of a stop passage. */
-export function upcomingTimedVehicleStops(vehicle:Vehicle,nowMs:number):StopSchedule[] {
+export function upcomingTimedVehicleStops(vehicle:Vehicle,nowMs:number,routeGeometry?:[number,number][]):StopSchedule[] {
   if(vehicle.provider==='pks') {
     if(vehicle.schedule?.length) {
       return upcomingVehicleStops(timedVehicleStops({...vehicle,routeStops:undefined}),undefined);
@@ -64,7 +64,7 @@ export function upcomingTimedVehicleStops(vehicle:Vehicle,nowMs:number):StopSche
     return upcomingVehicleStops(timedVehicleStops(vehicle),undefined,vehicle.lastStopId);
   }
   if(vehicle.provider==='mpk_rzeszow'||vehicle.provider==='marcel') {
-    return remainingGpsBusStops(vehicle,orderedVehicleStops(timedVehicleStops(vehicle)),nowMs);
+    return remainingGpsBusStops(routeGeometry?.length?{...vehicle,routeGeometry}:vehicle,orderedVehicleStops(timedVehicleStops(vehicle)),nowMs);
   }
   return upcomingVehicleStops(timedVehicleStops(vehicle),nowMs,vehicle.lastStopId);
 }
