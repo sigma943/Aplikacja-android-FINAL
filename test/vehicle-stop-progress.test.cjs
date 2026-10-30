@@ -46,10 +46,10 @@ test('PKS route-only fallback uses reported progress, including before the first
   assert.deepEqual(upcomingTimedVehicleStops({...vehicle,schedule:[]},now).map(s=>s.id),[2,3]);
   assert.deepEqual(upcomingTimedVehicleStops({...vehicle,schedule:[],lastStopId:undefined},now).map(s=>s.id),[1,2,3]);
 });
-test('other bus providers retain their current timetable and explicit passage behaviour',()=>{
+test('MPK and Marcel retain stops after ETAs but respect an explicitly reported last stop',()=>{
   for(const provider of ['mpk_rzeszow','marcel']) {
-    assert.deepEqual(upcomingTimedVehicleStops({...vehicle,provider},now).map(s=>s.id),[3]);
-    assert.deepEqual(upcomingTimedVehicleStops({...vehicle,provider,routeStops:[previous,{...next,isPast:true},later]},now-60_000).map(s=>s.id),[3]);
+    assert.deepEqual(upcomingTimedVehicleStops({...vehicle,provider},now).map(s=>s.id),[2,3]);
+    assert.deepEqual(upcomingTimedVehicleStops({...vehicle,provider,routeStops:[previous,{...next,isPast:true},later]},now-60_000).map(s=>s.id),[2,3]);
   }
 });
 
@@ -71,6 +71,6 @@ test('map route dots retain PKS stops until confirmed progress, regardless of th
   assert.deepEqual(ids(vehicle,now),['2','3']);
   assert.deepEqual(ids({...vehicle,delay:-480},now+600_000),['2','3']);
   assert.deepEqual(ids({...vehicle,lastStopId:2,schedule:[later]},now),['3']);
-  assert.deepEqual(ids({...vehicle,provider:'mpk_rzeszow'},now),['3']);
+  assert.deepEqual(ids({...vehicle,provider:'mpk_rzeszow'},now),['2','3']);
   assert.deepEqual(ids({...vehicle,provider:'pkp_intercity',type:'train'},now),[1,2,3]);
 });

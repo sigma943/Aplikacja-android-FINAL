@@ -4,7 +4,8 @@ import {transitTimestamp} from './bus-operating-state';
 import {warsawClock,warsawDateIso} from './transit-time';
 import {busDelayMinutes} from './bus-punctuality';
 import {marcelDepartureFromVehicle} from './marcel-stop-punctuality';
-import {upcomingVehicleStops} from './vehicle-upcoming-stops';
+import {upcomingVehicleStops,orderedVehicleStops} from './vehicle-upcoming-stops';
+import {remainingGpsBusStops} from './bus-stop-passage';
 
 function vehicleStopTiming(vehicle:Vehicle,stop:StopSchedule) {
   const planned=transitTimestamp(stop.planned), explicit=transitTimestamp(stop.real);
@@ -61,6 +62,9 @@ export function upcomingTimedVehicleStops(vehicle:Vehicle,nowMs:number):StopSche
       return upcomingVehicleStops(timedVehicleStops({...vehicle,routeStops:undefined}),undefined);
     }
     return upcomingVehicleStops(timedVehicleStops(vehicle),undefined,vehicle.lastStopId);
+  }
+  if(vehicle.provider==='mpk_rzeszow'||vehicle.provider==='marcel') {
+    return remainingGpsBusStops(vehicle,orderedVehicleStops(timedVehicleStops(vehicle)),nowMs);
   }
   return upcomingVehicleStops(timedVehicleStops(vehicle),nowMs,vehicle.lastStopId);
 }
