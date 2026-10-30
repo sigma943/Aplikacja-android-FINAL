@@ -94,6 +94,10 @@ jobs:
         if: contains(github.event.pull_request.title, '[course-check]')
         run: node --test test/pks-current-course.test.cjs test/bus-stop-passage.test.cjs test/vehicle-stop-progress.test.cjs test/shared-inflight.test.cjs test/bus-routes.test.cjs test/physical-routing-regressions.test.cjs test/vehicle-trip-finished.test.cjs
 
+      - name: Verify Niebylec routes in both directions
+        if: contains(github.event.pull_request.title, '[route-check]')
+        run: node --test test/marcel-niebylec-route.test.cjs test/marcel-route-assets.test.cjs test/marcel-road-routing.test.cjs test/journey-geometry.test.cjs test/physical-routing-regressions.test.cjs test/road-route-quality.test.cjs test/route-cache-performance.test.cjs test/vehicle-route-validation.test.cjs test/bus-stop-passage.test.cjs
+
       - name: Build Android Web Assets
         run: npm run build:android:web
 
