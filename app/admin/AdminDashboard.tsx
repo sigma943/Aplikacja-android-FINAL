@@ -126,12 +126,12 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     const q = query(collection(db, 'devices'), limit(500));
     const unsub = onSnapshot(q, (snap) => {
       const data: ({ id: string } & DeviceData)[] = snap.docs.map((d) => {
-        const raw = d.data() as any;
+        const raw = d.data({serverTimestamps:'estimate'}) as any;
         return { id: d.id, ...(raw as DeviceData) };
       });
       setDevicesError(null);
       setStatisticsDevicesReady(true);
-      setDevicesData(dedupeDevicesByInstallation(data));
+      setDevicesData(dedupeDevicesByInstallation(data,user?.uid));
     }, (e: unknown) => {
       console.error('[AdminDashboard] Firestore list devices failed', e);
       const ex = e as any;

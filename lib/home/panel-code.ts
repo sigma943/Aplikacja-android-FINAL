@@ -4,5 +4,6 @@ export const loadTransportSelectorCode=()=>import('@/components/TransportSelecto
 export const loadBusDetailsCode=()=>import('@/components/BusDetailsPanel');
 export const loadTrainDetailsCode=()=>import('@/components/TrainDetailsPanel');
 export function warmPanelCode(){
-  return Promise.allSettled([loadOptionsCode(),loadTransportSelectorCode(),loadBusDetailsCode(),loadTrainDetailsCode()]);
+  // Rail details are loaded on selection; do not parse them during bus startup.
+  return Promise.allSettled([loadOptionsCode(),loadTransportSelectorCode(),loadBusDetailsCode()]);
 }

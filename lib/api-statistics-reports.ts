@@ -57,12 +57,17 @@ export function readApiReportAcknowledgements(value:unknown,now=Date.now()):Map<
 /** Stops between writes on hide/offline; an already started write may finish. */
 export async function uploadApiStatisticsReports(reports:ApiStatisticsReport[],sent:Map<string,string>,available:()=>boolean,write:(id:string,report:ApiStatisticsReport)=>Promise<unknown>){
   let writes=0;
-  for(const report of reports){
+  let failure:unknown;
+  // Current counters must not wait behind a failed historical report.
+  for(const report of [...reports].sort((a,b)=>b.date.localeCompare(a.date))){
     if(!available())break;
     const id=`${report.stream}_${report.date}`,fingerprint=apiReportFingerprint(report);
     if(sent.get(id)===fingerprint)continue;
-    await write(id,report);
-    sent.set(id,fingerprint);writes++;
+    try {
+      await write(id,report);
+      sent.set(id,fingerprint);writes++;
+    } catch(error) { failure??=error; }
   }
+  if(failure)throw failure;
   return writes;
 }

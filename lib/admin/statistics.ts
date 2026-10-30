@@ -56,7 +56,8 @@ export function apiStatistics(days:ApiStatisticsDay[],range:StatisticsRange,star
       providers[name].requests+=bucket.requests;providers[name].errors+=bucket.errors;providers[name].latencyMs+=bucket.latencyMs;
       requests+=bucket.requests;errors+=bucket.errors;dailyLatency+=bucket.latencyMs;
     }
-    return {date,value:firstDate&&date>=firstDate?requests:null,errors:firstDate&&date>=firstDate?errors:null,
+    const measured=Boolean(record&&firstDate&&date>=firstDate);
+    return {date,value:measured?requests:null,errors:measured?errors:null,
       averageMs:requests?Math.round(dailyLatency/requests):null,successRate:requests?(requests-errors)*100/requests:null};
   });
   const requests=Object.values(providers).reduce((sum,p)=>sum+p.requests,0),errors=Object.values(providers).reduce((sum,p)=>sum+p.errors,0);

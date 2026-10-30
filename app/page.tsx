@@ -121,18 +121,7 @@ export default function Home() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  useEffect(()=>{
-    if(isLoading)return;
-    let cancelled=false,idle:number|undefined;
-    const warm=()=>{if(!cancelled)void warmPanelCode();};
-    // An idle slot can occur while the first map/catalog is still loading.
-    // Keep optional panel parsing out of that critical startup window.
-    const timer=setTimeout(()=>{
-      if('requestIdleCallback' in window)idle=window.requestIdleCallback(warm,{timeout:2000});
-      else warm();
-    },2000);
-    return()=>{cancelled=true;clearTimeout(timer);if(idle!==undefined)window.cancelIdleCallback(idle);};
-  },[isLoading]);
+
   const [appLoadTimedOut, setAppLoadTimedOut] = useState(false);
   const [filterRoute, setFilterRoute] = useState('');
   const [activeProviders, setActiveProviders] = useState<TransportProviderId[]>([]);
@@ -164,6 +153,21 @@ export default function Home() {
   const [isAppForeground, setIsAppForeground] = useState<boolean>(
     typeof document === 'undefined' ? true : document.visibilityState === 'visible',
   );
+
+  const [mapReady,setMapReady]=useState(false);
+  const markMapReady=useCallback(()=>setMapReady(true),[]);
+  useEffect(()=>{
+    if(isLoading||!mapReady||!isAppForeground)return;
+    let cancelled=false,idle:number|undefined;
+    const warm=()=>{if(!cancelled)void warmPanelCode();};
+    // An idle slot can occur while the first map/catalog is still loading.
+    // Keep optional panel parsing out of that critical startup window.
+    const timer=setTimeout(()=>{
+      if('requestIdleCallback' in window)idle=window.requestIdleCallback(warm,{timeout:2000});
+      else warm();
+    },2000);
+    return()=>{cancelled=true;clearTimeout(timer);if(idle!==undefined)window.cancelIdleCallback(idle);};
+  },[isLoading,mapReady,isAppForeground]);
 
   // Customization States
   const [themeColor, setThemeColor] = useState('#00A3A2');
@@ -1228,6 +1232,7 @@ export default function Home() {
          {/* ============== MAP VIEW ============== */}
          <div data-map-canvas className="absolute inset-0 z-0" inert={activeTab !== 'map'}>
             <BusMap
+               onReady={markMapReady}
                active={activeTab==='map'||!['dark-cosmos','dark-mountains'].includes(actualTheme)}
                clockMs={selectedBus?now:0}
                vehicles={filteredVehicles} 

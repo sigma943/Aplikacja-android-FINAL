@@ -32,11 +32,14 @@ import {MapSizeSync, MapStateTracker, MapCenterer, MapClickListener} from '@/com
 import {VehicleMarkerLayer} from '@/components/map/VehicleMarkers';
 import {SelectedStopPin, CatalogStopsLayer, RouteStopsLayer} from '@/components/map/StopLayers';
 
+const EMPTY_ROUTE_POINTS:[number,number][]=[];
+
 const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v16-complete-course-recovery';
 
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 
 interface BusMapProps {
+  onReady?:()=>void;
   active?:boolean;
   clockMs?:number;
   mapStops?: Stop[];
@@ -57,6 +60,7 @@ interface BusMapProps {
 }
 
 function BusMap({
+  onReady,
   active=true,
   clockMs,
   mapStops = [],
@@ -143,7 +147,7 @@ function BusMap({
     const routeStops = (selectedVehicle?.routeStops || []).map((s: any) => s.id);
     if (routeStops.length > 0) return dedupeStableStopIds(routeStops);
     return dedupeStableStopIds((selectedVehicle?.schedule || []).map((s: any) => s.id));
-  }, [selectedVehicle]);
+  }, [selectedVehicle?.routePath,selectedVehicle?.routeStops,selectedVehicle?.schedule]);
   const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
     ? routeStopIds
     : selectedVehicle ? upcomingTimedVehicleStops(selectedVehicle, clockMs||Date.now()).map(stop => String(stop.id)) : [];
@@ -171,6 +175,7 @@ function BusMap({
       ? { ...vehicle, delay: selectedVehicle.delay } : vehicle),
   [vehicles, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.delay]);
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
+  const routeCoordinatesKey=useMemo(()=>JSON.stringify(routeGeometryStops.map(stop=>[stop.id,stop.lat,stop.lon])),[routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const highlightedStop = highlightedStopId ? routeStopsData[highlightedStopId] : undefined;
   const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider,highlightedStop);
@@ -187,14 +192,15 @@ function BusMap({
   );
   const routeMode = selectedVehicle?.provider === 'pkp_intercity' ? 'rail' : 'road';
   const routeGeometryVersion = routeMode === 'rail' ? RAIL_ROUTE_GEOMETRY_CACHE_VERSION : ROAD_ROUTE_GEOMETRY_CACHE_VERSION;
-  const routeKey = selectedVehicle
-    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops, String(selectedVehicle.tripId || selectedVehicle.journeyId || selectedVehicle.serviceId || selectedVehicle.brigadeName || selectedVehicle.routeId || 'default'))
-    : '';
+  const routeVariant=String(selectedVehicle?.tripId || selectedVehicle?.journeyId || selectedVehicle?.serviceId || selectedVehicle?.brigadeName || selectedVehicle?.routeId || 'default');
+  const routeKey = useMemo(()=>selectedVehicle
+    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops,routeVariant)
+    : '',[Boolean(selectedVehicle),routeMode,selectedVehicle?.provider,routeLine,routeDirection,routeCoordinatesKey,routeVariant]);
   // Both the rendered identity and persisted geometry distinguish courses.
   const routeCourse = String(selectedVehicle?.tripId || selectedVehicle?.journeyId || '');
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
-  const suppliedRouteKey=JSON.stringify(selectedVehicle?.routeGeometry||[]);
-  const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
+  const suppliedRouteKey=useMemo(()=>JSON.stringify(selectedVehicle?.routeGeometry||[]),[selectedVehicle?.routeGeometry]);
+  const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:EMPTY_ROUTE_POINTS;
   const [mpkShapePins,setMpkShapePins]=useState<Array<[number,number]>>([]);
   useEffect(()=>{
     if(selectedVehicle?.provider!=='mpk_rzeszow')return;
@@ -202,7 +208,7 @@ function BusMap({
     void officialBusStopPoints('mpk_rzeszow').then(pins=>{if(active)setMpkShapePins(pins);}).catch(()=>{});
     return()=>{active=false;};
   },[selectedVehicle?.provider]);
-  const paintedGeometry=useMemo(()=>mpkRouteForPaint(currentGeometry,selectedVehicle?.provider,[...mpkShapePins,...routeGeometryStops.map(stop=>[stop.lat,stop.lon] as [number,number])]),[currentGeometry,selectedVehicle?.provider,mpkShapePins,routeGeometryStops]);
+  const paintedGeometry=useMemo(()=>mpkRouteForPaint(currentGeometry,selectedVehicle?.provider,[...mpkShapePins,...routeGeometryStops.map(stop=>[stop.lat,stop.lon] as [number,number])]),[currentGeometry,selectedVehicle?.provider,mpkShapePins,routeCoordinatesKey]);
 
 
   useEffect(() => {
@@ -401,6 +407,7 @@ function BusMap({
         }
       `}</style>
       <MapContainer
+        whenReady={onReady}
         center={initMapState.center}
         zoom={initMapState.zoom}
         scrollWheelZoom={true}
