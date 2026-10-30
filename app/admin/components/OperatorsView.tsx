@@ -296,8 +296,8 @@ function OperatorCard({
              <PermissionIcon active={operator.permissions.monitor} icon={<Monitor size={14} />} title="Urządzenia" />
              <PermissionIcon active={operator.permissions.shield} icon={<Shield size={14} />} title="Role i operatorzy" />
              <PermissionIcon active={operator.permissions.users} icon={<Users size={14} />} title="Zarządzanie użytkownikami" />
-             <PermissionIcon active={operator.permissions.group} icon={<Lock size={14} />} title="Bany / Blokady" />
-             <PermissionIcon active={operator.permissions.ban} icon={<Hammer size={14} />} title="Możliwość banowania" />
+             <PermissionIcon active={operator.permissions.group} icon={<Lock size={14} />} title="Blokady" />
+             <PermissionIcon active={operator.permissions.ban} icon={<Hammer size={14} />} title="Nakładanie blokad" />
              <PermissionIcon active={operator.permissions.logs} icon={<Activity size={14} />} title="Dostęp do logów" />
              <PermissionIcon active={operator.permissions.globalSettings} icon={<Globe size={14} />} title="Ustawienia globalne (podgląd)" />
              <PermissionIcon active={operator.permissions.globalSettingsEdit} icon={<SlidersHorizontal size={14} />} title="Edycja ustawień globalnych" />
@@ -462,8 +462,8 @@ disableStops: false,
     { key: 'shield', label: 'Role i operatorzy', desc: 'Tworzenie i podgląd operatorów', icon: <Shield size={16} /> },
     { key: 'canChangeRoles', label: 'Nadawanie rang', desc: 'Pozwala zmieniac role uzytkownikow', icon: <UserCog size={16} /> },
     { key: 'users', label: 'Zarządzanie użytkownikami', desc: 'Sekcja z uprawnieniami użytkowników', icon: <Users size={16} /> },
-    { key: 'group', label: 'Bany / Blokady', desc: 'Historia ograniczonych urządzeń', icon: <Lock size={16} /> },
-    { key: 'ban', label: 'Możliwość banowania', desc: 'Zezwala nakładać i zdejmować bany', icon: <Hammer size={16} /> },
+    { key: 'group', label: 'Blokady', desc: 'Historia ograniczonych urządzeń', icon: <Lock size={16} /> },
+    { key: 'ban', label: 'Nakładanie blokad', desc: 'Zezwala nakładać i zdejmować blokady', icon: <Hammer size={16} /> },
     { key: 'logs', label: 'Dostęp do logów', desc: 'Przeglądanie logów systemowych', icon: <Activity size={16} /> },
     { key: 'globalSettings', label: 'Ustawienia globalne', desc: 'Widoczność sekcji i odczyt wartości', icon: <Globe size={16} /> },
     { key: 'globalSettingsEdit', label: 'Edycja ustawień globalnych', desc: 'Zapis zmian w ustawieniach systemowych', icon: <SlidersHorizontal size={16} /> },
@@ -750,8 +750,8 @@ function GlobalPermissionsModal({
 
           <div className="pks-personal-card flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
             <div>
-              <div className="text-base font-bold text-white mb-0.5">Auto-ban niezweryfikowanych</div>
-              <div className="text-xs text-slate-500">Cichy ban na zawsze dla urządzeń bez weryfikacji</div>
+              <div className="text-base font-bold text-white mb-0.5">Automatyczne blokowanie niezweryfikowanych</div>
+              <div className="text-xs text-slate-500">Cicha blokada bezterminowa urządzeń bez weryfikacji</div>
             </div>
             <button
               type="button"

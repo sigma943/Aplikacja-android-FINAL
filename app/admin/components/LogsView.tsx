@@ -461,7 +461,7 @@ function LogCard({ log }: { log: Log }) {
           <div className={cn("text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg border shrink-0",
             log.category === 'SYSTEM' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]"
           )}>
-            {log.category}
+            {log.category === 'SYSTEM' ? 'Systemowe' : 'Administracyjne'}
           </div>
         </div>
         <p className="text-sm text-slate-400 whitespace-pre-line leading-relaxed group-hover:text-slate-300 transition-colors font-medium">{log.description}</p>

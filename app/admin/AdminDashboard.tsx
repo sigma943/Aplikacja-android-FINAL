@@ -942,7 +942,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
           onClick={() => setActiveView('devices')}
           className={`absolute top-[calc(var(--native-content-top,0px)+1rem)] right-4 bg-white/10 hover:bg-white/20 ${isDarkTheme ? 'text-white' : 'text-slate-900'} px-4 py-2 rounded-xl text-sm transition-colors border border-white/10`}
         >
-          [Wróć do Dashboardu]
+          Wróć do panelu administratora
         </button>
       </div>
     );

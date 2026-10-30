@@ -1733,3 +1733,17 @@ body :is([contenteditable="true"],[contenteditable=""]) * { -webkit-user-select:
   text-shadow:none!important;
  }
 }
+
+/* Non-map tabs share one theme canvas. Glass belongs to their cards, not the
+   hidden map underneath. Artwork themes keep their existing scene layers. */
+.pks-theme-root[data-ui-theme]:not([data-ui-theme='dark-cosmos']):not([data-ui-theme='dark-mountains']) [data-native-view],
+.pks-theme-root[data-ui-theme]:not([data-ui-theme='dark-cosmos']):not([data-ui-theme='dark-mountains']) [data-native-view] :is(.transit-view,[data-full-stop-list],.connections-view:not(.connections-picker-host),[data-admin-viewport],[data-admin-view-canvas],[data-statistics-view]) {
+  background-color:var(--ui-canvas) !important;
+}
+.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-native-view]
+ :is(.transit-view,.connections-view:not(.connections-picker-host),[data-admin-view-canvas],[data-statistics-view]) {
+  background-image:var(--theme-decoration) !important;
+  background-repeat:repeat !important;background-position:left top !important;background-size:320px 180px !important;
+}
+html[data-personal-light-effects='on'] .pks-theme-root[data-ui-theme] [data-native-view]
+ :is(.transit-view,.connections-view,[data-admin-view-canvas],[data-statistics-view]) { background-image:none !important; }

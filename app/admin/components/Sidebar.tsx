@@ -6,7 +6,7 @@ const SIDEBAR_NAV_DEF: { id: string; label: string; icon: LucideIcon }[] = [
   { icon: Monitor, label: 'Urządzenia', id: 'devices' },
   { icon: BarChart3, label: 'Statystyki', id: 'statistics' },
   { icon: Users, label: 'Administratorzy', id: 'operators' },
-  { icon: Lock, label: 'Bany / Blokady', id: 'bans' },
+  { icon: Lock, label: 'Blokady', id: 'bans' },
   { icon: Activity, label: 'Logi aktywności', id: 'logs' },
   { icon: Wrench, label: 'Konserwacja', id: 'maintenance' },
 ];

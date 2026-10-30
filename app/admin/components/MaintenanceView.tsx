@@ -1,3 +1,4 @@
+import {polishCount} from '@/lib/polish-count';
 import {TransportDiagnosticsPanel} from './TransportDiagnosticsPanel';
 import {maintenanceChange,mergeMaintenanceHistory,exportMaintenanceHistory} from '@/lib/maintenance-history';
 import {AdminModalPortal} from './AdminModalPortal';
@@ -49,12 +50,14 @@ const DEFAULT_ENDPOINT: MaintenanceEndpoint = {
 };
 
 const roleLabels: Record<MaintenanceEndpointRole, string> = {
-  production: 'Production',
-  backup: 'Backup',
-  staging: 'Staging',
-  legacy: 'Legacy',
-  test: 'Test',
+  production: 'Główne',
+  backup: 'Zapasowe',
+  staging: 'Przedprodukcyjne',
+  legacy: 'Starsze',
+  test: 'Testowe',
 };
+
+const actionLabels:Record<string,string>={save:'Zapis konfiguracji',test:'Test połączenia',activate:'Zmiana aktywnego źródła',rollback:'Przywrócenie poprzedniego źródła',disable:'Wyłączenie źródła'};
 
 const roleOptions: MaintenanceEndpointRole[] = ['production', 'backup', 'staging', 'legacy', 'test'];
 
@@ -62,12 +65,12 @@ const endpointStatus = (endpoint: MaintenanceEndpoint) => {
   if (!endpoint.enabled) return 'Nieaktywny';
   if (endpoint.lastTest?.ok === false) return 'Błąd';
   if (endpoint.active) return 'Aktywny';
-  return 'Standby';
+  return 'W gotowości';
 };
 
 const statusClass = (label: string) => {
   if (label === 'Aktywny') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300';
-  if (label === 'Standby') return 'border-sky-400/30 bg-sky-500/10 text-sky-300';
+  if (label === 'W gotowości') return 'border-sky-400/30 bg-sky-500/10 text-sky-300';
   if (label === 'Błąd') return 'border-rose-400/30 bg-rose-500/10 text-rose-300';
   return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
 };
@@ -84,7 +87,7 @@ function normalizeEndpoint(id: string, data: Record<string, unknown>): Maintenan
   const role = String(data.role || 'production') as MaintenanceEndpointRole;
   return {
     id,
-    name: String(data.name || 'Endpoint'),
+    name: String(data.name || 'Źródło API'),
     url: String(data.url || ''),
     role: roleOptions.includes(role) ? role : 'production',
     priority: Number(data.priority || 1),
@@ -103,7 +106,7 @@ function emptyDraft(endpoint?: MaintenanceEndpoint): MaintenanceEndpoint {
   return endpoint ? { ...endpoint } : {
     ...DEFAULT_ENDPOINT,
     id: '',
-    name: 'Nowy endpoint',
+    name: 'Nowe źródło API',
     url: '',
     active: false,
     priority: 5,
@@ -296,8 +299,8 @@ export function MaintenanceView({
         )}
         <TransportDiagnosticsPanel/>
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatusCard icon={<Globe2 size={22} />} title="Aktywny endpoint" value={(activeEndpoint?.id === BUILTIN_TRANSPORT_ID && activeEndpoint.url === BUILTIN_TRANSPORT_URL ? 'Źródła przewoźników' : activeEndpoint?.url.replace(/^https?:\/\//, '')) || 'Nie wybrano'} hint={activeEndpoint?.enabled ? 'Aktywny' : 'Brak aktywnego endpointu'} tone="cyan" />
-          <StatusCard icon={<Database size={22} />} title="Źródło konfiguracji" value={ready ? 'Firestore' : 'Łączenie…'} hint={`${endpoints.length} zapisanych endpointów`} tone="blue" />
+          <StatusCard icon={<Globe2 size={22} />} title="Aktywne źródło API" value={(activeEndpoint?.id === BUILTIN_TRANSPORT_ID && activeEndpoint.url === BUILTIN_TRANSPORT_URL ? 'Źródła przewoźników' : activeEndpoint?.url.replace(/^https?:\/\//, '')) || 'Nie wybrano'} hint={activeEndpoint?.enabled ? 'Aktywny' : 'Brak aktywnego źródła API'} tone="cyan" />
+          <StatusCard icon={<Database size={22} />} title="Źródło konfiguracji" value={ready ? 'Firestore' : 'Łączenie…'} hint={polishCount(endpoints.length,'zapisane źródło API','zapisane źródła API','zapisanych źródeł API')} tone="blue" />
           <StatusCard icon={<Activity size={22} />} title="Status infrastruktury" value={!lastGlobalTest ? 'Nie testowano' : endpoints.some((e) => e.lastTest?.ok === false) ? 'Wymaga uwagi' : 'Testy OK'} hint={`${successfulTests}/${endpoints.length} testów OK`} tone="emerald" />
           <StatusCard icon={<Clock3 size={22} />} title="Ostatni test globalny" value={lastGlobalTest ? safeDate(lastGlobalTest) : 'Brak danych'} hint={activeEndpoint?.lastTest?.latencyMs ? `${activeEndpoint.lastTest.latencyMs} ms` : 'uruchom test'} tone="violet" />
         </section>
@@ -310,7 +313,7 @@ export function MaintenanceView({
                 data-milk-search
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Szukaj endpointu..."
+                placeholder="Szukaj źródła API..."
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 ui-accent-input"
               />
             </div>
@@ -335,7 +338,7 @@ export function MaintenanceView({
             <table className="w-full min-w-[980px] text-left text-xs">
               <thead className="bg-white/[0.025] text-[10px] uppercase tracking-[0.18em] text-slate-500">
                 <tr>
-                  <th className="px-5 py-4">Nazwa endpointu</th>
+                  <th className="px-5 py-4">Nazwa źródła API</th>
                   <th className="px-4 py-4">URL</th>
                   <th className="px-4 py-4">Rola</th>
                   <th className="px-4 py-4">Priorytet</th>
@@ -415,8 +418,8 @@ export function MaintenanceView({
           <div className="min-w-0">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">Edytuj endpoint</h2>
-                <p className="mt-1 text-xs text-slate-500">{draft.id || 'nowy endpoint'}</p>
+                <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">Edytuj źródło API</h2>
+                <p className="mt-1 text-xs text-slate-500">{draft.id || 'nowe źródło API'}</p>
               </div>
               {draft.active && <Badge className="ui-accent-soft">Aktywny</Badge>}
             </div>
@@ -426,7 +429,7 @@ export function MaintenanceView({
           <div className="min-w-0 border-t border-white/10 pt-4 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
             <h3 className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-300">Test połączenia</h3>
             <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
-              <CheckLine label="Połączenie z endpointem" ok={displayedTest?.ok ?? null} />
+              <CheckLine label="Połączenie ze źródłem API" ok={displayedTest?.ok ?? null} />
               <CheckLine label="Adres HTTPS" ok={draft.url.startsWith('https://')} />
               <CheckLine label="Odpowiedź API" ok={displayedTest?.ok ?? null} value={displayedTest?.statusCode ? `HTTP ${displayedTest.statusCode}` : '-'} />
               <CheckLine label="Czas odpowiedzi" ok={displayedTest?.latencyMs == null ? null : displayedTest.latencyMs < 1000} value={displayedTest?.latencyMs != null ? `${displayedTest.latencyMs} ms` : '-'} />
@@ -448,12 +451,12 @@ export function MaintenanceView({
             <div className="grid gap-3">
               <ActionButton disabled={!canEdit || !ready || Boolean(busy)} onClick={saveDraft} icon={<Save size={15} />} label="Zapisz zmiany" tone="cyan" />
               <ActionButton disabled={!canEdit || !ready || Boolean(busy) || !selectedEndpoint?.id || selectedEndpoint.active} onClick={activateSelected} icon={<CheckCircle2 size={15} />} label="Ustaw jako aktywny" />
-              <ActionButton disabled={!canEdit || !ready || Boolean(busy) || !selectedEndpoint?.id || selectedEndpoint.active} onClick={disableSelected} icon={<Power size={15} />} label="Wyłącz endpoint" tone="rose" />
+              <ActionButton disabled={!canEdit || !ready || Boolean(busy) || !selectedEndpoint?.id || selectedEndpoint.active} onClick={disableSelected} icon={<Power size={15} />} label="Wyłącz źródło API" tone="rose" />
             </div>
 
             <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
               <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Szybki rollback</h4>
-              <p className="mt-3 break-all font-mono text-xs text-slate-300">{settings.previousEndpointId || 'Brak poprzedniego endpointu'}</p>
+              <p className="mt-3 break-all font-mono text-xs text-slate-300">{settings.previousEndpointId || 'Brak poprzedniego źródła API'}</p>
               <button
                 type="button"
                 disabled={!canEdit || !ready || Boolean(busy) || !settings.previousEndpointId}
@@ -461,7 +464,7 @@ export function MaintenanceView({
                 className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 text-xs font-black uppercase tracking-widest text-rose-200 transition-colors hover:bg-rose-500/20 disabled:opacity-40"
               >
                 <RotateCcw size={15} />
-                Przywróć poprzedni endpoint
+                Przywróć poprzednie źródło API
               </button>
             </div>
           </div>
@@ -500,7 +503,7 @@ export function MaintenanceView({
                   <div key={change.id} className="rounded-2xl border border-white/10 bg-black/15 p-4">
                     <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                       <span className="min-w-0 break-all text-sm font-black text-white">{change.summary}</span>
-                      <Badge className="max-w-full break-all whitespace-normal">{change.action}</Badge>
+                      <Badge className="max-w-full break-all whitespace-normal">{actionLabels[change.action] || 'Zmiana konfiguracji'}</Badge>
                     </div>
                     <div className="mt-2 break-all text-xs text-slate-500">{change.endpointId} · {changeDate(change.createdAtMs)}</div>
                   </div>
@@ -563,7 +566,7 @@ function EndpointForm({ draft, disabled, onChange }: { draft: MaintenanceEndpoin
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Field label="Nazwa" className="sm:col-span-2">
-        <input disabled={disabled} value={draft.name} aria-label="Nazwa endpointu" onChange={(event) => update('name', event.target.value)} className="field-input" />
+        <input disabled={disabled} value={draft.name} aria-label="Nazwa źródła API" onChange={(event) => update('name', event.target.value)} className="field-input" />
       </Field>
       <Field label="URL" className="sm:col-span-2">
         <input disabled={disabled} value={draft.url} aria-label="Adres API" onChange={(event) => update('url', event.target.value)} className="field-input" />
@@ -583,7 +586,7 @@ function EndpointForm({ draft, disabled, onChange }: { draft: MaintenanceEndpoin
         <input readOnly value="Firestore" className="field-input" />
       </Field>
       <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 sm:col-span-2">
-        <span className="text-xs font-semibold text-slate-300">Endpoint włączony</span>
+        <span className="text-xs font-semibold text-slate-300">Źródło API włączone</span>
         <input disabled={disabled || draft.active} type="checkbox" checked={draft.enabled} onChange={event => update('enabled', event.target.checked)} className="h-5 w-5 accent-[var(--pks-accent)]" />
       </label>
       <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 sm:col-span-2">

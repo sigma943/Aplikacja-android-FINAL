@@ -83,16 +83,16 @@ export function BansView({
           </button>
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-xl font-bold text-white uppercase tracking-wider">Bany / Blokady</h1>
+              <h1 className="text-xl font-bold text-white uppercase tracking-wider">Blokady</h1>
               <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">Ograniczenia dostępu</p>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <StatCard title="Aktywne bany" value={String(stats.activeBans)} subtitle="Obecnie zablokowane" icon={<Lock size={16} />} color="rose" />
+          <StatCard title="Aktywne blokady" value={String(stats.activeBans)} subtitle="Obecnie zablokowane" icon={<Lock size={16} />} color="rose" />
           <StatCard title="Wygasną dziś" value={String(stats.expireToday)} subtitle="Wygasają przed północą" icon={<Calendar size={16} />} color="amber" />
-          <StatCard title="Z historią banu" value={String(stats.everWithBanDetails)} subtitle="Mają zapisane banDetails" icon={<Info size={16} />} color="slate" />
+          <StatCard title="Z historią blokady" value={String(stats.everWithBanDetails)} subtitle="Zapisane szczegóły blokady" icon={<Info size={16} />} color="slate" />
         </div>
 
         <div className="flex items-center gap-3">
@@ -124,7 +124,7 @@ export function BansView({
                   className="pks-personal-card absolute right-0 top-full mt-2 w-56 bg-[#111623] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-20 p-1.5 flex flex-col gap-1"
                 >
                   <button onClick={() => { setFilterStatus('ALL'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Wszystkie</button>
-                  <button onClick={() => { setFilterStatus('PERMANENTNY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Permanentne</button>
+                  <button onClick={() => { setFilterStatus('PERMANENTNY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Bezterminowe</button>
                   <button onClick={() => { setFilterStatus('CZASOWY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Czasowe</button>
                 </motion.div>
               )}
@@ -208,7 +208,7 @@ function BanCard({ ban, canBan, onUnblock, onEdit }: { ban: Ban; canBan: boolean
                 {ban.autoBan && (
                   <>
                     <span className="w-1 h-1 rounded-full bg-slate-700" />
-                    <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[9px] uppercase tracking-widest text-amber-300">Auto-ban</span>
+                    <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[9px] uppercase tracking-widest text-amber-300">Automatyczna blokada</span>
                   </>
                 )}
               </div>

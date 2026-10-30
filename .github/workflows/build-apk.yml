@@ -98,13 +98,16 @@ jobs:
         run: |
           npx puppeteer browsers install chrome
           node test/scene-message-browser.cjs
+          node test/theme-background-browser.cjs
 
       - name: Upload message contrast previews
         if: always() && contains(github.event.pull_request.title, '[contrast-check]')
         uses: actions/upload-artifact@v4
         with:
           name: message-contrast-previews
-          path: test/ui-previews/scene-message-*.png
+          path: |
+            test/ui-previews/scene-message-*.png
+            test/ui-previews/theme-background-*.png
           retention-days: 7
 
       - name: Verify coordinate entry
