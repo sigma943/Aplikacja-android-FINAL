@@ -15,7 +15,7 @@ import {onWidgetOpen} from '@/lib/stop-widget';
 import {useMpkStopNames} from '@/lib/use-mpk-stop-names';
 import {useMapStops} from '@/lib/use-map-stops';
 import {useStopDepartures} from '@/Panel/src/components/useStopDepartures';
-import {mapStopDepartureRows} from '@/lib/map-stop-departures';
+import {liveMapStopDepartures,formatMapStopDepartures} from '@/lib/map-stop-departures';
 import {refreshMapStopSource} from '@/lib/map-stop-source';
 import {marcelCourseStopIndexKey,marcelCourseStopMatchKey} from '@/components/stops-panel/stop-domain';
 import {useTabTransition} from '@/lib/use-tab-transition';
@@ -342,7 +342,8 @@ export default function Home() {
   const mapStopActive=activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus;
   const mapToday=useStopDepartures(mapStopSource,0,warsawDateIso(),loadStopDepartures,mapStopActive);
   const mapTomorrow=useStopDepartures(mapStopSource,1,warsawDateIso(1),loadStopDepartures,mapStopActive);
-  const mapDepartures=useMemo(()=>mapStopDepartureRows([...mapToday.departures,...mapTomorrow.departures],vehicles,now),[mapToday.departures,mapTomorrow.departures,vehicles,now]);
+  const mapLiveDepartures=useMemo(()=>mapStopActive?liveMapStopDepartures([...mapToday.departures,...mapTomorrow.departures],vehicles):[],[mapToday.departures,mapTomorrow.departures,vehicles,mapStopActive]);
+  const mapDepartures=useMemo(()=>formatMapStopDepartures(mapLiveDepartures,now),[mapLiveDepartures,now]);
   const mapDepartureError=[...new Set([...mapToday.warnings,...mapTomorrow.warnings])].join(' ')||null;
 
   useEffect(() => {

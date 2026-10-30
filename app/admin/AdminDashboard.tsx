@@ -47,6 +47,8 @@ export interface AdminDashboardProps {
 
 export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
   const { device: currentDevice, loading, user, localLastSeenMs,apiStatisticsEnabled } = useFirebase();
+  // Presence/name changes do not change a subscription's authorization scope.
+  const adminSubscriptionKey=JSON.stringify([user?.uid,currentDevice?.role,currentDevice?.permissions]);
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
   const [statisticsAccess,setStatisticsAccess]=useState<StatisticsAccess>({});
   const [statisticsAccessReady,setStatisticsAccessReady]=useState(false);
@@ -156,7 +158,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     });
 
     return () => unsub();
-  }, [currentDevice, loading]);
+  }, [adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -178,7 +180,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     );
 
     return () => unsub();
-  }, [currentDevice, loading]);
+  }, [adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -258,7 +260,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     );
 
     return () => unsub();
-  }, [activeView, currentDevice, loading]);
+  }, [activeView, adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;

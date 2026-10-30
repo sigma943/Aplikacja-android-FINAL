@@ -32,9 +32,10 @@ export async function loadMarcelStopDepartures(stop:Stop,date:string,today:boole
       if(row){matchesForCourse.push({rowIndex:rows.length,pointIndex:index});rows.push(row);}
     });
     if(matchesForCourse.length)partial?.({departures:[...rows]});
+    if(!matchesForCourse.length)return;
     const live = await positions;
     const delay = estimateMarcelCourseDelay(course.idKu,points,date,live);
-    if (delay !== undefined && matchesForCourse.length) {
+    if (delay !== undefined) {
       const observedAtMs = live.find(position => position.tripId === String(course.idKu))?.observedAtMs;
       for (const {rowIndex,pointIndex} of matchesForCourse) {
         // Keep confirmed operator predictions ahead of a GPS estimate.

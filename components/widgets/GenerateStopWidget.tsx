@@ -6,6 +6,7 @@ import {motion} from 'motion/react';
 import {Battery,Check,LayoutGrid,LoaderCircle,RefreshCw,Search} from 'lucide-react';
 import type {Stop,Departure} from '@/Panel/src/types';
 import type {Vehicle} from '@/components/BusMap';
+import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
 import {useAppBack} from '@/lib/use-app-back';
 import {canGenerateWidget,widgetSystemIsDark,pinStopWidget,widgetDepartures,widgetPinStatus,type StopWidgetConfig} from '@/lib/stop-widget';
 import {getLineStyle} from '@/Panel/src/utils/lineStyles';
@@ -29,7 +30,7 @@ export default function GenerateStopWidget({stop,lines,departures,vehicles,dark,
   const root=useRef<HTMLDivElement>(null),reduce=useReducedMotion();
   useAppBack(true,()=>{onClose();return true;},100);
   useEffect(()=>{const previous=document.activeElement as HTMLElement;root.current?.focus();return()=>previous?.focus();},[]);
-  useEffect(()=>{if(!token||added)return;const timer=setInterval(()=>{void widgetPinStatus(token).then(r=>{if(r.added)setAdded(true);}).catch(()=>{});},1000);return()=>clearInterval(timer);},[token,added]);
+  useForegroundRefresh(`widget-pin:${token}`,async()=>{const result=await widgetPinStatus(token);if(result.added)setAdded(true);},1000,Boolean(token)&&!added,1000,false);
   const card='rounded-2xl border p-3 text-left transition-all ui-accent-focus';
   const choice=(active:boolean)=>active?'ui-accent-soft border-[var(--pks-accent)]':dark?'border-white/10 bg-white/[.035]':'border-slate-200 bg-slate-50';
   const previewDark=theme==='dark'||theme==='system'&&systemDark;
