@@ -6,7 +6,7 @@ import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,Che
 import type {Stop} from '@/Panel/src/types';
 import StopList from '@/Panel/src/components/StopList';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
-import {transferCount} from '@/lib/polish-count';
+import {transferCount,polishCount} from '@/lib/polish-count';
 import {journeyDepartureLabel,journeyDestinationLabel} from '@/lib/journey-label';
 import {journeyPickerStops,currentJourneyLocation,LOCATION_ID,isJourneyCoordinate} from '@/lib/journey-places';
 import {loadJourneyCatalog} from '@/lib/journey-catalog';
@@ -125,7 +125,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
    </div>
    {results===null&&!busy&&recents.length>0&&<div data-cosmic-panel className="connections-card connections-recents"><h2><History size={17}/>Ostatnie wyszukiwania</h2>{recents.map((r,index)=><div className="connections-recent" key={r.searchedAt+':'+index}><button onClick={()=>{invalidate();setFrom(places.find(s=>s.id===r.from.id)||r.from);setTo(places.find(s=>s.id===r.to.id)||r.to);}}><History size={17}/><span>{label(r.from)}<small><ArrowRight size={12}/>{journeyDestinationLabel(r.to)}</small></span></button><button className="connections-recent-delete" aria-label="Usuń ostatnie wyszukiwanie" onClick={()=>{const next=recents.filter(x=>x!==r);setRecents(next);saveRecents(next);}}><Trash2 size={17}/></button></div>)}</div>}
   </aside><main className="connections-answer-column">
-   {results!==null&&!busy&&<div className="connections-results" aria-live="polite"><div className="connections-results-heading"><h2>{results.length?'Proponowane połączenia':'Brak połączeń w tym terminie'}</h2>{results.length>0&&<span>{results.length} propozycji</span>}</div>
+   {results!==null&&!busy&&<div className="connections-results" aria-live="polite"><div className="connections-results-heading"><h2>{results.length?'Proponowane połączenia':'Brak połączeń w tym terminie'}</h2>{results.length>0&&<span>{polishCount(results.length,'propozycja','propozycje','propozycji')}</span>}</div>
     {!results.length&&<div className="connections-card connections-empty"><Search size={28}/><h3>Spróbuj innej godziny</h3><p>{arriveBy?'Od początku dnia do wybranej godziny':'Od wybranej godziny do końca dnia'} nie ma połączenia spełniającego preferencje. Możesz też zwiększyć dystans pieszo lub liczbę przesiadek.</p></div>}
     {refining&&<p className="connections-hint" role="status" data-journey-refining>Uzupełniam kursy Marcela i dane na żywo… Możesz już wybrać połączenie.</p>}
     {warnings.filter(w=>!w.startsWith('Część dojść pieszych')&&!w.startsWith('Wstępne wyniki:')&&!w.startsWith('Nie udało się wczytać trasy w całości pieszo')).map(w=><p className="connections-warning" key={w}><AlertCircle size={16}/>{w}</p>)}
