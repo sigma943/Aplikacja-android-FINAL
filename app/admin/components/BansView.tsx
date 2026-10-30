@@ -138,7 +138,7 @@ export function BansView({
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="pks-personal-card text-center py-16 text-slate-500 text-sm font-medium bg-[#111623] rounded-3xl border border-white/5"
+                className="pks-personal-card text-center py-16 text-slate-400 text-sm font-medium bg-[#111623] rounded-3xl border border-white/5"
               >
                 Brak zablokowanych urządzeń dla podanych filtrów.
               </motion.div>

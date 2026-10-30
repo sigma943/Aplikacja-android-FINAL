@@ -157,7 +157,7 @@ export function OperatorsView({
                <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="pks-personal-card text-center py-10 text-slate-500 text-sm bg-[#111623] rounded-2xl border border-white/5"
+                className="pks-personal-card text-center py-10 text-slate-400 text-sm bg-[#111623] rounded-2xl border border-white/5"
                >
                   Nie znaleziono osób w kadrze spełniających kryteria.
                </motion.div>

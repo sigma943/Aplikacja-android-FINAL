@@ -505,7 +505,7 @@ export function MaintenanceView({
                     <div className="mt-2 break-all text-xs text-slate-500">{change.endpointId} · {changeDate(change.createdAtMs)}</div>
                   </div>
                 )) : (
-                  <div className="py-10 text-center text-sm text-slate-500">Brak historii zmian.</div>
+                  <div className="py-10 text-center text-sm text-slate-400">Brak historii zmian.</div>
                 )}
                 {hasOlder&&<button disabled={historyLoading||Boolean(busy)} onClick={()=>void loadOlderHistory()} className="ui-accent-soft w-full rounded-xl border px-3 py-2 text-xs disabled:opacity-50">{historyLoading?'Wczytywanie…':'Wczytaj starsze zdarzenia'}</button>}
               </div>

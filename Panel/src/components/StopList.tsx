@@ -382,7 +382,7 @@ export default function StopList({
                 <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
-                {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak wyników dla podanej nazwy.'}
+                <p className="scene-message">{favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak wyników dla podanej nazwy.'}</p>
               </div>
             )}
           </>
@@ -472,7 +472,7 @@ export default function StopList({
                 <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
-                {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak pasujących przystanków dla tej nazwy.'}
+                <p className="scene-message">{favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak pasujących przystanków dla tej nazwy.'}</p>
               </div>
             )}
           </motion.div>

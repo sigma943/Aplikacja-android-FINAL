@@ -600,7 +600,7 @@ export function DeviceTable({
               </motion.div>
             );
           }) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pks-personal-card bg-[#111623] border border-white/5 rounded-3xl p-16 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pks-personal-card bg-[#111623] border border-white/5 rounded-3xl p-16 text-center text-slate-400 font-bold uppercase tracking-widest text-xs italic">
               {devicesError ? 'Brak dostępu do listy urządzeń' : 'Brak pasujących wyników wyszukiwania'}
             </motion.div>
           )}
@@ -664,7 +664,7 @@ export function DeviceTable({
                   );
                 }) : (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                       {devicesError ? 'Brak dostępu do listy urządzeń.' : 'Brak pasujących wyników wyszukiwania'}
                     </td>
                   </tr>

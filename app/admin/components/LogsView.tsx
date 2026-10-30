@@ -399,7 +399,7 @@ export function LogsView({
                <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="pks-personal-card text-center py-12 text-slate-500 text-sm bg-[#111623] rounded-3xl border border-white/5"
+                className="pks-personal-card text-center py-12 text-slate-400 text-sm bg-[#111623] rounded-3xl border border-white/5"
                >
                   Nie znaleziono logów spełniających kryteria wyszukiwania.
                </motion.div>

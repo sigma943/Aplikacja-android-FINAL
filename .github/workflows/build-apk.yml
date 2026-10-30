@@ -93,6 +93,20 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify standalone message contrast across themes
+        if: contains(github.event.pull_request.title, '[contrast-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          node test/scene-message-browser.cjs
+
+      - name: Upload message contrast previews
+        if: always() && contains(github.event.pull_request.title, '[contrast-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: message-contrast-previews
+          path: test/ui-previews/scene-message-*.png
+          retention-days: 7
+
       - name: Verify coordinate entry
         if: contains(github.event.pull_request.title, '[coordinates-check]')
         run: |

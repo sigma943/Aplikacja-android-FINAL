@@ -138,7 +138,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const departuresCardClass = 'transit-card';
   const headingTextClass = isDarkTheme ? 'text-white' : 'text-slate-900';
   const mutedTextClass = isDarkTheme ? 'text-slate-400' : 'text-slate-600';
-  const subtleTextClass = isDarkTheme ? 'text-slate-500' : 'text-slate-500';
+  const subtleTextClass = isDarkTheme ? 'text-slate-400' : 'text-slate-600';
   const headerGradientClass = 'transit-header-glow';
   const headerIconButtonClass = isDarkTheme
     ? 'text-white hover:bg-white/10 border-white/5 hover:border-white/10'

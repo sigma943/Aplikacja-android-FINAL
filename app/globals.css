@@ -1708,3 +1708,28 @@ body :is([contenteditable="true"],[contenteditable=""]) * { -webkit-user-select:
   -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
  }
 }
+
+/* Standalone messages need their own reading surface over scenery and patterns.
+   Keep this independent of glass opacity; other panels retain their saved opacity. */
+.scene-message, .connections-view .scene-message {
+  max-width:32rem;
+  margin-inline:auto;
+  padding:12px 16px;
+  border:1px solid var(--ui-edge,#cbd5e1);
+  border-radius:var(--personal-card-radius,18px);
+  background:var(--ui-raised,#ffffff);
+  color:var(--ui-text,#172536);
+  font-weight:500;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+  text-shadow:none;
+}
+@layer landscape-materials {
+ html[data-landscape-theme='on'] .scene-message {
+  background:var(--landscape-solid)!important;
+  color:var(--landscape-ink)!important;
+  border-color:var(--landscape-edge)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  text-shadow:none!important;
+ }
+}
