@@ -119,6 +119,7 @@ jobs:
       - name: Verify admin button preferences across themes
         if: contains(github.event.pull_request.title, '[button-check]')
         run: |
+          node --test test/app-theme.test.cjs test/landscape-accent.test.cjs test/ui-accent.test.cjs
           npx puppeteer browsers install chrome
           node test/admin-button-style-browser.cjs
 

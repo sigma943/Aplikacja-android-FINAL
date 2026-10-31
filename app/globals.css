@@ -530,9 +530,13 @@ html[data-personal-card-style='outlined'] :is(.transit-card,.transit-stop-card,.
 html[data-personal-card-style='flat'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { border-color:transparent !important; box-shadow:none !important; }
 html[data-personal-button-style='solid'] button.ui-accent-soft { background:var(--pks-accent) !important; color:var(--pks-accent-on) !important; border-color:transparent !important; }
 html[data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-solid) { background:transparent !important; color:var(--pks-accent-text) !important; border:1px solid var(--pks-accent-text) !important; }
-/* Neutral actions retain their original material until a button style is chosen.
-   Preference colours must win over admin light and Horyzont milk materials. */
+/* Shared neutral actions use the active accent in standard, solid and outline
+   styles, including admin light and Horyzont milk materials. */
 @layer personal-button-controls {
+ button.ui-accent-control {
+  background:var(--pks-accent-soft)!important;color:var(--pks-accent-text)!important;border-color:var(--pks-accent-border)!important;
+ }
+ button.ui-accent-control:hover { background:var(--pks-accent-hover)!important; }
  html[data-personal-button-style='solid'] button.ui-accent-control {
   background:var(--pks-accent)!important;color:var(--pks-accent-on)!important;border-color:transparent!important;
  }
@@ -540,11 +544,11 @@ html[data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-
   background:transparent!important;color:var(--landscape-accent,var(--pks-accent-text))!important;
   border:1px solid var(--landscape-accent,var(--pks-accent-text))!important;
  }
- html:is([data-personal-button-style='solid'],[data-personal-button-style='outline']) button.ui-accent-control,
- html:is([data-personal-button-style='solid'],[data-personal-button-style='outline']) button.ui-accent-control * {
+ button.ui-accent-control,
+ button.ui-accent-control * {
   text-shadow:none!important;
  }
- html:is([data-personal-button-style='solid'],[data-personal-button-style='outline']) button.ui-accent-control * { color:inherit!important; }
+ button.ui-accent-control * { color:inherit!important; }
 }
 
 /* Background layers use the same surface contract on every screen and in portals.
