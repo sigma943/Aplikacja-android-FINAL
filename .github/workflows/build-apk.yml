@@ -101,6 +101,21 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify Horyzont day and night accent settings
+        if: contains(github.event.pull_request.title, '[solar-accent-check]')
+        run: |
+          node --test test/landscape-accent.test.cjs test/interface-appearance.test.cjs test/interface-presets.test.cjs test/personalization-profiles.test.cjs test/appearance-backup.test.cjs test/landscape.test.cjs test/ui-accent.test.cjs
+          npx puppeteer browsers install chrome
+          node test/landscape-accent-browser.cjs
+
+      - name: Upload Horyzont accent previews
+        if: always() && contains(github.event.pull_request.title, '[solar-accent-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: landscape-accent-previews
+          path: test/ui-previews/landscape-accent-*.png
+          retention-days: 7
+
       - name: Verify admin button preferences across themes
         if: contains(github.event.pull_request.title, '[button-check]')
         run: |

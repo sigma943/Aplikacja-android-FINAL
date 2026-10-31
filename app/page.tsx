@@ -29,7 +29,7 @@ import {uiAccentVariables,normalizeUiAccent} from '@/lib/ui-accent';
 import {MapHeader,BottomNavigation,StopTabIcon} from '@/components/ApplicationChrome';
 import {applyScheduledProfile} from '@/lib/personalization-profiles';
 import {panelGlowStrength} from '@/lib/panel-glow';
-import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
+import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,activeInterfaceAccent,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {busOperatingState} from '@/lib/bus-operating-state';
 
 import {timedVehicleStops, upcomingTimedVehicleStops} from '@/lib/vehicle-stop-timing';
@@ -925,6 +925,7 @@ export default function Home() {
   const actualTheme = resolveAppTheme(appTheme,systemIsDark);
   const landscapeDay=useLandscapeDay(actualTheme==='dark-mountains');
   const isDark = actualTheme.startsWith('dark')&&!landscapeDay;
+  const activeThemeColor=activeInterfaceAccent(interfaceAppearance,actualTheme,themeColor,landscapeDay);
   useLayoutEffect(()=>{
     document.documentElement.dataset.systemBarIcons=isDark?'light':'dark';
   },[isDark]);
@@ -965,10 +966,10 @@ export default function Home() {
   const expandOptions=useCallback(()=>setIsOptionsExpanded(true),[]);
   useEffect(() => {
     if(!appearanceReady)return;
-    for (const [key, value] of Object.entries(uiAccentVariables(themeColor, isDark))) {
+    for (const [key, value] of Object.entries(uiAccentVariables(activeThemeColor, isDark))) {
       document.documentElement.style.setProperty(key, value);
     }
-  }, [themeColor, isDark,appearanceReady]);
+  }, [activeThemeColor, isDark,appearanceReady]);
   const textMain = isDark ? 'text-white' : 'text-slate-900';
   const textSub = isDark ? (isPink ? 'text-pink-100/75' : 'text-slate-400') : 'text-slate-500';
   const selectedBusBreakUntil =
@@ -1122,7 +1123,7 @@ export default function Home() {
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
   return (
-    <div data-options-open={isSettingsOpen?'true':undefined} data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(themeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+    <div data-options-open={isSettingsOpen?'true':undefined} data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(activeThemeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
       <div data-native-status-background aria-hidden="true"/>
       <DynamicLandscape active={actualTheme==='dark-mountains'} glass={transparentUI} sceneCovered={activeTab==='map'}/>
       <style>{`
@@ -1221,7 +1222,7 @@ export default function Home() {
                   data-panel-theme={isDark ? 'dark' : 'light'}
                   data-cosmic-canvas
                >
-                  <AdminDashboard embedded transparentUI={transparentUI} themeColor={themeColor} isDarkTheme={isDark} onExit={() => setActiveTab(isMapTabDisabled ? 'stops' : adminReturnTab.current)} />
+                  <AdminDashboard embedded transparentUI={transparentUI} themeColor={activeThemeColor} isDarkTheme={isDark} onExit={() => setActiveTab(isMapTabDisabled ? 'stops' : adminReturnTab.current)} />
                </motion.div>
             )}
          </AnimatePresence>
@@ -1240,7 +1241,7 @@ export default function Home() {
                stopsData={stopsDataMap}
                mapStops={mapStops}
                onMapStopClick={selectMapCatalogStop}
-               themeColor={themeColor}
+               themeColor={activeThemeColor}
                refreshInterval={refreshInterval}
                forcedCenter={mapCenter}
                onCenterComplete={onMapCenterComplete}
@@ -1254,7 +1255,7 @@ export default function Home() {
             <div data-map-toolbar data-map-detail={Boolean(selectedBus||selectedStopId)} className={`absolute top-0 left-0 right-0 z-10 p-2 md:p-4 pointer-events-none ${activeTab === 'map' ? 'flex' : 'hidden'} flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
 
               {/* Top Box Mobile / Desktop */}
-              <MapHeader mapGlassPanel={mapGlassPanel} mapGlassInput={mapGlassInput} themeColor={themeColor} transparentUI={transparentUI} isDark={isDark} isManualRefreshing={isManualRefreshing} showAlertDot={showAlertDot} error={error} isOffline={isOffline} textSub={textSub} filterRoute={filterRoute} setFilterRoute={setFilterRoute} handleManualRefresh={handleManualRefresh} closeMapPanelsForSearch={closeMapPanelsForSearch}/>
+              <MapHeader mapGlassPanel={mapGlassPanel} mapGlassInput={mapGlassInput} themeColor={activeThemeColor} transparentUI={transparentUI} isDark={isDark} isManualRefreshing={isManualRefreshing} showAlertDot={showAlertDot} error={error} isOffline={isOffline} textSub={textSub} filterRoute={filterRoute} setFilterRoute={setFilterRoute} handleManualRefresh={handleManualRefresh} closeMapPanelsForSearch={closeMapPanelsForSearch}/>
 
 
               <div data-map-carriers className="flex w-full justify-end md:hidden pointer-events-auto -mt-2 pr-1">
@@ -1299,7 +1300,7 @@ export default function Home() {
                              setIsSettingsOpen(false);
                           }}
                           className={`flex items-center gap-2 text-sm font-bold transition-colors mr-2 ${activeTab === 'admin' ? '' : (isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
-                          style={activeTab === 'admin' ? { color: themeColor } : {}}
+                          style={activeTab === 'admin' ? { color: activeThemeColor } : {}}
                        >
                           <Shield className="w-4 h-4" /> Admin
                        </button>
@@ -1376,7 +1377,7 @@ export default function Home() {
                   selectedVehicleColor={selectedVehicleColor}
                   textSub={textSub}
                   textMain={textMain}
-                  themeColor={themeColor}
+                  themeColor={activeThemeColor}
                   openVehicleRouteStop={openVehicleRouteStop}
                   formatScheduleStopName={formatScheduleStopName}
                 />
@@ -1459,7 +1460,7 @@ export default function Home() {
          {activeTab==='map'&&!isJourneysTabDisabled&&<button className="hidden md:flex absolute bottom-6 left-6 z-[1000] journey-desktop-link" onClick={()=>setActiveTab('journeys')}>Połączenia →</button>}
          {/* Bottom Navigation for Mobile */}
       <div data-app-navigation className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[5000] ${activeTab === 'map' ? 'md:hidden' : ''}`}>
-         <BottomNavigation order={interfaceAppearance.navOrder} activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={themeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} isJourneysTabDisabled={isJourneysTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
+         <BottomNavigation order={interfaceAppearance.navOrder} activeTab={isSettingsOpen?'options':activeTab} className={bottomGlassShell} themeColor={activeThemeColor} isMapTabDisabled={isMapTabDisabled} isStopsTabDisabled={isStopsTabDisabled} isJourneysTabDisabled={isJourneysTabDisabled} canOpenAdminEmbed={canOpenAdminEmbed}
             onMap={()=>{if(!isMapTabDisabled){setActiveTab('map');setSelectedBus(null);setSelectedStopId(null);setSelectedExternalStop(null);}}}
             onJourneys={()=>{if(isJourneysTabDisabled)return;setActiveTab('journeys');setSelectedBus(null);setSelectedStopId(null);setIsSettingsOpen(false);}}
             onStops={()=>{if(!isStopsTabDisabled){setActiveTab('stops');setSelectedBus(null);}}}

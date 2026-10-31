@@ -4,7 +4,7 @@ import ColorPicker from './ColorPicker';
 import FontPicker from './FontPicker';
 import {useState,type ReactNode,type CSSProperties} from 'react';
 import {Palette,Shapes,Layers,Sun,Type,Navigation,SlidersHorizontal,Compass,RotateCcw,Check} from 'lucide-react';
-import {DEFAULT_INTERFACE_APPEARANCE,type InterfaceAppearance} from '@/lib/interface-appearance';
+import {DEFAULT_INTERFACE_APPEARANCE,activeInterfaceAccent,type InterfaceAppearance} from '@/lib/interface-appearance';
 import {INTERFACE_PRESETS,matchesInterfacePreset,type InterfacePreset} from '@/lib/interface-presets';
 import {SCHEDULE_KEY,readSchedule} from '@/lib/personalization-profiles';
 import PresetThumbnail from './PresetThumbnail';
@@ -12,6 +12,7 @@ import PersonalizationTools from './PersonalizationTools';
 import InterfacePreview from './InterfacePreview';
 import CosmicThemeOptions from './CosmicThemeOptions';
 import LandscapeThemeOptions from './LandscapeThemeOptions';
+import LandscapeAccentOptions from './LandscapeAccentOptions';
 import PersonalizationGroup from './PersonalizationGroup';
 import type {PreviewChrome} from './OptionsContent';
 
@@ -47,7 +48,7 @@ export default function InterfacePersonalization(p:Props){
     <ColorPicker label={customLabel} ariaLabel={inputLabel} value={color} onChange={onChange} dark={dark}/>
   </>;
   return <div data-personalization-panel className="personal-editor">
-    <InterfacePreview journeysAllowed={p.journeysAllowed} canOpenAdminEmbed={p.canOpenAdminEmbed} navOrder={v.navOrder} chrome={p.chrome} accent={p.accent} glass={p.glass} dark={dark}/>
+    <InterfacePreview journeysAllowed={p.journeysAllowed} canOpenAdminEmbed={p.canOpenAdminEmbed} navOrder={v.navOrder} chrome={p.chrome} accent={activeInterfaceAccent(v,p.theme,p.accent,!dark)} glass={p.glass} dark={dark}/>
     <div data-theme-presets className="personal-presets"><span className="text-xs font-semibold">Gotowe zestawy</span><div className="personal-presets-grid">{INTERFACE_PRESETS.map(next=>{
       const active=matchesInterfacePreset(next,{appearance:v,theme:p.theme,accent:p.accent,glass:p.glass,glow:p.glow,glowStrength:p.glowStrength});
       return <button type="button" key={next.name} aria-label={`Zestaw: ${next.name}`} aria-pressed={active} onClick={()=>preset(next)} className="personal-preset ui-accent-focus" style={{backgroundColor:presetSurfaces[p.theme]||(dark?'#1c2833':'#ffffff'),color:dark?'#f3f1ff':'#172536',colorScheme:dark?'dark':'light'} as CSSProperties}>
@@ -66,7 +67,8 @@ export default function InterfacePersonalization(p:Props){
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
       {toggle('Tło pod paskiem powiadomień',v.statusBarOverlay,on=>set('statusBarOverlay',on),'Pokazuje tło bieżącego widoku pod godziną i ikonami systemu, również po otwarciu opcji.')}
-    </>,'akcent własny kolor jasny ciemny amoled aurora pasek powiadomień godzina mapa ekran')}
+      {p.theme==='dark-mountains'&&<LandscapeAccentOptions value={v} onChange={p.onChange} accent={p.accent} dark={dark}/>}
+    </>,'akcent własny kolor jasny ciemny amoled aurora pasek powiadomień godzina mapa ekran horyzont dzień noc')}
     {cosmicVisible&&<CosmicThemeOptions searchOpen={Boolean(search)} disabled={p.lightEffects||v.reducedMotion}/>}
     {landscapeVisible&&<LandscapeThemeOptions searchOpen={Boolean(search)}/>}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}

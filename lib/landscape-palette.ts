@@ -1,5 +1,5 @@
 import {solarMilkMaterial} from './solar-milk';
-import {DEFAULT_INTERFACE_APPEARANCE,type InterfaceAppearance} from './interface-appearance';
+import {DEFAULT_INTERFACE_APPEARANCE,activeInterfaceAccent,type InterfaceAppearance} from './interface-appearance';
 import {normalizeUiAccent,uiAccentVariables} from './ui-accent';
 import {type AstronomyState} from './landscape-astronomy';
 /** Switch foreground, surface and map polarity together. A one-degree dead band
@@ -11,6 +11,7 @@ export function isLandscapeDay(state:AstronomyState,previous?:boolean){
 /** Interpolate temperature within a readable material family, never between
  * white and black. Otherwise twilight produces grey glass with unrelated ink. */
 export function landscapePalette(state:AstronomyState,glassOpacity=64,day=isLandscapeDay(state),appearance:InterfaceAppearance=DEFAULT_INTERFACE_APPEARANCE,accent='#00a3a2'){
+  accent=activeInterfaceAccent(appearance,'dark-mountains',accent,day);
   let surface=solarMilkMaterial(state.sun.altitude*180/Math.PI,day).surface;
   if(appearance.surfaceTint!=='original'){
     const hex=normalizeUiAccent(appearance.surfaceTint==='custom'?appearance.panelColor:appearance.surfaceTint==='accent'?accent:'#d2c2a4');
