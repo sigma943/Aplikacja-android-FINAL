@@ -1,5 +1,6 @@
 import {solarMilkMaterial,startupSunAltitude} from './solar-milk';
 import {COSMIC_SKY} from './cosmic-scene';
+import {activeInterfaceAccent,normalizeInterfaceAppearance} from './interface-appearance';
 export const THEME_MODES=['system','light','light-warm','light-pink','light-sky','dark','dark-pink','dark-oled','dark-forest','dark-cosmos','dark-mountains'] as const;
 export type AppTheme=typeof THEME_MODES[number];
 export const DEFAULT_APP_THEME:AppTheme='dark-oled';
@@ -27,6 +28,13 @@ export const THEME_SCREEN_COLORS:Record<Exclude<AppTheme,'system'>,{background:s
   'dark-cosmos':{background:'#000000',text:'#f3f1ff'},'dark-forest':{background:'#061a13',text:'#edf9f0'},
 };
 export function themeScreenMaterial(mode:string,ms=Date.now()){return mode==='dark-mountains'?solarMilkMaterial(startupSunAltitude(ms)):{...THEME_SCREEN_COLORS[resolveAppTheme(mode)],glow:'none'};}
+/** Before the scene starts, use its existing solar estimate; afterwards retain
+ * the scene's hysteresis-confirmed period rather than guessing from the clock. */
+export function startupThemeAccent(mode:string,general:string,appearance:unknown,ms=Date.now(),period?:string){
+ if(mode!=='dark-mountains')return general;
+ const day=period==='day'||period==='night'?period==='day':startupSunAltitude(ms)>-2;
+ return activeInterfaceAccent(normalizeInterfaceAppearance(appearance),mode,general,day);
+}
 const svg=(body:string)=>`url("data:image/svg+xml,${encodeURIComponent(body)}")`;
 export const THEME_DECORATIONS={
   'dark-cosmos':COSMIC_SKY,
@@ -36,4 +44,4 @@ export const THEME_DECORATIONS={
 };
 export function themeDecoration(mode:string){return THEME_DECORATIONS[mode as keyof typeof THEME_DECORATIONS]||'none';}
 // Runs before React to avoid an incorrect flash, including blocked storage.
-export const INITIAL_THEME_SCRIPT=`!function(){var t='dark-oled',d=false;try{var saved=localStorage.getItem('mks_app_theme');t=saved==null?'dark-oled':saved}catch(e){t='dark-oled'}try{d=matchMedia('(prefers-color-scheme: dark)').matches}catch(e){}t=String(t).trim().toLowerCase();if(['amoled','oled','dark_oled','darkoled'].includes(t))t='dark-oled';if(t==='dark-pink')t='light-pink';if(t==='dark-horizon'){t='dark-cosmos';try{localStorage.setItem('mks_app_theme',t);localStorage.removeItem('mks_horizon_location_v1')}catch(e){}}if(t==='dark-aurora')t='dark-cosmos';var colors=${JSON.stringify(THEME_SCREEN_COLORS)};if(t==='system'||!Object.prototype.hasOwnProperty.call(colors,t))t=d?'dark':'light';var c=colors[t],r=document.documentElement;var milk=${solarMilkMaterial.toString()},altitude=${startupSunAltitude.toString()};if(t==='dark-mountains')c=milk(altitude(Date.now()));r.style.setProperty('--pks-loading-glow',c.glow||'none');var a='#00a3a2';try{var savedAccent=localStorage.getItem('mks_theme');if(/^#[0-9a-f]{6}$/i.test(savedAccent||''))a=savedAccent.toLowerCase()}catch(e){}r.style.setProperty('--pks-accent',a);r.style.setProperty('--pks-initial-bg',c.background);r.style.setProperty('--pks-loading-text',c.text);r.style.backgroundColor=c.background;r.style.color=c.text;r.dataset.pksTheme=t}();`;
+export const INITIAL_THEME_SCRIPT=`!function(){var t='dark-oled',d=false;try{var saved=localStorage.getItem('mks_app_theme');t=saved==null?'dark-oled':saved}catch(e){t='dark-oled'}try{d=matchMedia('(prefers-color-scheme: dark)').matches}catch(e){}t=String(t).trim().toLowerCase();if(['amoled','oled','dark_oled','darkoled'].includes(t))t='dark-oled';if(t==='dark-pink')t='light-pink';if(t==='dark-horizon'){t='dark-cosmos';try{localStorage.setItem('mks_app_theme',t);localStorage.removeItem('mks_horizon_location_v1')}catch(e){}}if(t==='dark-aurora')t='dark-cosmos';var colors=${JSON.stringify(THEME_SCREEN_COLORS)};if(t==='system'||!Object.prototype.hasOwnProperty.call(colors,t))t=d?'dark':'light';var c=colors[t],r=document.documentElement;var milk=${solarMilkMaterial.toString()},altitude=${startupSunAltitude.toString()};if(t==='dark-mountains')c=milk(altitude(Date.now()));r.style.setProperty('--pks-loading-glow',c.glow||'none');var a='#00a3a2';try{var savedAccent=localStorage.getItem('mks_theme');if(/^#[0-9a-f]{6}$/i.test(savedAccent||''))a=savedAccent.toLowerCase()}catch(e){}if(t==='dark-mountains'){try{var p=JSON.parse(localStorage.getItem('mks_interface_appearance_v1')||'{}'),v=altitude(Date.now())>-2?p.landscapeDayAccent:p.landscapeNightAccent;if(p.landscapeAccentEnabled===true&&typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v))a=v.toLowerCase()}catch(e){}}r.style.setProperty('--pks-accent',a);r.style.setProperty('--pks-initial-bg',c.background);r.style.setProperty('--pks-loading-text',c.text);r.style.backgroundColor=c.background;r.style.color=c.text;r.dataset.pksTheme=t}();`;

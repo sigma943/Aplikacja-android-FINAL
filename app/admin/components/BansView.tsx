@@ -72,33 +72,34 @@ export function BansView({
   const visibleBans = useMemo(() => filteredBans.slice(0, visibleCount), [filteredBans, visibleCount]);
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:p-8 sm:pb-8">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+6rem)] sm:p-8 sm:pb-8">
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex items-center gap-4 mb-4">
           <button
-            onClick={onMenuClick}
+            data-admin-milk-control="menu" onClick={onMenuClick}
             className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
           >
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-xl font-bold text-white uppercase tracking-wider">Bany / Blokady</h1>
+              <h1 className="text-xl font-bold text-white uppercase tracking-wider">Blokady</h1>
               <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">Ograniczenia dostępu</p>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <StatCard title="Aktywne bany" value={String(stats.activeBans)} subtitle="Obecnie zablokowane" icon={<Lock size={16} />} color="rose" />
+          <StatCard title="Aktywne blokady" value={String(stats.activeBans)} subtitle="Obecnie zablokowane" icon={<Lock size={16} />} color="rose" />
           <StatCard title="Wygasną dziś" value={String(stats.expireToday)} subtitle="Wygasają przed północą" icon={<Calendar size={16} />} color="amber" />
-          <StatCard title="Z historią banu" value={String(stats.everWithBanDetails)} subtitle="Mają zapisane banDetails" icon={<Info size={16} />} color="slate" />
+          <StatCard title="Z historią blokady" value={String(stats.everWithBanDetails)} subtitle="Zapisane szczegóły blokady" icon={<Info size={16} />} color="slate" />
         </div>
 
         <div className="flex items-center gap-3">
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input
+              data-milk-search
               type="text"
               placeholder="Szukaj urządzenia lub ID..."
               value={search}
@@ -108,8 +109,8 @@ export function BansView({
           </div>
           <div ref={filtersRef} className="relative shrink-0">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 sm:px-5 py-3.5 rounded-2xl text-sm font-bold text-slate-300 transition-all h-full cursor-pointer active:scale-95 shadow-lg"
+              data-admin-milk-control="filter" onClick={() => setShowFilters(!showFilters)}
+              className="ui-accent-control flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 sm:px-5 py-3.5 rounded-2xl text-sm font-bold text-slate-300 transition-all h-full cursor-pointer active:scale-95 shadow-lg"
             >
               Filtry
               <Filter size={16} className={cn('transition-transform duration-300', showFilters && 'rotate-180')} />
@@ -123,7 +124,7 @@ export function BansView({
                   className="pks-personal-card absolute right-0 top-full mt-2 w-56 bg-[#111623] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-20 p-1.5 flex flex-col gap-1"
                 >
                   <button onClick={() => { setFilterStatus('ALL'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Wszystkie</button>
-                  <button onClick={() => { setFilterStatus('PERMANENTNY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Permanentne</button>
+                  <button onClick={() => { setFilterStatus('PERMANENTNY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Bezterminowe</button>
                   <button onClick={() => { setFilterStatus('CZASOWY'); setShowFilters(false); }} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Czasowe</button>
                 </motion.div>
               )}
@@ -137,7 +138,7 @@ export function BansView({
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="pks-personal-card text-center py-16 text-slate-500 text-sm font-medium bg-[#111623] rounded-3xl border border-white/5"
+                className="pks-personal-card text-center py-16 text-slate-400 text-sm font-medium bg-[#111623] rounded-3xl border border-white/5"
               >
                 Brak zablokowanych urządzeń dla podanych filtrów.
               </motion.div>
@@ -207,7 +208,7 @@ function BanCard({ ban, canBan, onUnblock, onEdit }: { ban: Ban; canBan: boolean
                 {ban.autoBan && (
                   <>
                     <span className="w-1 h-1 rounded-full bg-slate-700" />
-                    <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[9px] uppercase tracking-widest text-amber-300">Auto-ban</span>
+                    <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[9px] uppercase tracking-widest text-amber-300">Automatyczna blokada</span>
                   </>
                 )}
               </div>

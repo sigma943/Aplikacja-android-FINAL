@@ -59,3 +59,10 @@ test('chrome choice defaults to modern, persists classic and rejects unknown val
  const cleanup=require('./load-ts.cjs')('lib/interface-appearance.ts').applyInterfaceAppearance(root,normalizeInterfaceAppearance({chromeStyle:'classic'}),true,'#00a3a2',false);
  assert.equal(attrs.get('data-personal-chrome'),'classic');cleanup();assert.equal(attrs.has('data-personal-chrome'),false);
 });
+
+test('status bar overlay preference survives saving and invalid legacy values are normalized',()=>{
+ assert.equal(normalizeInterfaceAppearance({}).statusBarOverlay,true);
+ const value=normalizeInterfaceAppearance({statusBarOverlay:false});
+ assert.equal(normalizeInterfaceAppearance(JSON.parse(JSON.stringify(value))).statusBarOverlay,false);
+ assert.equal(normalizeInterfaceAppearance({statusBarOverlay:'false'}).statusBarOverlay,true);
+});

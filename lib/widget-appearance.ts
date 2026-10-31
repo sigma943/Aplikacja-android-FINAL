@@ -78,3 +78,11 @@ export function widgetAccentColor(color: string, dark: boolean) {
   }
   return '#' + rgb.map(channel => channel.toString(16).padStart(2, '0')).join('');
 }
+
+/** Paint at full strength first; apply transparency once to the complete background. */
+export function widgetSoftBackground(appearance:WidgetAppearance,dark:boolean){
+  if(!appearance.softBackground||appearance.softBackgroundStrength<=0)return '';
+  const amount=Math.max(0,Math.min(1,appearance.softBackgroundStrength/100));
+  const highlight=dark?'#'+widgetRgb(appearance.accentColor).map(c=>Math.round(c*.8+255*.2).toString(16).padStart(2,'0')).join(''):appearance.accentColor;
+  return `radial-gradient(ellipse 85% 80% at 18% 20%,${widgetRgba(highlight,amount*(dark?.32:.24))},transparent 85%),radial-gradient(ellipse 90% 90% at 82% 85%,${widgetRgba(dark?'#02060c':'#64748b',amount*(dark?.38:.18))},transparent 90%),radial-gradient(ellipse 60% 55% at 88% 12%,${widgetRgba(appearance.accentColor,amount*(dark?.18:.12))},transparent 80%)`;
+}

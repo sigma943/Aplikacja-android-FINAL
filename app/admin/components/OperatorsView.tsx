@@ -87,14 +87,14 @@ export function OperatorsView({
   }, [operators, search, filterRole]);
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-[calc(env(safe-area-inset-bottom)+4rem)]">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+7rem)] sm:p-8 sm:pb-[calc(var(--safe-bottom)+4rem)]">
       <div className="mx-auto max-w-4xl space-y-6">
         
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-4">
             <button 
-              onClick={onMenuClick} 
+              data-admin-milk-control="menu" onClick={onMenuClick}
               className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
             >
               <Menu size={20} />
@@ -117,7 +117,8 @@ export function OperatorsView({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
-              type="text" 
+              data-milk-search
+              type="text"
               placeholder="Szukaj po nazwie lub ID..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -127,7 +128,7 @@ export function OperatorsView({
           <div ref={filterDropdownRef} className="relative">
             <button 
               onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-              className="flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 transition-all cursor-pointer group"
+              className="ui-accent-control flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 transition-all cursor-pointer group"
             >
               {filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : 'Administratorzy'}
               <Filter size={16} className={cn("transition-transform duration-300", showFilterDropdown && "rotate-180")} />
@@ -156,7 +157,7 @@ export function OperatorsView({
                <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="pks-personal-card text-center py-10 text-slate-500 text-sm bg-[#111623] rounded-2xl border border-white/5"
+                className="pks-personal-card text-center py-10 text-slate-400 text-sm bg-[#111623] rounded-2xl border border-white/5"
                >
                   Nie znaleziono osób w kadrze spełniających kryteria.
                </motion.div>
@@ -295,8 +296,8 @@ function OperatorCard({
              <PermissionIcon active={operator.permissions.monitor} icon={<Monitor size={14} />} title="Urządzenia" />
              <PermissionIcon active={operator.permissions.shield} icon={<Shield size={14} />} title="Role i operatorzy" />
              <PermissionIcon active={operator.permissions.users} icon={<Users size={14} />} title="Zarządzanie użytkownikami" />
-             <PermissionIcon active={operator.permissions.group} icon={<Lock size={14} />} title="Bany / Blokady" />
-             <PermissionIcon active={operator.permissions.ban} icon={<Hammer size={14} />} title="Możliwość banowania" />
+             <PermissionIcon active={operator.permissions.group} icon={<Lock size={14} />} title="Blokady" />
+             <PermissionIcon active={operator.permissions.ban} icon={<Hammer size={14} />} title="Nakładanie blokad" />
              <PermissionIcon active={operator.permissions.logs} icon={<Activity size={14} />} title="Dostęp do logów" />
              <PermissionIcon active={operator.permissions.globalSettings} icon={<Globe size={14} />} title="Ustawienia globalne (podgląd)" />
              <PermissionIcon active={operator.permissions.globalSettingsEdit} icon={<SlidersHorizontal size={14} />} title="Edycja ustawień globalnych" />
@@ -461,8 +462,8 @@ disableStops: false,
     { key: 'shield', label: 'Role i operatorzy', desc: 'Tworzenie i podgląd operatorów', icon: <Shield size={16} /> },
     { key: 'canChangeRoles', label: 'Nadawanie rang', desc: 'Pozwala zmieniac role uzytkownikow', icon: <UserCog size={16} /> },
     { key: 'users', label: 'Zarządzanie użytkownikami', desc: 'Sekcja z uprawnieniami użytkowników', icon: <Users size={16} /> },
-    { key: 'group', label: 'Bany / Blokady', desc: 'Historia ograniczonych urządzeń', icon: <Lock size={16} /> },
-    { key: 'ban', label: 'Możliwość banowania', desc: 'Zezwala nakładać i zdejmować bany', icon: <Hammer size={16} /> },
+    { key: 'group', label: 'Blokady', desc: 'Historia ograniczonych urządzeń', icon: <Lock size={16} /> },
+    { key: 'ban', label: 'Nakładanie blokad', desc: 'Zezwala nakładać i zdejmować blokady', icon: <Hammer size={16} /> },
     { key: 'logs', label: 'Dostęp do logów', desc: 'Przeglądanie logów systemowych', icon: <Activity size={16} /> },
     { key: 'globalSettings', label: 'Ustawienia globalne', desc: 'Widoczność sekcji i odczyt wartości', icon: <Globe size={16} /> },
     { key: 'globalSettingsEdit', label: 'Edycja ustawień globalnych', desc: 'Zapis zmian w ustawieniach systemowych', icon: <SlidersHorizontal size={16} /> },
@@ -749,8 +750,8 @@ function GlobalPermissionsModal({
 
           <div className="pks-personal-card flex justify-between items-center bg-[#111623] border border-white/5 p-5 rounded-2xl group hover:border-white/10 transition-colors">
             <div>
-              <div className="text-base font-bold text-white mb-0.5">Auto-ban niezweryfikowanych</div>
-              <div className="text-xs text-slate-500">Cichy ban na zawsze dla urządzeń bez weryfikacji</div>
+              <div className="text-base font-bold text-white mb-0.5">Automatyczne blokowanie niezweryfikowanych</div>
+              <div className="text-xs text-slate-500">Cicha blokada bezterminowa urządzeń bez weryfikacji</div>
             </div>
             <button
               type="button"

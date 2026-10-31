@@ -143,7 +143,7 @@ export default function TrainDetailsPanel({
       animate={{ y: 0, opacity: 1 }}
       exit={reducedMotion?{y:0,opacity:1}:{y:'100%',opacity:.5}}
       transition={reducedMotion?{duration:0}:{type:'spring',stiffness:500,damping:30}}
-      className="absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 z-50 flex max-h-[calc(72vh-24px)] flex-col overflow-hidden rounded-t-3xl border border-white/12 bg-[#03100d]/96 text-white shadow-2xl md:bottom-4 md:left-4 md:right-auto md:mb-0 md:max-h-[88vh] md:w-[420px] md:rounded-3xl"
+      className="absolute bottom-[calc(64px+var(--safe-bottom))] left-0 right-0 z-50 flex max-h-[calc(72vh-24px)] flex-col overflow-hidden rounded-t-3xl border border-white/12 bg-[#03100d]/96 text-white shadow-2xl md:bottom-4 md:left-4 md:right-auto md:mb-0 md:max-h-[88vh] md:w-[420px] md:rounded-3xl"
     >
       <motion.div
         className="relative shrink-0 overflow-hidden px-5 pb-5 pt-4 text-white md:px-6 md:pb-6"

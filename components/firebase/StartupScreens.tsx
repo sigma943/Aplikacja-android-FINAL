@@ -2,7 +2,7 @@
 
 import {useEffect, useState} from 'react';
 import {normalizeUiAccent} from '@/lib/ui-accent';
-import {readAppTheme,resolveAppTheme,THEME_SCREEN_COLORS,themeScreenMaterial} from '@/lib/app-theme';
+import {readAppTheme,resolveAppTheme,THEME_SCREEN_COLORS,themeScreenMaterial,startupThemeAccent} from '@/lib/app-theme';
 
 import {type DeviceRole} from '@/lib/admin/rbac';
 
@@ -14,19 +14,23 @@ import {type DeviceData} from '@/components/firebase/types';
 function getStoredThemeMode(){return resolveAppTheme(readAppTheme());}
 function themeBackground(mode:string){return THEME_SCREEN_COLORS[resolveAppTheme(mode)].background;}
 function themeTextColor(mode:string){return THEME_SCREEN_COLORS[resolveAppTheme(mode)].text;}
+function updateStartupAccent(mode:string){
+  let accent='#00a3a2',appearance:unknown;
+  try{accent=normalizeUiAccent(window.localStorage.getItem('mks_theme')||'');}catch{}
+  if(mode==='dark-mountains')try{appearance=JSON.parse(window.localStorage.getItem('mks_interface_appearance_v1')||'{}');}catch{}
+  const root=document.documentElement;
+  root.style.setProperty('--pks-accent',startupThemeAccent(mode,accent,appearance,Date.now(),root.dataset.landscapePeriod));
+}
 function useStartupThemeMode(){
   const [mode,setMode]=useState('dark-oled');
   useEffect(()=>{
     const update=()=>{
-      setMode(getStoredThemeMode());
-      let accent='#00a3a2';
-      try{accent=normalizeUiAccent(window.localStorage.getItem('mks_theme')||'');}catch{}
-      document.documentElement.style.setProperty('--pks-accent',accent);
+      const current=getStoredThemeMode();setMode(current);updateStartupAccent(current);
     };update();
-    window.addEventListener('storage',update);window.addEventListener('pks-profile-applied',update);window.addEventListener('pks-interface-appearance',update);
+    window.addEventListener('pks-landscape-period',update);window.addEventListener('storage',update);window.addEventListener('pks-profile-applied',update);window.addEventListener('pks-interface-appearance',update);
     let media:MediaQueryList|undefined;
     try{media=window.matchMedia('(prefers-color-scheme: dark)');media.addEventListener('change',update);}catch{}
-    return()=>{window.removeEventListener('storage',update);window.removeEventListener('pks-profile-applied',update);window.removeEventListener('pks-interface-appearance',update);try{media?.removeEventListener('change',update);}catch{}};
+    return()=>{window.removeEventListener('pks-landscape-period',update);window.removeEventListener('storage',update);window.removeEventListener('pks-profile-applied',update);window.removeEventListener('pks-interface-appearance',update);try{media?.removeEventListener('change',update);}catch{}};
   },[]);
   return mode;
 }
@@ -130,6 +134,7 @@ function LoadingScreen() {
   useEffect(() => {
     const update=()=>{
       const current=getStoredThemeMode(),material=themeScreenMaterial(current),root=document.documentElement;
+      updateStartupAccent(current);
       root.dataset.pksTheme=current;
       root.style.setProperty('--pks-initial-bg',material.background);
       root.style.setProperty('--pks-loading-text',material.text);

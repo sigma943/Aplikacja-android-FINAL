@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, perf/android-startup-and-rendering]
   pull_request:
-    branches: [main, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242, fix/mpk-diagnostics-242, fix/mpk-mybus-fallback-242, fix/mpk-mybus-timetable-242]
+    branches: [main, fix/landscape-foreground-bus-panel, fix/route-rendering-242, refactor/modularize-242, fix/boguchwala-platform-242, fix/mpk-diagnostics-242, fix/mpk-mybus-fallback-242, fix/mpk-mybus-timetable-242]
   workflow_dispatch:
     inputs:
       fast_apk:
@@ -70,7 +70,7 @@ jobs:
 
       - name: Verify automatic road routing fallback
         if: env.FAST_APK != 'true'
-        run: node --test test/journey-recovery.test.cjs test/journey-geometry.test.cjs test/route-load-retry.test.cjs test/road-route-fallback.test.cjs test/official-route-live-pattern.test.cjs test/vehicle-route-validation.test.cjs test/road-route-quality.test.cjs test/preferred-route.test.cjs test/route-cache-performance.test.cjs test/bus-routes.test.cjs test/pks-202-route.test.cjs test/pks-312-route.test.cjs test/marcel-road-routing.test.cjs
+        run: node --test test/journey-recovery.test.cjs test/journey-geometry.test.cjs test/route-load-retry.test.cjs test/road-route-fallback.test.cjs test/official-route-live-pattern.test.cjs test/vehicle-route-validation.test.cjs test/road-route-quality.test.cjs test/preferred-route.test.cjs test/route-cache-performance.test.cjs test/bus-routes.test.cjs test/pks-202-route.test.cjs test/pks-312-route.test.cjs test/pks-216-route.test.cjs test/marcel-road-routing.test.cjs
 
       - name: Test Application
         if: ${{ env.FAST_APK != 'true' && (env.FULL_VERIFICATION == 'true') }}
@@ -90,8 +90,125 @@ jobs:
           node test/journey-recents-browser.cjs
           node test/journey-engine-browser.cjs
 
+      - name: Verify current bus courses and stop progression
+        if: contains(github.event.pull_request.title, '[course-check]')
+        run: node --test test/pks-current-course.test.cjs test/bus-stop-passage.test.cjs test/vehicle-stop-progress.test.cjs test/shared-inflight.test.cjs test/bus-routes.test.cjs test/physical-routing-regressions.test.cjs test/vehicle-trip-finished.test.cjs
+
+      - name: Verify Niebylec routes in both directions
+        if: contains(github.event.pull_request.title, '[route-check]')
+        run: node --test test/marcel-niebylec-route.test.cjs test/marcel-route-assets.test.cjs test/marcel-road-routing.test.cjs test/journey-geometry.test.cjs test/physical-routing-regressions.test.cjs test/road-route-quality.test.cjs test/route-cache-performance.test.cjs test/vehicle-route-validation.test.cjs test/bus-stop-passage.test.cjs
+
       - name: Build Android Web Assets
         run: npm run build:android:web
+
+      - name: Verify place picker dock and location notice
+        if: contains(github.event.pull_request.title, '[picker-check]')
+        run: |
+          node --test test/journey-places.test.cjs test/journey-coordinates.test.cjs test/journey-view-state.test.cjs test/stop-search.test.cjs test/ui-accent.test.cjs test/landscape-accent.test.cjs
+          npx puppeteer browsers install chrome
+          JOURNEY_PICKER_APPEARANCE=1 JOURNEY_PICKER_ONLY=1 node test/journeys-browser.cjs
+
+      - name: Upload place picker appearance previews
+        if: always() && contains(github.event.pull_request.title, '[picker-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: place-picker-appearance-previews
+          path: |
+            test/ui-previews/journeys-picker-*.png
+            test/ui-previews/journey-place-theme-*.png
+          retention-days: 7
+
+      - name: Verify Horyzont day and night accent settings
+        if: contains(github.event.pull_request.title, '[solar-accent-check]')
+        run: |
+          node --test test/landscape-accent.test.cjs test/interface-appearance.test.cjs test/interface-presets.test.cjs test/personalization-profiles.test.cjs test/appearance-backup.test.cjs test/landscape.test.cjs test/ui-accent.test.cjs
+          npx puppeteer browsers install chrome
+          node test/landscape-accent-browser.cjs
+
+      - name: Upload Horyzont accent previews
+        if: always() && contains(github.event.pull_request.title, '[solar-accent-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: landscape-accent-previews
+          path: test/ui-previews/landscape-accent-*.png
+          retention-days: 7
+
+      - name: Verify admin button preferences across themes
+        if: contains(github.event.pull_request.title, '[button-check]')
+        run: |
+          node --test test/app-theme.test.cjs test/landscape-accent.test.cjs test/ui-accent.test.cjs
+          npx puppeteer browsers install chrome
+          node test/admin-button-style-browser.cjs
+
+      - name: Upload admin button previews
+        if: always() && contains(github.event.pull_request.title, '[button-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-button-previews
+          path: test/ui-previews/admin-button-*.png
+          retention-days: 7
+
+      - name: Verify standalone message contrast across themes
+        if: contains(github.event.pull_request.title, '[contrast-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          node test/scene-message-browser.cjs
+          node test/theme-background-browser.cjs
+
+      - name: Upload message contrast previews
+        if: always() && contains(github.event.pull_request.title, '[contrast-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: message-contrast-previews
+          path: |
+            test/ui-previews/scene-message-*.png
+            test/ui-previews/theme-background-*.png
+          retention-days: 7
+
+      - name: Verify coordinate entry
+        if: contains(github.event.pull_request.title, '[coordinates-check]')
+        run: |
+          test -s out/data/bus-road-network.json
+          node --test test/global-route-recovery.test.cjs
+          node --test test/marcel-index.test.cjs test/map-marcel-departures.test.cjs test/marcel-badges-colors.test.cjs test/marcel-live-regressions.test.cjs test/admin-statistics.test.cjs
+          node --test test/pks-216-route.test.cjs test/reconcile-route-stops.test.cjs test/pks-202-route.test.cjs test/pks-312-route.test.cjs test/official-route-live-pattern.test.cjs
+          node --test test/interface-appearance.test.cjs test/interface-presets.test.cjs test/system-bars.test.cjs test/google-maps-link.test.cjs test/journey-coordinates.test.cjs test/journey-places.test.cjs
+          npx puppeteer browsers install chrome
+          node test/coordinate-entry-browser.cjs
+          node test/edge-to-edge-browser.cjs
+          node test/bus-road-network-browser.cjs
+          node test/theme-status-browser.cjs
+
+      - name: Upload coordinate entry previews
+        if: always() && contains(github.event.pull_request.title, '[coordinates-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: coordinate-entry-previews
+          path: |
+            test/ui-previews/coordinate-entry-*.png
+            test/ui-previews/theme-status-*.png
+          if-no-files-found: ignore
+
+      - name: Verify desktop layout and unchanged phone layouts
+        if: env.FAST_APK != 'true'
+        run: node test/desktop-layout-browser.cjs
+
+      - name: Verify Horyzont controls and map isolation across themes
+        if: contains(github.event.pull_request.title, '[horyzont-check]')
+        run: |
+          node --test test/landscape.test.cjs test/landscape-twilight.test.cjs test/mpk-map-corridor.test.cjs test/route-map-platform.test.cjs test/horyzont-settings.test.cjs test/journey-source-geometry.test.cjs test/journey-geometry.test.cjs test/journey-walking-nearby.test.cjs
+          npx puppeteer browsers install chrome
+          node test/horyzont-map-browser.cjs
+          node test/admin-theme-browser.cjs
+          node test/landscape-gpu-browser.cjs
+
+      - name: Upload Horyzont regression screenshots
+        if: ${{ always() && contains(github.event.pull_request.title, '[horyzont-check]') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: horyzont-map-regression
+          path: test/ui-previews/horyzont-*.png
+          if-no-files-found: ignore
 
       - name: Verify living mountain astronomy and lifecycle
         if: env.FAST_APK != 'true'
@@ -177,6 +294,7 @@ jobs:
           cd android
           chmod +x ./gradlew
           if [ "$FAST_APK" = "true" ]; then
+            ./gradlew testDebugUnitTest --tests pl.pkslive.app.SystemBarsAppearanceTest --tests pl.pkslive.app.GoogleMapsHttpTest --tests pl.pkslive.app.WidgetAppearanceTest
             ./gradlew assembleRelease
           elif [ "$FULL_VERIFICATION" = "true" ]; then
             ./gradlew testDebugUnitTest testReleaseUnitTest testReleaseTestUnitTest assembleDebug assembleRelease assembleReleaseTest

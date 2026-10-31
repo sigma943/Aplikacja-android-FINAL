@@ -98,6 +98,7 @@ type StopsSearchState = {
 
 const TOKEN_CACHE = new Map<string, string[]>();
 const NUM_TOKEN_CACHE = new Map<string, Set<string>>();
+const marcelIndexConsumers=new Map<string,Map<object,AbortSignal|undefined>>();
 const MARCEL_STOPS_INDEX_CACHE = new Map<string, Promise<MarcelIndexedStop[]>>();
 
 const STOP_CACHE_VERSION = 11;
@@ -886,13 +887,18 @@ function marcelCourseStopIndexKey(stop: MarcelCourseStopPublic) {
 }
 
 const marcelIndexListeners = new Map<string, Set<(stops: MarcelIndexedStop[]) => void>>();
-function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean; onPartial?: (stops: MarcelIndexedStop[]) => void }) {
+function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean; signal?:AbortSignal; onPartial?: (stops: MarcelIndexedStop[]) => void }) {
+  if(options?.signal?.aborted)return Promise.reject(new DOMException('Request aborted','AbortError'));
   const cacheKey = `${MARCEL_STOPS_PERSISTENT_PREFIX}${dateIso}`;
   const cached = readStopCache<MarcelIndexedStop[]>(cacheKey);
   const isFresh = cached && Date.now() - cached.savedAt < STOP_CACHE_TTL_MS;
   if (cached && isFresh && !options?.forceRefresh) return Promise.resolve(cached.data);
 
-  const listener = options?.onPartial;
+  const consumers=marcelIndexConsumers.get(dateIso)||new Map<object,AbortSignal|undefined>();
+  marcelIndexConsumers.set(dateIso,consumers);
+  const consumer={};consumers.set(consumer,options?.signal);
+  const ensureNeeded=()=>{if(![...consumers.values()].some(signal=>!signal?.aborted))throw new DOMException('Request aborted','AbortError');};
+  const listener = options?.onPartial ? (rows:MarcelIndexedStop[])=>{if(!options.signal?.aborted)options.onPartial!(rows);} : undefined;
   if (listener) {
     if (!marcelIndexListeners.has(dateIso)) marcelIndexListeners.set(dateIso, new Set());
     marcelIndexListeners.get(dateIso)!.add(listener);
@@ -901,6 +907,7 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
   if (options?.forceRefresh) MARCEL_STOPS_INDEX_CACHE.delete(dateIso);
   if (!MARCEL_STOPS_INDEX_CACHE.has(dateIso)) {
     MARCEL_STOPS_INDEX_CACHE.set(dateIso, (async () => {
+      ensureNeeded();
       const routes = await fetchMarcelRoutesClient();
       const indexedStops = new Map<string, MarcelIndexedStop & { routeIdSet: Set<string> }>();
 
@@ -913,15 +920,19 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
         marcelIndexListeners.get(dateIso)?.forEach(callback => callback(partial));
       };
       await mapWithConcurrency(routes, 4, async route => {
+        ensureNeeded();
         const routeId = String(route.idTr);
         let courses = await fetchMarcelCoursesClient(route.idTr, dateIso);
         // Look ahead only for routes without service today; do not download seven full timetables.
         for (let offset = 1; !courses.length && offset < 7; offset++) {
+          ensureNeeded();
           courses = await fetchMarcelCoursesClient(route.idTr, warsawDateIso(offset, new Date(dateIso + 'T12:00:00Z')));
         }
         const courseIds = [...new Set(courses.map(course => course.idKu))];
         await mapWithConcurrency(courseIds, 2, async courseId => {
+        ensureNeeded();
         const stopsForCourse = await fetchMarcelPublicCourseStopsClient(courseId);
+        ensureNeeded();
         stopsForCourse.forEach((courseStop) => {
           const strippedName=stripMarcelStopName(courseStop.nazPr);
           const matchName=strippedName||marcelCourseStopMatchKey(courseStop);
@@ -955,6 +966,7 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
         });
       });
 
+      ensureNeeded();
       publish(true);
       const stops = snapshot();
       writeStopCache(cacheKey, stops);
@@ -963,9 +975,11 @@ function getMarcelStopsIndex(dateIso: string, options?: { forceRefresh?: boolean
   }
   return MARCEL_STOPS_INDEX_CACHE.get(dateIso)!.catch((error) => {
     MARCEL_STOPS_INDEX_CACHE.delete(dateIso);
-    if (cached) return cached.data;
+    if (cached && !options?.signal?.aborted) return cached.data;
     throw error;
-  }).finally(() => {
+  }).then(rows=>{options?.signal?.throwIfAborted();return rows;}).finally(() => {
+    consumers.delete(consumer);
+    if(!consumers.size)marcelIndexConsumers.delete(dateIso);
     if (listener) marcelIndexListeners.get(dateIso)?.delete(listener);
     if (!marcelIndexListeners.get(dateIso)?.size) marcelIndexListeners.delete(dateIso);
   });

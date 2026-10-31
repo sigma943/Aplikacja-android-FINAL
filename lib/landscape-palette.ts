@@ -1,5 +1,5 @@
 import {solarMilkMaterial} from './solar-milk';
-import {DEFAULT_INTERFACE_APPEARANCE,type InterfaceAppearance} from './interface-appearance';
+import {DEFAULT_INTERFACE_APPEARANCE,activeInterfaceAccent,type InterfaceAppearance} from './interface-appearance';
 import {normalizeUiAccent,uiAccentVariables} from './ui-accent';
 import {type AstronomyState} from './landscape-astronomy';
 /** Switch foreground, surface and map polarity together. A one-degree dead band
@@ -11,6 +11,7 @@ export function isLandscapeDay(state:AstronomyState,previous?:boolean){
 /** Interpolate temperature within a readable material family, never between
  * white and black. Otherwise twilight produces grey glass with unrelated ink. */
 export function landscapePalette(state:AstronomyState,glassOpacity=64,day=isLandscapeDay(state),appearance:InterfaceAppearance=DEFAULT_INTERFACE_APPEARANCE,accent='#00a3a2'){
+  accent=activeInterfaceAccent(appearance,'dark-mountains',accent,day);
   let surface=solarMilkMaterial(state.sun.altitude*180/Math.PI,day).surface;
   if(appearance.surfaceTint!=='original'){
     const hex=normalizeUiAccent(appearance.surfaceTint==='custom'?appearance.panelColor:appearance.surfaceTint==='accent'?accent:'#d2c2a4');
@@ -24,6 +25,7 @@ export function landscapePalette(state:AstronomyState,glassOpacity=64,day=isLand
   const protective=opacity;
   return {
     '--landscape-surface':`rgba(${surface},${opacity})`,
+    '--landscape-material-opacity':String(opacity),
     '--landscape-ink':day?'rgb(11,27,38)':'rgb(244,248,252)',
     '--landscape-muted':day?'rgb(27,46,60)':'rgb(212,229,240)',
     '--landscape-accent':uiAccentVariables(accent,!day)['--pks-accent-text'],
@@ -33,6 +35,7 @@ export function landscapePalette(state:AstronomyState,glassOpacity=64,day=isLand
     '--landscape-panel-row':`rgba(${field},${opacity*.32})`,
     '--landscape-nav-top':`rgba(${surface},${opacity})`,
     '--landscape-nav-bottom':`rgba(${surface},${opacity})`,
+    '--landscape-nav-glass':`rgba(12,24,31,${opacity})`,
     '--landscape-solid':`rgb(${surface})`,
     '--landscape-color-scheme':day?'light':'dark',
     '--landscape-chrome-light':day?'rgba(255,248,224,.24)':'rgba(174,220,234,.24)',

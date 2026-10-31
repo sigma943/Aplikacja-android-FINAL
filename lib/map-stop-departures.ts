@@ -5,11 +5,15 @@ import {departureFromLiveVehicle} from './vehicle-stop-timing';
 import {departureCountdown,departureIsPast} from './departure-display';
 import {warsawDateIso} from './transit-time';
 const dayFormatter=new Intl.DateTimeFormat('pl-PL',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Warsaw'});
-export function mapStopDepartureRows(rows:Departure[],vehicles:Vehicle[],now:number):MapStopDeparture[]{
-  let todayDate:string|undefined;
+export function liveMapStopDepartures(rows:Departure[],vehicles:Vehicle[]):Departure[]{
   const unique=new Map<string,Departure>();
   rows.forEach(row=>unique.set(`${row.carrier?.id}:${row.id}`,departureFromLiveVehicle(row,vehicles)));
-  return [...unique.values()].filter(row=>{
+  return [...unique.values()];
+}
+
+export function formatMapStopDepartures(rows:Departure[],now:number):MapStopDeparture[]{
+  let todayDate:string|undefined;
+  return rows.filter(row=>{
     const time=row.realAtMs??row.plannedAtMs;
     return Number.isFinite(time)&&!departureIsPast(row,now,time!)&&!/(zjazd|zajezd|technicz|serwis|warsztat|deadhead)/i.test(`${row.line} ${row.direction}`);
   }).sort((a,b)=>(a.realAtMs??a.plannedAtMs??0)-(b.realAtMs??b.plannedAtMs??0)).slice(0,40).map(row=>{
@@ -21,4 +25,8 @@ export function mapStopDepartureRows(rows:Departure[],vehicles:Vehicle[],now:num
       time:today?departureCountdown(row,now):row.time,
       day:today?'':dayFormatter.format(time),delayMinutes:row.delayMins??0};
   });
+}
+
+export function mapStopDepartureRows(rows:Departure[],vehicles:Vehicle[],now:number):MapStopDeparture[]{
+  return formatMapStopDepartures(liveMapStopDepartures(rows,vehicles),now);
 }

@@ -339,7 +339,7 @@ export function DeviceTable({
   );
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-[calc(env(safe-area-inset-bottom)+4rem)]">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+7rem)] sm:p-8 sm:pb-[calc(var(--safe-bottom)+4rem)]">
       <AnimatePresence>
         {deleteDevice && (
           <motion.div
@@ -455,7 +455,7 @@ export function DeviceTable({
       <div className="flex flex-col gap-6 mb-8">
         <div data-landscape-heading className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={onMenuClick} className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer">
+            <button data-admin-milk-control="menu" onClick={onMenuClick} className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer">
               <Menu size={20} />
             </button>
             <div>
@@ -475,6 +475,7 @@ export function DeviceTable({
         <div className="relative min-w-0">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input
+            data-milk-search
             type="text"
             placeholder="Szukaj..."
             value={search}
@@ -487,7 +488,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button onClick={toggleSortDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button data-admin-milk-control="filter" onClick={toggleSortDropdown} className="ui-accent-control w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <ArrowUpDown size={14} className="text-slate-500 group-hover:text-white transition-colors" />
             <span className="truncate">{sortLabel}{sortConfig ? (sortConfig.dir === 'desc' ? ' ↓' : ' ↑') : ''}</span>
           </button>
@@ -510,7 +511,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button onClick={toggleFilterDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button data-admin-milk-control="filter" onClick={toggleFilterDropdown} className="ui-accent-control w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <Filter size={14} className={cn('text-slate-500 group-hover:text-white transition-all duration-300', showFilterDropdown && 'rotate-180')} />
             <span>{filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : filterRole === 'ADMIN' ? 'Administratorzy' : filterRole === 'BLOCKED' ? 'Zablokowani' : 'Użytkownicy'}</span>
           </button>
@@ -544,7 +545,7 @@ export function DeviceTable({
             const deleteDisabled = !canDeleteTarget(device, isSelf);
             const primaryLabel = device.name;
             return (
-              <motion.div key={device.id} initial={reducedMotion?false:{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={reducedMotion?{duration:0,delay:0}:{delay:idx*.05}} className="relative min-w-0 shrink-0" data-admin-device-item>
+              <motion.div key={device.installationId?`installation:${device.installationId}`:device.id} initial={reducedMotion?false:{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={reducedMotion?{duration:0,delay:0}:{delay:idx*.05}} className="relative min-w-0 shrink-0" data-admin-device-item>
                <div data-cosmic-panel={`admin-device:${device.id}`} className="admin-device-card pks-personal-card bg-[#111623] border border-white/5 border-t-white/10 rounded-[2rem] p-6 shadow-2xl space-y-5 group relative">
                 <div className="admin-device-card-glow absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-16 -translate-y-16" />
                 <div className="flex flex-wrap items-center justify-between relative z-10 gap-3">
@@ -562,7 +563,7 @@ export function DeviceTable({
                       <Lock size={18} />
                     </button>
                     {canChangeRoles && (
-                      <button type="button" disabled={rolesDisabled} title={manageTitle(device, isSelf)} onClick={() => !rolesDisabled && onOpenRolesModal(device)} className="cursor-pointer rounded-2xl border border-sky-500/20 bg-sky-500/10 p-3 text-sky-400 shadow-lg transition-all hover:bg-sky-500 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30">
+                      <button type="button" disabled={rolesDisabled} title={manageTitle(device, isSelf)} onClick={() => !rolesDisabled && onOpenRolesModal(device)} className="ui-accent-control cursor-pointer rounded-2xl border border-sky-500/20 bg-sky-500/10 p-3 text-sky-400 shadow-lg transition-all hover:bg-sky-500 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30">
                         <Settings size={18} />
                       </button>
                     )}
@@ -599,7 +600,7 @@ export function DeviceTable({
               </motion.div>
             );
           }) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pks-personal-card bg-[#111623] border border-white/5 rounded-3xl p-16 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pks-personal-card bg-[#111623] border border-white/5 rounded-3xl p-16 text-center text-slate-400 font-bold uppercase tracking-widest text-xs italic">
               {devicesError ? 'Brak dostępu do listy urządzeń' : 'Brak pasujących wyników wyszukiwania'}
             </motion.div>
           )}
@@ -627,7 +628,7 @@ export function DeviceTable({
                   const rolesDisabled = !canManageTarget(device, isSelf);
                   const deleteDisabled = !canDeleteTarget(device, isSelf);
                   return (
-                    <tr key={device.id} className="group hover:bg-white/[0.02] transition-colors">
+                    <tr key={device.installationId?`installation:${device.installationId}`:device.id} className="group hover:bg-white/[0.02] transition-colors">
                       <td className="px-6 py-4 min-w-[200px]">
                         <div className="flex items-center gap-4 min-w-0">
                           <div className="flex shrink-0 items-center gap-2">
@@ -650,7 +651,7 @@ export function DeviceTable({
                             <Lock size={18} />
                           </button>
                           {canChangeRoles && (
-                            <button type="button" disabled={rolesDisabled} onClick={() => !rolesDisabled && onOpenRolesModal(device)} className="cursor-pointer rounded-xl p-2.5 text-slate-500 transition-all hover:scale-110 hover:bg-sky-500/10 hover:text-sky-400 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30" title={manageTitle(device, isSelf)}>
+                            <button type="button" disabled={rolesDisabled} onClick={() => !rolesDisabled && onOpenRolesModal(device)} className="ui-accent-control cursor-pointer rounded-xl p-2.5 text-slate-500 transition-all hover:scale-110 hover:bg-sky-500/10 hover:text-sky-400 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30" title={manageTitle(device, isSelf)}>
                               <Settings size={18} />
                             </button>
                           )}
@@ -663,7 +664,7 @@ export function DeviceTable({
                   );
                 }) : (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                       {devicesError ? 'Brak dostępu do listy urządzeń.' : 'Brak pasujących wyników wyszukiwania'}
                     </td>
                   </tr>

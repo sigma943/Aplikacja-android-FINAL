@@ -166,7 +166,7 @@ export function LogsView({
   };
 
   return (
-    <div data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-8 sm:pb-[calc(env(safe-area-inset-bottom)+4rem)]">
+    <div data-admin-view-canvas data-cosmic-canvas className="min-h-0 flex-1 overflow-y-auto bg-[#040609] p-4 pb-[calc(var(--safe-bottom)+7rem)] sm:p-8 sm:pb-[calc(var(--safe-bottom)+4rem)]">
       <AnimatePresence>
         {showClearConfirm && (
           <motion.div
@@ -227,7 +227,7 @@ export function LogsView({
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={onMenuClick}
+              data-admin-milk-control="menu" onClick={onMenuClick}
               className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
             >
               <Menu size={20} />
@@ -263,8 +263,8 @@ export function LogsView({
         <div ref={filtersRef} className="grid grid-cols-2 gap-4">
           <div className="relative">
             <button 
-              onClick={toggleTypeFilter}
-              className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
+              data-admin-milk-control="filter" onClick={toggleTypeFilter}
+              className="ui-accent-control w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
                 {filterType === 'ALL' ? 'Wszystkie typy' : filterType === 'SYSTEM' ? 'Systemowe' : 'Operatorskie'}
@@ -279,9 +279,9 @@ export function LogsView({
                   exit={{ opacity: 0, scale: 0.95, y: -5 }}
                   className="pks-personal-card absolute top-full left-0 right-0 mt-2 bg-[#111623] border border-white/10 rounded-2xl overflow-hidden z-20 shadow-2xl p-1.5 flex flex-col gap-1"
                 >
-                  <button onClick={() => { setFilterType('ALL'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Wszystkie typy</button>
-                  <button onClick={() => { setFilterType('SYSTEM'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Tylko Systemowe</button>
-                  <button onClick={() => { setFilterType('OPERATOR'); setShowFilterDropdown(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer">Tylko Operatorskie</button>
+                  <button onClick={() => { setFilterType('ALL'); setShowFilterDropdown(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer",filterType === 'ALL' ? 'ui-accent-control' : 'text-slate-400 hover:text-white hover:bg-white/5')}>Wszystkie typy</button>
+                  <button onClick={() => { setFilterType('SYSTEM'); setShowFilterDropdown(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer",filterType === 'SYSTEM' ? 'ui-accent-control' : 'text-slate-400 hover:text-white hover:bg-white/5')}>Tylko Systemowe</button>
+                  <button onClick={() => { setFilterType('OPERATOR'); setShowFilterDropdown(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer",filterType === 'OPERATOR' ? 'ui-accent-control' : 'text-slate-400 hover:text-white hover:bg-white/5')}>Tylko Operatorskie</button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -289,8 +289,8 @@ export function LogsView({
 
           <div className="relative">
             <button 
-              onClick={toggleDateFilter}
-              className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
+              data-admin-milk-control="filter" onClick={toggleDateFilter}
+              className="ui-accent-control w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
                 {filterDate === 'ALL' ? 'Wszystkie daty' : 
@@ -313,14 +313,14 @@ export function LogsView({
                   className="pks-personal-card absolute top-full right-0 mt-2 w-72 sm:w-80 bg-[#111623] border border-white/10 rounded-2xl z-30 shadow-2xl p-2 flex flex-col max-h-[80vh] overflow-y-auto"
                 >
                   <div className="p-1 space-y-1">
-                    <button onClick={() => { setFilterDate('ALL'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'ALL' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Wszystkie daty</button>
-                    <button onClick={() => { setFilterDate('TODAY'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'TODAY' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Dzisiaj</button>
-                    <button onClick={() => { setFilterDate('YESTERDAY'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'YESTERDAY' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Wczoraj</button>
-                    <button onClick={() => { setFilterDate('THIS_WEEK'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'THIS_WEEK' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tym tygodniu</button>
-                    <button onClick={() => { setFilterDate('LAST_WEEK'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'LAST_WEEK' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tamtym tygodniu</button>
-                    <button onClick={() => { setFilterDate('THIS_MONTH'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'THIS_MONTH' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tym miesiącu</button>
-                    <button onClick={() => { setFilterDate('LAST_MONTH'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'LAST_MONTH' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tamtym miesiącu</button>
-                    <button onClick={() => { setFilterDate('CUSTOM'); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'CUSTOM' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Zakres niestandardowy</button>
+                    <button onClick={() => { setFilterDate('ALL'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'ALL' ? 'ui-accent-control' : 'text-slate-400')}>Wszystkie daty</button>
+                    <button onClick={() => { setFilterDate('TODAY'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'TODAY' ? 'ui-accent-control' : 'text-slate-400')}>Dzisiaj</button>
+                    <button onClick={() => { setFilterDate('YESTERDAY'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'YESTERDAY' ? 'ui-accent-control' : 'text-slate-400')}>Wczoraj</button>
+                    <button onClick={() => { setFilterDate('THIS_WEEK'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'THIS_WEEK' ? 'ui-accent-control' : 'text-slate-400')}>W tym tygodniu</button>
+                    <button onClick={() => { setFilterDate('LAST_WEEK'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'LAST_WEEK' ? 'ui-accent-control' : 'text-slate-400')}>W tamtym tygodniu</button>
+                    <button onClick={() => { setFilterDate('THIS_MONTH'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'THIS_MONTH' ? 'ui-accent-control' : 'text-slate-400')}>W tym miesiącu</button>
+                    <button onClick={() => { setFilterDate('LAST_MONTH'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'LAST_MONTH' ? 'ui-accent-control' : 'text-slate-400')}>W tamtym miesiącu</button>
+                    <button onClick={() => { setFilterDate('CUSTOM'); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'CUSTOM' ? 'ui-accent-control' : 'text-slate-400')}>Zakres niestandardowy</button>
                   </div>
 
                   <AnimatePresence>
@@ -335,17 +335,17 @@ export function LogsView({
                             <div className="grid grid-cols-1 gap-3">
                                <div>
                                   <label htmlFor="logs-range-start" className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1.5 block px-1">Początek zakresu</label>
-                                  <input type="date" className="admin-range-date w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all" id="logs-range-start" value={customRange.start} onChange={e => setCustomRange({...customRange, start: e.target.value})} />
+                                  <input type="date" className="admin-range-date ui-accent-input w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white outline-none transition-all" id="logs-range-start" value={customRange.start} onChange={e => setCustomRange({...customRange, start: e.target.value})} />
                                </div>
                                <div>
                                   <label htmlFor="logs-range-end" className="text-[10px] text-slate-500 uppercase tracking-widest font-black mb-1.5 block px-1">Koniec zakresu</label>
-                                  <input type="date" className="admin-range-date w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:border-sky-500/50 outline-none transition-all" id="logs-range-end" value={customRange.end} onChange={e => setCustomRange({...customRange, end: e.target.value})} />
+                                  <input type="date" className="admin-range-date ui-accent-input w-full bg-[#111623] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white outline-none transition-all" id="logs-range-end" value={customRange.end} onChange={e => setCustomRange({...customRange, end: e.target.value})} />
                                </div>
                             </div>
                             <div className="px-1 pt-1">
                                <button 
                                  onClick={() => setShowDatePicker(false)} 
-                                 className="w-full bg-sky-500 hover:bg-sky-400 text-white rounded-xl py-2.5 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-[0.98] cursor-pointer"
+                                 className="ui-accent-control w-full bg-sky-500 hover:bg-sky-400 text-white rounded-xl py-2.5 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-[0.98] cursor-pointer"
                                >
                                  Zastosuj okres
                                </button>
@@ -365,7 +365,8 @@ export function LogsView({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
-              type="text" 
+              data-milk-search
+              type="text"
               placeholder="Szukaj..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -398,7 +399,7 @@ export function LogsView({
                <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="pks-personal-card text-center py-12 text-slate-500 text-sm bg-[#111623] rounded-3xl border border-white/5"
+                className="pks-personal-card text-center py-12 text-slate-400 text-sm bg-[#111623] rounded-3xl border border-white/5"
                >
                   Nie znaleziono logów spełniających kryteria wyszukiwania.
                </motion.div>
@@ -460,7 +461,7 @@ function LogCard({ log }: { log: Log }) {
           <div className={cn("text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg border shrink-0",
             log.category === 'SYSTEM' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]"
           )}>
-            {log.category}
+            {log.category === 'SYSTEM' ? 'Systemowe' : 'Administracyjne'}
           </div>
         </div>
         <p className="text-sm text-slate-400 whitespace-pre-line leading-relaxed group-hover:text-slate-300 transition-colors font-medium">{log.description}</p>

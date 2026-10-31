@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const loadTs=require('./load-ts.cjs');
-const {normalizeWidgetAppearance,DEFAULT_WIDGET_APPEARANCE,widgetAccentColor,widgetSurfaceColors,widgetRgb}=loadTs('lib/widget-appearance.ts');
+const {normalizeWidgetAppearance,DEFAULT_WIDGET_APPEARANCE,widgetAccentColor,widgetSurfaceColors,widgetRgb,widgetSoftBackground}=loadTs('lib/widget-appearance.ts');
 test('widget settings accept full transparency, bound sliders and reject invalid custom colours',()=>{
  const result=normalizeWidgetAppearance({transparency:100,cornerRadius:99,accentColor:'#Ee00AA',showStatus:false});
  assert.equal(result.transparency,100);assert.equal(result.cornerRadius,32);assert.equal(result.accentColor,'#ee00aa');assert.equal(result.showStatus,false);
@@ -27,4 +27,26 @@ test('Android pin receives normalized appearance without changing selected lines
  await pinStopWidget({stop,lines:['108'],size:'small',theme:'dark',appearance:{transparency:65,accentColor:'#123456',showDelay:false}},[row],[]);
  const config=JSON.parse(request.config);assert.equal(config.appearance.transparency,65);assert.equal(config.appearance.showDelay,false);assert.deepEqual(config.lines,['108']);
  assert.equal(JSON.parse(request.departures)[0].realAtMs,row.realAtMs);
+});
+
+test('soft widget background responds to strength and theme without applying transparency twice',()=>{
+ for(const dark of [false,true]){
+  const appearance={...DEFAULT_WIDGET_APPEARANCE,softBackground:true};
+  const normal=widgetSoftBackground(appearance,dark);
+  assert.match(normal,/radial-gradient/);
+  assert.notEqual(normal,widgetSoftBackground({...appearance,softBackgroundStrength:100},dark));
+  assert.equal(normal,widgetSoftBackground({...appearance,transparency:90},dark));
+  assert.equal('',widgetSoftBackground({...appearance,softBackground:false},dark));
+  assert.equal('',widgetSoftBackground({...appearance,softBackgroundStrength:0},dark));
+ }
+});
+test('preview applies transparency only to the layered background, keeping content opaque',()=>{
+ const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+ const Preview=loadTs('components/widgets/WidgetPreview.tsx').default;
+ for(const dark of [false,true])for(const transparency of [0,65,100]){
+  const html=renderToStaticMarkup(React.createElement(Preview,{name:'Test',departures:[],size:'medium',dark,glass:true,appearance:{...DEFAULT_WIDGET_APPEARANCE,softBackground:true,transparency}}));
+  assert.match(html,new RegExp('data-widget-background[^>]+opacity:'+String(1-transparency/100)));
+  assert.doesNotMatch(html,/data-widget-preview[^>]+opacity:/);
+  assert.match(html,/radial-gradient/);
+ }
 });

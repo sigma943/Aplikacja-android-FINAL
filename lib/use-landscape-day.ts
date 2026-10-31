@@ -1,9 +1,9 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useLayoutEffect,useState} from 'react';
 /** Notify the app only when solar day/night changes, never on an animation frame. */
 export function useLandscapeDay(active:boolean){
   const [day,setDay]=useState(false);
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     if(!active)return;
     const update=()=>setDay(document.documentElement.dataset.landscapePeriod==='day');
     update();window.addEventListener('pks-landscape-period',update);

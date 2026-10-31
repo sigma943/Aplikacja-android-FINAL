@@ -18,6 +18,8 @@ export function vehicleHeaderStyle(color:string,glass:boolean,isDark=true){
 export const NAV_ITEMS=['map','stops','journeys','admin','options'] as const;
 export type NavItem=typeof NAV_ITEMS[number];
 export interface InterfaceAppearance {
+  statusBarOverlay:boolean;
+  landscapeAccentEnabled:boolean; landscapeDayAccent:string; landscapeNightAccent:string;
   startScreen:'map'|'journeys'|'stops'|'admin';navOrder:NavItem[];departureView:'simple'|'detailed';
   markerSize:number;markerLabel:'line'|'carrier'|'icon';
   panelRadius:number; cardRadius:number; controlRadius:number;
@@ -37,6 +39,8 @@ export interface InterfaceAppearance {
   glowSpread:number; glowPlacement:'corners'|'center'|'diagonal';
 }
 export const DEFAULT_INTERFACE_APPEARANCE:InterfaceAppearance={
+  statusBarOverlay:true,
+  landscapeAccentEnabled:false,landscapeDayAccent:'',landscapeNightAccent:'',
   startScreen:'map',navOrder:[...NAV_ITEMS],departureView:'detailed',markerSize:100,markerLabel:'line',
   panelRadius:24,cardRadius:20,controlRadius:12,borderStrength:12,shadowStrength:30,
   glassOpacity:64,glassBlur:18,glassBlurEnabled:true,glassSaturation:135,surfaceTint:'original',panelColor:'#64748b',panelTintStrength:35,cardStyle:'original',buttonStyle:'original',
@@ -58,6 +62,10 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   const choice=<K extends keyof InterfaceAppearance>(key:K,values:readonly InterfaceAppearance[K][])=>values.includes(v[key] as InterfaceAppearance[K])?v[key] as InterfaceAppearance[K]:d[key];
   const flag=(key:keyof InterfaceAppearance)=>typeof v[key]==='boolean'?v[key] as boolean:d[key] as boolean;
   return {
+    statusBarOverlay:flag('statusBarOverlay'),
+    landscapeAccentEnabled:flag('landscapeAccentEnabled'),
+    landscapeDayAccent:typeof v.landscapeDayAccent==='string'&&/^#[\da-f]{6}$/i.test(v.landscapeDayAccent)?normalizeUiAccent(v.landscapeDayAccent):'',
+    landscapeNightAccent:typeof v.landscapeNightAccent==='string'&&/^#[\da-f]{6}$/i.test(v.landscapeNightAccent)?normalizeUiAccent(v.landscapeNightAccent):'',
     startScreen:choice('startScreen',['map','journeys','stops','admin']),
     navOrder:normalizeNavOrder(v.navOrder),
     departureView:choice('departureView',['simple','detailed']),markerSize:n('markerSize',80,140),markerLabel:choice('markerLabel',['line','carrier','icon']),
@@ -75,6 +83,13 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   };
 }
 
+/** Use the scene's existing solar period; never overwrite the general accent. */
+export function activeInterfaceAccent(v:InterfaceAppearance,theme:string,general:string,day:boolean){
+  if(theme!=='dark-mountains'||!v.landscapeAccentEnabled)return general;
+  const color=day?v.landscapeDayAccent:v.landscapeNightAccent;
+  return /^#[\da-f]{6}$/i.test(color)?normalizeUiAccent(color):general;
+}
+
 /** A single SVG layer repeats without changing the size of the glow gradients. */
 export function interfacePanelPattern(v:InterfaceAppearance,dark:boolean){
   if(v.panelPattern==='none')return 'linear-gradient(transparent,transparent)';
@@ -85,7 +100,7 @@ export function interfacePanelPattern(v:InterfaceAppearance,dark:boolean){
 }
 
 export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,accent:string,lightEffects:boolean,theme=''){
-  const color=normalizeUiAccent(accent),base=theme==='dark-forest'?'#102f23':theme==='light-sky'?'#d5efff':theme==='dark-oled'?'#141d26':theme==='dark-cosmos'?'#080a12':theme==='dark-pink'?'#35202d':theme==='light-pink'?'#ffd1e8':theme==='light-warm'?'#faf7ef':dark?'#1b2937':'#f7fafc';
+  const color=normalizeUiAccent(activeInterfaceAccent(v,theme,accent,!dark)),base=theme==='dark-forest'?'#102f23':theme==='light-sky'?'#d5efff':theme==='dark-oled'?'#141d26':theme==='dark-cosmos'?'#080a12':theme==='dark-pink'?'#35202d':theme==='light-pink'?'#ffd1e8':theme==='light-warm'?'#faf7ef':dark?'#1b2937':'#f7fafc';
   const target=v.surfaceTint==='custom'?v.panelColor:v.surfaceTint==='accent'?color:'#d2c2a4';
   const rgb=(hex:string)=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
   const bg=rgb(base).map((c,i)=>Math.round(v.surfaceTint==='original'?c:c*(1-v.panelTintStrength/100)+rgb(target)[i]*v.panelTintStrength/100));
@@ -113,6 +128,7 @@ export function interfaceAppearanceVariables(v:InterfaceAppearance,dark:boolean,
 export function applyInterfaceAppearance(root:HTMLElement,v:InterfaceAppearance,dark:boolean,accent:string,lightEffects:boolean,theme=''){
   const defaults=DEFAULT_INTERFACE_APPEARANCE;
   const attrs:Record<string,string>={
+    statusBarOverlay:String(v.statusBarOverlay),
     radius:String(v.panelRadius!==defaults.panelRadius),cardRadius:String(v.cardRadius!==defaults.cardRadius),controlRadius:String(v.controlRadius!==defaults.controlRadius),
     border:String(v.borderStrength!==defaults.borderStrength),shadow:String(v.shadowStrength!==defaults.shadowStrength),
     blurRadiusCustom:String(v.glassBlur!==defaults.glassBlur),

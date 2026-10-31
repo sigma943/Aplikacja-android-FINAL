@@ -2,11 +2,11 @@
 import {formatJourneyDuration} from '@/lib/journey-duration';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,Trash2,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft,Map as MapIcon} from 'lucide-react';
+import {ArrowDownUp,MapPin,CalendarDays,SlidersHorizontal,Search,ChevronDown,ChevronUp,Bus,Footprints,LocateFixed,History,Trash2,LoaderCircle,ArrowRight,Clock,AlertCircle,Check,ArrowLeft,MapPinOff,Map as MapIcon} from 'lucide-react';
 import type {Stop} from '@/Panel/src/types';
 import StopList from '@/Panel/src/components/StopList';
 import {displayStopCatalogLabel} from '@/lib/stop-label';
-import {transferCount} from '@/lib/polish-count';
+import {transferCount,polishCount} from '@/lib/polish-count';
 import {journeyDepartureLabel,journeyDestinationLabel} from '@/lib/journey-label';
 import {journeyPickerStops,currentJourneyLocation,LOCATION_ID,isJourneyCoordinate} from '@/lib/journey-places';
 import {loadJourneyCatalog} from '@/lib/journey-catalog';
@@ -54,12 +54,12 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
  useDialogFocus(pickerRef,Boolean(picker)&&active,()=>{if(mapPicker)setMapPicker(false);else setPicker(null);});
  useEffect(()=>()=>{controller.current?.abort();liveController.current?.abort();},[]);
  useEffect(()=>{if(!active){generation.current++;controller.current?.abort();liveController.current?.abort();queueMicrotask(()=>{setBusy(false);setRefining(false);setMap(false);setPicker(null);setMapPicker(false);});}},[active]);
- useEffect(()=>{if(!active||!now)return;let alive=true;const update=()=>{if(alive){setDate(warsawDateIso());setTime(warsawClock(Date.now()));}};queueMicrotask(update);const timer=setInterval(update,30000);return()=>{alive=false;clearInterval(timer);};},[active,now]);
+ useForegroundRefresh('connections-clock',async()=>{setDate(warsawDateIso());setTime(warsawClock(Date.now()));},30000,active&&now,0,false);
  const includeMarcel=options.providers.includes('marcel');
- useEffect(()=>{let alive=true;
-  void Promise.resolve().then(async()=>{if(!alive)return;setCatalogLoading(true);setCatalogError('');try{const base=await loadJourneyCatalog(stops,false);if(!alive)return;setCatalog(base);if(includeMarcel){const list=await loadJourneyCatalog(stops,true);if(alive)setCatalog(list);}}catch{if(alive)setCatalogError('Nie udało się wczytać listy przystanków. Spróbuj ponownie.');}finally{if(alive)setCatalogLoading(false);}});
-  return()=>{alive=false;};
- },[stops,attempt,includeMarcel]);
+ useEffect(()=>{if(!active)return;let alive=true;const catalogController=new AbortController();
+  void Promise.resolve().then(async()=>{if(!alive)return;setCatalogLoading(true);setCatalogError('');try{const base=await loadJourneyCatalog(stops,false,catalogController.signal);if(!alive)return;setCatalog(base);if(includeMarcel){const list=await loadJourneyCatalog(stops,true,catalogController.signal);if(alive)setCatalog(list);}}catch{if(alive)setCatalogError('Nie udało się wczytać listy przystanków. Spróbuj ponownie.');}finally{if(alive)setCatalogLoading(false);}});
+  return()=>{alive=false;catalogController.abort();};
+ },[stops,attempt,includeMarcel,active]);
  useAppBack(active&&Boolean(picker||preferences||map||selected),()=>{if(picker){if(mapPicker)setMapPicker(false);else setPicker(null);}else if(map)setMap(false);else if(selected)setSelected(null);else setPreferences(false);return true;},60);
  useAppBack(active,()=>{onClose();return true;},10);
  const places=useMemo(()=>journeyPickerStops(catalog),[catalog]);
@@ -125,9 +125,9 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
    </div>
    {results===null&&!busy&&recents.length>0&&<div data-cosmic-panel className="connections-card connections-recents"><h2><History size={17}/>Ostatnie wyszukiwania</h2>{recents.map((r,index)=><div className="connections-recent" key={r.searchedAt+':'+index}><button onClick={()=>{invalidate();setFrom(places.find(s=>s.id===r.from.id)||r.from);setTo(places.find(s=>s.id===r.to.id)||r.to);}}><History size={17}/><span>{label(r.from)}<small><ArrowRight size={12}/>{journeyDestinationLabel(r.to)}</small></span></button><button className="connections-recent-delete" aria-label="Usuń ostatnie wyszukiwanie" onClick={()=>{const next=recents.filter(x=>x!==r);setRecents(next);saveRecents(next);}}><Trash2 size={17}/></button></div>)}</div>}
   </aside><main className="connections-answer-column">
-   {results!==null&&!busy&&<div className="connections-results" aria-live="polite"><div className="connections-results-heading"><h2>{results.length?'Proponowane połączenia':'Brak połączeń w tym terminie'}</h2>{results.length>0&&<span>{results.length} propozycji</span>}</div>
+   {results!==null&&!busy&&<div className="connections-results" aria-live="polite"><div className="connections-results-heading scene-message"><h2>{results.length?'Proponowane połączenia':'Brak połączeń w tym terminie'}</h2>{results.length>0&&<span>{polishCount(results.length,'propozycja','propozycje','propozycji')}</span>}</div>
     {!results.length&&<div className="connections-card connections-empty"><Search size={28}/><h3>Spróbuj innej godziny</h3><p>{arriveBy?'Od początku dnia do wybranej godziny':'Od wybranej godziny do końca dnia'} nie ma połączenia spełniającego preferencje. Możesz też zwiększyć dystans pieszo lub liczbę przesiadek.</p></div>}
-    {refining&&<p className="connections-hint" role="status" data-journey-refining>Uzupełniam kursy Marcela i dane na żywo… Możesz już wybrać połączenie.</p>}
+    {refining&&<p className="connections-hint scene-message" role="status" data-journey-refining>Uzupełniam kursy Marcela i dane na żywo… Możesz już wybrać połączenie.</p>}
     {warnings.filter(w=>!w.startsWith('Część dojść pieszych')&&!w.startsWith('Wstępne wyniki:')&&!w.startsWith('Nie udało się wczytać trasy w całości pieszo')).map(w=><p className="connections-warning" key={w}><AlertCircle size={16}/>{w}</p>)}
     {results.slice(0,resultLimit).map(j=><article data-cosmic-panel data-journey-result className={'connections-card connections-result-card'+(selected===j.id?' is-expanded':'')} key={j.id}>
      <button className="connections-result" aria-expanded={selected===j.id} onClick={e=>{headerAnchor.current={header:e.currentTarget,top:e.currentTarget.getBoundingClientRect().top-viewRef.current!.getBoundingClientRect().top};setSelected(selected===j.id?null:j.id);setLegFocus(null);setMap(false);}}>
@@ -146,8 +146,8 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,onClose}
     {results.length>resultLimit&&<button className="connections-load-more" onClick={()=>setResultLimit(n=>n+12)}>Pokaż kolejne połączenia <span>+{results.length-resultLimit}</span><ChevronDown size={16}/></button>}
    </div>}
   </main></div></div>
-  {active&&picker&&pickerHost&&createPortal(<div className="connections-view connections-picker-host" data-panel-theme={dark?'dark':'light'}><div ref={pickerRef} data-journey-picker className="connections-picker" role="dialog" aria-modal="true" aria-label={picker==='from'?'Wybierz przystanek początkowy':'Wybierz przystanek docelowy'}><CosmicFilterEffects/><header><button aria-label={mapPicker?'Wróć do listy przystanków':'Zamknij wybór przystanku'} onClick={()=>{if(mapPicker)setMapPicker(false);else setPicker(null);}}><ArrowLeft size={20}/></button><div><h2>{picker==='from'?'Skąd jedziesz?':'Dokąd jedziesz?'}</h2><p>{mapPicker?'Wybierz punkt lub przystanek na mapie':'Wybierz przystanek lub dowolne miejsce'}</p></div></header>
+  {active&&picker&&pickerHost&&createPortal(<div className="connections-view connections-picker-host" data-panel-theme={dark?'dark':'light'}><div ref={pickerRef} data-journey-picker className={"connections-picker"+(mapPicker?" is-map-picker":"")} role="dialog" aria-modal="true" aria-label={picker==='from'?'Wybierz przystanek początkowy':'Wybierz przystanek docelowy'}><CosmicFilterEffects/><header><button aria-label={mapPicker?'Wróć do listy przystanków':'Zamknij wybór przystanku'} onClick={()=>{if(mapPicker)setMapPicker(false);else setPicker(null);}}><ArrowLeft size={20}/></button><div><h2>{picker==='from'?'Skąd jedziesz?':'Dokąd jedziesz?'}</h2><p>{mapPicker?'Wybierz punkt lub przystanek na mapie':'Wybierz przystanek lub dowolne miejsce'}</p></div></header>
    <div className="connections-picker-actions">{picker==='from'&&<button className="connections-use-location" onClick={locate} disabled={locating}><span><LocateFixed size={20}/></span><strong>{locating?'Ustalam lokalizację…':'Twoja lokalizacja'}</strong>{locating&&<LoaderCircle size={17} className="animate-spin"/>}</button>}{allowMap&&<button className="connections-use-location" aria-pressed={mapPicker} onClick={()=>setMapPicker(value=>!value)}><span><MapIcon size={20}/></span><strong>{mapPicker?'Lista przystanków':'Wybierz z mapy'}</strong></button>}</div>
-   {error&&<p role="alert" className="connections-error">{error}</p>}{mapPicker?<JourneyPlaceMap stops={catalog} initial={picker==='from'?from:to} onSelect={choosePlace}/>:<div className="connections-picker-list"><StopList stops={pickerStops} isLoading={catalogLoading&&!catalog.length} isDarkTheme={dark} backEnabled={false} onClose={()=>setPicker(null)} notice={catalogError?<p role="alert">{catalogError}<button onClick={()=>setAttempt(n=>n+1)}>Ponów</button></p>:undefined} toggleFavorite={()=>{}} onStopSelect={choosePlace}/></div>}</div></div>,pickerHost)}
+   {error&&<div role="alert" className="connections-picker-notice"><span className="connections-picker-notice-icon"><MapPinOff size={20}/></span><div><strong>Lokalizacja niedostępna</strong><p>{error}</p></div></div>}{mapPicker?<JourneyPlaceMap stops={catalog} initial={picker==='from'?from:to} onSelect={choosePlace}/>:<div className="connections-picker-list"><StopList stops={pickerStops} isFullScreen isLoading={catalogLoading&&!catalog.length} isDarkTheme={dark} backEnabled={false} onClose={()=>setPicker(null)} notice={catalogError?<p role="alert">{catalogError}<button onClick={()=>setAttempt(n=>n+1)}>Ponów</button></p>:undefined} toggleFavorite={()=>{}} onStopSelect={choosePlace}/></div>}</div></div>,pickerHost)}
  </section>;
 }

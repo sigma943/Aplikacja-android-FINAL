@@ -6,7 +6,7 @@ const SIDEBAR_NAV_DEF: { id: string; label: string; icon: LucideIcon }[] = [
   { icon: Monitor, label: 'Urządzenia', id: 'devices' },
   { icon: BarChart3, label: 'Statystyki', id: 'statistics' },
   { icon: Users, label: 'Administratorzy', id: 'operators' },
-  { icon: Lock, label: 'Bany / Blokady', id: 'bans' },
+  { icon: Lock, label: 'Blokady', id: 'bans' },
   { icon: Activity, label: 'Logi aktywności', id: 'logs' },
   { icon: Wrench, label: 'Konserwacja', id: 'maintenance' },
 ];
@@ -60,7 +60,7 @@ export function Sidebar({
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="min-h-0 overflow-y-auto">
-          <div className="p-6 flex items-center justify-between">
+          <div data-admin-sidebar-header className="p-6 flex items-center justify-between">
             <div className="flex items-center gap-2 font-extrabold tracking-tight" style={{ color: accentColor }}>
               <Bus className="h-6 w-6 shrink-0 md:h-7 md:w-7" strokeWidth={2.25} aria-hidden />
               <span className="text-lg md:text-xl">PKS Live</span>
@@ -113,7 +113,7 @@ export function Sidebar({
           </div>
         </div>
 
-        <div className="p-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] lg:pb-4">
+        <div className="p-4 pb-[calc(var(--safe-bottom)+5.5rem)] lg:pb-4">
           <div className="pks-personal-card w-full flex items-center justify-between p-4 rounded-3xl bg-[#0F131D] border border-white/5 shadow-xl">
             <div className="flex items-center gap-3 min-w-0">
               <div

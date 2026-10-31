@@ -36,3 +36,24 @@ test('bare Marcel platform numbers preserve locality and direction identities in
  assert.equal(domain.marcelCourseStopIndexKey({nazMi:'Babica',nazPr:'083 (+)'}),'babica|83');
  assert.notEqual(rows[0].id,rows[1].id);
 });
+
+
+test('closing the last catalogue consumer stops queued course requests and permits a later retry',async()=>{
+ let release;const waiting=new Promise(r=>release=r),calls=[];
+ const api={fetchMarcelRoutesClient:async()=>[{idTr:1}],fetchMarcelCoursesClient:async()=>Array.from({length:20},(_,i)=>({idKu:i+1})),
+ fetchMarcelPublicCourseStopsClient:async id=>{calls.push(id);await waiting;return [{nazMi:'Babica',nazPr:'Babica 01',szGps:49.96,dlGps:21.95}];}};
+ const {getMarcelStopsIndex}=load('components/stops-panel/stop-domain.ts',{'@/lib/pks-client':api});
+ const c=new AbortController(),pending=getMarcelStopsIndex('2026-10-10',{signal:c.signal});
+ const rejected=assert.rejects(pending,{name:'AbortError'});
+ await new Promise(r=>setImmediate(r));assert.equal(calls.length,2);
+ c.abort();release();await rejected;await new Promise(r=>setImmediate(r));assert.equal(calls.length,2,'18 queued courses must not start after leaving');
+ const rows=await getMarcelStopsIndex('2026-10-10');assert.equal(rows.length,1,'aborted scans are retryable and never cached as complete');
+});
+test('one closed consumer cannot cancel another open catalogue or evict its completed cache',async()=>{
+ let release;const waiting=new Promise(r=>release=r);let calls=0;
+ const api={fetchMarcelRoutesClient:async()=>[{idTr:1}],fetchMarcelCoursesClient:async()=>[{idKu:1}],fetchMarcelPublicCourseStopsClient:async()=>{calls++;await waiting;return [{nazMi:'Babica',nazPr:'Babica 01',szGps:49.96,dlGps:21.95}];}};
+ const {getMarcelStopsIndex}=load('components/stops-panel/stop-domain.ts',{'@/lib/pks-client':api});
+ const a=new AbortController(),b=new AbortController(),one=getMarcelStopsIndex('2026-10-11',{signal:a.signal}),two=getMarcelStopsIndex('2026-10-11',{signal:b.signal});
+ const rejected=assert.rejects(one,{name:'AbortError'});await new Promise(r=>setImmediate(r));a.abort();release();await rejected;
+ assert.equal((await two).length,1);await getMarcelStopsIndex('2026-10-11');assert.equal(calls,1);
+});

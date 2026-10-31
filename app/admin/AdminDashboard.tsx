@@ -47,6 +47,8 @@ export interface AdminDashboardProps {
 
 export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
   const { device: currentDevice, loading, user, localLastSeenMs,apiStatisticsEnabled } = useFirebase();
+  // Presence/name changes do not change a subscription's authorization scope.
+  const adminSubscriptionKey=JSON.stringify([user?.uid,currentDevice?.role,currentDevice?.permissions]);
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
   const [statisticsAccess,setStatisticsAccess]=useState<StatisticsAccess>({});
   const [statisticsAccessReady,setStatisticsAccessReady]=useState(false);
@@ -124,12 +126,12 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     const q = query(collection(db, 'devices'), limit(500));
     const unsub = onSnapshot(q, (snap) => {
       const data: ({ id: string } & DeviceData)[] = snap.docs.map((d) => {
-        const raw = d.data() as any;
+        const raw = d.data({serverTimestamps:'estimate'}) as any;
         return { id: d.id, ...(raw as DeviceData) };
       });
       setDevicesError(null);
       setStatisticsDevicesReady(true);
-      setDevicesData(dedupeDevicesByInstallation(data));
+      setDevicesData(dedupeDevicesByInstallation(data,user?.uid));
     }, (e: unknown) => {
       console.error('[AdminDashboard] Firestore list devices failed', e);
       const ex = e as any;
@@ -156,7 +158,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     });
 
     return () => unsub();
-  }, [currentDevice, loading]);
+  }, [adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -178,7 +180,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     );
 
     return () => unsub();
-  }, [currentDevice, loading]);
+  }, [adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -258,7 +260,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     );
 
     return () => unsub();
-  }, [activeView, currentDevice, loading]);
+  }, [activeView, adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -938,9 +940,9 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         <BanScreen />
         <button
           onClick={() => setActiveView('devices')}
-          className={`absolute top-4 right-4 bg-white/10 hover:bg-white/20 ${isDarkTheme ? 'text-white' : 'text-slate-900'} px-4 py-2 rounded-xl text-sm transition-colors border border-white/10`}
+          className={`absolute top-[calc(var(--native-content-top,0px)+1rem)] right-4 bg-white/10 hover:bg-white/20 ${isDarkTheme ? 'text-white' : 'text-slate-900'} px-4 py-2 rounded-xl text-sm transition-colors border border-white/10`}
         >
-          [Wróć do Dashboardu]
+          Wróć do panelu administratora
         </button>
       </div>
     );

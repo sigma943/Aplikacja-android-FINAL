@@ -1,3 +1,4 @@
+import {sharedInflight} from '../shared-inflight';
 import mpkStopSnapshot from '../../public/data/mpk-stop-points.json';
 import {isMpkPassengerLine} from '../mpk-passenger-lines';
 
@@ -18,13 +19,14 @@ function validMpkStops(value: unknown): value is MpkRzeszowStop[] {
   return Array.isArray(value) && value.length > 0 && value.every(stop => stop &&
     (typeof stop.stop_id === 'string' || typeof stop.stop_id === 'number') && typeof stop.stop_name === 'string' && stop.stop_name.trim());
 }
-async function fetchMpkRzeszowStopsFromNetwork(options?: { signal?: AbortSignal }) {
-  const rows = await requestJson<unknown>(MPK_RZESZOW_STOPS_URL, {signal:options?.signal,headers:{Accept:'application/json'}});
+const fetchMpkRzeszowStopsFromNetwork=sharedInflight(async (signal)=>{
+  const rows = await requestJson<unknown>(MPK_RZESZOW_STOPS_URL, {signal,headers:{Accept:'application/json'}});
   if (!validMpkStops(rows)) throw new Error('Empty or invalid MPK stop catalog');
-  return rows;
-}
-function saveMpkStops(rows:MpkRzeszowStop[]) {
   writePersistentClientCache(MPK_STOPS_CACHE_KEY,rows);
+  return rows;
+});
+let mpkBackgroundRefresh:Promise<void>|undefined;
+function notifyMpkStopsUpdated() {
   if(typeof window!=='undefined')window.dispatchEvent(new Event(MPK_STOPS_UPDATED_EVENT));
 }
 export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSignal; forceRefresh?: boolean }) {
@@ -32,13 +34,12 @@ export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSigna
   const cached = stored && validMpkStops(stored.data) ? stored : null;
   const isFresh = cached && Date.now()-cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
   if(cached && !options?.forceRefresh) {
-    if(!isFresh)void fetchMpkRzeszowStopsFromNetwork().then(saveMpkStops).catch(()=>undefined);
+    if(!isFresh&&!mpkBackgroundRefresh)mpkBackgroundRefresh=fetchMpkRzeszowStopsFromNetwork().then(notifyMpkStopsUpdated).catch(()=>undefined).finally(()=>{mpkBackgroundRefresh=undefined;});
     return cached.data;
   }
   try {
-    const fresh = await fetchMpkRzeszowStopsFromNetwork(options);
+    const fresh = await fetchMpkRzeszowStopsFromNetwork(options?.signal);
     // The caller publishes this result; notify only background cache refreshes.
-    writePersistentClientCache(MPK_STOPS_CACHE_KEY,fresh);
     return fresh;
   } catch(error) {
     if(options?.signal?.aborted)throw error;

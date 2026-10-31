@@ -53,6 +53,7 @@ interface BusDetailsPanelProps {
 export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
   const reducedMotion=useJourneyReducedMotion();
   const carrier=selectedBus.provider==='mpk_rzeszow'?'mpk':selectedBus.provider==='marcel'?'marcel':selectedVehicleIsTrain?'rail':'pks';
+  const showsFutureCourse=selectedBus.status==='break'&&Number.isFinite(selectedBus.nextTripStartAtMs)&&selectedBus.nextTripStartAtMs!>Date.now();
 
   // A removed motion element can interrupt its shared height animation. A new
   // panel must start from its requested size, not that intermediate value.
@@ -79,7 +80,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   animate={{ y: 0, opacity: 1 }}
                   exit={reducedMotion?{y:0,opacity:1}:{y:"100%",opacity:.5}}
                   transition={reducedMotion?{duration:0}:SHEET_SPRING}
-                  className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
+                  className={`absolute bottom-[calc(64px+var(--safe-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
 
                   <LandscapeChrome variant="panel"/>
@@ -105,7 +106,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                      </div>
                      <div data-vehicle-direction className="pr-12 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm md:text-[17px] font-medium leading-tight opacity-100 drop-shadow-sm">
                        <h2 className="min-w-0">
-                         {selectedVehicleIsTrain ? 'Relacja' : 'Kierunek'}: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
+                         {selectedVehicleIsTrain ? 'Relacja' : showsFutureCourse ? 'Następny kurs' : 'Kierunek'}: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
                        </h2>
                        {selectedBus.provider === 'marcel' && selectedBusStatusLabel && (
                          <span data-vehicle-status={selectedBus.status} className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? (isDark ? 'bg-indigo-500/80 text-white' : 'bg-indigo-100 text-indigo-900') : 'bg-white/[0.18] text-white'}`}>
