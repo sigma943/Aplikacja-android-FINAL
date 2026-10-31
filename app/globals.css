@@ -533,6 +533,9 @@ html[data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-
 /* Shared neutral actions use the active accent in standard, solid and outline
    styles, including admin light and Horyzont milk materials. */
 @layer personal-button-controls {
+ input.admin-range-date:focus {
+  border-color:var(--pks-accent)!important;box-shadow:0 0 0 3px var(--pks-accent-soft)!important;
+ }
  button.ui-accent-control {
   background:var(--pks-accent-soft)!important;color:var(--pks-accent-text)!important;border-color:var(--pks-accent-border)!important;
  }

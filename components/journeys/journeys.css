@@ -99,7 +99,7 @@
 .connections-picker h2{font-size:18px;font-weight:700;margin:0}
 .connections-picker header p{font-size:11px;color:var(--cn-muted);margin:4px 0}
 .connections-picker-list{flex:1;min-height:0}
-.connections-picker [data-stop-list-mode=preview]>[data-stop-list-header]>div:first-child{display:none}
+.connections-picker [data-stop-list-mode]>[data-stop-list-header]>div:first-child{display:none}
 .connections-picker [data-stop-list-scroll]{padding-bottom:28px}
 .connections-view .journey-map{margin-top:14px;border-radius:14px;overflow:hidden}
 @media(min-width:768px){.connections-view{padding:30px 24px 115px}.connections-form{padding:24px}.connections-heading{padding-bottom:25px}.connections-location strong{font-size:15px}.connections-primary{min-height:52px}.connections-picker{inset:14px auto 94px 50%;transform:translateX(-50%);width:min(640px,calc(100% - 32px));border:1px solid var(--cn-edge);border-radius:24px;box-shadow:0 0 0 100vmax #0007}.connections-picker>header{padding-top:20px}}
@@ -184,7 +184,7 @@
 }
 @media(pointer:coarse){.connections-map-touch-hint{display:block}}
 @media(max-height:450px){.connections-map-modal>.connections-map-toolbar{padding-top:max(5px,var(--safe-top));padding-bottom:5px}.connections-map-modal .connections-map-footer{padding-bottom:max(5px,var(--safe-bottom))}.connections-map-modal .connections-map-legend{padding-top:6px}}
-.connections-picker [data-stop-card-id]{border-radius:17px;transition:border-color .15s,background-color .15s;position:relative}
+.connections-picker [data-stop-card-id]{border-radius:22px;transition:border-color .15s,background-color .15s;position:relative}
 .connections-picker [data-stop-card-id]:after{content:'›';font-size:25px;font-weight:400;color:var(--cn-muted);margin-left:8px;flex-shrink:0;opacity:.7}
 .connections-picker [data-stop-card-id]:hover,.connections-picker [data-stop-card-id]:focus-visible{border-color:color-mix(in srgb,var(--cn-accent) 50%,var(--cn-edge));background:color-mix(in srgb,var(--cn-accent) 6%,var(--cn-surface))}
 .connections-picker [data-stop-card-id] h3{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4}
@@ -198,16 +198,6 @@
 .connections-use-location small{font-size:10px;margin-top:2px}
 .connections-picker>header{padding:12px 14px 10px;gap:10px}
 .connections-picker h2{font-size:17px}
-.connections-picker-list [data-stop-list-mode=preview]>[data-stop-list-header]{margin:10px 12px 0;padding:10px;border-radius:18px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--cn-edge)}
-.connections-picker-list input{font-size:12px;padding-block:10px;border-radius:12px}
-.connections-picker-list [aria-pressed]{min-height:36px;padding:7px 10px;font-size:11px;border-radius:11px}
-.connections-picker-list [data-stop-list-scroll]{padding:10px 12px 24px;gap:8px}
-.connections-picker-list [data-stop-card-id]{padding:10px 12px;border-radius:18px;min-height:76px;overflow:hidden;clip-path:none;mask-image:none;background:var(--cn-surface);border:1px solid color-mix(in srgb,var(--cn-muted) 26%,var(--cn-surface));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--cn-muted) 9%,transparent)}
-.connections-picker-list [data-stop-card-id]>div:first-child{width:34px;height:34px;margin-right:10px;border-radius:11px}
-.connections-picker-list [data-stop-card-id]>div:first-child svg{width:18px;height:18px}
-.connections-picker-list [data-stop-card-id] h3{font-size:13px;line-height:1.4}
-.connections-picker-list [data-stop-card-id] h3+div{margin-top:3px;gap:3px}
-.connections-picker-list [data-stop-card-id] h3+div>div:first-child{font-size:10px}
 .connections-result-card{overflow:hidden;border-radius:20px}
 .connections-result{padding:14px}
 .connections-result-times strong{font-size:20px}
@@ -230,8 +220,9 @@
 .connections-stop-details time{font-weight:700}
 .connections-stop-details del{display:block;color:var(--cn-muted);font-size:10px}
 /* A separate opaque viewport covers the form all the way behind the navigation. */
+.connections-content[inert]{visibility:hidden}
 .connections-picker-host{position:fixed;inset:0;z-index:3000;padding:0;overflow:hidden;background:var(--ui-canvas,#101a26);isolation:isolate}
-.connections-picker-host .connections-picker{bottom:calc(64px + var(--safe-bottom));background:var(--ui-canvas,#101a26)}
+.connections-picker-host .connections-picker{bottom:0;background:var(--ui-canvas,#101a26)}
 .connections-picker-actions{display:flex;gap:8px;padding:10px 12px 0;flex-shrink:0}
 .connections-picker-actions .connections-use-location{flex:1;min-width:0;margin:0;padding:8px;gap:7px;min-height:48px;border-radius:13px}
 .connections-picker-actions .connections-use-location strong{font-size:11px;line-height:1.4}
@@ -438,3 +429,15 @@
 .connections-coordinate-entry button{flex-shrink:0;min-height:44px;padding:10px 12px;border:1px solid var(--cn-edge);border-radius:12px;background:var(--cn-surface);color:var(--cn-accent);font-size:12px;font-weight:650}
 .connections-coordinate-entry small{display:block;margin-top:5px;font-size:10px;line-height:1.5;color:var(--cn-muted)}
 .connections-coordinate-entry p{margin:6px 0 0;font-size:11px;line-height:1.5;color:var(--cn-text)}
+
+/* The picker shares the Stops viewport behind the dock. Keep map confirmation
+   above it while the list uses StopList's existing bottom scroll space. */
+@media(max-width:767px){
+ .connections-picker-host .connections-place-map{padding-bottom:calc(76px + var(--safe-bottom))}
+ html:not([data-personal-chrome='classic']) .connections-picker-host .connections-place-map{padding-bottom:calc(80px + var(--safe-bottom))}
+}
+.connections-picker-notice{display:flex;align-items:flex-start;gap:11px;flex-shrink:0;margin:12px 14px 0;padding:13px 14px;border:1px solid var(--cn-edge);border-radius:18px;background:var(--cn-surface);color:var(--cn-text)}
+.connections-picker-notice-icon{display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;border-radius:12px;background:var(--pks-accent-soft);color:var(--pks-accent-text)}
+.connections-picker-notice>div{min-width:0}
+.connections-picker-notice strong{display:block;font-size:13px;font-weight:650;line-height:1.5}
+.connections-picker-notice p{margin:4px 0 0;font-size:12px;line-height:1.6;color:var(--cn-muted);overflow-wrap:anywhere}

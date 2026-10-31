@@ -12,6 +12,29 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   page.on('request',r=>{if(!r.url().startsWith(origin)&&!r.url().startsWith('blob:')&&!r.url().startsWith('data:')&&!r.url().startsWith('https://mt1.google.com/')&&!r.url().startsWith('https://routing.openstreetmap.de/routed-foot/'))external.push(r.url());});
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});fs.mkdirSync('test/ui-previews',{recursive:true});
   const screenshot=name=>page.screenshot({path:'test/ui-previews/journeys-'+name+'.png'});
+  if(process.env.JOURNEY_PICKER_APPEARANCE){
+   const variants=['light','light-warm','light-pink','light-sky','dark','dark-oled','dark-forest','dark-cosmos'].map(theme=>({theme})).concat([30,1,-30].map(sun=>({theme:'dark-mountains',sun})));
+   let configurations=0;
+   for(const variant of variants)for(const chrome of ['modern','classic'])for(const width of [320,393]){
+    const safe=width===393?'24px':'0px';await page.setViewport({width,height:851,deviceScaleFactor:1});
+    await page.goto(origin+'/?'+new URLSearchParams({'picker-nav':'1','picker-theme':variant.theme,sun:String(variant.sun??30),chrome,safe}),{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('[data-journey-from]');await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker] [data-stop-card-id]');
+    const list=await page.evaluate(()=>{const picker=document.querySelector('[data-journey-picker]'),scroll=picker.querySelector('[data-stop-list-scroll]'),card=picker.querySelector('[data-stop-card-id]'),css=getComputedStyle(card),rect=picker.getBoundingClientRect();return {bottom:rect.bottom,padding:parseFloat(getComputedStyle(scroll).paddingBottom),cardPadding:parseFloat(css.paddingLeft),cardRadius:parseFloat(css.borderRadius),overflow:picker.scrollWidth>picker.clientWidth};});
+    assert.equal(await page.$eval('.connections-content',e=>getComputedStyle(e).visibility),'hidden');assert.equal(list.bottom,851);assert.ok(list.padding>=152);assert.equal(list.cardPadding,14);assert.ok(list.cardRadius>=18&&list.cardRadius<=24);assert.equal(list.overflow,false,JSON.stringify({variant,chrome,width,list}));
+    await page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_success,failure){failure({code:1});}}}));
+    await page.click('[data-journey-picker] .connections-use-location');await page.waitForSelector('.connections-picker-notice');
+    const notice=await page.$eval('.connections-picker-notice',e=>({text:e.textContent,role:e.getAttribute('role'),icon:!!e.querySelector('svg'),radius:parseFloat(getComputedStyle(e).borderRadius),overflow:e.scrollWidth>e.clientWidth}));
+    assert.match(notice.text,/Lokalizacja niedostępna/);assert.match(notice.text,/Zezwól/);assert.equal(notice.role,'alert');assert.equal(notice.icon,true);assert.ok(notice.radius>=18&&notice.radius<=24);assert.equal(notice.overflow,false);
+    if(chrome==='modern'&&width===393&&['light-warm','dark-mountains'].includes(variant.theme))await screenshot('picker-list-'+variant.theme+'-'+(variant.sun??'flat'));
+    await page.$eval('[data-journey-picker] .connections-use-location[aria-pressed]',b=>b.click());await page.waitForSelector('.connections-place-leaflet');
+    const map=await page.evaluate(()=>{const b=document.querySelector('.connections-place-confirm button').getBoundingClientRect(),nav=document.querySelector('[data-app-navigation] .pks-navigation').getBoundingClientRect(),picker=document.querySelector('[data-journey-picker]');return {confirmBottom:b.bottom,navTop:nav.top,confirmWidth:b.width,overflow:picker.scrollWidth>picker.clientWidth,mapHeight:document.querySelector('.connections-place-leaflet').getBoundingClientRect().height};});
+    assert.ok(map.confirmBottom<=map.navTop-1,JSON.stringify({variant,chrome,width,map}));assert.ok(map.confirmWidth>=44);assert.ok(map.mapHeight>=100);assert.equal(map.overflow,false);
+    if(chrome==='modern'&&width===393&&['light-warm','dark-mountains'].includes(variant.theme))await screenshot('picker-map-'+variant.theme+'-'+(variant.sun??'flat'));
+    await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker] [data-stop-list-scroll]');assert.equal(await page.$('.connections-place-leaflet'),null);await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker]',{hidden:true});
+    configurations++;
+   }
+   assert.deepEqual(errors,[]);console.log('PASS picker list, location notice and map confirmation above the real dock in '+configurations+' theme/chrome/viewport/safe-area configurations.');
+  }
   if(process.env.JOURNEY_PICKER_ONLY){
    await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>!document.querySelector('.connections-primary').disabled);
    await page.focus('[aria-label="Data podróży"]');assert.equal(await page.$eval('[aria-label="Data podróży"]',e=>getComputedStyle(e).outlineStyle),'none');
@@ -29,7 +52,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    for(const width of [320,393,430]){
     await page.setViewport({width,height:851,deviceScaleFactor:1});
     const covered=await page.evaluate(()=>{const host=document.querySelector('.connections-picker-host'),rect=host.getBoundingClientRect(),picker=document.querySelector('[data-journey-picker]').getBoundingClientRect();return {bottom:rect.bottom,pickerBottom:picker.bottom,hit:Boolean(document.elementFromPoint(innerWidth/2,innerHeight-70)?.closest('.connections-picker-host')),overflow:host.scrollWidth>innerWidth};});
-    assert.equal(covered.bottom,851);assert.equal(covered.pickerBottom,787);assert.equal(covered.hit,true);assert.equal(covered.overflow,false);
+    assert.equal(covered.bottom,851);assert.equal(covered.pickerBottom,851);assert.equal(covered.hit,true);assert.equal(covered.overflow,false);
    }
    await page.setViewport({width:393,height:851,deviceScaleFactor:1});
    await page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(success){success({coords:{latitude:50.0412,longitude:21.9991}});}}}));

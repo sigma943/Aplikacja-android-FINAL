@@ -41,6 +41,20 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    }
    checked++;
   }
+  // The date menu, its active choices and custom range fields share the accent.
+  for(const sun of [30,-30])for(const style of ['original','solid','outline']){
+   await page.goto(origin+'/?'+new URLSearchParams({theme:'dark-mountains',sun,solar:'on',style,accent:'#22c55e'}));await page.waitForSelector('[data-fixture-view="logs"]');
+   await page.evaluate(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].find(b=>b.textContent.trim()==='Wszystkie typy').click());
+   await page.waitForFunction(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].some(b=>b.textContent.trim()==='Tylko Operatorskie'));
+   await page.evaluate(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].find(b=>b.textContent.trim()==='Tylko Operatorskie').click());
+   await page.evaluate(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].find(b=>b.textContent.trim()==='Wszystkie daty').click());
+   await page.waitForFunction(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].some(b=>b.textContent.trim()==='Zakres niestandardowy'));
+   await page.evaluate(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].find(b=>b.textContent.trim()==='Zakres niestandardowy').click());await page.waitForSelector('#logs-range-start');await page.focus('#logs-range-start');
+   const range=await page.$eval('#logs-range-start',e=>{const probe=document.createElement('i');e.parentElement.append(probe);probe.style.color='var(--pks-accent)';const expected=getComputedStyle(probe).color;probe.remove();return {border:getComputedStyle(e).borderColor,expected,styled:e.classList.contains('ui-accent-input')};});assert.equal(range.border,range.expected);assert.equal(range.styled,true);
+   await page.evaluate(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].find(b=>b.textContent.trim()==='Dzisiaj').click());await page.waitForSelector('#logs-range-start',{hidden:true});await page.waitForFunction(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].some(b=>b.textContent.trim()==='Dzisiaj'&&b.classList.contains('ui-accent-control')));
+   const current=await page.evaluate(()=>[...document.querySelectorAll('[data-fixture-view="logs"] button')].filter(b=>['Dzisiaj','Operatorskie'].includes(b.textContent.trim())).map(b=>({label:b.textContent.trim(),colour:getComputedStyle(b).color,icon:getComputedStyle(b.querySelector('svg')).color,accent:b.classList.contains('ui-accent-control')})));assert.equal(current.length,2);for(const b of current){assert.equal(b.accent,true);assert.equal(b.colour,b.icon);}
+  }
+  console.log('PASS Logs type/date selections and custom-range focus in 6 solar-period/button-style configurations.');
   // Mount the actual loading screen, including its preference-reading effect.
   const noon=Date.parse('2026-10-31T12:00:00Z'),night=Date.parse('2026-10-31T22:00:00Z');
   const loaders=[
@@ -53,8 +67,8 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   ];
   const stroke=async color=>{await page.waitForFunction(hex=>{const rgb='rgb('+[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(', ')+')';const c=document.querySelector('.pks-loading-screen circle[stroke-dasharray]');return c&&getComputedStyle(c).stroke===rgb;},{},color);};
   for(const test of loaders){await page.goto(origin+'/?'+new URLSearchParams({...test,loading:'on',accent:'#22c55e'}));await page.waitForSelector('.pks-loading-screen');await stroke(test.expected);
-   if(test.theme==='dark-mountains'&&test.solar){await page.evaluate(()=>{document.documentElement.dataset.landscapePeriod='night';window.dispatchEvent(new Event('pks-landscape-period'));});await stroke('#06b6d4');await page.evaluate(()=>{document.documentElement.dataset.landscapePeriod='day';window.dispatchEvent(new Event('pks-landscape-period'));});await stroke('#ff8000');}
    if(test.confirmed==='off'&&test.solar)await page.screenshot({path:'test/ui-previews/admin-button-loading-'+(test.time===noon?'day':'night')+'.png'});
+   if(test.theme==='dark-mountains'&&test.solar){await page.evaluate(()=>{document.documentElement.dataset.landscapePeriod='night';window.dispatchEvent(new Event('pks-landscape-period'));});await stroke('#06b6d4');await page.evaluate(()=>{document.documentElement.dataset.landscapePeriod='day';window.dispatchEvent(new Event('pks-landscape-period'));});await stroke('#ff8000');}
   }
   assert.deepEqual(errors,[]);console.log('PASS actual loading screen in '+loaders.length+' startup configurations, plus live solar-period events.');
   assert.deepEqual(errors,[]);console.log('PASS real admin controls in '+checked+' theme/style/accent configurations; standard soft/solid/outline accents, solar overrides and handlers verified.');

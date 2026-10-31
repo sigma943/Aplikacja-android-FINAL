@@ -101,6 +101,23 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify place picker dock and location notice
+        if: contains(github.event.pull_request.title, '[picker-check]')
+        run: |
+          node --test test/journey-places.test.cjs test/journey-coordinates.test.cjs test/journey-view-state.test.cjs test/stop-search.test.cjs test/ui-accent.test.cjs test/landscape-accent.test.cjs
+          npx puppeteer browsers install chrome
+          JOURNEY_PICKER_APPEARANCE=1 JOURNEY_PICKER_ONLY=1 node test/journeys-browser.cjs
+
+      - name: Upload place picker appearance previews
+        if: always() && contains(github.event.pull_request.title, '[picker-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: place-picker-appearance-previews
+          path: |
+            test/ui-previews/journeys-picker-*.png
+            test/ui-previews/journey-place-theme-*.png
+          retention-days: 7
+
       - name: Verify Horyzont day and night accent settings
         if: contains(github.event.pull_request.title, '[solar-accent-check]')
         run: |
