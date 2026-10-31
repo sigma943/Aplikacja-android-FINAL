@@ -128,7 +128,7 @@ export function OperatorsView({
           <div ref={filterDropdownRef} className="relative">
             <button 
               onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-              className="flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 transition-all cursor-pointer group"
+              className="ui-accent-control flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 transition-all cursor-pointer group"
             >
               {filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : 'Administratorzy'}
               <Filter size={16} className={cn("transition-transform duration-300", showFilterDropdown && "rotate-180")} />

@@ -284,7 +284,7 @@ export function MaintenanceView({
           <button
             type="button"
             onClick={() => {setConfirmHistoryClear(false);setShowHistory(true);}}
-            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#111623] px-4 text-xs font-black uppercase tracking-widest text-slate-300 transition-colors hover:bg-white/5"
+            className="ui-accent-control flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#111623] px-4 text-xs font-black uppercase tracking-widest text-slate-300 transition-colors hover:bg-white/5"
           >
             <History size={15} />
             Historia zmian

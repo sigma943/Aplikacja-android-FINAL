@@ -1,3 +1,4 @@
+@layer personal-button-controls;
 @layer journey-map-isolation;
 @layer pks-performance;
 @layer admin-horizon-controls;
@@ -529,6 +530,22 @@ html[data-personal-card-style='outlined'] :is(.transit-card,.transit-stop-card,.
 html[data-personal-card-style='flat'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { border-color:transparent !important; box-shadow:none !important; }
 html[data-personal-button-style='solid'] button.ui-accent-soft { background:var(--pks-accent) !important; color:var(--pks-accent-on) !important; border-color:transparent !important; }
 html[data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-solid) { background:transparent !important; color:var(--pks-accent-text) !important; border:1px solid var(--pks-accent-text) !important; }
+/* Neutral actions retain their original material until a button style is chosen.
+   Preference colours must win over admin light and Horyzont milk materials. */
+@layer personal-button-controls {
+ html[data-personal-button-style='solid'] button.ui-accent-control {
+  background:var(--pks-accent)!important;color:var(--pks-accent-on)!important;border-color:transparent!important;
+ }
+ html[data-personal-button-style='outline'] button.ui-accent-control {
+  background:transparent!important;color:var(--landscape-accent,var(--pks-accent-text))!important;
+  border:1px solid var(--landscape-accent,var(--pks-accent-text))!important;
+ }
+ html:is([data-personal-button-style='solid'],[data-personal-button-style='outline']) button.ui-accent-control,
+ html:is([data-personal-button-style='solid'],[data-personal-button-style='outline']) button.ui-accent-control * {
+  text-shadow:none!important;
+ }
+ html:is([data-personal-button-style='solid'],[data-personal-button-style='outline']) button.ui-accent-control * { color:inherit!important; }
+}
 
 /* Background layers use the same surface contract on every screen and in portals.
    Only background-image changes: glass opacity and semantic carrier colours survive. */

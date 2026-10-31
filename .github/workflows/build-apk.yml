@@ -101,6 +101,20 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify admin button preferences across themes
+        if: contains(github.event.pull_request.title, '[button-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          node test/admin-button-style-browser.cjs
+
+      - name: Upload admin button previews
+        if: always() && contains(github.event.pull_request.title, '[button-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-button-previews
+          path: test/ui-previews/admin-button-*.png
+          retention-days: 7
+
       - name: Verify standalone message contrast across themes
         if: contains(github.event.pull_request.title, '[contrast-check]')
         run: |

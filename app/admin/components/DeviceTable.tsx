@@ -488,7 +488,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button data-admin-milk-control="filter" onClick={toggleSortDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button data-admin-milk-control="filter" onClick={toggleSortDropdown} className="ui-accent-control w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <ArrowUpDown size={14} className="text-slate-500 group-hover:text-white transition-colors" />
             <span className="truncate">{sortLabel}{sortConfig ? (sortConfig.dir === 'desc' ? ' ↓' : ' ↑') : ''}</span>
           </button>
@@ -511,7 +511,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button data-admin-milk-control="filter" onClick={toggleFilterDropdown} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button data-admin-milk-control="filter" onClick={toggleFilterDropdown} className="ui-accent-control w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <Filter size={14} className={cn('text-slate-500 group-hover:text-white transition-all duration-300', showFilterDropdown && 'rotate-180')} />
             <span>{filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : filterRole === 'ADMIN' ? 'Administratorzy' : filterRole === 'BLOCKED' ? 'Zablokowani' : 'Użytkownicy'}</span>
           </button>
@@ -563,7 +563,7 @@ export function DeviceTable({
                       <Lock size={18} />
                     </button>
                     {canChangeRoles && (
-                      <button type="button" disabled={rolesDisabled} title={manageTitle(device, isSelf)} onClick={() => !rolesDisabled && onOpenRolesModal(device)} className="cursor-pointer rounded-2xl border border-sky-500/20 bg-sky-500/10 p-3 text-sky-400 shadow-lg transition-all hover:bg-sky-500 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30">
+                      <button type="button" disabled={rolesDisabled} title={manageTitle(device, isSelf)} onClick={() => !rolesDisabled && onOpenRolesModal(device)} className="ui-accent-control cursor-pointer rounded-2xl border border-sky-500/20 bg-sky-500/10 p-3 text-sky-400 shadow-lg transition-all hover:bg-sky-500 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30">
                         <Settings size={18} />
                       </button>
                     )}
@@ -651,7 +651,7 @@ export function DeviceTable({
                             <Lock size={18} />
                           </button>
                           {canChangeRoles && (
-                            <button type="button" disabled={rolesDisabled} onClick={() => !rolesDisabled && onOpenRolesModal(device)} className="cursor-pointer rounded-xl p-2.5 text-slate-500 transition-all hover:scale-110 hover:bg-sky-500/10 hover:text-sky-400 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30" title={manageTitle(device, isSelf)}>
+                            <button type="button" disabled={rolesDisabled} onClick={() => !rolesDisabled && onOpenRolesModal(device)} className="ui-accent-control cursor-pointer rounded-xl p-2.5 text-slate-500 transition-all hover:scale-110 hover:bg-sky-500/10 hover:text-sky-400 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30" title={manageTitle(device, isSelf)}>
                               <Settings size={18} />
                             </button>
                           )}

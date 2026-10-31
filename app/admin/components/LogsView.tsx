@@ -264,7 +264,7 @@ export function LogsView({
           <div className="relative">
             <button 
               data-admin-milk-control="filter" onClick={toggleTypeFilter}
-              className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
+              className="ui-accent-control w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
                 {filterType === 'ALL' ? 'Wszystkie typy' : filterType === 'SYSTEM' ? 'Systemowe' : 'Operatorskie'}
@@ -290,7 +290,7 @@ export function LogsView({
           <div className="relative">
             <button 
               onClick={toggleDateFilter}
-              className="w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
+              className="ui-accent-control w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
                 {filterDate === 'ALL' ? 'Wszystkie daty' : 
@@ -313,14 +313,14 @@ export function LogsView({
                   className="pks-personal-card absolute top-full right-0 mt-2 w-72 sm:w-80 bg-[#111623] border border-white/10 rounded-2xl z-30 shadow-2xl p-2 flex flex-col max-h-[80vh] overflow-y-auto"
                 >
                   <div className="p-1 space-y-1">
-                    <button onClick={() => { setFilterDate('ALL'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'ALL' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Wszystkie daty</button>
-                    <button onClick={() => { setFilterDate('TODAY'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'TODAY' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Dzisiaj</button>
-                    <button onClick={() => { setFilterDate('YESTERDAY'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'YESTERDAY' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Wczoraj</button>
-                    <button onClick={() => { setFilterDate('THIS_WEEK'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'THIS_WEEK' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tym tygodniu</button>
-                    <button onClick={() => { setFilterDate('LAST_WEEK'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'LAST_WEEK' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tamtym tygodniu</button>
-                    <button onClick={() => { setFilterDate('THIS_MONTH'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'THIS_MONTH' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tym miesiącu</button>
-                    <button onClick={() => { setFilterDate('LAST_MONTH'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'LAST_MONTH' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tamtym miesiącu</button>
-                    <button onClick={() => { setFilterDate('CUSTOM'); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'CUSTOM' ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Zakres niestandardowy</button>
+                    <button onClick={() => { setFilterDate('ALL'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'ALL' ? 'ui-accent-control bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Wszystkie daty</button>
+                    <button onClick={() => { setFilterDate('TODAY'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'TODAY' ? 'ui-accent-control bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Dzisiaj</button>
+                    <button onClick={() => { setFilterDate('YESTERDAY'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'YESTERDAY' ? 'ui-accent-control bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Wczoraj</button>
+                    <button onClick={() => { setFilterDate('THIS_WEEK'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'THIS_WEEK' ? 'ui-accent-control bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tym tygodniu</button>
+                    <button onClick={() => { setFilterDate('LAST_WEEK'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'LAST_WEEK' ? 'ui-accent-control bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tamtym tygodniu</button>
+                    <button onClick={() => { setFilterDate('THIS_MONTH'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'THIS_MONTH' ? 'ui-accent-control bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tym miesiącu</button>
+                    <button onClick={() => { setFilterDate('LAST_MONTH'); setShowDatePicker(false); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'LAST_MONTH' ? 'ui-accent-control bg-sky-500/10 text-sky-400' : 'text-slate-400')}>W tamtym miesiącu</button>
+                    <button onClick={() => { setFilterDate('CUSTOM'); }} className={cn("w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl hover:bg-white/5 transition-all cursor-pointer", filterDate === 'CUSTOM' ? 'ui-accent-control bg-sky-500/10 text-sky-400' : 'text-slate-400')}>Zakres niestandardowy</button>
                   </div>
 
                   <AnimatePresence>
@@ -345,7 +345,7 @@ export function LogsView({
                             <div className="px-1 pt-1">
                                <button 
                                  onClick={() => setShowDatePicker(false)} 
-                                 className="w-full bg-sky-500 hover:bg-sky-400 text-white rounded-xl py-2.5 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-[0.98] cursor-pointer"
+                                 className="ui-accent-control w-full bg-sky-500 hover:bg-sky-400 text-white rounded-xl py-2.5 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-[0.98] cursor-pointer"
                                >
                                  Zastosuj okres
                                </button>
