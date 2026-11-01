@@ -105,7 +105,7 @@ jobs:
         if: contains(github.event.pull_request.title, '[ban-date-check]')
         run: |
           npx puppeteer browsers install chrome
-          node test/font-ban-browser.cjs
+          BAN_DATE_ONLY=1 node test/font-ban-browser.cjs
 
       - name: Upload ban date previews
         if: always() && contains(github.event.pull_request.title, '[ban-date-check]')

@@ -38,6 +38,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.evaluate(()=>[...document.querySelectorAll('button')].find(e=>e.textContent.includes('Ban permanentny')).click());
   await page.click('[data-ban-submit]');await page.waitForSelector('[aria-label="Edytuj blokadę"]',{hidden:true});
   assert.deepEqual(await page.evaluate(()=>({reason:window.__savedBan.reason,expiry:window.__savedBan.expiryDate,silent:window.__savedBan.silent})),{reason:'Nowy powód',expiry:'',silent:true});
+  if(process.env.BAN_DATE_ONLY==='1'){assert.deepEqual(errors,[]);console.log('PASS: create/edit ban date appearance, calendar icon, duration arrow and save behavior');return;}
   await page.click('[data-tab="devices"]');await page.waitForSelector('input[placeholder="Szukaj..."]');assert.equal(await page.$eval('input[placeholder="Szukaj..."]',e=>getComputedStyle(e).paddingLeft),'32px');
   await page.evaluate(()=>[...document.querySelectorAll('[title="Zmień nazwę urządzenia"]')].find(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden').click());await page.waitForSelector('input[placeholder="np. Telefon Tomka"]');assert.equal(await page.evaluate(()=>document.activeElement.matches('input,textarea')),false,'rename does not auto-open the keyboard');
   await page.evaluate(()=>[...document.querySelector('input[placeholder="np. Telefon Tomka"]').parentElement.querySelectorAll('button')].find(e=>e.textContent.trim()==='Anuluj').click());await page.waitForSelector('input[placeholder="np. Telefon Tomka"]',{hidden:true});
