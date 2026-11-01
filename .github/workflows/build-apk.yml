@@ -101,6 +101,22 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify ban date field appearance
+        if: contains(github.event.pull_request.title, '[ban-date-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          node test/font-ban-browser.cjs
+
+      - name: Upload ban date previews
+        if: always() && contains(github.event.pull_request.title, '[ban-date-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: ban-date-previews
+          path: |
+            test/ui-previews/ban-date-*.png
+            test/ui-previews/font-ban-failure.png
+          retention-days: 7
+
       - name: Verify place picker dock and location notice
         if: contains(github.event.pull_request.title, '[picker-check]')
         run: |

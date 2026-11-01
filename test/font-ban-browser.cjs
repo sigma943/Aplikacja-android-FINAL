@@ -24,8 +24,15 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    const payload=await page.evaluate(()=>window.__savedBan),hours=(Date.parse(payload.expiryDate)-Date.now())/3600000;
    assert.ok(hours>({day:23,week:167,month:670,year:8758}[duration])&&hours<({day:25,week:169,month:747,year:8786}[duration]),duration+' deadline has the selected duration');
   }
+  const checkDateField=async mode=>{
+   const field=await page.$eval('#ban-date',e=>({type:e.type,appearance:getComputedStyle(e).appearance,icon:!!e.parentElement.querySelector('svg.lucide-calendar'),durationArrow:!!document.querySelector('[data-ban-duration-toggle] svg.lucide-chevron-down')}));
+   assert.equal(field.type,'datetime-local');assert.equal(field.appearance,'none');assert.equal(field.icon,true);assert.equal(field.durationArrow,true,'the separate duration dropdown arrow remains');
+   await page.screenshot({path:'test/ui-previews/ban-date-'+mode+'.png'});
+  };
+  await page.click('[data-tab="ban"]');await page.waitForSelector('[aria-label="Zablokuj urządzenie"]');await page.click('[data-ban-duration-toggle]');await page.click('[data-ban-duration="custom"]');await page.waitForSelector('#ban-date');await checkDateField('create');
+  await page.$eval('[aria-label="Zablokuj urządzenie"] button',e=>e.click());await page.waitForSelector('[aria-label="Zablokuj urządzenie"]',{hidden:true});
   await page.click('[data-tab="bans"]');await page.click('[aria-label="Edytuj blokadę: Testowy telefon"]');await page.waitForSelector('[aria-label="Edytuj blokadę"]');
-  assert.equal(await page.$eval('[aria-label="Powód blokady"]',e=>e.value),'Zapisany powód');assert.ok(await page.$('[data-ban-custom-date]'));
+  assert.equal(await page.$eval('[aria-label="Powód blokady"]',e=>e.value),'Zapisany powód');assert.ok(await page.$('[data-ban-custom-date]'));await checkDateField('edit');
   await page.click('[aria-label="Powód blokady"]');await page.keyboard.down('Control');await page.keyboard.press('KeyA');await page.keyboard.up('Control');await page.keyboard.type('Nowy powód');
   await page.evaluate(()=>[...document.querySelectorAll('button')].find(e=>e.textContent.includes('Ban permanentny')).click());
   await page.click('[data-ban-submit]');await page.waitForSelector('[aria-label="Edytuj blokadę"]',{hidden:true});

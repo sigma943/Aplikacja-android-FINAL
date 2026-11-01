@@ -1091,6 +1091,10 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 .admin-range-date { display:block; position:relative; min-width:0; padding-inline-end:3rem; }
 .admin-date-field > svg { color:var(--ui-muted,#b9c6dd); }
 .admin-date-field .admin-date-input { padding-inline-end:3rem; min-width:0; max-width:100%; }
+[data-ban-custom-date] .admin-date-input,
+[data-ban-custom-date] .admin-date-input::-webkit-calendar-picker-indicator,
+[data-ban-custom-date] .admin-date-input::-webkit-inner-spin-button { -webkit-appearance:none; appearance:none; }
+[data-ban-custom-date] .admin-date-input::-webkit-inner-spin-button { display:none; }
 :is(.pks-theme-root,.pks-panel-scope) .admin-date-input:is([type='date'],[type='datetime-local'])::-webkit-calendar-picker-indicator { opacity:0 !important; width:24px; height:24px; }
 .admin-range-date::-webkit-calendar-picker-indicator { position:absolute; right:1rem; top:50%; transform:translateY(-50%); margin:0; }
 
