@@ -334,6 +334,10 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                   {displayedDepartures.map((dep, idx) => {
                     const isPast = (dep as any).isPast;
                     const departureTimeLabel = formatDepartureTime(dep);
+                    const hasTimeDetails = !isPast && (
+                      (dep.carrier?.id === 'mpk' && (dep.realAtMs == null || (dep.realtimeSource && dep.plannedAtMs == null))) ||
+                      (dep.status === 'delayed' && Number.isFinite(dep.delayMins) && Math.abs(Number(dep.delayMins)) > 0)
+                    );
                     return (
                       <motion.div 
                         layout={animateDepartures ? "position" : false}
@@ -376,7 +380,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         </div>
 
                         {/* Right Side: Departure Time & Delayed/On-time Badge */}
-                        <div className="min-w-[4.4rem] min-h-[48px] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
+                        <div className={`min-w-[4.4rem] min-h-[48px] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2 ${hasTimeDetails ? '' : 'justify-center'}`}>
                            <div className={`font-semibold tabular-nums tracking-tight text-[18px] sm:text-[19px] ${isPast ? 'text-slate-500 line-through' : headingTextClass}`}>{departureTimeLabel}</div>
                            {!isPast && dep.carrier?.id === 'mpk' && dep.realAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Rozkład planowy</span>}
                            {!isPast && dep.carrier?.id === 'mpk' && dep.realtimeSource && dep.plannedAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Na żywo</span>}
