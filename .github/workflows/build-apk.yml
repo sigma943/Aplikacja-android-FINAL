@@ -98,6 +98,20 @@ jobs:
         if: contains(github.event.pull_request.title, '[route-check]')
         run: node --test test/marcel-niebylec-route.test.cjs test/marcel-route-assets.test.cjs test/marcel-road-routing.test.cjs test/journey-geometry.test.cjs test/physical-routing-regressions.test.cjs test/road-route-quality.test.cjs test/route-cache-performance.test.cjs test/vehicle-route-validation.test.cjs test/bus-stop-passage.test.cjs
 
+      - name: Verify lunar phase rendering
+        if: contains(github.event.pull_request.title, '[moon-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          node test/moon-browser.cjs
+
+      - name: Upload lunar phase preview
+        if: always() && contains(github.event.pull_request.title, '[moon-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: moon-phase-preview
+          path: test/ui-previews/moon-phases.png
+          retention-days: 7
+
       - name: Build Android Web Assets
         run: npm run build:android:web
 

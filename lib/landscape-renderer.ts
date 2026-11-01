@@ -149,15 +149,18 @@ export class LandscapeRenderer{
     return 1-opacity/(9*255);
   }
   private moon(c:CanvasRenderingContext2D,state:AstronomyState,x:number,y:number,radius:number){
-    const f=state.illumination.fraction,opacity=c.globalAlpha;
+    const f=state.illumination.fraction;
     c.save();c.translate(x,y);
     // SunCalc's bright limb angle minus parallactic angle is anticlockwise from zenith.
     c.rotate(-(state.illumination.angle-state.moon.parallacticAngle)-Math.PI/2);
-    c.fillStyle='#7184a0';c.globalAlpha=opacity*.15;c.beginPath();c.arc(0,0,radius,0,TAU);c.fill();c.globalAlpha=opacity;
     c.fillStyle='#fff0cf';c.beginPath();
     for(let i=0;i<=64;i++){const v=-1+2*i/64;c.lineTo(radius*Math.sqrt(Math.max(0,1-v*v)),radius*v);}
     for(let i=64;i>=0;i--){const v=-1+2*i/64;c.lineTo(radius*(1-2*f)*Math.sqrt(Math.max(0,1-v*v)),radius*v);}
-    c.closePath();c.clip();c.drawImage(this.lunarTexture,-radius,-radius,radius*2,radius*2);
+    c.closePath();c.clip();
+    // The limb follows the Sun, but lunar surface north follows only the
+    // observer's parallactic angle. Do not spin the craters with the phase.
+    c.rotate(state.illumination.angle+Math.PI/2);
+    c.drawImage(this.lunarTexture,-radius,-radius,radius*2,radius*2);
     c.restore();
   }
   render(state:AstronomyState,seconds:number,motion:boolean,sceneVisible=true){
