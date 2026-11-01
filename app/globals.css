@@ -530,35 +530,35 @@ html[data-personal-card-style='outlined'] :is(.transit-card,.transit-stop-card,.
 html[data-personal-card-style='flat'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { border-color:transparent !important; box-shadow:none !important; }
 html[data-personal-button-style='solid'] button.ui-accent-soft { background:var(--pks-accent) !important; color:var(--pks-accent-on) !important; border-color:transparent !important; }
 html[data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-solid) { background:transparent !important; color:var(--pks-accent-text) !important; border:1px solid var(--pks-accent-text) !important; }
-/* Shared neutral actions use the active accent in standard, solid and outline
-   styles, including admin light and Horyzont milk materials. */
+/* Utility actions use the same material as search fields and surrounding panels.
+   Primary action buttons retain their separate accent/outline preferences. */
 @layer personal-button-controls {
+ .pks-theme-root,.pks-panel-scope {
+  --admin-control-surface:var(--panel-solid,var(--ui-surface,#1b2937));
+  --admin-control-image:none;--admin-control-ink:var(--ui-text,#f3f7fb);
+  --admin-control-edge:var(--panel-edge,var(--ui-edge,#ffffff24));--admin-control-blur:none;
+ }
+ .pks-panel-scope[data-glass='on'] {
+  --admin-control-surface:var(--panel-surface);--admin-control-blur:blur(16px) saturate(140%);
+ }
+ html[data-landscape-theme='on'],html[data-landscape-theme='on'] :is(.pks-theme-root,.pks-panel-scope) {
+  --admin-control-surface:color-mix(in srgb,var(--landscape-solid) 82%,transparent);
+  --admin-control-image:var(--landscape-milk-glow,none);--admin-control-ink:var(--landscape-ink);
+  --admin-control-edge:var(--landscape-edge);--admin-control-blur:blur(18px) saturate(135%);
+ }
+ html[data-personal-light-effects='on'] :is(.pks-theme-root,.pks-panel-scope) {
+  --admin-control-image:none;--admin-control-blur:none;
+ }
  input.admin-range-date:focus {
   border-color:var(--pks-accent)!important;box-shadow:0 0 0 3px var(--pks-accent-soft)!important;
  }
- button.ui-accent-control {
-  background:var(--pks-accent-soft)!important;color:var(--pks-accent-text)!important;border-color:var(--pks-accent-border)!important;
+ html button.ui-accent-control,html label[data-admin-filter-control] {
+  background:var(--admin-control-surface)!important;background-image:var(--admin-control-image)!important;
+  color:var(--admin-control-ink)!important;border-color:var(--admin-control-edge)!important;
+  -webkit-backdrop-filter:var(--admin-control-blur)!important;backdrop-filter:var(--admin-control-blur)!important;
  }
- button.ui-accent-control:hover { background:var(--pks-accent-hover)!important; }
- html[data-personal-button-style='solid'] button.ui-accent-control {
-  background:var(--pks-accent)!important;color:var(--pks-accent-on)!important;border-color:transparent!important;
- }
- html[data-personal-button-style='outline'] button.ui-accent-control {
-  background:transparent!important;color:var(--landscape-accent,var(--pks-accent-text))!important;
-  border:1px solid var(--landscape-accent,var(--pks-accent-text))!important;
- }
- button.ui-accent-control,
- button.ui-accent-control * {
-  text-shadow:none!important;
- }
- button.ui-accent-control * { color:inherit!important; }
- /* Admin filter triggers must stay filled, including the outline preference. */
- html button.ui-accent-control[data-admin-filter-control],
- html label[data-admin-filter-control] {
-  background:var(--pks-accent)!important;color:var(--pks-accent-on)!important;border-color:transparent!important;
- }
- html button.ui-accent-control[data-admin-filter-control]:hover { background:var(--pks-accent)!important; }
- [data-admin-filter-control] * { color:inherit!important; }
+ button.ui-accent-control,button.ui-accent-control * { text-shadow:none!important; }
+ button.ui-accent-control *,[data-admin-filter-control] * { color:inherit!important; }
  label[data-admin-filter-control] select { background:transparent!important; }
  label[data-admin-filter-control] option { background:var(--ui-surface)!important;color:var(--ui-text)!important; }
 }
@@ -1526,10 +1526,10 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
 /* Shared solar milk for admin search and navigation/filter controls. */
 @layer admin-horizon-controls {
  html[data-landscape-theme='on'] :is([data-admin-viewport] input[data-milk-search],[data-admin-milk-control]) {
-  background-color:color-mix(in srgb,var(--landscape-solid) 82%,transparent)!important;
-  background-image:var(--landscape-milk-glow,none)!important;
-  border-color:var(--landscape-edge)!important;color:var(--landscape-ink)!important;
-  -webkit-backdrop-filter:blur(18px) saturate(135%)!important;backdrop-filter:blur(18px) saturate(135%)!important;
+  background-color:var(--admin-control-surface)!important;
+  background-image:var(--admin-control-image)!important;
+  border-color:var(--admin-control-edge)!important;color:var(--admin-control-ink)!important;
+  -webkit-backdrop-filter:var(--admin-control-blur)!important;backdrop-filter:var(--admin-control-blur)!important;
  }
  html[data-landscape-theme='on'] [data-admin-milk-control] svg { color:var(--landscape-ink)!important; }
  html[data-landscape-theme='on'] [data-admin-badge] {
