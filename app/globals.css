@@ -1697,6 +1697,9 @@ html[data-native-edge='true']:not([data-personal-status-bar-overlay='true']) .pk
 html[data-native-edge='true'][data-personal-status-bar-overlay='true'] .pks-theme-root > [data-app-content] {
  margin-top:0;--native-content-top:var(--safe-top);--admin-content-top:var(--safe-top);
 }
+html[data-native-edge='true'][data-personal-status-bar-overlay='true'] [data-admin-toasts] {
+ top:calc(var(--safe-top,0px) + 16px);
+}
 html[data-native-edge='true'] [data-native-view='stops'] .transit-view { padding-top:var(--native-content-top,0px); }
 html[data-native-edge='true'] [data-native-view='journeys'] > .connections-view { padding-top:calc(18px + var(--native-content-top,0px)); }
 html[data-native-edge='true'] [data-admin-view-canvas],

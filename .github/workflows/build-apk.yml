@@ -140,6 +140,20 @@ jobs:
           npx puppeteer browsers install chrome
           node test/admin-button-style-browser.cjs
 
+      - name: Verify admin toasts below the status bar
+        if: contains(github.event.pull_request.title, '[toast-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          ADMIN_TOAST_ONLY=1 node test/admin-button-style-browser.cjs
+
+      - name: Upload admin toast preview
+        if: always() && contains(github.event.pull_request.title, '[toast-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-toast-preview
+          path: test/ui-previews/admin-toast-*.png
+          retention-days: 7
+
       - name: Upload admin button previews
         if: always() && contains(github.event.pull_request.title, '[button-check]')
         uses: actions/upload-artifact@v4

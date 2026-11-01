@@ -12,6 +12,20 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewport({width:393,height:851,deviceScaleFactor:1});
   await page.setRequestInterception(true);page.on('request',r=>r.url().startsWith(origin)?r.continue():r.abort());
   fs.mkdirSync('test/ui-previews',{recursive:true});let checked=0;
+  if(process.env.ADMIN_TOAST_ONLY){
+   let cases=0;
+   for(const width of [320,393,1024])for(const safeTop of [0,24,48])for(const native of ['on','off'])for(const overlay of ['on','off']){
+    await page.setViewport({width,height:851,deviceScaleFactor:1});await page.goto(origin+'/?'+new URLSearchParams({toast:'on',theme:'dark-mountains',sun:-30,solar:'on',tint:'on',native,overlay,safeTop}));await page.waitForSelector('[data-admin-toasts]');
+    const expected=16+(native==='on'&&overlay==='on'?safeTop:0);
+    await page.waitForFunction(top=>{const first=document.querySelector('[data-admin-toasts]>div');return first&&Math.abs(first.getBoundingClientRect().top-top)<.5;},{},expected);
+    const box=await page.$eval('[data-admin-toasts]',e=>({top:e.getBoundingClientRect().top,left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right,count:e.children.length,overflow:e.scrollWidth>e.clientWidth}));
+    assert.equal(box.top,expected,JSON.stringify({width,safeTop,native,overlay,box}));assert.equal(box.count,3);assert.equal(box.overflow,false);assert.ok(box.left>=0&&box.right<=width);
+    if(width===393&&safeTop===48&&native==='on'&&overlay==='on')await page.screenshot({path:'test/ui-previews/admin-toast-status-overlay.png'});
+    await page.$eval('[data-admin-toasts] button',b=>b.click());await page.waitForFunction(()=>document.querySelector('[data-admin-toasts]').children.length===2);
+    cases++;
+   }
+   assert.deepEqual(errors,[]);console.log('PASS admin toast offset and close action in '+cases+' native/overlay/inset/width configurations.');return;
+  }
   const variants=['light','light-warm','light-pink','light-sky','dark','dark-oled','dark-forest','dark-cosmos'].map(theme=>({theme})).concat([30,1,-30].map(sun=>({theme:'dark-mountains',sun})),[30,-30].map(sun=>({theme:'dark-mountains',sun,solar:'on',tint:'on'})));
   for(const variant of variants)for(const style of ['original','solid','outline'])for(const accent of ['#ff8000','#3b82f6','#000000','#ffffff']){
    const params={...variant,style,accent};await page.goto(origin+'/?'+new URLSearchParams(params));await page.waitForSelector('[data-fixture-view="operators"] .ui-accent-control');

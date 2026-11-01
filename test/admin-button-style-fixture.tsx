@@ -1,4 +1,5 @@
 import React from 'react';
+import {ToastContainer,type ToastMessage} from '@/app/admin/components/ToastContainer';
 import {LoadingScreen} from '@/components/firebase/StartupScreens';
 import {createRoot} from 'react-dom/client';
 import {OperatorsView} from '@/app/admin/components/OperatorsView';
@@ -15,14 +16,28 @@ declare const ADMIN_LIGHT_STYLES:string;
 const q=new URLSearchParams(location.search),theme=q.get('theme')||'light-warm',style=q.get('style')||'solid',accent=q.get('accent')||'#ff8000';
 const altitude=Number(q.get('sun')||30),landscape=theme==='dark-mountains',dark=landscape?altitude<0:theme.startsWith('dark');
 const root=document.documentElement;
-const appearance={...DEFAULT_INTERFACE_APPEARANCE,buttonStyle:style as any,reducedMotion:true,surfaceTint:q.has('tint')?'accent' as const:'original' as const,landscapeAccentEnabled:q.has('solar'),landscapeDayAccent:'#ff8000',landscapeNightAccent:'#06b6d4'};
+const appearance={...DEFAULT_INTERFACE_APPEARANCE,statusBarOverlay:q.get('overlay')!=='off',buttonStyle:style as any,reducedMotion:true,surfaceTint:q.has('tint')?'accent' as const:'original' as const,landscapeAccentEnabled:q.has('solar'),landscapeDayAccent:'#ff8000',landscapeNightAccent:'#06b6d4'};
 const active=activeInterfaceAccent(appearance,theme,accent,!dark);
 applyInterfaceAppearance(root,appearance,dark,accent,false,theme);
 for(const [key,value]of Object.entries(uiAccentVariables(active,dark)))root.style.setProperty(key,value);
 if(landscape){root.dataset.landscapeTheme='on';root.dataset.landscapePeriod=dark?'night':'day';for(const [key,value]of Object.entries(landscapePalette({sun:{altitude:altitude*Math.PI/180}} as any,64,!dark,appearance,accent)))root.style.setProperty(key,value);root.style.setProperty('--landscape-milk-glow',solarMilkMaterial(altitude,!dark).glow);}
 if(theme==='dark-cosmos')root.dataset.cosmicTheme='on';
 const noop=()=>{},done=async()=>{},device:any={id:'other',name:'Telefon',os:'Android',deviceId:'sample',firstLogin:'31.10.2026, 13:15:00',role:'Administrator',status:'Aktywny',iconType:'mobile',lastSeenLabel:'teraz'};
-if(q.has('loading')){
+function ToastFixture(){
+ const [toasts,setToasts]=React.useState<ToastMessage[]>([
+  {id:'ban',type:'ban',title:'Blokada nadana',message:'Urządzenie testowe.'},
+  {id:'unban',type:'unban',title:'Urządzenie odblokowane',message:'Urządzenie testowe.'},
+  {id:'role',type:'role_change',title:'Zaktualizowano uprawnienia',message:'Urządzenie testowe.'},
+ ]);
+ return <div className="pks-theme-root" data-ui-theme={theme} style={{position:'relative',height:'100dvh'}}>
+  <div data-test-status-bar style={{position:'absolute',top:0,left:0,right:0,height:Number(q.get('safeTop')||0),color:'#fff',paddingLeft:16,pointerEvents:'none'}}>17:39</div>
+  <div data-app-content className="relative h-full"><div data-admin-viewport className="pks-panel-scope" data-panel-theme={dark?'dark':'light'} data-glass="on"><ToastContainer toasts={toasts} onClose={id=>setToasts(all=>all.filter(t=>t.id!==id))}/></div></div>
+ </div>;
+}
+if(q.has('toast')){
+ root.dataset.nativeEdge=q.get('native')==='off'?'false':'true';root.style.setProperty('--safe-top',(q.get('safeTop')||'0')+'px');
+ createRoot(document.getElementById('root')!).render(<ToastFixture/>);
+}else if(q.has('loading')){
  localStorage.setItem('mks_app_theme',theme);localStorage.setItem('mks_theme',accent);localStorage.setItem('mks_interface_appearance_v1',JSON.stringify(appearance));
  if(q.has('time'))Date.now=()=>Number(q.get('time'));
  if(q.get('confirmed')==='off')delete root.dataset.landscapePeriod;
