@@ -263,7 +263,7 @@ export function LogsView({
         <div ref={filtersRef} className="grid grid-cols-2 gap-4">
           <div className="relative">
             <button 
-              data-admin-milk-control="filter" onClick={toggleTypeFilter}
+              data-admin-milk-control="filter" data-admin-filter-control onClick={toggleTypeFilter}
               className="ui-accent-control w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">
@@ -289,7 +289,7 @@ export function LogsView({
 
           <div className="relative">
             <button 
-              data-admin-milk-control="filter" onClick={toggleDateFilter}
+              data-admin-milk-control="filter" data-admin-filter-control onClick={toggleDateFilter}
               className="ui-accent-control w-full flex items-center justify-between gap-2 bg-[#111623] border border-white/10 rounded-2xl px-4 py-3.5 transition-all hover:bg-white/5 hover:border-white/20 cursor-pointer overflow-hidden group shadow-lg"
             >
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-300 truncate">

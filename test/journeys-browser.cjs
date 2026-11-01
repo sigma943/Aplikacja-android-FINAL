@@ -17,8 +17,9 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    let configurations=0;
    for(const variant of variants)for(const chrome of ['modern','classic'])for(const width of [320,393]){
     const safe=width===393?'24px':'0px';await page.setViewport({width,height:851,deviceScaleFactor:1});
-    await page.goto(origin+'/?'+new URLSearchParams({'picker-nav':'1','picker-theme':variant.theme,sun:String(variant.sun??30),chrome,safe}),{waitUntil:'domcontentloaded'});
+    await page.goto(origin+'/?'+new URLSearchParams({'picker-nav':'1','picker-theme':variant.theme,sun:String(variant.sun??30),chrome,safe,glass:width===320?'off':'on'}),{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[data-journey-from]');await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker] [data-stop-card-id]');
+    const filterPaint=await page.evaluate(()=>{const styles=root=>[...document.querySelectorAll(root+' [data-stop-list-header] button[aria-pressed]')].map(b=>{const s=getComputedStyle(b);return {label:b.textContent.trim(),font:s.fontSize,weight:s.fontWeight,height:b.getBoundingClientRect().height,padding:s.padding,bg:s.backgroundColor,ink:s.color,radius:s.borderRadius};});return {actual:styles('[data-journey-picker]'),expected:styles('[data-filter-reference]')};});assert.deepEqual(filterPaint.actual,filterPaint.expected,JSON.stringify({variant,chrome,width,filterPaint}));
     const list=await page.evaluate(()=>{const picker=document.querySelector('[data-journey-picker]'),scroll=picker.querySelector('[data-stop-list-scroll]'),card=picker.querySelector('[data-stop-card-id]'),css=getComputedStyle(card),rect=picker.getBoundingClientRect();return {bottom:rect.bottom,padding:parseFloat(getComputedStyle(scroll).paddingBottom),cardPadding:parseFloat(css.paddingLeft),cardRadius:parseFloat(css.borderRadius),overflow:picker.scrollWidth>picker.clientWidth};});
     if(list.padding<152||list.cardPadding!==14)await screenshot('picker-layout-failure');
     assert.equal(await page.$eval('.connections-content',e=>getComputedStyle(e).visibility),'hidden');assert.equal(list.bottom,851);assert.ok(list.padding>=152,JSON.stringify({variant,chrome,width,list}));assert.equal(list.cardPadding,14,JSON.stringify({variant,chrome,width,list}));assert.ok(list.cardRadius>=18&&list.cardRadius<=24,JSON.stringify({variant,chrome,width,list}));assert.equal(list.overflow,false,JSON.stringify({variant,chrome,width,list}));
@@ -34,6 +35,13 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
     await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker] [data-stop-list-scroll]');assert.equal(await page.$('.connections-place-leaflet'),null);await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker]',{hidden:true});
     configurations++;
    }
+   await page.goto(origin+'/?picker-nav=1',{waitUntil:'domcontentloaded'});await page.waitForSelector('[data-journey-from]');await page.click('[data-journey-from]');
+   await page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_s,f){f({code:1});}}}));
+   await page.click('[data-journey-picker] .connections-use-location');await page.waitForSelector('.connections-picker-notice');await new Promise(r=>setTimeout(r,3000));
+   await page.click('[data-journey-picker] .connections-use-location');await new Promise(r=>setTimeout(r,3000));assert.ok(await page.$('.connections-picker-notice'),'repeated denial restarts the five-second timer');
+   await page.waitForSelector('.connections-picker-notice',{hidden:true,timeout:3500});assert.equal(await page.$('[data-journey-picker] [role="alert"]'),null);
+   await page.click('[data-journey-picker] .connections-use-location');await page.waitForSelector('.connections-picker-notice');await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker]',{hidden:true});await page.click('[data-journey-from]');assert.equal(await page.$('.connections-picker-notice'),null,'closing and reopening clears the old location notice');await page.keyboard.press('Escape');
+   console.log('PASS five-second location notice expiry, repeated-denial reset and close/reopen cleanup.');
    assert.deepEqual(errors,[]);console.log('PASS picker list, location notice and map confirmation above the real dock in '+configurations+' theme/chrome/viewport/safe-area configurations.');
   }
   if(process.env.JOURNEY_PICKER_ONLY){

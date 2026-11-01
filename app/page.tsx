@@ -1403,7 +1403,7 @@ export default function Home() {
               </AnimatePresence>
 
             </div>
-         {!isJourneysTabDisabled&&(hasOpenedJourneys||activeTab==='journeys')&&<div data-native-view="journeys" hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
+         {!isJourneysTabDisabled&&(hasOpenedJourneys||activeTab==='journeys')&&<div data-native-view="journeys" hidden={activeTab!=='journeys'} inert={activeTab!=='journeys'} className="absolute inset-0 z-20 overflow-hidden"><JourneyPlanner stops={stopsList} dark={isDark} glass={transparentUI} allowMap={!isMapTabDisabled} active={activeTab==='journeys'} onClose={()=>setActiveTab(isMapTabDisabled?'stops':'map')}/></div>}
          {/* ============== NEW STOPS VIEW ============== */}
          <motion.div
             data-native-view="stops"

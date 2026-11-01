@@ -25,15 +25,16 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
     const probe=document.createElement('i');document.body.append(probe);probe.style.color='var(--pks-accent-on)';const on=getComputedStyle(probe).color;probe.style.color='var(--landscape-accent,var(--pks-accent-text))';const outline=getComputedStyle(probe).color;probe.style.color='var(--pks-accent)';const accent=getComputedStyle(probe).color;probe.style.color='var(--pks-accent-text)';const softText=getComputedStyle(probe).color;probe.style.color='var(--pks-accent-border)';const softBorder=getComputedStyle(probe).color;probe.style.backgroundColor='var(--pks-accent-soft)';const soft=getComputedStyle(probe).backgroundColor;probe.remove();
     return [...document.querySelectorAll('button.ui-accent-control')].map(b=>{
      const paint=css(b),children=[...b.querySelectorAll('svg,span')].map(css),bounds=b.getBoundingClientRect();
-     return {view:b.closest('[data-fixture-view]')?.dataset.fixtureView,text:b.textContent.trim(),paint,children,on,outline,accent,soft,softText,softBorder,width:bounds.width,scroll:b.scrollWidth,client:b.clientWidth};
+     return {view:b.closest('[data-fixture-view]')?.dataset.fixtureView,text:b.textContent.trim(),paint,children,filter:b.hasAttribute('data-admin-filter-control'),on,outline,accent,soft,softText,softBorder,width:bounds.width,scroll:b.scrollWidth,client:b.clientWidth};
     });
    },style);
    assert.ok(rows.length>=10,JSON.stringify({params,rows}));
-   for(const row of rows){const detail=JSON.stringify({params,row});
-    assert.equal(row.paint.color,style==='original'?row.softText:style==='solid'?row.on:row.outline,detail);assert.equal(row.paint.background,style==='original'?row.soft:style==='solid'?row.accent:'rgba(0, 0, 0, 0)',detail);assert.equal(row.paint.image,'none',detail);assert.equal(row.paint.shadow,'none',detail);
-    if(style==='outline')assert.equal(row.paint.border,row.outline,detail);if(style==='original')assert.equal(row.paint.border,row.softBorder,detail);
+   for(const row of rows){const detail=JSON.stringify({params,row}),mode=row.filter?'solid':style;
+    assert.equal(row.paint.color,mode==='original'?row.softText:mode==='solid'?row.on:row.outline,detail);assert.equal(row.paint.background,mode==='original'?row.soft:mode==='solid'?row.accent:'rgba(0, 0, 0, 0)',detail);assert.equal(row.paint.image,'none',detail);assert.equal(row.paint.shadow,'none',detail);
+    if(mode==='outline')assert.equal(row.paint.border,row.outline,detail);if(mode==='original')assert.equal(row.paint.border,row.softBorder,detail);
     for(const child of row.children)assert.equal(child.color,row.paint.color,detail);
    if(row.width>0)assert.ok(row.scroll<=row.client+2,detail);}
+   const selects=await page.$$eval('label[data-admin-filter-control]',nodes=>nodes.map(e=>{const probe=document.createElement('i');e.append(probe);probe.style.backgroundColor='var(--pks-accent)';probe.style.color='var(--pks-accent-on)';const expected=getComputedStyle(probe),paint={background:expected.backgroundColor,color:expected.color};probe.remove();return {paint,background:getComputedStyle(e).backgroundColor,color:getComputedStyle(e.querySelector('select')).color};}));assert.equal(selects.length,2);for(const select of selects){assert.equal(select.background,select.paint.background,JSON.stringify({params,select}));assert.equal(select.color,select.paint.color,JSON.stringify({params,select}));}
    // The history button still opens the actual maintenance dialog.
    await page.$eval('[data-fixture-view="maintenance"] button.ui-accent-control',b=>b.click());await page.waitForSelector('[role="dialog"][aria-label="Historia zmian"]');
    if((style==='solid'||variant.solar)&&accent==='#ff8000'&&['light-warm','dark-mountains'].includes(variant.theme)){

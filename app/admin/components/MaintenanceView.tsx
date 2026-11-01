@@ -552,7 +552,7 @@ function IconButton({ icon, title, onClick }: { icon: React.ReactNode; title: st
 
 function SelectButton({ icon, value, onChange, options }: { icon: React.ReactNode; value: string; onChange: (value: string) => void; options: Array<[string, string]> }) {
   return (
-    <label className="relative flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-[#111623] px-3 text-xs font-black uppercase tracking-widest text-slate-300">
+    <label data-admin-filter-control className="relative flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-[#111623] px-3 text-xs font-black uppercase tracking-widest text-slate-300">
       {icon}
       <select value={value} onChange={(event) => onChange(event.target.value)} className="appearance-none bg-transparent pr-4 outline-none">
         {options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}

@@ -2,7 +2,7 @@
 .connections-view[data-panel-theme=light]{--cn-surface:var(--ui-surface,#fff);--cn-text:var(--ui-text,#172536);--cn-muted:var(--ui-muted,#64748b);--cn-edge:var(--ui-edge,#17253614);background:var(--ui-canvas,#f4f7f8);color-scheme:light}
 .connections-view[data-panel-theme=dark]{color-scheme:dark}
 .connections-view *{box-sizing:border-box}
-.connections-view button,.connections-view input,.connections-view select{font:inherit}
+.connections-view :is(button,input,select):not(.transit-view *){font:inherit}
 .connections-view button{cursor:pointer;touch-action:manipulation}
 .connections-view button:disabled{opacity:.55;cursor:default}
 .connections-view button:focus-visible,.connections-view input:focus-visible,.connections-view select:focus-visible{outline:2px solid var(--cn-accent);outline-offset:3px}

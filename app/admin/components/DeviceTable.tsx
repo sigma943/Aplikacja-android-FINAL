@@ -488,7 +488,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button data-admin-milk-control="filter" onClick={toggleSortDropdown} className="ui-accent-control w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button data-admin-milk-control="filter" data-admin-filter-control onClick={toggleSortDropdown} className="ui-accent-control w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <ArrowUpDown size={14} className="text-slate-500 group-hover:text-white transition-colors" />
             <span className="truncate">{sortLabel}{sortConfig ? (sortConfig.dir === 'desc' ? ' ↓' : ' ↑') : ''}</span>
           </button>
@@ -511,7 +511,7 @@ export function DeviceTable({
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <button data-admin-milk-control="filter" onClick={toggleFilterDropdown} className="ui-accent-control w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
+          <button data-admin-milk-control="filter" data-admin-filter-control onClick={toggleFilterDropdown} className="ui-accent-control w-full sm:w-auto flex items-center justify-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all cursor-pointer shadow-lg active:scale-95 group">
             <Filter size={14} className={cn('text-slate-500 group-hover:text-white transition-all duration-300', showFilterDropdown && 'rotate-180')} />
             <span>{filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : filterRole === 'ADMIN' ? 'Administratorzy' : filterRole === 'BLOCKED' ? 'Zablokowani' : 'Użytkownicy'}</span>
           </button>

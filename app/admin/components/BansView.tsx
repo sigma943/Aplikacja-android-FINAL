@@ -109,7 +109,7 @@ export function BansView({
           </div>
           <div ref={filtersRef} className="relative shrink-0">
             <button
-              data-admin-milk-control="filter" onClick={() => setShowFilters(!showFilters)}
+              data-admin-milk-control="filter" data-admin-filter-control onClick={() => setShowFilters(!showFilters)}
               className="ui-accent-control flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 sm:px-5 py-3.5 rounded-2xl text-sm font-bold text-slate-300 transition-all h-full cursor-pointer active:scale-95 shadow-lg"
             >
               Filtry

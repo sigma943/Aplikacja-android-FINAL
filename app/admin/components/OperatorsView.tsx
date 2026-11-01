@@ -127,7 +127,7 @@ export function OperatorsView({
           </div>
           <div ref={filterDropdownRef} className="relative">
             <button 
-              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+              data-admin-milk-control="filter" data-admin-filter-control onClick={() => setShowFilterDropdown(!showFilterDropdown)}
               className="ui-accent-control flex items-center gap-2 bg-[#111623] border border-white/10 hover:bg-white/5 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 transition-all cursor-pointer group"
             >
               {filterRole === 'ALL' ? 'Filtry' : filterRole === 'WŁAŚCICIEL' ? 'Właściciele' : 'Administratorzy'}

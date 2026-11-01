@@ -552,6 +552,15 @@ html[data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-
   text-shadow:none!important;
  }
  button.ui-accent-control * { color:inherit!important; }
+ /* Admin filter triggers must stay filled, including the outline preference. */
+ html button.ui-accent-control[data-admin-filter-control],
+ html label[data-admin-filter-control] {
+  background:var(--pks-accent)!important;color:var(--pks-accent-on)!important;border-color:transparent!important;
+ }
+ html button.ui-accent-control[data-admin-filter-control]:hover { background:var(--pks-accent)!important; }
+ [data-admin-filter-control] * { color:inherit!important; }
+ label[data-admin-filter-control] select { background:transparent!important; }
+ label[data-admin-filter-control] option { background:var(--ui-surface)!important;color:var(--ui-text)!important; }
 }
 
 /* Background layers use the same surface contract on every screen and in portals.
