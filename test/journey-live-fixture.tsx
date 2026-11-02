@@ -32,7 +32,7 @@ export async function searchConnections(from?:Stop,_to?:Stop,_catalog?:Stop[],_d
   return {journeys:Array.from({length:4},(_,i)=>({...journey,id:'card:'+i,legs:[{...leg,course:leg.course+':'+i}]})),warnings:[]};
  }
  const result={journeys:[journey],warnings:[]};
- if(count===1&&onPartial){onPartial(result);await new Promise<void>(resolve=>{(window as any).__finishEnrichment=resolve;});}
+ if(count===1&&onPartial){onPartial(location.search.includes('refinement')?{...result,journeys:[{...journey,legs:journey.legs.slice(1)}]}:result);await new Promise<void>(resolve=>{(window as any).__finishEnrichment=resolve;});}
  return result;
 }
 (window as any).__journeyThemes=Object.fromEntries(['light-sky','dark-forest','light-pink'].map(t=>[t,themeDecoration(t)]));

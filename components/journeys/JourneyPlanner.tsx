@@ -85,10 +85,10 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,glass=tr
   invalidate();const token=generation.current,c=new AbortController();controller.current=c;setBusy(true);setProgress('Wczytuję pełne rozkłady…');
   try{const location=from.id===LOCATION_ID||to.id===LOCATION_ID?await currentJourneyLocation():null;const origin=from.id===LOCATION_ID?location!:from,destination=to.id===LOCATION_ID?location!:to;if(c.signal.aborted||token!==generation.current)return;if(origin.id===LOCATION_ID)setFrom(origin);if(destination.id===LOCATION_ID)setTo(destination);
    const next=[{from:origin,to:destination,searchedAt:Date.now()},...recents].slice(0,5);setRecents(next);saveRecents(next);
-   const result=await searchConnections(origin,destination,catalog,searchDate,{...options,at,arriveBy,day:searchDate},c.signal,(n,total)=>{if(token===generation.current)setProgress(n===total?'Wyznaczam trasę…':'Wczytuję rozkłady '+n+' / '+total);},partial=>{if(!c.signal.aborted&&token===generation.current){setResults(stableJourneyResults(partial.journeys));setWarnings(partial.warnings);setBusy(false);setRefining(true);}});
+   const result=await searchConnections(origin,destination,catalog,searchDate,{...options,at,arriveBy,day:searchDate},c.signal,(n,total)=>{if(token===generation.current)setProgress(n===total?'Wyznaczam trasę…':'Wczytuję rozkłady '+n+' / '+total);},partial=>{if(!c.signal.aborted&&token===generation.current){setResults(previous=>stableJourneyResults(partial.journeys,previous||[]));setWarnings(partial.warnings);setBusy(false);setRefining(true);}});
    if(c.signal.aborted||token!==generation.current)return;
    liveQuery.current={from:origin,to:destination,date:searchDate,now,options:{...options,at,arriveBy,day:searchDate}};
-   setResults(stableJourneyResults(result.journeys));setWarnings(result.warnings);
+   setResults(previous=>stableJourneyResults(result.journeys,previous||[]));setWarnings(result.warnings);
   }catch(e){if(!c.signal.aborted&&token===generation.current)setError(e instanceof Error?e.message:'Nie udało się wyszukać połączeń. Spróbuj ponownie.');}
   finally{if(token===generation.current){setBusy(false);setRefining(false);}}
  }
@@ -99,7 +99,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,glass=tr
   try{
    const result=await searchConnections(query.from,query.to,catalog,query.date,{...query.options,at:query.now?Date.now():query.options.at},c.signal,()=>{});
    if(c.signal.aborted||token!==generation.current)return;
-   setResults(stableJourneyResults(result.journeys));setWarnings(result.warnings);
+   setResults(previous=>stableJourneyResults(result.journeys,previous||[]));setWarnings(result.warnings);
   }catch{
    if(!c.signal.aborted&&token===generation.current)setWarnings(current=>[...current.filter(w=>!w.startsWith('Aktualizacja opóźnień:')),'Aktualizacja opóźnień: nie udało się pobrać nowych danych. Ponowię automatycznie.']);
   }
@@ -133,7 +133,7 @@ export default function JourneyPlanner({stops,dark,active,allowMap=true,glass=tr
   </aside><main className="connections-answer-column">
    {results!==null&&!busy&&<div className="connections-results" aria-live="polite"><div className="connections-results-heading scene-message"><h2>{results.length?'Proponowane połączenia':'Brak połączeń w tym terminie'}</h2>{results.length>0&&<span>{polishCount(results.length,'propozycja','propozycje','propozycji')}</span>}</div>
     {!results.length&&<div className="connections-card connections-empty"><Search size={28}/><h3>Spróbuj innej godziny</h3><p>{arriveBy?'Od początku dnia do wybranej godziny':'Od wybranej godziny do końca dnia'} nie ma połączenia spełniającego preferencje. Możesz też zwiększyć dystans pieszo lub liczbę przesiadek.</p></div>}
-    {refining&&<p className="connections-hint scene-message" role="status" data-journey-refining>Uzupełniam kursy Marcela i dane na żywo… Możesz już wybrać połączenie.</p>}
+    {refining&&<p className="connections-hint scene-message" role="status" data-journey-refining>{includeMarcel?'Uzupełniam kursy Marcela i dane na żywo…':'Uzupełniam dane połączeń…'} Możesz już wybrać połączenie.</p>}
     {warnings.filter(w=>!w.startsWith('Część dojść pieszych')&&!w.startsWith('Wstępne wyniki:')&&!w.startsWith('Nie udało się wczytać trasy w całości pieszo')).map(w=><p className="connections-warning" key={w}><AlertCircle size={16}/>{w}</p>)}
     {results.slice(0,resultLimit).map(j=><article data-cosmic-panel data-journey-result className={'connections-card connections-result-card'+(selected===j.id?' is-expanded':'')} key={j.id}>
      <button className="connections-result" aria-expanded={selected===j.id} onClick={e=>{headerAnchor.current={header:e.currentTarget,top:e.currentTarget.getBoundingClientRect().top-viewRef.current!.getBoundingClientRect().top};setSelected(selected===j.id?null:j.id);setLegFocus(null);setMap(false);}}>
