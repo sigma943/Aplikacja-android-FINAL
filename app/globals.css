@@ -1040,7 +1040,7 @@ html[data-cosmic-theme='on'] [data-filter-cosmos] {
 .personal-preview-launch-icon { display:grid; place-items:center; width:42px; height:42px; flex-shrink:0; border-radius:14px; background:var(--pks-accent-soft); color:var(--pks-accent-text); border:1px solid var(--pks-accent-border); }
 .personal-preview-launch > svg { color:var(--ui-muted); transition:transform 160ms ease; }
 .personal-preview-launch:hover { background-color:var(--pks-accent-soft); }
-.personal-preview-content { padding:0 14px 14px; }
+.personal-preview-content { padding:14px; }
 /* Same bounded photographic material as the filter, with an opaque base. */
 html[data-cosmic-theme='on'] { --cosmos-chrome-image:linear-gradient(110deg,rgba(4,8,24,.9),rgba(7,11,29,.68)),url('/themes/kosmos/nebula.jpg'); }
 html[data-cosmic-theme='on'] [data-filter-cosmos] { background-image:var(--cosmos-chrome-image); }
