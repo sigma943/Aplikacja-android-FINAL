@@ -1,4 +1,4 @@
-name: Build Android APK - 28 May 2026
+name: Build Android APK - 28 May live fix
 
 on:
   pull_request:
@@ -9,16 +9,17 @@ permissions:
 
 jobs:
   build:
-    name: Build APK from 9bc2f0c (28 May)
+    name: Build May APK with live feed compatibility
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact May source
+      - name: Checkout isolated May compatibility source
         uses: actions/checkout@v4
         with:
-          ref: 9bc2f0c0650d1b5d53f4cc258d01ac90a2336539
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
 
       - name: Confirm source version
-        run: test "$(git rev-parse HEAD)" = "9bc2f0c0650d1b5d53f4cc258d01ac90a2336539"
+        run: git diff --exit-code 9bc2f0c0650d1b5d53f4cc258d01ac90a2336539 HEAD -- . ':!lib/pks-client.ts' ':!.github/workflows/build-apk.yml' ':!test/archive-live-feeds.test.cjs'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,6 +29,9 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Verify archived feed compatibility and live sources
+        run: ARCHIVE_LIVE_PROBE=1 node --test test/archive-live-feeds.test.cjs
 
       - name: Build Android Web Assets
         run: npm run build:android:web
@@ -61,7 +65,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: pks-live-2.1.1-may-28-2026-debug-apk
+          name: pks-live-2.1.1-may-28-live-fix-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
