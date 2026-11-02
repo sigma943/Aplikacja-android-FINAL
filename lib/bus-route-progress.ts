@@ -29,19 +29,34 @@ export function prepareBusRouteProgress(route:Point[],stops:StopSchedule[]):BusR
  return {route,metres,stops:points,stopMetres};
 }
 
-/** Ambiguous intersections/parallel return legs give no evidence. The most
- * conservative nearby projection plus a 100 m margin protects upcoming stops. */
-export function routeConfirmedPassedStop(model:BusRouteProgress,position:Point,alreadyPassed:number){
+function nearbyRoutePositions(model:BusRouteProgress,position:Point){
  const candidates:Array<{distance:number;metres:number}>=[];
  for(let i=0;i<model.route.length-1;i++){
   const p=projection(position,model.route[i],model.route[i+1]);
   if(p.distance<=60)candidates.push({distance:p.distance,metres:model.metres[i]+(model.metres[i+1]-model.metres[i])*p.fraction});
  }
- if(!candidates.length)return -1;
  const closest=candidates.reduce((best,p)=>Math.min(best,p.distance),Infinity);
- let start=Infinity,end=-Infinity;
- for(const p of candidates)if(p.distance<=closest+20){start=Math.min(start,p.metres);end=Math.max(end,p.metres);}
- if(end-start>120)return -1;
+ return candidates.filter(p=>p.distance<=closest+20);
+}
+
+/** A single ambiguous fix cannot identify an outward/return leg. Two fresh,
+ * plausibly spaced fixes can distinguish forward travel on the ordered route;
+ * repeated legs in the same direction still remain ambiguous. */
+export function routeConfirmedPassedStop(model:BusRouteProgress,position:Point,alreadyPassed:number,previousPosition?:Point){
+ let candidates=nearbyRoutePositions(model,position);
+ if(!candidates.length)return -1;
+ const spread=(points:typeof candidates)=>Math.max(...points.map(p=>p.metres))-Math.min(...points.map(p=>p.metres));
+ if(spread(candidates)>120){
+  const movement=previousPosition?distanceMeters(previousPosition,position):0;
+  if(!previousPosition||movement<40)return -1;
+  const previous=nearbyRoutePositions(model,previousPosition);
+  // Require real forward motion, allowing road bends between sparse fixes.
+  // Never connect two observations by going around an entire loop.
+  candidates=candidates.filter(current=>previous.some(before=>
+   current.metres-before.metres>=30&&current.metres-before.metres<=movement*2+120));
+  if(!candidates.length||spread(candidates)>120)return -1;
+ }
+ const start=Math.min(...candidates.map(p=>p.metres));
  let passed=-1;
  for(let i=alreadyPassed+1;i<model.stopMetres.length;i++){
   if(model.stopMetres[i]+100>start)break;

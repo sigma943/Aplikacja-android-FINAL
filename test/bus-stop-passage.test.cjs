@@ -131,3 +131,42 @@ test('clock renders and alternating map/panel consumers reuse route analysis and
  }
  assert.equal(preparations,1);assert.equal(projections,1);
 });
+
+// A short MPK terminal loop can put the outbound and return roads within GPS
+// tolerance. Heading comes from successive observations, never old ETAs.
+const loopRoute=[[50,22],[50,22.02],[50.00012,22.02],[50.00012,22]];
+const loopStops=loopRoute.map(([lat,lon],i)=>({...stops[0],id:i+10,name:`Loop ${i}`,lat,lon,planned:new Date(now+i*60000).toISOString()}));
+const loopBus=(lon,offset,extra={})=>({...bus('mpk_rzeszow',lon,now+offset),lat:50.00012,routeGeometry:loopRoute,...extra});
+test('MPK terminal loop: two return-leg fixes remove old outbound stops and keep the next stop',()=>{
+ const track=createBusStopPassageTracker();
+ assert.deepEqual(track(loopBus(22.012,0),loopStops,now).map(s=>s.id),[10,11,12,13],'one ambiguous position is insufficient');
+ assert.deepEqual(track(loopBus(22.008,30000),loopStops,now+30000).map(s=>s.id),[13]);
+ assert.deepEqual(track(loopBus(22.008,30000),loopStops,now+30000).map(s=>s.id),[13],'second consumer sees the same confirmed suffix');
+});
+test('MPK terminal loop: outbound motion keeps the return stops instead of jumping across the loop',()=>{
+ const track=createBusStopPassageTracker();
+ const outbound=(lon,t)=>loopBus(lon,t,{lat:50});
+ track(outbound(22.008,0),loopStops,now);
+ assert.deepEqual(track(outbound(22.012,30000),loopStops,now+30000).map(s=>s.id),[11,12,13]);
+});
+test('MPK terminal loop: jitter, stale gaps, course switches and GPS jumps cannot disambiguate the leg',()=>{
+ for(const kind of ['jitter','gap','course','jump']){
+  const track=createBusStopPassageTracker();track(loopBus(22.012,0),loopStops,now);
+  const offset=kind==='gap'?121000:kind==='jump'?1000:30000;
+  const v=loopBus(kind==='jitter'?22.0119:22.008,offset,kind==='course'?{tripId:'different'}:{});
+  assert.deepEqual(track(v,loopStops,now+offset).map(s=>s.id),[10,11,12,13],kind);
+ }
+});
+test('MPK repeated same-direction legs remain ambiguous even with two fixes',()=>{
+ const route=[[50,22],[50,22.02],[50.01,22.02],[50.01,22],[50,22],[50,22.02]];
+ const track=createBusStopPassageTracker();
+ track(bus('mpk_rzeszow',22.008,now,{routeGeometry:route}),stops,now);
+ assert.deepEqual(track(bus('mpk_rzeszow',22.012,now+30000,{routeGeometry:route}),stops,now+30000).map(s=>s.id),[1,2,3]);
+});
+test('map geometry and bus list share motion-confirmed MPK loop progress',()=>{
+ const {upcomingTimedVehicleStops}=load('lib/vehicle-stop-timing.ts');
+ const vehicle=(lon,t)=>({...loopBus(lon,t),id:'loop-map-panel',routeGeometry:undefined,routeStops:loopStops});
+ upcomingTimedVehicleStops(vehicle(22.012,0),now,loopRoute);
+ assert.deepEqual(upcomingTimedVehicleStops(vehicle(22.008,30000),now+30000,loopRoute).map(s=>s.id),[13]);
+ assert.deepEqual(upcomingTimedVehicleStops(vehicle(22.008,30000),now+30000).map(s=>s.id),[13]);
+});

@@ -6,7 +6,7 @@ import {prepareBusRouteProgress,routeConfirmedPassedStop,type BusRouteProgress} 
 
 type Point = [number,number];
 type Visit = {index:number;point:Point;nextDistance?:number};
-type Progress = {course:string;passed:number;signal:number;point?:Point;visit?:Visit;reliable?:boolean;route?:Point[];routeKey?:string;stopPointsKey?:string;model?:BusRouteProgress;modelSignal?:number};
+type Progress = {course:string;passed:number;signal:number;point?:Point;previousPoint?:Point;visit?:Visit;reliable?:boolean;route?:Point[];routeKey?:string;stopPointsKey?:string;model?:BusRouteProgress;modelSignal?:number};
 const point = (value:{lat?:number;lon?:number}):Point|undefined => {
   const position=readBusCoordinates(value.lat,value.lon);
   return position ? [position.lat,position.lon] : undefined;
@@ -37,10 +37,11 @@ export function createBusStopPassageTracker() {
     const position=point(vehicle),signal=vehicle.positionObservedAtMs??transitTimestamp(vehicle.lastSignalTime);
     const fresh=Number.isFinite(signal)&&nowMs-signal<=120_000&&signal<=nowMs+5_000&&
       (vehicle.dataAgeSec??0)<=120&&!vehicle.isHistorical&&vehicle.positionQuality!=='estimated'&&(!vehicle.status||vehicle.status==='active');
-    if(!fresh||!position){state.visit=undefined;state.reliable=false;}
+    if(!fresh||!position){state.visit=undefined;state.previousPoint=undefined;state.reliable=false;}
     else if(signal>state.signal) {
       const elapsed=(signal-state.signal)/1000;
       const jump=state.point&&distanceMeters(position,state.point)/elapsed>140/3.6;
+      state.previousPoint=!jump&&elapsed<=120?state.point:undefined;
       state.reliable=!jump;
       if(jump||elapsed>120)state.visit=undefined;
       if(!jump) {
@@ -79,7 +80,7 @@ export function createBusStopPassageTracker() {
       }
       state.stopPointsKey=stopPointsKey;
       if(state.model&&state.modelSignal!==signal){
-        state.passed=Math.max(state.passed,routeConfirmedPassedStop(state.model,position,state.passed));
+        state.passed=Math.max(state.passed,routeConfirmedPassedStop(state.model,position,state.passed,vehicle.provider==='mpk_rzeszow'?state.previousPoint:undefined));
         state.modelSignal=signal;
       }
     }
