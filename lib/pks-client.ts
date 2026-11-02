@@ -178,7 +178,19 @@ function einfoFallbackUrl(pathAndOptionalQuery: string) {
   return `${EINFO_DIRECT}/${trimmed}`;
 }
 
+/** The data service moved hosts; keep the historical interface and data model. */
+function currentVehicleDataUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'www.mpkrzeszow.pl' || parsed.hostname === 'mpkrzeszow.pl') {
+      return 'https://kmrzeszow.live' + parsed.pathname + parsed.search;
+    }
+  } catch { /* Relative app routes and other providers retain their routing. */ }
+  return url;
+}
+
 async function requestJson<T>(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<T> {
+  url = currentVehicleDataUrl(url);
   if (isNative()) {
     let data: unknown;
     if (typeof init?.body === 'string' && init.body) {
@@ -316,6 +328,7 @@ function bestPksStopName(areaName: string, stopName: string) {
 }
 
 async function requestText(url: string, init?: RequestInit & {headers?: Record<string, string>}): Promise<string> {
+  url = currentVehicleDataUrl(url);
   if (isNative()) {
     const response = await CapacitorHttp.request({
       url,
@@ -346,22 +359,21 @@ async function requestText(url: string, init?: RequestInit & {headers?: Record<s
 
 async function fetchPksVehiclesSnapshot(signal?: AbortSignal) {
   const panelFeedUrl = isNative() ? 'http://185.214.67.112/api/its/vehicles' : '/api/pks/vehicles';
-  const panelFeed = await requestJson<any>(panelFeedUrl, {
+  const panel = requestJson<any>(panelFeedUrl, {
     signal,
-    headers: isNative()
-      ? {
-          Host: 'einfo.zgpks.rzeszow.pl',
-          Accept: 'application/json',
-        }
-      : { Accept: 'application/json' },
-  }).catch(() => null);
-  const panelItems = Array.isArray(panelFeed?.items) ? panelFeed.items : Array.isArray(panelFeed) ? panelFeed : [];
-  if (panelItems.length > 0) return panelItems;
-
-  const wsItems = await fetchPksVehiclesFromPanelWebSocket(signal).catch(() => []);
-  if (wsItems.length > 0) return wsItems;
-
-  return requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal }).catch(() => []);
+    headers: isNative() ? {Host:'einfo.zgpks.rzeszow.pl',Accept:'application/json'} : {Accept:'application/json'},
+  }).then(feed => Array.isArray(feed?.items) ? feed.items : Array.isArray(feed) ? feed : []);
+  const direct = requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', {signal});
+  try {
+    return await Promise.any([panel,direct].map(async request => {
+      const rows = await request;
+      if (!Array.isArray(rows) || !rows.length) throw new Error('Empty PKS feed');
+      return rows;
+    }));
+  } catch {
+    if (signal?.aborted) throw new DOMException('Request aborted','AbortError');
+    return fetchPksVehiclesFromPanelWebSocket(signal).catch(() => []);
+  }
 }
 
 function fetchPksVehiclesFromPanelWebSocket(signal?: AbortSignal): Promise<any[]> {
@@ -440,20 +452,17 @@ async function fetchPksVehicleDetailsClient(vehicleId: string, includeInactive: 
 }
 
 async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
-  const searchParams = new URLSearchParams();
-  searchParams.set('providers', 'mpk_rzeszow');
-  if (includeInactive) searchParams.set('includeInactive', 'true');
-
   try {
-    const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', searchParams), { signal });
-    const vehicles = (response.vehicles || []).map(mapTransportVehicleToClient);
-    if (vehicles.length > 0) return vehicles;
-    return fetchMpkRzeszowVehiclesDirect(includeInactive);
+    return await fetchMpkRzeszowVehiclesDirect(includeInactive, signal);
   } catch (error) {
-    console.warn('MPK Rzeszów backend unavailable, using direct MPK feed:', error);
-    return fetchMpkRzeszowVehiclesDirect(includeInactive);
+    if (signal?.aborted) throw error;
+    const searchParams = new URLSearchParams({providers:'mpk_rzeszow'});
+    if (includeInactive) searchParams.set('includeInactive','true');
+    const response = await requestJson<TransportApiVehiclesResponse>(transportApiUrl('/vehicles', searchParams), {signal});
+    return (response.vehicles || []).map(mapTransportVehicleToClient);
   }
 }
+
 
 async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
   return fetchMarcelVehiclesDirect(includeInactive, signal);
@@ -1183,9 +1192,44 @@ function mapMpkDirectVehicle(
   };
 }
 
-async function fetchMpkRzeszowVehiclesDirect(includeInactive: boolean) {
-  const [xml, details] = await Promise.all([
-    requestText(MPK_RZESZOW_VEHICLES_XML_URL),
+/** Adapt current JSON/XML/myBus feeds to the May vehicle model. */
+async function fetchCompatibleMpkFeed(signal?: AbortSignal) {
+  const loaders: Array<() => Promise<Record<string,string>[]>> = [
+    async () => {
+      const payload = await requestJson<unknown>('https://kmrzeszow.live/ztm/new/api.php?type=mpk',{signal});
+      if (!payload || typeof payload !== 'object') throw new Error('Invalid MPK JSON');
+      return (Array.isArray(payload) ? payload : Object.values(payload))
+        .filter(row => row && typeof row === 'object' && 'x' in row && 'y' in row)
+        .map(row => Object.fromEntries(Object.entries(row).filter(([,value]) => value != null && typeof value !== 'object').map(([key,value]) => [key,String(value)])));
+    },
+    async () => parseMpkVehiclesXml(await requestText(MPK_RZESZOW_VEHICLES_XML_URL,{signal})),
+    async () => parseMpkVehiclesXml(await requestText('http://84.38.160.220/myBusServices/SchedulesService.svc/GetVehicles?cNbLst=&cTrackLst=&cDirLst=&cIdLst=&cKrsLst=&cRouteLst=',{signal}))
+      .map(row => ({...row,is:'0'})), // myBus `is` is not GPS age; date by this observation.
+  ];
+  let empty = false;
+  for (const load of loaders) {
+    if (signal?.aborted) throw new DOMException('Request aborted','AbortError');
+    try {
+      const rows = await load();
+      const now = Date.now();
+      const normalized = rows.map((row):Record<string,string> => {
+        const timestamp = Number(row.timestamp);
+        const age = Number.isFinite(timestamp) && timestamp > 0
+          ? Math.max(0,(now-(timestamp>1e12?timestamp:timestamp*1000))/1000) : Math.max(0,Number(row.is||0));
+        return {...row,is:String(age)};
+      });
+      const fresh = normalized.filter(row => Number.isFinite(Number(row.is)) && Number(row.is)<=1800);
+      if (fresh.length) return fresh;
+      if (!rows.length) empty = true;
+    } catch (error) { if (signal?.aborted) throw error; }
+  }
+  if (empty) return [];
+  throw new Error('MPK vehicle sources unavailable');
+}
+
+async function fetchMpkRzeszowVehiclesDirect(includeInactive: boolean, signal?: AbortSignal) {
+  const [rows, details] = await Promise.all([
+    fetchCompatibleMpkFeed(signal),
     requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL).catch(() => []),
   ]);
   const detailsByVehicle = new Map(
@@ -1193,18 +1237,18 @@ async function fetchMpkRzeszowVehiclesDirect(includeInactive: boolean) {
   );
   const now = Date.now();
 
-  return parseMpkVehiclesXml(xml)
+  return rows
     .map((rawVehicle) => mapMpkDirectVehicle(rawVehicle, detailsByVehicle, now, includeInactive))
     .filter((vehicle): vehicle is Vehicle => Boolean(vehicle));
 }
 
 async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeInactive: boolean) {
   const lookupVehicleId = normalizeMpkVehicleId(String(vehicleId || '').replace(/^mpk_rzeszow_/, ''));
-  const [xml, details] = await Promise.all([
-    requestText(MPK_RZESZOW_VEHICLES_XML_URL),
+  const [rows, details] = await Promise.all([
+    fetchCompatibleMpkFeed(),
     requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL).catch(() => []),
   ]);
-  const rawVehicle = parseMpkVehiclesXml(xml).find((vehicle) =>
+  const rawVehicle = rows.find((vehicle) =>
     normalizeMpkVehicleId(vehicle.nb || vehicle.id) === lookupVehicleId,
   );
   if (!rawVehicle) return null;
