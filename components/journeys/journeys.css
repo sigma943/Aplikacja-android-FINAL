@@ -65,6 +65,7 @@
 .connections-intro>span:last-child svg{color:var(--cn-accent)}
 .connections-results{display:grid;gap:12px;margin-top:24px}
 .connections-results-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 3px 1px}
+.connections-view .connections-results-heading.scene-message{width:100%;max-width:none;margin-inline:0}
 .connections-results-heading>span{font-size:10px;color:var(--cn-muted)}
 .connections-result{display:block;width:100%;text-align:left;background:none;border:0;padding:17px 17px 13px;color:var(--cn-text)}
 .connections-result-times{display:flex;align-items:center;justify-content:space-between;gap:10px}
