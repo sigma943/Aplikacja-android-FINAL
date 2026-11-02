@@ -1,23 +1,30 @@
-name: Build Android APK
+name: Build Android APK - 28 May 2026
 
 on:
-  push:
-    branches: [main]
+  pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    name: Build APK
+    name: Build APK from 9bc2f0c (28 May)
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Source
+      - name: Checkout exact May source
         uses: actions/checkout@v4
+        with:
+          ref: 9bc2f0c0650d1b5d53f4cc258d01ac90a2336539
+
+      - name: Confirm source version
+        run: test "$(git rev-parse HEAD)" = "9bc2f0c0650d1b5d53f4cc258d01ac90a2336539"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
 
       - name: Install Dependencies
         run: npm ci
@@ -28,14 +35,16 @@ jobs:
       - name: Generate Android Icons
         run: npm run android:assets
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: "zulu"
           java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -44,13 +53,15 @@ jobs:
         run: npx cap sync android
 
       - name: Assemble APK
+        working-directory: android
         run: |
-          cd android
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --parallel --build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: pks-live-debug-apk
+          name: pks-live-2.1.1-may-28-2026-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
