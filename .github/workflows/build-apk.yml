@@ -112,6 +112,12 @@ jobs:
           path: test/ui-previews/moon-phases.png
           retention-days: 7
 
+      - name: Verify stable stop departure refresh
+        if: contains(github.event.pull_request.title, '[stop-refresh-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          node test/stop-refresh-browser.cjs
+
       - name: Build Android Web Assets
         run: npm run build:android:web
 
