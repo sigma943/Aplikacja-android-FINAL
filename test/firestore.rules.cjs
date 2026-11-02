@@ -541,3 +541,45 @@ test('journeys opt-in is owner-managed and cannot be self-granted or delegated',
  await assertFails(setDoc(doc(fresh,'installations','fresh-install'),{installationId:'fresh-install',role:'user',permissions:granted,status:'active',verified:false,updatedBy:'fresh-user'}));
  const adminGrant=buildDevicePermissions('admin',{journeys:true});await assertFails(updateDoc(doc(admin,'devices','admin'),{permissions:adminGrant}));await assertSucceeds(updateDoc(doc(owner,'devices','admin'),{permissions:adminGrant}));
 });
+
+for(const precision of ['milliseconds','seconds'])test(`expired temporary ban clears device and saved installation atomically (${precision})`,async()=>{
+ const sdk=require('firebase/firestore');
+ const expiry=new Date(Date.now()-60000).toISOString().replace(precision==='seconds'?/[.]\d{3}Z$/:/$^/,'Z');
+ const saved={...device('user','user-install'),status:'banned',banDetails:{reason:'One day',expiresAt:expiry}};
+ await env.withSecurityRulesDisabled(async context=>{
+  const db=context.firestore();await setDoc(doc(db,'devices','user'),saved);
+  await setDoc(doc(db,'installations','user-install'),{...saved,updatedBy:'owner'});
+ });
+ const db=env.authenticatedContext('user').firestore();
+ const {expireDeviceBan}=loadTs('lib/expire-device-ban.ts');
+ assert.equal(await expireDeviceBan(db,'user','user'),true);
+ const current=(await getDoc(doc(db,'devices','user'))).data(),profile=(await getDoc(doc(db,'installations','user-install'))).data();
+ for(const row of [current,profile]){assert.equal(row.status,'active');assert.equal(row.verified,true);assert.equal(row.banDetails,undefined);assert.equal(row.role,'user');assert.deepEqual(row.permissions,saved.permissions);}
+ assert.equal(await expireDeviceBan(db,'user','user'),false,'duplicate/resumed expiry is idempotent');
+});
+
+for(const expiry of ['', 'invalid-date',new Date(Date.now()+86400000).toISOString()])test(`self-unban rejects a permanent, invalid or still-active deadline: ${expiry}`,async()=>{
+ const sdk=require('firebase/firestore');
+ await env.withSecurityRulesDisabled(async context=>updateDoc(doc(context.firestore(),'devices','user'),{status:'banned',banDetails:{expiresAt:expiry}}));
+ const db=env.authenticatedContext('user').firestore();
+ await assertFails(updateDoc(doc(db,'devices','user'),{status:'active',verified:true,banDetails:sdk.deleteField()}));
+ // The phone cannot forge an expired date in the same write.
+ await assertFails(updateDoc(doc(db,'devices','user'),{status:'active',verified:true,banDetails:{expiresAt:'2000-01-01T00:00:00.000Z'}}));
+});
+
+test('expired self-unban cannot promote a device, rewrite permissions, admission or other identities',async()=>{
+ const sdk=require('firebase/firestore'),banDetails={expiresAt:'2000-01-01T00:00:00.000Z'};
+ await env.withSecurityRulesDisabled(async context=>{
+  await updateDoc(doc(context.firestore(),'devices','user'),{status:'banned',banDetails});
+  await setDoc(doc(context.firestore(),'devices','other'),{...device('user','other-install'),status:'banned',banDetails});
+ });
+ const db=env.authenticatedContext('user').firestore(),patch={status:'active',verified:true,banDetails:sdk.deleteField()};
+ for(const extra of [{role:'owner'},{permissions:buildDevicePermissions('owner')},{installationId:'another'},{loginApproved:true}])await assertFails(updateDoc(doc(db,'devices','user'),{...patch,...extra}));
+ await assertFails(updateDoc(doc(db,'devices','other'),patch));
+});
+
+test('an authorised admin can expire old bans without client self-unban access',async()=>{
+ await env.withSecurityRulesDisabled(async context=>updateDoc(doc(context.firestore(),'devices','user'),{status:'banned',banDetails:{expiresAt:'2000-01-01T00:00:00.000Z'}}));
+ const {expireDeviceBan}=loadTs('lib/expire-device-ban.ts');
+ assert.equal(await expireDeviceBan(env.authenticatedContext('admin').firestore(),'user','admin'),true);
+});

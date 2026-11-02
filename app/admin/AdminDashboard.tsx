@@ -1,5 +1,6 @@
 'use client';
 import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
+import {useBanExpiry} from '@/lib/use-ban-expiry';
 import {banDetailsForSave} from '@/lib/admin/ban-details';
 import {storedAdminPermissions} from '@/lib/admin/rbac';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
@@ -317,6 +318,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   if (currentDevice.role === 'owner' || myCaps.globalSettings || myCaps.globalSettingsEdit) allowedNavIds.push('maintenance');
 
   const canBanUi = currentDevice.role === 'owner' || myCaps.ban;
+  useBanExpiry(canBanUi?devicesData.filter(d=>d.id!==user?.uid&&(currentDevice.role==='owner'||d.role==='user')):[],user?.uid);
   const canChangeRolesUi = currentDevice.role === 'owner' || myCaps.canChangeRoles;
   const canDeleteDevicesUi = currentDevice.role === 'owner' || myCaps.users;
 

@@ -68,6 +68,12 @@ jobs:
             npm ci
           fi
 
+      - name: Verify temporary ban expiry and access rules
+        if: contains(github.event.pull_request.title, '[ban-expiry-check]')
+        run: |
+          node --test test/ban-details.test.cjs test/ban-expiry.test.cjs test/ban-expiry-timer.test.cjs
+          npm run test:rules
+
       - name: Verify automatic road routing fallback
         if: env.FAST_APK != 'true'
         run: node --test test/journey-recovery.test.cjs test/journey-geometry.test.cjs test/route-load-retry.test.cjs test/road-route-fallback.test.cjs test/official-route-live-pattern.test.cjs test/vehicle-route-validation.test.cjs test/road-route-quality.test.cjs test/preferred-route.test.cjs test/route-cache-performance.test.cjs test/bus-routes.test.cjs test/pks-202-route.test.cjs test/pks-312-route.test.cjs test/pks-216-route.test.cjs test/marcel-road-routing.test.cjs
