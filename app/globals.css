@@ -1482,6 +1482,36 @@ html[data-personal-motion='reduced'] [data-ui-transition] { transition-duration:
  }
 }
 
+/* Only Horyzont bus sheets have fixed carrier materials. Keep the surrounding
+   map/search/navigation and other themes on their existing accent settings. */
+@layer landscape-materials {
+ html[data-landscape-theme='on'] [data-map-detail-kind='bus'][data-vehicle-carrier='pks'] { --bus-material-carrier:#21815b; }
+ html[data-landscape-theme='on'] [data-map-detail-kind='bus'][data-vehicle-carrier='marcel'] { --bus-material-carrier:#7da130; }
+ html[data-landscape-theme='on'] [data-map-detail-kind='bus'][data-vehicle-carrier='mpk'] { --bus-material-carrier:#d77b25; }
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='bus']:is([data-vehicle-carrier='pks'],[data-vehicle-carrier='marcel'],[data-vehicle-carrier='mpk']) {
+  --bus-material-base:#f7faf8;
+  --bus-material-fill:color-mix(in srgb,var(--bus-material-carrier) 13%,var(--bus-material-base));
+  --bus-material-header:color-mix(in srgb,var(--bus-material-carrier) 27%,var(--bus-material-base));
+  --bus-material-row:color-mix(in srgb,var(--bus-material-carrier) 19%,var(--bus-material-base));
+  --bus-material-accent:var(--bus-material-carrier);
+  --landscape-solid:var(--bus-material-fill)!important;
+  --landscape-surface:var(--bus-material-fill)!important;
+  --landscape-field:var(--bus-material-row)!important;
+  --landscape-accent:var(--bus-material-accent)!important;
+  --pks-accent:var(--bus-material-accent)!important;
+  --pks-accent-text:var(--bus-material-accent)!important;
+  --vehicle-carrier-background:var(--bus-material-header)!important;
+  background:var(--bus-material-fill)!important;
+ }
+ html[data-landscape-theme='on'][data-landscape-period='night'] .map-detail-shell[data-map-detail-kind='bus']:is([data-vehicle-carrier='pks'],[data-vehicle-carrier='marcel'],[data-vehicle-carrier='mpk']) {
+  --bus-material-base:#151b22;
+  --bus-material-accent:color-mix(in srgb,var(--bus-material-carrier) 65%,#fff);
+ }
+ html[data-landscape-theme='on'] .map-detail-shell[data-map-detail-kind='bus']:is([data-vehicle-carrier='pks'],[data-vehicle-carrier='marcel'],[data-vehicle-carrier='mpk']) [data-vehicle-loading-marker] {
+  background-color:var(--bus-material-accent)!important;
+ }
+}
+
 /* Daylight readability belongs to the glyphs, not another panel scrim.
    Keep panel opacity, blur, scenery and all night materials unchanged. */
 @layer landscape-materials {

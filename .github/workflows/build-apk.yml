@@ -127,6 +127,21 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify fixed Horyzont bus carrier colours
+        if: contains(github.event.pull_request.title, '[bus-material-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          node test/bus-carrier-material-browser.cjs
+
+      - name: Upload Horyzont bus carrier previews
+        if: always() && contains(github.event.pull_request.title, '[bus-material-check]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: bus-carrier-material-previews
+          path: test/ui-previews/bus-carrier-*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Verify ban date field appearance
         if: contains(github.event.pull_request.title, '[ban-date-check]')
         run: |
