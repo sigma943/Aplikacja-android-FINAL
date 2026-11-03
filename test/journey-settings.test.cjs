@@ -59,8 +59,10 @@ test('owner role modal blocks all three tab toggles and saves unrestricted acces
  const tree=RolesModal({device:{id:'other-owner',rawRole:'owner',role:'Właściciel',name:'Owner',permissions:{disableMap:true,disableStops:true,disableJourneys:true}},canAssignOwner:true,canManageTabAccess:true,onClose:()=>{},onUpdateUser:()=>{},onSave:(...args)=>{saved=args;}});
  const buttons=[];function visit(node){if(!React.isValidElement(node))return;if(node.type==='button')buttons.push(node);React.Children.forEach(node.props.children,visit);}visit(tree);
  const text=node=>typeof node==='string'?node:React.isValidElement(node)?React.Children.toArray(node.props.children).map(text).join(''):'';
- for(const title of ['Wyłącz połączenia','Wyłącz mapę','Wyłącz przystanki']){
+ for(const title of ['Połączenia','Mapa','Przystanki']){
   const button=buttons.find(b=>text(b).includes(title));assert.ok(button,title);assert.equal(Boolean(button.props.disabled),true,title);assert.match(text(button),/Właściciel ma zawsze dostęp/);
+  const switches=[];const findSwitch=node=>{if(!React.isValidElement(node))return;if(node.props.role==='switch')switches.push(node);React.Children.forEach(node.props.children,findSwitch);};findSwitch(button);
+  assert.equal(switches.length,1);assert.equal(switches[0].props['aria-checked'],true);assert.match(switches[0].props.className,/justify-end/);assert.doesNotMatch(text(button),/Wyłącz/);
   button.props.onClick();assert.equal(updates,0,'even a stale click handler cannot change owner restrictions');
  }
  await buttons.find(b=>text(b).includes('Zapisz zmiany')).props.onClick();
