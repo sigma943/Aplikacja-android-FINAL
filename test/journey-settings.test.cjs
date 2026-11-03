@@ -36,3 +36,33 @@ test('journey durations display hours without changing minute rounding',()=>{
  for(const [minutes,label] of [[0,'0 min'],[9,'9 min'],[59,'59 min'],[60,'1 godz'],[61,'1 godz 1 min'],[90,'1 godz 30 min'],[120,'2 godz'],[125,'2 godz 5 min']])assert.equal(format(minutes*60000),label);
  assert.equal(format(59*60000+1),'1 godz');assert.equal(format(-1),'0 min');
 });
+
+test('owners keep every tab despite stored restrictions; other roles retain their restrictions',()=>{
+ const {buildDevicePermissions,normalizeAdminPermissions,canUseJourneys}=load('lib/admin/rbac.ts');
+ const ts=require('typescript'),fs=require('node:fs');
+ const source=ts.createSourceFile('page.tsx',fs.readFileSync('app/page.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),names=['isMapTabDisabled','isJourneysTabDisabled','isStopsTabDisabled'],found={};
+ const visit=n=>{if(ts.isVariableDeclaration(n)&&names.includes(n.name.getText(source)))found[n.name.getText(source)]=n.initializer.getText(source);ts.forEachChild(n,visit);};visit(source);
+ const access=new Function('device','canUseJourneys',names.map(n=>'const '+n+'='+found[n]+';').join('')+'return ['+names.join(',')+'];');
+ for(const flags of [{disableMap:true},{disableStops:true},{disableMap:true,disableStops:true,disableJourneys:true,journeys:false}]){
+  assert.deepEqual(access({role:'owner',permissions:flags},canUseJourneys),[false,false,false]);
+  for(const row of [normalizeAdminPermissions(flags,'owner'),buildDevicePermissions('owner',flags)]){assert.equal(row.disableMap,false);assert.equal(row.disableStops,false);assert.notEqual(row.disableJourneys,true);}
+ }
+ for(const role of ['user','admin']){
+  assert.deepEqual(access({role,permissions:{disableMap:true}},canUseJourneys),[true,true,false]);
+  assert.deepEqual(access({role,permissions:{disableStops:true,journeys:true}},canUseJourneys),[false,false,true]);
+ }
+});
+test('owner role modal blocks all three tab toggles and saves unrestricted access',async()=>{
+ const React=require('react');let updates=0,saved;
+ const mockReact={...React,useState:init=>[typeof init==='function'?init():init,()=>updates++],useEffect:()=>{}};
+ const {RolesModal}=load('app/admin/components/RolesModal.tsx',{react:mockReact,'./AdminModalPortal':{AdminModalPortal:({children})=>children},'motion/react':{motion:{div:'div'},AnimatePresence:React.Fragment}});
+ const tree=RolesModal({device:{id:'other-owner',rawRole:'owner',role:'Właściciel',name:'Owner',permissions:{disableMap:true,disableStops:true,disableJourneys:true}},canAssignOwner:true,canManageTabAccess:true,onClose:()=>{},onUpdateUser:()=>{},onSave:(...args)=>{saved=args;}});
+ const buttons=[];function visit(node){if(!React.isValidElement(node))return;if(node.type==='button')buttons.push(node);React.Children.forEach(node.props.children,visit);}visit(tree);
+ const text=node=>typeof node==='string'?node:React.isValidElement(node)?React.Children.toArray(node.props.children).map(text).join(''):'';
+ for(const title of ['Wyłącz połączenia','Wyłącz mapę','Wyłącz przystanki']){
+  const button=buttons.find(b=>text(b).includes(title));assert.ok(button,title);assert.equal(Boolean(button.props.disabled),true,title);assert.match(text(button),/Właściciel ma zawsze dostęp/);
+  button.props.onClick();assert.equal(updates,0,'even a stale click handler cannot change owner restrictions');
+ }
+ await buttons.find(b=>text(b).includes('Zapisz zmiany')).props.onClick();
+ assert.equal(saved[0],'WŁAŚCICIEL');for(const key of ['disableMap','disableStops','disableJourneys'])assert.equal(saved[1][key],false);
+});

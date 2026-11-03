@@ -102,7 +102,8 @@ export function RolesModal({
       ...device.permissions,
       statistics: r.includes('CICIEL') || (r==='ADMIN' && device.permissions.statistics!==false),
       journeys:device.permissions.journeys===true&&!device.permissions.disableJourneys,
-      disableStops: device.permissions.disableMap ? false : Boolean(device.permissions.disableStops),
+      disableMap: !r.includes('CICIEL') && Boolean(device.permissions.disableMap),
+      disableStops: !r.includes('CICIEL') && !device.permissions.disableMap && Boolean(device.permissions.disableStops),
     };
   };
 
@@ -164,7 +165,7 @@ export function RolesModal({
   const ownerRoleDisabled = !canAssignOwner && !initialRole.includes('CICIEL');
 
   const toggleUserTabRestriction = (key: 'disableMap' | 'disableStops' | 'journeys') => {
-    if (!canManageTabAccess || isSelfTarget || (key==='journeys'&&isOwnerRole)) return;
+    if (!canManageTabAccess || isSelfTarget || isOwnerRole) return;
     setPermissions((prev) => ({
       ...prev,
       disableMap: key==='journeys'?prev.disableMap:key === 'disableMap' ? !prev.disableMap : false,
@@ -304,8 +305,8 @@ export function RolesModal({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {[
                   { key:'journeys' as const,title:'Wyłącz połączenia',desc:isOwnerRole?'Właściciel ma zawsze dostęp':'Użytkownik nie zobaczy zakładki połączeń',active:!isOwnerRole&&!(permissions.journeys&&!permissions.disableJourneys),blocked:isOwnerRole },
-                  { key: 'disableMap' as const, title: 'Wyłącz mapę', desc: 'Użytkownik nie zobaczy zakładki mapy', active: permissions.disableMap, blocked: permissions.disableStops },
-                  { key: 'disableStops' as const, title: 'Wyłącz przystanki', desc: 'Użytkownik nie zobaczy zakładki przystanków', active: permissions.disableStops, blocked: permissions.disableMap },
+                  { key: 'disableMap' as const, title: 'Wyłącz mapę', desc: isOwnerRole ? 'Właściciel ma zawsze dostęp' : 'Użytkownik nie zobaczy zakładki mapy', active: !isOwnerRole && permissions.disableMap, blocked: isOwnerRole || permissions.disableStops },
+                  { key: 'disableStops' as const, title: 'Wyłącz przystanki', desc: isOwnerRole ? 'Właściciel ma zawsze dostęp' : 'Użytkownik nie zobaczy zakładki przystanków', active: !isOwnerRole && permissions.disableStops, blocked: isOwnerRole || permissions.disableMap },
                 ].map((item) => (
                   <button
                     key={item.key}
@@ -384,7 +385,7 @@ export function RolesModal({
               if (onSave) {
                 const nextPermissions =
                   role.includes('CICIEL')
-                    ? { ...permissions, statistics: true, monitor: true, canChangeRoles: true }
+                    ? { ...permissions, statistics: true, monitor: true, canChangeRoles: true, disableMap: false, disableStops: false, disableJourneys: false }
                     : role === 'ADMIN'
                       ? { ...permissions, monitor: true }
                       : { ...permissions, canChangeRoles: false };

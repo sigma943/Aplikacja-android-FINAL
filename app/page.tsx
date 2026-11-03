@@ -206,9 +206,9 @@ export default function Home() {
       setActiveTab(saved.startScreen==='admin'&&!canOpenAdminEmbed?'map':saved.startScreen);
     }catch{setActiveTab('map');}
   },[loading,canOpenAdminEmbed]);
-  const isMapTabDisabled = Boolean(device?.permissions?.disableMap);
+  const isMapTabDisabled = device?.role !== 'owner' && Boolean(device?.permissions?.disableMap);
   const isJourneysTabDisabled=!canUseJourneys(device?.role,device?.permissions);
-  const isStopsTabDisabled = Boolean(device?.permissions?.disableStops) && !isMapTabDisabled;
+  const isStopsTabDisabled = device?.role !== 'owner' && Boolean(device?.permissions?.disableStops) && !isMapTabDisabled;
   useEffect(() => {
     if (activeTab === 'admin' && !canOpenAdminEmbed) setActiveTab('map');
     if (activeTab === 'map' && isMapTabDisabled) setActiveTab('stops');
