@@ -544,11 +544,13 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     } else {
       patch.displayName = deleteField();
     }
-    if(batch){
-      if('commit' in batch)batch.set(doc(db,'installations',inst),patch,{merge:true});
-      else batch.set(doc(db,'installations',inst),patch,{merge:true});
+    // Replace the permissions map, including removed opt-ins; preserve other profile fields.
+    const options = { mergeFields: Object.keys(patch) };
+    if (batch) {
+      if ('commit' in batch) batch.set(doc(db, 'installations', inst), patch, options);
+      else batch.set(doc(db, 'installations', inst), patch, options);
     }
-    else await setDoc(doc(db, 'installations', inst), patch, { merge: true });
+    else await setDoc(doc(db, 'installations', inst), patch, options);
   };
 
   const buildUnverifiedAutoBanDetails = (): NonNullable<DeviceData['banDetails']> => ({

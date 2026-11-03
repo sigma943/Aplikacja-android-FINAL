@@ -583,3 +583,41 @@ test('an authorised admin can expire old bans without client self-unban access',
  const {expireDeviceBan}=loadTs('lib/expire-device-ban.ts');
  assert.equal(await expireDeviceBan(env.authenticatedContext('admin').firestore(),'user','admin'),true);
 });
+
+// Exercise the production profile writer, including Firestore's nested merge semantics.
+function installationProfileWriter(db, actorId) {
+ const ts=require('typescript'),source=ts.createSourceFile('AdminDashboard.tsx',fs.readFileSync('app/admin/AdminDashboard.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ let initializer;
+ const visit=node=>{if(ts.isVariableDeclaration(node)&&node.name.getText(source)==='syncInstallationProfile')initializer=node.initializer.getText(source);ts.forEachChild(node,visit);};
+ visit(source);assert.ok(initializer);
+ const body=ts.transpile('return ('+initializer+');',{target:ts.ScriptTarget.ES2022});
+ return new Function('db','user','doc','setDoc','serverTimestamp','deleteField',body)(db,{uid:actorId},doc,setDoc,firebaseSdk.serverTimestamp,firebaseSdk.deleteField);
+}
+for(const role of ['user','admin'])test(`owner revokes journeys and saves other ${role} permissions despite stale installation flags`,async()=>{
+ const id=role+'-install',permissions=buildDevicePermissions(role,{journeys:true});
+ await env.withSecurityRulesDisabled(async context=>{
+  const db=context.firestore();await updateDoc(doc(db,'devices',role),{permissions});
+  await setDoc(doc(db,'installations',id),{...device(role,id,{...permissions,disableJourneys:true,statistics:true}),updatedBy:'owner',deviceName:'Keep this name',firstLogin:'Keep this date'});
+ });
+ const db=env.authenticatedContext('owner').firestore(),sync=installationProfileWriter(db,'owner');
+ for(const next of [buildDevicePermissions(role,{ban:false}),buildDevicePermissions(role,{journeys:true}),buildDevicePermissions(role,{journeys:true,disableMap:true})]){
+  const batch=writeBatch(db);batch.update(doc(db,'devices',role),{permissions:next});
+  await sync(id,role,next,undefined,{verified:role==='admin'},batch,role);
+  await assertSucceeds(batch.commit());
+  const profile=(await getDoc(doc(db,'installations',id))).data();
+  assert.deepEqual(profile.permissions,next);assert.equal(profile.deviceName,'Keep this name');assert.equal(profile.firstLogin,'Keep this date');
+ }
+});
+test('expired ban clears on the banned client even when its saved profile has stale permissions',async()=>{
+ const saved={...device('user','user-install',{journeys:true}),status:'banned',banDetails:{expiresAt:'2000-01-01T00:00:00.000Z'}};
+ await env.withSecurityRulesDisabled(async context=>{
+  const db=context.firestore();await setDoc(doc(db,'devices','user'),saved);
+  await setDoc(doc(db,'installations','user-install'),{...saved,permissions:{...saved.permissions,statistics:true,disableJourneys:true},updatedBy:'owner',deviceName:'Keep this name'});
+ });
+ const db=env.authenticatedContext('user').firestore();
+ const {expireDeviceBan}=loadTs('lib/expire-device-ban.ts');
+ await assertSucceeds(expireDeviceBan(db,'user','user'));
+ const profile=(await getDoc(doc(db,'installations','user-install'))).data();
+ assert.equal((await getDoc(doc(db,'devices','user'))).data().status,'active');
+ assert.equal(profile.status,'active');assert.deepEqual(profile.permissions,saved.permissions);assert.equal(profile.deviceName,'Keep this name');
+});
