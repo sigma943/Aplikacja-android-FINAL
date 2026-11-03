@@ -35,7 +35,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   }
   for(const night of [false,true])assert.equal(new Set(['pks','marcel','mpk_rzeszow'].map(p=>colours[p+'-'+night])).size,3,'three separate carrier shades');
   for(const theme of ['light','dark','dark-oled','light-pink','light-sky','dark-forest','dark-cosmos']){
-   await page.goto(origin+'/?theme='+theme);await page.waitForSelector('[data-vehicle-header]');const current=await metrics();if(expanded)assert.ok(current.punctuality.length,'delayed status is rendered');await switchCss('baseline');assert.deepEqual(await metrics(),current,theme+' remains unchanged');checks++;
+   await page.goto(origin+'/?theme='+theme);await page.waitForSelector('[data-vehicle-header]');const current=await metrics();assert.ok(current.punctuality.length,'delayed status is rendered');await switchCss('baseline');assert.deepEqual(await metrics(),current,theme+' remains unchanged');checks++;
   }
   await page.goto(origin+'/?provider=pkp_intercity');await page.waitForSelector('[data-vehicle-header]');const train=await metrics();await switchCss('baseline');assert.deepEqual(await metrics(),train,'rail panels remain unchanged');
   await page.goto(origin+'/?provider=pks&loading');await page.waitForSelector('[data-vehicle-loading-marker]');const loader=(await metrics()).loading;await page.evaluate(()=>window.__busAccent('#f43f5e'));await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--pks-accent').trim()==='#f43f5e');assert.deepEqual((await metrics()).loading,loader,'loading marker ignores the user accent');
