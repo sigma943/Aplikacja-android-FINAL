@@ -4,11 +4,13 @@ import BusDetailsPanel from '../components/BusDetailsPanel';
 import {useSheetGesture} from '../lib/use-sheet-gesture';
 import {applyInterfaceAppearance,DEFAULT_INTERFACE_APPEARANCE,vehicleHeaderStyle} from '../lib/interface-appearance';
 import {landscapePalette} from '../lib/landscape-palette';
+import {uiAccentVariables} from '../lib/ui-accent';
 const q=new URLSearchParams(location.search),theme=q.get('theme')||'dark-mountains',night=q.has('night'),provider=q.get('provider')||'pks';
 const dark=theme==='dark-mountains'?night:theme.startsWith('dark'),root=document.documentElement;
 function palette(accent:string){
  const appearance={...DEFAULT_INTERFACE_APPEARANCE,surfaceTint:'accent' as const,panelTintStrength:100};
  applyInterfaceAppearance(root,appearance,dark,accent,false,theme);
+ for(const [k,v] of Object.entries(uiAccentVariables(accent,dark)))root.style.setProperty(k,v);
  if(theme==='dark-mountains'){
   root.dataset.landscapeTheme='on';root.dataset.landscapePeriod=night?'night':'day';
   for(const [k,v] of Object.entries(landscapePalette({sun:{altitude:night?-.5:.5}} as any,64,!night,appearance,accent)))root.style.setProperty(k,v);
