@@ -470,6 +470,7 @@ html[data-panel-glow='on'] { --personal-glow-image:var(--panel-glow-image); }
 .personal-color input::-webkit-color-swatch { border:0; border-radius:5px; }
 .personal-reset { color:var(--ui-text); background:var(--ui-raised); display:flex; align-items:center; justify-content:center; gap:8px; min-height:44px; font-size:12px; border:1px solid var(--ui-edge,#ffffff12); border-radius:14px; opacity:1; }
 .personal-note { font-size:11px; line-height:1.65; opacity:.6; }
+.personal-tools > .personal-note[role='status'] { overflow-wrap:anywhere; }
 @media (max-width:360px) { .personal-group summary,.personal-group-body,.personal-preview-wrap { padding:12px; } .personal-choice { padding:8px; font-size:11px; } .personal-tabs { margin-inline:14px; } }
 
 html[data-personal-radius='true'] :is(.pks-map-surface,.map-detail-shell,.pks-options-sheet,[data-carrier-sheet],.transit-surface,.widget-generator,.pks-navigation,[data-interface-panel],.pks-personal-panel) { border-radius:var(--personal-panel-radius) !important; }
@@ -1362,7 +1363,7 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 @layer landscape-materials {
  html[data-landscape-theme='on'] { --landscape-reading-brightness:1.8; }
  html[data-landscape-theme='on'][data-landscape-period='night'] { --landscape-reading-brightness:.35; }
- html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge):not([data-api-test-message]),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
+ html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.connections-card,.pks-personal-card,.pks-personal-panel,.admin-topbar,.admin-device-card,[data-interface-panel],[data-admin-sidebar],[role='alert'],[role='status']:not(.connections-stop-badge):not([data-api-test-message]):not(.personal-note),.connections-results-heading,.connections-warning,.connections-error,.connections-empty,.connections-hint,.journey-error,.journey-hint,.connections-map-status) {
   color:var(--landscape-ink)!important;background-color:var(--landscape-surface)!important;
   background-image:var(--landscape-milk-glow)!important;border:1px solid var(--landscape-edge);border-radius:var(--personal-card-radius,18px);
   -webkit-backdrop-filter:blur(var(--personal-blur,12px))!important;
@@ -1377,7 +1378,7 @@ html[data-pks-theme='dark-mountains'] .pks-map-loading-screen { background-image
 }
 
 @layer pks-performance {
- html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status']:not([data-api-test-message]),.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
+ html[data-landscape-theme='on'][data-personal-light-effects='on'] :is([data-admin-sidebar],[role='alert'],[role='status']:not([data-api-test-message]):not(.personal-note),.connections-warning,.connections-error,.connections-hint,.connections-empty,.connections-results-heading,.journey-error,.journey-hint) { background-color:var(--landscape-solid)!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important; }
 }
 
 /* A stop handle is one material in both sheet states, including cosmic art. */
