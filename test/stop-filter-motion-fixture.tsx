@@ -1,0 +1,13 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import BusStopDetail from '../Panel/src/components/BusStopDetail';
+const theme=new URLSearchParams(location.search).get('theme')||'dark-mountains';
+localStorage.setItem('mks_app_theme',theme);
+if(theme==='dark-mountains')document.documentElement.dataset.landscapeTheme='on';
+const carrier={id:'pks',name:'PKS',colorClass:'text-green-700'};
+const stop:any={id:'motion-stop',name:'Przystanek testowy',type:'bus',lines:['108','203','40'],carriers:[carrier],isFavorite:false};
+const start=Date.now();
+const departures=['108','203','40','108','203','40'].map((line,i)=>({id:'course-'+i,line,direction:'Kierunek '+i,status:'on_time' as const,time:'18:00',plannedAtMs:start+(i+5)*600000,carrier}));
+(window as any).__loads=0;
+const load=async()=>{(window as any).__loads++;return departures;};
+createRoot(document.getElementById('root')!).render(<div className="pks-theme-root" data-ui-theme={theme} style={{height:'100vh'}}><BusStopDetail stop={stop} onBack={()=>{}} toggleFavorite={()=>{}} loadDepartures={load} isDarkTheme={false}/></div>);

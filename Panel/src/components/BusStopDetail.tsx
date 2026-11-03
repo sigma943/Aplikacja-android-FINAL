@@ -87,7 +87,11 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   useEffect(()=>{if(active&&selectedDayIndex===0&&!isLoading&&(!warnings.length||departures.length))void syncStopWidgets(stop.id,departures,vehicles,warnings).catch(()=>{});},[stop.id,departures,vehicles,warnings,isLoading,active,selectedDayIndex]);
   const visibleWarnings = warnings.filter(warning => !departures.length || warning !== 'MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.');
   const reduceMotion = useReducedMotion();
-  const animateDepartures = !reduceMotion && !showAllDepartures;
+  const lineSelectionKey = JSON.stringify([...selectedLines].sort());
+  const previousLineSelection = useRef(lineSelectionKey);
+  const lineFilterChanged = previousLineSelection.current !== lineSelectionKey;
+  useLayoutEffect(() => { previousLineSelection.current = lineSelectionKey; }, [lineSelectionKey]);
+  const animateDepartures = !reduceMotion && (!showAllDepartures || lineFilterChanged);
 
   useForegroundRefresh(stop.id+':clock',async()=>{setCurrentTimeMs(Date.now());},1000,active);
 
@@ -341,10 +345,14 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                     return (
                       <motion.div 
                         layout={animateDepartures ? "position" : false}
-                        initial={false}
-                        animate={animateDepartures ? { opacity: isPast ? 0.45 : 1, y: 0 } : { opacity: isPast ? 0.45 : 1, y: 0 }}
+                        initial={!reduceMotion && lineFilterChanged ? { opacity: 0, y: -20 } : false}
+                        animate={{ opacity: isPast ? 0.45 : 1, y: 0 }}
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
-                        transition={animateDepartures ? { layout:{duration:.22},opacity:{duration:.15} } : { duration: 0 }}
+                        transition={animateDepartures ? {
+                          layout:{duration:.22,delay:0},
+                          y:{duration:.28,delay:lineFilterChanged?Math.min(idx,4)*.04:0,ease:[.22,1,.36,1]},
+                          opacity:{duration:.15,delay:lineFilterChanged?Math.min(idx,4)*.04:0},
+                        } : { duration: 0 }}
                         key={(dep.carrier?.id||'')+':'+dep.id}
                         data-interface-row data-departure-row data-departure-line={dep.line}
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? `border-b ${rowBorderClass}` : ''} ${rowClass} transition-colors cursor-pointer ${isPast ? (isDarkTheme ? 'bg-black/15' : 'bg-slate-100/70') : ''}`}

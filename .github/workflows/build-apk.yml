@@ -127,6 +127,12 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify stop line filter animations
+        if: contains(github.event.pull_request.title, '[stop-filter-motion-check]')
+        run: |
+          npx puppeteer browsers install chrome
+          node test/stop-filter-motion-browser.cjs
+
       - name: Verify fixed Horyzont bus carrier colours
         if: contains(github.event.pull_request.title, '[bus-material-check]')
         run: |
