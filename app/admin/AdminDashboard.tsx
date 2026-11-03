@@ -651,6 +651,10 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     return false;
   };
 
+  const permissionsMatch = (previous: DeviceData['permissions'], next: Record<string, boolean>) =>
+    previous != null && Object.keys(previous).length === Object.keys(next).length &&
+    Object.entries(next).every(([key, value]) => (previous as Record<string, boolean>)[key] === value);
+
   const handleUpdateUser = async (_name: string, role: string, permissions: Record<string, boolean>, displayName?: string, verifiedFromForm?: boolean) => {
     if (!selectedDeviceForRole) return;
     if (!assertNotSelf(selectedDeviceForRole.id)) return;
@@ -737,7 +741,12 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
       const roleBatch = writeBatch(db);
       stageStatisticsAccess(roleBatch,targetRow,fbRole,permissions.statistics);
-      roleBatch.update(doc(db, 'devices', selectedDeviceForRole.id), patch);
+      const nextPermissions = patch.permissions as Record<string, boolean>;
+      const deviceChanged = !targetRow || targetRow.role !== fbRole || targetRow.verified !== verified ||
+        !permissionsMatch(targetRow.permissions, nextPermissions) ||
+        (trimmedDisplay ? targetRow.displayName !== trimmedDisplay : targetRow.displayName !== undefined);
+      // Statistics live in a separate document. An unchanged device write is rejected by its rules.
+      if (deviceChanged) roleBatch.update(doc(db, 'devices', selectedDeviceForRole.id), patch);
       await syncInstallationProfile(
         targetRow?.installationId,
         fbRole,
@@ -895,14 +904,17 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       const verified = fbRole === 'owner' || fbRole === 'admin' || target?.verified === true;
       const roleBatch = writeBatch(db);
       stageStatisticsAccess(roleBatch,target,fbRole,permissions.statistics);
-      roleBatch.update(doc(db, 'devices', operatorId), {
+      const patch = {
         role: fbRole,
         verified,
         permissions: storedAdminPermissions({
           ...normalized,
           ...toLegacyPermissions({ ...permissions, ...normalized }),
         }),
-      });
+      };
+      if (!target || target.role !== fbRole || target.verified !== verified || !permissionsMatch(target.permissions, patch.permissions)) {
+        roleBatch.update(doc(db, 'devices', operatorId), patch);
+      }
       const opRow = devicesData.find((x) => x.id === operatorId);
       await syncInstallationProfile(
         opRow?.installationId,

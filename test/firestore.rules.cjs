@@ -621,3 +621,30 @@ test('expired ban clears on the banned client even when its saved profile has st
  assert.equal((await getDoc(doc(db,'devices','user'))).data().status,'active');
  assert.equal(profile.status,'active');assert.deepEqual(profile.permissions,saved.permissions);assert.equal(profile.deviceName,'Keep this name');
 });
+
+function fullRoleSave(db,target,statisticsAccess={}) {
+ const ts=require('typescript'),source=ts.createSourceFile('AdminDashboard.tsx',fs.readFileSync('app/admin/AdminDashboard.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ const names=['permissionsMatch','syncInstallationProfile','stageStatisticsAccess','handleUpdateUser','saveOperatorPatch'],found={};
+ const visit=node=>{if(ts.isVariableDeclaration(node)&&names.includes(node.name.getText(source)))found[node.name.getText(source)]=node.initializer.getText(source);ts.forEachChild(node,visit);};visit(source);
+ const alerts=[],toasts=[];const deps={...firebaseSdk,...loadTs('lib/admin/rbac.ts'),...loadTs('lib/admin/statistics-access.ts'),db,user:{uid:'owner'},currentDevice:{role:'owner'},canChangeRolesUi:true,selectedDeviceForRole:{...target,name:'Windows'},devicesData:[target],statisticsAccess,assertNotSelf:()=>true,alert:m=>alerts.push(m),addToast:(...args)=>toasts.push(args),setSelectedDeviceForRole:()=>{},formatDeviceLabel:()=> 'Windows',writeAuditLog:payload=>firebaseSdk.addDoc(collection(db,'admin_logs'),{...payload,actorId:'owner',createdAt:firebaseSdk.serverTimestamp()})};
+ const body=ts.transpile(names.map(name=>'const '+name+'='+found[name]+';').join('\n')+'return {handleUpdateUser,saveOperatorPatch};',{target:ts.ScriptTarget.ES2022});
+ return {...new Function(...Object.keys(deps),body)(...Object.values(deps)),alerts,toasts};
+}
+for(const editor of ['modal','operators'])for(const flag of ['journeys','shield','disableMap','statistics','combined','unchanged'])test(`full owner ${editor} save with legacy Windows data: ${flag}`,async()=>{
+ const target={id:'windows',...device('admin','windows-install'),loginApproved:false,identityVersion:3};
+ await env.withSecurityRulesDisabled(async context=>{const db=context.firestore();await setDoc(doc(db,'devices',target.id),target);await setDoc(doc(db,'installations',target.installationId),{...target,updatedBy:'owner'});});
+ const db=env.authenticatedContext('owner').firestore(),run=fullRoleSave(db,target);
+ const perms={...buildDevicePermissions('admin'),disableJourneys:false,journeys:false,statistics:true,...(['combined','unchanged'].includes(flag)?{}:{[flag]:flag==='statistics'?false:true})};
+ if(flag==='combined'){perms.statistics=false;perms.shield=true;}
+ if(editor==='modal')await run.handleUpdateUser('Admin','ADMIN',perms,'',true);else await run.saveOperatorPatch(target.id,'ADMIN',perms);
+ assert.deepEqual(run.alerts,[]);if(editor==='modal')assert.ok(run.toasts.length);
+ const stored=(await getDoc(doc(db,'devices',target.id))).data();
+ const expected=buildDevicePermissions('admin',perms);
+ assert.deepEqual(stored.permissions,expected);
+ assert.deepEqual((await getDoc(doc(db,'installations',target.installationId))).data().permissions,expected);
+ assert.equal(stored.loginApproved,false,'role editor does not change admission');
+ if(flag==='statistics'||flag==='combined')assert.equal((await getDoc(doc(db,'admin_settings','statistics_access'))).data().statisticsAccess[target.installationId],false);
+ // Saving the same form again must also succeed after the first real change.
+ const repeated=fullRoleSave(db,{...stored,id:target.id},flag==='statistics'||flag==='combined'?{[target.installationId]:false}:{});
+ if(editor==='modal')await repeated.handleUpdateUser('Admin','ADMIN',perms,'',true);else await repeated.saveOperatorPatch(target.id,'ADMIN',perms);assert.deepEqual(repeated.alerts,[]);
+});
