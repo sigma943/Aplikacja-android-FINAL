@@ -18,7 +18,7 @@ function App(){
  const [accent,setAccent]=useState('#3b82f6'),[expanded,setExpanded]=useState(true),header=useRef<HTMLDivElement>(null),drag=useSheetGesture(expanded,setExpanded,260,620);
  palette(accent);(window as any).__busAccent=setAccent;
  const color=provider==='mpk_rzeszow'?'#ff7a00':provider==='marcel'?'#8bbd38':provider==='pkp_intercity'?'#3b82f6':'#14b8a6';
- const sample:any={id:'colour-check',provider,name:'108',routeShortName:'108',vehicleNumber:'117',lat:50,lon:22,direction:'Rzeszów D.A.',speed:32,delay:3,model:'Scania Higer Fencer f6 CNG',status:'active'};
+ const sample:any={id:'colour-check',provider,name:'108',routeShortName:'108',vehicleNumber:'117',lat:50,lon:22,direction:'Rzeszów D.A.',speed:32,delay:180,model:'Scania Higer Fencer f6 CNG',status:'active'};
  return <div className="pks-theme-root" data-ui-theme={theme} style={{position:'fixed',inset:0}}>
   <div data-test-map style={{position:'absolute',inset:0,background:'#e2e8f0'}}/>
   <div className="pks-map-search-panel" data-test-search style={{height:60}}>PKS Live</div>
