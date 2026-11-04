@@ -67,7 +67,7 @@ function roleRank(role?: DeviceRole): number {
   return 1;
 }
 
-function dedupeDevicesByInstallation(devices: ({ id: string } & DeviceData)[]): ({ id: string } & DeviceData)[] {
+function dedupeDevicesByInstallation(devices: ({ id: string } & DeviceData)[], preferredId?:string): ({ id: string } & DeviceData)[] {
   const byInstallation = new Map<string, { id: string } & DeviceData>();
   const withoutInstallation: ({ id: string } & DeviceData)[] = [];
 
@@ -89,10 +89,10 @@ function dedupeDevicesByInstallation(devices: ({ id: string } & DeviceData)[]): 
     const isClearlyNewerDevice = nextLastSeen > 0 && nextLastSeen > currentLastSeen + 60_000;
     const currentRoleRank = roleRank(current.role);
     const nextRoleRank = roleRank(device.role);
-    const shouldReplace =
+    const shouldReplace = device.id===preferredId || (current.id!==preferredId && (
       isClearlyNewerDevice ||
       (Math.abs(nextLastSeen - currentLastSeen) <= 60_000 &&
-        (nextRoleRank > currentRoleRank || (nextRoleRank === currentRoleRank && nextLastSeen >= currentLastSeen)));
+        (nextRoleRank > currentRoleRank || (nextRoleRank === currentRoleRank && nextLastSeen >= currentLastSeen)))));
 
     if (shouldReplace) byInstallation.set(installationId, device);
   }

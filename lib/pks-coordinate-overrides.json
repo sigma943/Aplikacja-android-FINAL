@@ -1,4 +1,14 @@
 {
+  "2851": {
+    "areaId": "1365",
+    "code": "53",
+    "name": "STOBIERNA, KRZYWE",
+    "gtfsStopId": "971",
+    "lat": 50.160594,
+    "lon": 22.081677,
+    "erroneousLat": 50.149559,
+    "erroneousLon": 22.07531
+  },
   "3801": {
     "areaId": "1946",
     "code": "02",
@@ -8,6 +18,26 @@
     "lon": 22.0486789,
     "erroneousLat": 50.035257,
     "erroneousLon": 21.994693
+  },
+  "5974": {
+    "areaId": "3013",
+    "code": "01",
+    "name": "LUTORYŻ, PĘTLA",
+    "gtfsStopId": "261",
+    "lat": 49.962533,
+    "lon": 21.894218,
+    "erroneousLat": 49.96351,
+    "erroneousLon": 21.888526
+  },
+  "9226": {
+    "areaId": "1249",
+    "code": "62",
+    "name": "KĄTY TRZEBUSKIE I",
+    "gtfsStopId": "1030",
+    "lat": 50.230947,
+    "lon": 22.159128,
+    "erroneousLat": 50.229137,
+    "erroneousLon": 22.1452
   },
   "9737": {
     "areaId": "2758",
@@ -28,5 +58,15 @@
     "lon": 21.951202,
     "erroneousLat": 50.112941,
     "erroneousLon": 21.955654
+  },
+  "11104": {
+    "areaId": "1250",
+    "code": "10",
+    "name": "KĄTY TRZEBUSKIE, WIEŚ",
+    "gtfsStopId": "1074",
+    "lat": 50.226086,
+    "lon": 22.163517,
+    "erroneousLat": 50.224202,
+    "erroneousLon": 22.152987
   }
 }

@@ -85,8 +85,13 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
     .map(departure => departureFromLiveVehicle(departure, vehicles))
     .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
   useEffect(()=>{if(active&&selectedDayIndex===0&&!isLoading&&(!warnings.length||departures.length))void syncStopWidgets(stop.id,departures,vehicles,warnings).catch(()=>{});},[stop.id,departures,vehicles,warnings,isLoading,active,selectedDayIndex]);
+  const visibleWarnings = warnings.filter(warning => !departures.length || warning !== 'MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.');
   const reduceMotion = useReducedMotion();
-  const animateDepartures = !reduceMotion && !showAllDepartures;
+  const lineSelectionKey = JSON.stringify([...selectedLines].sort());
+  const previousLineSelection = useRef(lineSelectionKey);
+  const lineFilterChanged = previousLineSelection.current !== lineSelectionKey;
+  useLayoutEffect(() => { previousLineSelection.current = lineSelectionKey; }, [lineSelectionKey]);
+  const animateDepartures = !reduceMotion && (!showAllDepartures || lineFilterChanged);
 
   useForegroundRefresh(stop.id+':clock',async()=>{setCurrentTimeMs(Date.now());},1000,active);
 
@@ -137,7 +142,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const departuresCardClass = 'transit-card';
   const headingTextClass = isDarkTheme ? 'text-white' : 'text-slate-900';
   const mutedTextClass = isDarkTheme ? 'text-slate-400' : 'text-slate-600';
-  const subtleTextClass = isDarkTheme ? 'text-slate-500' : 'text-slate-500';
+  const subtleTextClass = isDarkTheme ? 'text-slate-400' : 'text-slate-600';
   const headerGradientClass = 'transit-header-glow';
   const headerIconButtonClass = isDarkTheme
     ? 'text-white hover:bg-white/10 border-white/5 hover:border-white/10'
@@ -171,7 +176,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
       transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.25, 0.1, 0.25, 1] }}
       data-ui-mode={isDarkTheme ? "dark" : "light"}
       data-cosmic-view={`stop:${stop.id}`}
-      className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
+      className={`transit-view h-full min-h-0 overflow-y-auto overscroll-contain font-sans pb-[calc(var(--safe-bottom)+5rem)] md:pb-5 backdrop-blur-2xl backdrop-saturate-150 ${panelShellClass}`}
     >
 
       <div className="w-full max-w-3xl min-w-0 mx-auto">
@@ -301,7 +306,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Departures List */}
           <div>
-             {warnings.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{warnings.join(' ')}</div>}
+             {visibleWarnings.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-500">{visibleWarnings.join(' ')}</div>}
              <div className="flex flex-col gap-2.5 mb-3 px-1">
                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                  <div data-scene-label className="text-xs font-medium text-slate-400">
@@ -333,13 +338,21 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                   {displayedDepartures.map((dep, idx) => {
                     const isPast = (dep as any).isPast;
                     const departureTimeLabel = formatDepartureTime(dep);
+                    const hasTimeDetails = !isPast && (
+                      (dep.carrier?.id === 'mpk' && (dep.realAtMs == null || (dep.realtimeSource && dep.plannedAtMs == null))) ||
+                      (dep.status === 'delayed' && Number.isFinite(dep.delayMins) && Math.abs(Number(dep.delayMins)) > 0)
+                    );
                     return (
                       <motion.div 
                         layout={animateDepartures ? "position" : false}
-                        initial={false}
-                        animate={animateDepartures ? { opacity: isPast ? 0.45 : 1, y: 0 } : { opacity: isPast ? 0.45 : 1, y: 0 }}
+                        initial={!reduceMotion && lineFilterChanged ? { opacity: 0, y: -20 } : false}
+                        animate={{ opacity: isPast ? 0.45 : 1, y: 0 }}
                         exit={animateDepartures ? { opacity: 0, scale: 0.98 } : undefined}
-                        transition={animateDepartures ? { layout:{duration:.22},opacity:{duration:.15} } : { duration: 0 }}
+                        transition={animateDepartures ? {
+                          layout:{duration:.22,delay:0},
+                          y:{duration:.28,delay:lineFilterChanged?Math.min(idx,4)*.04:0,ease:[.22,1,.36,1]},
+                          opacity:{duration:.15,delay:lineFilterChanged?Math.min(idx,4)*.04:0},
+                        } : { duration: 0 }}
                         key={(dep.carrier?.id||'')+':'+dep.id}
                         data-interface-row data-departure-row data-departure-line={dep.line}
                         className={`flex items-center justify-between p-3 sm:p-4 ${idx !== displayedDepartures.length - 1 ? `border-b ${rowBorderClass}` : ''} ${rowClass} transition-colors cursor-pointer ${isPast ? (isDarkTheme ? 'bg-black/15' : 'bg-slate-100/70') : ''}`}
@@ -375,7 +388,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                         </div>
 
                         {/* Right Side: Departure Time & Delayed/On-time Badge */}
-                        <div className="min-w-[4.4rem] min-h-[48px] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2">
+                        <div className={`min-w-[4.4rem] min-h-[48px] text-right shrink-0 flex flex-col items-end pl-1.5 sm:pl-2 ${hasTimeDetails ? '' : 'justify-center'}`}>
                            <div className={`font-semibold tabular-nums tracking-tight text-[18px] sm:text-[19px] ${isPast ? 'text-slate-500 line-through' : headingTextClass}`}>{departureTimeLabel}</div>
                            {!isPast && dep.carrier?.id === 'mpk' && dep.realAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Rozkład planowy</span>}
                            {!isPast && dep.carrier?.id === 'mpk' && dep.realtimeSource && dep.plannedAtMs == null && <span className={`mt-1 text-[10px] ${mutedTextClass}`}>Na żywo</span>}

@@ -2,6 +2,7 @@ import {foregroundRequest} from './app-activity';
 import {writePersistentRouteGeometry} from './map/route-cache';
 import {getEffectiveMpkDelay, fetchMpkTripSchedule} from './providers/mpk-vehicles';
 import {sharedInflight} from './shared-inflight';
+import {createPksSnapshotSelection} from './pks-snapshot-selection';
 import {verifiedCachedPksStops} from './providers/pks-stops';
 import {formatPksStops} from './providers/pks-stops';
 import {writePersistentClientCache} from './transport/cache';
@@ -15,8 +16,8 @@ export type {MarcelRoute,MarcelCourse,MarcelCourseStopPublic} from './providers/
 import {routeGeometryKey} from './route-geometry-key';
 import {mpkSignalTime} from './mpk-vehicle-feed';
 import {getTransportRuntime} from './transport-runtime';
-import {reconcileRouteStopCoordinates} from './reconcile-route-stops';
-import {officialBusStops} from './official-bus-routes';
+import {bundledRoadNetworkRoute} from './bundled-road-network';
+import {resolvePksRouteStops} from './official-bus-routes';
 
 import {busOperatingState, transitTimestamp} from './bus-operating-state';
 
@@ -30,13 +31,17 @@ import {distanceMeters, computeObservedSpeedKmh} from './transport/vehicle-speed
 import {mapTransportVehicleToClient} from './transport/vehicle-adapter';
 import {fetchRoadRouteForStops} from './transport/road-routing';
 import {isAbortLikeError, fetchPkpIntercityVehiclesDirect, fetchPkpIntercityPortalGpsVehicles, fetchPkpIntercityVehicleDetailsDirect} from './providers/pkp-client';
-import {readMarcelTimestamp, warmMarcelBadgeCourses, fetchMarcelVehiclesDirect, fetchMarcelVehicleDetailsDirect, fetchMarcelPositionSnapshot} from './providers/marcel-client';
+import {readMarcelTimestamp, fetchMarcelVehiclesDirect, fetchMarcelVehicleDetailsDirect, fetchMarcelPositionSnapshot} from './providers/marcel-client';
 import {loadStopPointIndex} from './providers/pks-stops';
 import {fetchMpkVehicleFeed, fetchMpkRzeszowVehiclesDirect, fetchMpkRzeszowVehicleDetailsDirect} from './providers/mpk-vehicles';
 
 const fetchPksVehiclesSnapshot = sharedInflight(fetchPksVehiclesSnapshotUnshared);
+const pksSnapshotSelection=createPksSnapshotSelection();
+let pksSnapshotVersion=0;
 
 async function fetchPksVehiclesSnapshotUnshared(signal?: AbortSignal) {
+  const version=++pksSnapshotVersion;
+  const remember=(source:string,rows:any[])=>{pksSnapshotSelection.remember(source,rows,version,Date.now());return rows;};
   const panelFeedUrl = isNative() ? 'http://185.214.67.112/api/its/vehicles' : '/api/pks/vehicles';
   const panelRequest = requestJson<any>(panelFeedUrl, {
     signal,
@@ -46,14 +51,15 @@ async function fetchPksVehiclesSnapshotUnshared(signal?: AbortSignal) {
           Accept: 'application/json',
         }
       : { Accept: 'application/json' },
-  }).then((feed) => Array.isArray(feed?.items) ? feed.items : Array.isArray(feed) ? feed : []);
-  const directRequest = requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal });
+  }).then((feed) => remember('panel',Array.isArray(feed?.items) ? feed.items : Array.isArray(feed) ? feed : []));
+  const directRequest = requestJson<any[]>('https://www.mpkrzeszow.pl/pks/get_vehicles.php', { signal }).then(rows=>remember('direct',rows));
   try {
-    return await Promise.any([panelRequest, directRequest].map(async (request) => {
+    const rows=await Promise.any([panelRequest, directRequest].map(async (request) => {
       const items = await request;
       if (!Array.isArray(items) || items.length === 0) throw new Error('Empty PKS snapshot');
       return items;
     }));
+    return pksSnapshotSelection.select(rows,Date.now());
   } catch (error) {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
   }
@@ -130,15 +136,9 @@ async function fetchPksVehicleDetailsClient(vehicleId: string, includeInactive: 
 
   const mapped = mapVehicle(rawVehicle, Date.now(), includeInactive, stopsDict, true);
   if(mapped) {
-    const officialStops=await officialBusStops('pks',rawVehicle.trip_id).catch(()=>[]);
-    const full=mapped.routeStops||[];
-    const aligned=officialStops.length===full.length && full.every((stop,index)=>!Number.isFinite(stop.lat)||!Number.isFinite(stop.lon)||distanceMeters([stop.lat!,stop.lon!],[officialStops[index].lat,officialStops[index].lon])<1200);
-    if(aligned) {
-      const reconciled=reconcileRouteStopCoordinates(full,officialStops);
-      mapped.routeStops=reconciled!==full?reconciled:full.map((stop,index)=>({...stop,lat:stop.lat??officialStops[index].lat,lon:stop.lon??officialStops[index].lon}));
-      const byId=new Map(mapped.routeStops.map(stop=>[String(stop.id),stop]));
-      mapped.schedule=mapped.schedule?.map(stop=>({...stop,lat:byId.get(String(stop.id))?.lat??stop.lat,lon:byId.get(String(stop.id))?.lon??stop.lon}));
-    }
+    mapped.routeStops=await resolvePksRouteStops(rawVehicle.trip_id,mapped.routeStops||[]).catch(()=>mapped.routeStops||[]);
+    const byId=new Map(mapped.routeStops.map(stop=>[String(stop.id),stop]));
+    mapped.schedule=mapped.schedule?.map(stop=>({...stop,lat:byId.get(String(stop.id))?.lat??stop.lat,lon:byId.get(String(stop.id))?.lon??stop.lon}));
   }
   return mapped
     ? {
@@ -173,9 +173,9 @@ async function fetchMpkRzeszowVehiclesClient(includeInactive: boolean, signal?: 
   }
 }
 
-async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal, viewport?: PkpQueryViewport) {
+async function fetchMarcelVehiclesClient(includeInactive: boolean, signal?: AbortSignal) {
   const vehicles = await fetchMarcelVehiclesDirect(includeInactive, signal);
-  if (!signal?.aborted && viewport?.bbox) warmMarcelBadgeCourses(vehicles, viewport.bbox);
+  // Course details are warmed by visible map markers, never fleet polling.
   return vehicles;
 }
 
@@ -348,7 +348,7 @@ export async function fetchVehiclesClient(
       });
     }
     if (provider === 'marcel') {
-      return fetchMarcelVehiclesClient(includeInactive, options?.signal, options?.pkpViewport).catch((error) => {
+      return fetchMarcelVehiclesClient(includeInactive, options?.signal).catch((error) => {
         if ((error as any)?.name === 'AbortError') throw error;
         console.warn('Marcel provider unavailable:', error);
         return [];
@@ -531,7 +531,8 @@ async function fetchRouteGeometryClientImpl(
       void writePersistentRouteGeometry(routeGeometryKey(request.mode || 'road',request.carrier,
         request.line,request.direction,request.stops,request.variant||'default'),points,request.dataVersion||'');
     };
-    const fallbackPoints = await fetchRoadRouteForStops(
+    const localPoints=await bundledRoadNetworkRoute(stopCoords).catch(()=>[]);
+    const fallbackPoints = localPoints.length>1?localPoints:await fetchRoadRouteForStops(
       stopCoords,
       [
         request.carrier,
@@ -541,6 +542,7 @@ async function fetchRouteGeometryClientImpl(
       ].join(':'),
       { strictShortSegments: request.carrier === 'mpk_rzeszow',stopWaypoints:true,signal:options?.signal,onResolved:persist },
     );
+    if(localPoints.length>1)persist(localPoints);
     if (fallbackPoints.length <= 1) {
       return {
         carrier: request.carrier,
@@ -572,7 +574,7 @@ async function fetchRouteGeometryClientImpl(
         type: 'LineString',
         coordinates: fallbackPoints.map(([lat, lon]) => [lon, lat]),
       },
-      source: 'bus-road-routing',
+      source: localPoints.length>1?'bundled-bus-road-network':'bus-road-routing',
       sourceQuality: 'fallback',
       isSynthetic: false,
       cached: false,

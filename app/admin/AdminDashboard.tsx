@@ -1,5 +1,6 @@
 'use client';
 import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
+import {useBanExpiry} from '@/lib/use-ban-expiry';
 import {banDetailsForSave} from '@/lib/admin/ban-details';
 import {storedAdminPermissions} from '@/lib/admin/rbac';
 import CosmicTabLoading from '@/components/CosmicTabLoading';
@@ -47,6 +48,8 @@ export interface AdminDashboardProps {
 
 export default function AdminDashboard({ embedded = false, transparentUI = false, onExit, themeColor = '#00A3A2', isDarkTheme = true }: AdminDashboardProps) {
   const { device: currentDevice, loading, user, localLastSeenMs,apiStatisticsEnabled } = useFirebase();
+  // Presence/name changes do not change a subscription's authorization scope.
+  const adminSubscriptionKey=JSON.stringify([user?.uid,currentDevice?.role,currentDevice?.permissions]);
   const [devicesData, setDevicesData] = useState<({ id: string } & DeviceData)[]>([]);
   const [statisticsAccess,setStatisticsAccess]=useState<StatisticsAccess>({});
   const [statisticsAccessReady,setStatisticsAccessReady]=useState(false);
@@ -124,12 +127,12 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     const q = query(collection(db, 'devices'), limit(500));
     const unsub = onSnapshot(q, (snap) => {
       const data: ({ id: string } & DeviceData)[] = snap.docs.map((d) => {
-        const raw = d.data() as any;
+        const raw = d.data({serverTimestamps:'estimate'}) as any;
         return { id: d.id, ...(raw as DeviceData) };
       });
       setDevicesError(null);
       setStatisticsDevicesReady(true);
-      setDevicesData(dedupeDevicesByInstallation(data));
+      setDevicesData(dedupeDevicesByInstallation(data,user?.uid));
     }, (e: unknown) => {
       console.error('[AdminDashboard] Firestore list devices failed', e);
       const ex = e as any;
@@ -156,7 +159,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     });
 
     return () => unsub();
-  }, [currentDevice, loading]);
+  }, [adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -178,7 +181,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     );
 
     return () => unsub();
-  }, [currentDevice, loading]);
+  }, [adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -258,7 +261,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     );
 
     return () => unsub();
-  }, [activeView, currentDevice, loading]);
+  }, [activeView, adminSubscriptionKey, loading]);
 
   useEffect(() => {
     if (loading || !currentDevice) return;
@@ -315,6 +318,7 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
   if (currentDevice.role === 'owner' || myCaps.globalSettings || myCaps.globalSettingsEdit) allowedNavIds.push('maintenance');
 
   const canBanUi = currentDevice.role === 'owner' || myCaps.ban;
+  useBanExpiry(canBanUi?devicesData.filter(d=>d.id!==user?.uid&&(currentDevice.role==='owner'||d.role==='user')):[],user?.uid);
   const canChangeRolesUi = currentDevice.role === 'owner' || myCaps.canChangeRoles;
   const canDeleteDevicesUi = currentDevice.role === 'owner' || myCaps.users;
 
@@ -540,11 +544,13 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     } else {
       patch.displayName = deleteField();
     }
-    if(batch){
-      if('commit' in batch)batch.set(doc(db,'installations',inst),patch,{merge:true});
-      else batch.set(doc(db,'installations',inst),patch,{merge:true});
+    // Replace the permissions map, including removed opt-ins; preserve other profile fields.
+    const options = { mergeFields: Object.keys(patch) };
+    if (batch) {
+      if ('commit' in batch) batch.set(doc(db, 'installations', inst), patch, options);
+      else batch.set(doc(db, 'installations', inst), patch, options);
     }
-    else await setDoc(doc(db, 'installations', inst), patch, { merge: true });
+    else await setDoc(doc(db, 'installations', inst), patch, options);
   };
 
   const buildUnverifiedAutoBanDetails = (): NonNullable<DeviceData['banDetails']> => ({
@@ -645,6 +651,10 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
     return false;
   };
 
+  const permissionsMatch = (previous: DeviceData['permissions'], next: Record<string, boolean>) =>
+    previous != null && Object.keys(previous).length === Object.keys(next).length &&
+    Object.entries(next).every(([key, value]) => (previous as Record<string, boolean>)[key] === value);
+
   const handleUpdateUser = async (_name: string, role: string, permissions: Record<string, boolean>, displayName?: string, verifiedFromForm?: boolean) => {
     if (!selectedDeviceForRole) return;
     if (!assertNotSelf(selectedDeviceForRole.id)) return;
@@ -731,7 +741,12 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
 
       const roleBatch = writeBatch(db);
       stageStatisticsAccess(roleBatch,targetRow,fbRole,permissions.statistics);
-      roleBatch.update(doc(db, 'devices', selectedDeviceForRole.id), patch);
+      const nextPermissions = patch.permissions as Record<string, boolean>;
+      const deviceChanged = !targetRow || targetRow.role !== fbRole || targetRow.verified !== verified ||
+        !permissionsMatch(targetRow.permissions, nextPermissions) ||
+        (trimmedDisplay ? targetRow.displayName !== trimmedDisplay : targetRow.displayName !== undefined);
+      // Statistics live in a separate document. An unchanged device write is rejected by its rules.
+      if (deviceChanged) roleBatch.update(doc(db, 'devices', selectedDeviceForRole.id), patch);
       await syncInstallationProfile(
         targetRow?.installationId,
         fbRole,
@@ -889,14 +904,17 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
       const verified = fbRole === 'owner' || fbRole === 'admin' || target?.verified === true;
       const roleBatch = writeBatch(db);
       stageStatisticsAccess(roleBatch,target,fbRole,permissions.statistics);
-      roleBatch.update(doc(db, 'devices', operatorId), {
+      const patch = {
         role: fbRole,
         verified,
         permissions: storedAdminPermissions({
           ...normalized,
           ...toLegacyPermissions({ ...permissions, ...normalized }),
         }),
-      });
+      };
+      if (!target || target.role !== fbRole || target.verified !== verified || !permissionsMatch(target.permissions, patch.permissions)) {
+        roleBatch.update(doc(db, 'devices', operatorId), patch);
+      }
       const opRow = devicesData.find((x) => x.id === operatorId);
       await syncInstallationProfile(
         opRow?.installationId,
@@ -938,9 +956,9 @@ export default function AdminDashboard({ embedded = false, transparentUI = false
         <BanScreen />
         <button
           onClick={() => setActiveView('devices')}
-          className={`absolute top-4 right-4 bg-white/10 hover:bg-white/20 ${isDarkTheme ? 'text-white' : 'text-slate-900'} px-4 py-2 rounded-xl text-sm transition-colors border border-white/10`}
+          className={`absolute top-[calc(var(--native-content-top,0px)+1rem)] right-4 bg-white/10 hover:bg-white/20 ${isDarkTheme ? 'text-white' : 'text-slate-900'} px-4 py-2 rounded-xl text-sm transition-colors border border-white/10`}
         >
-          [Wróć do Dashboardu]
+          Wróć do panelu administratora
         </button>
       </div>
     );

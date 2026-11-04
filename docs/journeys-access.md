@@ -7,9 +7,10 @@ wins over the positive grant. `canUseJourneys` is shared by the main navigation
 and access tests. Startup fallback, planner mounting, desktop shortcut and
 personalization choices respect the same effective access.
 
-In Devices → Edit permissions, an owner can use **Włącz połączenia** for the
-selected device. Normalization preserves a true opt-in when saving both the
-device and its installation profile. Revoke the grant to hide the tab again.
+In Devices → Edit permissions, **Wyłącz połączenia** uses the same restriction
+semantics as the map and stops switches: on hides the tab, off grants access.
+Normalization preserves that grant when saving both the device and its
+installation profile. Stored permissions and default access remain unchanged.
 Owners cannot lose their automatic access through this switch.
 
 Firestore rules accept the new key, reject self-grants on new registration and

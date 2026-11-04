@@ -70,3 +70,18 @@ test('mountain loading first paint uses the same solar milk and glow as panels',
   assert.equal(root.style.backgroundColor,expected.background);assert.equal(root.style.color,expected.text);assert.equal(root.style.values['--pks-loading-glow'],expected.glow);
  }
 });
+
+test('Horyzont first-paint and startup accents use day/night choices with safe general fallbacks',()=>{
+ const base='#22c55e',prefs={landscapeAccentEnabled:true,landscapeDayAccent:'#FF8000',landscapeNightAccent:'#06B6D4'};
+ for(const [ms,color] of [[Date.parse('2026-10-31T12:00:00Z'),'#ff8000'],[Date.parse('2026-10-31T22:00:00Z'),'#06b6d4']]){
+  for(const [mode,p,expected] of [['dark-mountains',prefs,color],['dark-mountains',{...prefs,landscapeAccentEnabled:false},base],['dark-mountains',{...prefs,landscapeDayAccent:'bad',landscapeNightAccent:'bad'},base],['dark-mountains',null,base],['dark-mountains','broken-json',base],['dark',prefs,base],['light-warm',prefs,base],['dark-cosmos',prefs,base]]){
+   const styles={},root={style:{setProperty:(k,v)=>styles[k]=v},dataset:{}};
+   const values={mks_app_theme:mode,mks_theme:base,mks_interface_appearance_v1:p==='broken-json'?p:JSON.stringify(p)};
+   vm.runInNewContext(theme.INITIAL_THEME_SCRIPT,{Date:class extends Date{static now(){return ms;}},localStorage:{getItem:k=>values[k]??null},matchMedia:()=>({matches:false}),document:{documentElement:root}});
+   assert.equal(styles['--pks-accent'],expected,mode+' '+JSON.stringify(p));
+   assert.equal(theme.startupThemeAccent(mode,base,p==='broken-json'?null:p,ms),expected);
+  }
+ }
+ assert.equal(theme.startupThemeAccent('dark-mountains',base,prefs,Date.parse('2026-10-31T12:00:00Z'),'night'),'#06b6d4','the confirmed scene period retains its existing hysteresis');
+ assert.equal(theme.startupThemeAccent('dark-mountains',base,prefs,Date.parse('2026-10-31T22:00:00Z'),'day'),'#ff8000');
+});

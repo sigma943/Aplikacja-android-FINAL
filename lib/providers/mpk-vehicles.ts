@@ -1,3 +1,4 @@
+import {sharedInflight} from '../shared-inflight';
 import {mpkFleetModel} from '../mpk-fleet-models';
 
 
@@ -235,7 +236,10 @@ function mapMpkDirectVehicle(
   };
 }
 
-async function fetchMpkVehicleFeed(signal?: AbortSignal) {
+const fetchMpkVehicleFeed=sharedInflight(fetchMpkVehicleFeedUnshared);
+const fetchMpkVehicleDetails=sharedInflight((signal)=>requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL,{signal}));
+
+async function fetchMpkVehicleFeedUnshared(signal?: AbortSignal) {
   let emptyResponse = false;
   let lastError: unknown;
   const loaders = [
@@ -262,7 +266,7 @@ async function fetchMpkVehicleFeed(signal?: AbortSignal) {
 async function fetchMpkRzeszowVehiclesDirect(includeInactive: boolean, signal?: AbortSignal) {
   const [positions, details] = await Promise.all([
     fetchMpkVehicleFeed(signal),
-    requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL, { signal }).catch(() => []),
+    fetchMpkVehicleDetails(signal).catch(() => []),
   ]);
   const detailsByVehicle = new Map(
     (Array.isArray(details) ? details : []).map((detail: any) => [normalizeMpkVehicleId(detail?.nb), detail]),
@@ -278,7 +282,7 @@ async function fetchMpkRzeszowVehicleDetailsDirect(vehicleId: string, includeIna
   const lookupVehicleId = normalizeMpkVehicleId(String(vehicleId || '').replace(/^mpk_rzeszow_/, ''));
   const [positions, details] = await Promise.all([
     fetchMpkVehicleFeed(),
-    requestJson<any[]>(MPK_RZESZOW_VEHICLES_DETAILS_URL).catch(() => []),
+    fetchMpkVehicleDetails().catch(() => []),
   ]);
   const rawVehicle = positions.find((vehicle) =>
     normalizeMpkVehicleId(vehicle.nb || vehicle.id) === lookupVehicleId,

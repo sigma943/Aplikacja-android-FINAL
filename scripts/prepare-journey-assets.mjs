@@ -8,3 +8,6 @@ for(const provider of ['pks','mpk']){
  if(feed.provider!==provider||!feed.trips?.length)throw Error(`Invalid ${provider} timetable`);
  fs.writeFileSync(`public/data/journeys/${provider}.json`,bytes);
 }
+
+import roadNetwork from './build-bus-road-network.cjs';
+roadNetwork.prepareBusRoadNetwork();

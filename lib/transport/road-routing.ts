@@ -27,14 +27,15 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
     const chunks=routeChunks(points);
     const results: ShapePoint[][]=new Array(chunks.length);
     const secondary: ShapePoint[][] = new Array(chunks.length);
-    const fetchCompleteSecondary = async () => {
+    let completeSecondary: Promise<ShapePoint[]> | undefined;
+    const fetchCompleteSecondary = () => completeSecondary ??= (async () => {
       const coordinates=points.map(([lat,lon])=>lon+','+lat).join(';');
       const data=await withRequestDeadline(signal=>requestJson<{routes?:Array<{geometry?:{coordinates?:Array<[number,number]>}}>}>(
         'https://router.project-osrm.org/route/v1/driving/'+coordinates+'?overview=full&geometries=geojson&alternatives=false&steps=false&continue_straight=false',{signal}),undefined,12000);
       const route:ShapePoint[]=(data.routes?.[0]?.geometry?.coordinates||[]).map(([lon,lat])=>[lat,lon]);
       if(!routedRoadRouteMatchesStops(route,points))throw Error('Incomplete complete-course road route');
       return route;
-    };
+    })();
     const fetchSecondary = async (index: number) => {
       if (secondary[index]) return secondary[index];
       const chunk = chunks[index];
@@ -46,6 +47,7 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       secondary[index] = route;
       return route;
     };
+    const fetchChunkedCourse = async () => {
     let cursor=0;
     try {
     await Promise.all(Array.from({length:Math.min(3,chunks.length)},async()=> {
@@ -102,6 +104,14 @@ async function fetchRoadRouteForStops(coords: ShapePoint[],cacheKey: string,opti
       if (!routedRoadRouteMatchesStops(route,points)) throw new Error('Incomplete joined road route');
       return route;
     }
+    };
+    // A valid whole-course response must not wait for every chunk to fail or
+    // for incompatible boundary snaps to be joined first. Keep bus routing as
+    // the preferred source, but race a bounded, independently validated full
+    // course on long patterns. This applies to every carrier and course.
+    return chunks.length > 1 && points.length <= 100
+      ? roadRouteWithFallback(fetchChunkedCourse, fetchCompleteSecondary, 1500, 1500)
+      : fetchChunkedCourse();
   })();
   // The geometry belongs to the stop pattern, not the selected marker. Let the
   // bounded request finish/cache even if the user closes the panel meanwhile.
