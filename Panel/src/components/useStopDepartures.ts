@@ -37,5 +37,11 @@ export function useStopDepartures(stop: Stop, dayIndex: number, dateIso: string,
     }catch(error){if(valid())setState(previous=>valid()?{...previous,isLoading:false,isFetching:false,warnings:[error instanceof Error?error.message:'Nie udało się pobrać odjazdów.',...(previous.updatedAt?['Zachowano ostatnio pobrany rozkład.']:[])]}:previous);}
   },dayIndex===0?10_000:300_000,enabled);
   refreshRef.current=refresh;
+  useEffect(()=>{
+    const update=()=>{if(enabled)refreshRef.current();};
+    window.addEventListener('pks-live:gtfs-updated',update);
+    window.addEventListener('pks-live:mpk-gtfs-updated',update);
+    return()=>{window.removeEventListener('pks-live:gtfs-updated',update);window.removeEventListener('pks-live:mpk-gtfs-updated',update);};
+  },[enabled]);
   return {...state,refresh:()=>refreshRef.current()};
 }

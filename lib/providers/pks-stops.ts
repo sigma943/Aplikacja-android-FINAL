@@ -1,5 +1,6 @@
 import {readBusCoordinates} from '../bus-coordinates';
 import {correctPksStop} from '../pks-stop-corrections';
+import {withPksGtfsStops} from '../pks-gtfs-runtime';
 
 import {type StopsMap, type FullStopRecord, type StopPointIndex} from '../transport/types';
 import {requestEinfoJson} from '../transport/http';
@@ -220,7 +221,7 @@ function refreshPksStops() {
   return refreshingPksStops;
 }
 
-export async function fetchStopsClient(options?: { forceRefresh?: boolean }): Promise<StopsMap> {
+async function fetchBaseStopsClient(options?: { forceRefresh?: boolean }): Promise<StopsMap> {
   const cached = readPersistentClientCache<StopsMap>(PKS_STOPS_CACHE_KEY);
   const isFresh = cached && Date.now() - cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
   if (cached && !options?.forceRefresh) {
@@ -238,6 +239,11 @@ export async function fetchStopsClient(options?: { forceRefresh?: boolean }): Pr
   }
   try { return await refreshPksStops(); }
   catch (error) { if (cached) return verifiedCachedPksStops(cached.data, await readBundledPksStops()); throw error; }
+}
+
+export async function fetchStopsClient(options?: {forceRefresh?:boolean}):Promise<StopsMap>{
+ const stops=await fetchBaseStopsClient(options);
+ return typeof window==='undefined'?stops:withPksGtfsStops(stops);
 }
 
 export {stopsDictionaryPromise};

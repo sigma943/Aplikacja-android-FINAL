@@ -5,6 +5,7 @@ import {cachedStopText} from '@/lib/stop-text-cache';
 
 import type { Carrier, Departure, Stop } from '@/Panel/src/types';
 import { fetchMarcelCoursesClient, fetchMarcelPublicCourseStopsClient, fetchMarcelRoutesClient, fetchVehicleDetailsClient, type MarcelCourse, type MarcelCourseStopPublic, type TransportProviderId } from '@/lib/pks-client';
+import {peekPksGtfs,pksGtfsIndex} from '@/lib/pks-gtfs-runtime';
 import type { Vehicle } from '@/components/BusMap';
 import { getSimilarity, normalizeStopName as normalizeMergeName } from '@/lib/rzeszow-stop-consolidation';
 import { warsawDateIso, warsawTimeMs, warsawClock } from '@/lib/transit-time';
@@ -863,7 +864,7 @@ function pksLinesForStop(
   pksLinesByStopId: Record<string, string[]>,
 ) {
   const reviewed=pksTerminalLines(stop.areaId,stop.code);
-  if(reviewed!==null)return reviewed;
+  if(reviewed!==null&&!(peekPksGtfs()&&pksGtfsIndex()))return reviewed;
   const lineSet = new Set<string>();
   const ids = splitCsvValues(stop.providerStopIds?.pks || stop.id);
   ids.forEach((id) => {

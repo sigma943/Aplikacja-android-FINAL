@@ -11,7 +11,7 @@ test('Android packages plain JSON feeds identical to the compressed source',()=>
 test('Albigowa route works when the worker cannot fetch any Android assets',async()=>{
  const oldFetch=global.fetch;const requests=[];
  try{
-  global.fetch=async url=>{requests.push(url);const bytes=fs.readFileSync('public'+url);return {ok:true,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)};};
+  global.fetch=async url=>{requests.push(url);const bytes=url==='/data/journeys/pks.json'?gunzipSync(fs.readFileSync('test/fixtures/pks-timetable-2026-10-19.json.gz')):fs.readFileSync('public'+url);return {ok:true,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)};};
   const {prepareTimetableSearch,executeTimetableSearch}=load('lib/journey-schedules.ts');
   const {warsawTimeMs}=load('lib/transit-time.ts');
   const feed=JSON.parse(fs.readFileSync('public/data/journeys/mpk.json','utf8'));

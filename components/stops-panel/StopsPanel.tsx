@@ -17,6 +17,7 @@ import BusStopDetail from '@/Panel/src/components/BusStopDetail';
 import type { Stop } from '@/Panel/src/types';
 import { fetchPksTimetableClient, fetchMpkRzeszowStopsClient } from '@/lib/pks-client';
 import pksLinesSnapshot from '@/public/data/pks-stop-lines.json';
+import {loadPksGtfs,pksGtfsLines} from '@/lib/pks-gtfs-runtime';
 import { limitTimetableRequest } from '@/lib/stop-timetable-store';
 
 
@@ -50,6 +51,12 @@ export default function StopsPanel({
   const [mpkStops, setMpkStops] = useState<MpkCatalogStop[]>(() => peekStopsCatalogCache()?.mpk || []);
   const [marcelStops, setMarcelStops] = useState<MarcelIndexedStop[]>(() => peekStopsCatalogCache()?.marcel || []);
   const [pksLinesByStopId, setPksLinesByStopId] = useState<Record<string, string[]>>(() => peekStopsCatalogCache()?.lines || pksLinesSnapshot.lines);
+  useEffect(()=>{
+    let alive=true;
+    const update=()=>{const lines=pksGtfsLines();if(alive&&lines)setPksLinesByStopId(lines);};
+    void loadPksGtfs().then(update);window.addEventListener('pks-live:gtfs-updated',update);
+    return()=>{alive=false;window.removeEventListener('pks-live:gtfs-updated',update);};
+  },[cacheReady]);
   const [mergedStopsBase, setMergedStopsBase] = useState<Stop[]>(() => peekStopsCatalogCache()?.stops || []);
   const [renderedCatalogKey, setRenderedCatalogKey] = useState('');
   const [isPreparingStops, setIsPreparingStops] = useState(false);
@@ -147,16 +154,19 @@ export default function StopsPanel({
 
     loadMpkStopsSnapshot();
     window.addEventListener('pks-live:mpk-stops-updated',loadMpkStopsSnapshot);
+    window.addEventListener('pks-live:mpk-gtfs-updated',loadMpkStopsSnapshot);
     if(needsMarcelCatalog)loadMarcelStopsSnapshot();
 
     return () => {
       active = false;
       controller.abort();
       window.removeEventListener('pks-live:mpk-stops-updated',loadMpkStopsSnapshot);
+      window.removeEventListener('pks-live:mpk-gtfs-updated',loadMpkStopsSnapshot);
     };
   }, [catalogAttempt, cacheReady, panelActive, needsMarcelCatalog]);
 
   const refreshVisibleLines = useCallback((visible: Stop[]) => {
+    const latest=pksGtfsLines();if(latest){setPksLinesByStopId(latest);return;}
     const points = visible.flatMap(stop => stop.pksStopPoints || []);
     const areas = [...new Set(points.map(point => point.areaId).filter((id): id is string => Boolean(id)))];
     areas.forEach(area => {
@@ -169,7 +179,7 @@ export default function StopsPanel({
           ]);
         }
         setPksLinesByStopId(current => {
-          const combined = Object.fromEntries(Object.entries(next).map(([id, lines]) => [id, sortedLines([...(current[id] || []), ...lines])]));
+          const combined = next;
           return Object.entries(combined).every(([id,lines])=>JSON.stringify(current[id])===JSON.stringify(lines)) ? current : {...current,...combined};
         });
       }).catch(() => undefined); // The complete bundled index stays visible on refresh failure.

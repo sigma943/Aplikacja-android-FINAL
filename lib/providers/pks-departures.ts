@@ -8,6 +8,9 @@ import {mpkServicesOnDate} from '../mpk-departures';
 
 import {requestEinfoJson} from '../transport/http';
 import {pksPhysicalPlatform} from '../pks-terminal-timetable';
+import {loadPksGtfs,pksGtfsIndex} from '../pks-gtfs-runtime';
+import {pksGtfsCovers,pksGtfsDepartures} from '../pks-gtfs';
+import {rzeszowTerminalPlatform} from '../stop-label';
 
 function isJourneyRunning(legends: string[], dateIso: string) {
   if (!legends || legends.length === 0) return true;
@@ -103,7 +106,7 @@ export function fetchPksTimetableClient(areaId: string, day: string) {
   return promise;
 }
 
-export async function fetchDeparturesClient(stopId: string, areaId?: string, code?: string, dateIso?: string) {
+async function fetchLegacyDepartures(stopId: string, areaId?: string, code?: string, dateIso?: string) {
   const today = warsawDateIso();
   const days = dateIso ? [dateIso] : [today, warsawDateIso(1)];
   const boardId=areaId==='1937'&&code==='4'?'3731':areaId==='1937'&&code==='10'?'3744':stopId;
@@ -149,6 +152,27 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
     return Number.isFinite(ms) && (dateIso ? warsawDateIso(0,new Date(ms)) === dateIso : ms >= Date.now()-900_000 && ms <= Date.now()+86400_000);
   }).sort((a: any,b: any) => Date.parse(a.timetable_time)-Date.parse(b.timetable_time)),
   warning: failedTables || (hasTimetable && board.status === 'rejected') ? 'PKS: część danych niedostępna; pokazano dostępny rozkład.' : undefined};
+}
+
+export async function fetchDeparturesClient(stopId:string,areaId?:string,code?:string,dateIso?:string){
+ if(typeof window==='undefined')return fetchLegacyDepartures(stopId,areaId,code,dateIso);
+ const feed=await loadPksGtfs(),days=dateIso?[dateIso]:[warsawDateIso(),warsawDateIso(1)];
+ let ids=pksGtfsIndex()?.byStop[stopId];
+ if(!ids&&feed&&areaId==='1937'&&code){
+  ids=Object.entries(feed.stops).filter(([,point])=>rzeszowTerminalPlatform(point.name)===String(Number(code))).map(([id])=>id);
+ }
+ if(!feed||!days.every(day=>pksGtfsCovers(feed,day)))return fetchLegacyDepartures(stopId,areaId,code,dateIso);
+ const legacy=stopId.startsWith('gtfs:')?null:await fetchLegacyDepartures(stopId,areaId,code,dateIso).catch(()=>null);
+ const managed=new Set(feed.managedLines||feed.trips.map(t=>t[1]));
+ const scheduled=days.flatMap(day=>pksGtfsDepartures(feed,ids||[],day));
+ const rows=scheduled.map(row=>{
+  const same=scheduled.filter(other=>other.line_name===row.line_name&&other.timetable_time===row.timetable_time);
+  const live=(legacy?.journeys||[]).filter((other:any)=>String(other.line_name)===row.line_name&&other.timetable_time===row.timetable_time);
+  // Only one exact departure may inherit EINFO's GPS-linked course identity.
+  return same.length===1&&live.length===1?{...live[0],...row,journey_id:live[0].journey_id??row.journey_id,deviation:live[0].deviation??null}:row;
+ });
+ rows.push(...(legacy?.journeys||[]).filter((row:any)=>!managed.has(String(row.line_name))));
+ return {journeys:rows.filter(row=>dateIso||Date.parse(row.timetable_time)>=Date.now()-900_000&&Date.parse(row.timetable_time)<=Date.now()+86400_000).sort((a,b)=>Date.parse(a.timetable_time)-Date.parse(b.timetable_time)),warning:undefined};
 }
 
 export {isJourneyRunning};

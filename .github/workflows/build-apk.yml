@@ -127,6 +127,13 @@ jobs:
       - name: Build Android Web Assets
         run: npm run build:android:web
 
+      - name: Verify automatic PKS GTFS updates
+        if: contains(github.event.pull_request.title, '[pks-gtfs-check]')
+        run: |
+          node --test test/pks-gtfs.test.cjs test/timetable-update-guard.test.cjs
+          npx puppeteer browsers install chrome
+          node test/pks-gtfs-browser.cjs
+
       - name: Verify stop line filter animations
         if: contains(github.event.pull_request.title, '[stop-filter-motion-check]')
         run: |

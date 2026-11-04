@@ -37,6 +37,11 @@ function saveRecents(items:Recent[]){try{localStorage.setItem('pks-live:journey-
 type Props={stops:Array<{id:string;name:string;lat?:number;lon?:number;areaId?:string;code?:string}>;dark:boolean;active:boolean;allowMap?:boolean;glass?:boolean;onClose:()=>void};
 export default function JourneyPlanner({stops,dark,active,allowMap=true,glass=true,onClose}:Props){
  const [catalog,setCatalog]=useState<Stop[]>([]),[catalogError,setCatalogError]=useState(''),[catalogLoading,setCatalogLoading]=useState(true),[attempt,setAttempt]=useState(0);
+ useEffect(()=>{
+  const updated=()=>{if(active)setAttempt(value=>value+1);};
+  window.addEventListener('pks-live:mpk-gtfs-updated',updated);
+  return()=>window.removeEventListener('pks-live:mpk-gtfs-updated',updated);
+ },[active]);
  const [from,setFrom]=useState<Stop|null>(null),[to,setTo]=useState<Stop|null>(null),[picker,setPicker]=useState<'from'|'to'|null>(null);
  const [resultLimit,setResultLimit]=useState(12);
  const [legFocus,setLegFocus]=useState<{journeyId:string;index:number|null;version:number}|null>(null);

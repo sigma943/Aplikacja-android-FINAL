@@ -858,7 +858,8 @@ export default function Home() {
   useEffect(() => {
     const update = () => loadStops();
     window.addEventListener('pks-live:stops-updated', update);
-    return () => window.removeEventListener('pks-live:stops-updated', update);
+    window.addEventListener('pks-live:gtfs-updated', update);
+    return () => {window.removeEventListener('pks-live:stops-updated', update);window.removeEventListener('pks-live:gtfs-updated',update);};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
