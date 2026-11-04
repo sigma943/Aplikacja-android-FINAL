@@ -158,7 +158,8 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                         className="flex flex-1 flex-col min-h-0 overflow-hidden"
                       >
                         <div className={`p-2.5 md:p-4 flex min-h-0 flex-1 flex-col gap-2.5 md:gap-4 overflow-y-auto mt-1.5 md:mt-2 rounded-t-xl md:rounded-t-2xl relative z-10 ${mapDetailContent}`}>
-                        <div data-vehicle-metrics className="grid grid-cols-2 gap-2 md:gap-4 shrink-0">
+                        <div data-vehicle-metrics className={`grid ${selectedBus.provider==='marcel'?'grid-cols-1':'grid-cols-2'} gap-2 md:gap-4 shrink-0`}>
+                        {selectedBus.provider!=='marcel' && (
                         <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard} ${selectedBusIsWaitingForDeparture ? 'col-span-2' : ''}`}>
                            <div className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5 md:mb-1 ${textSub}`}>
                               <Navigation className="w-3 h-3 md:w-3.5 md:h-3.5" /> Prędkość
@@ -173,6 +174,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                                   : 'Brak danych'}
                            </span>
                         </div>
+                        )}
 
                         {!selectedBusIsWaitingForDeparture && (
                         <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard}`}>
