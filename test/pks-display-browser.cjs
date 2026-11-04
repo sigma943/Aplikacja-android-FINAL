@@ -29,8 +29,12 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   for(const id of ['3731','terminal:rzeszow-da:7','terminal:rzeszow-da:10'])assert.match(await page.$eval('[data-stop-card-id="'+id+'"]',e=>e.textContent),/Brak przypisanych linii PKS/);
   const total=await page.$eval('[data-stop-card-id="3720"] [data-stop-line-badges]',e=>Number(e.dataset.lineTotal));assert.ok(total>=5,'physical platform 4 has line badges');
   await page.click('[data-stop-card-id="3720"]');await page.waitForSelector('[data-departure-row]');
+  const all=await page.$$('button');for(const button of all){if((await button.evaluate(e=>e.textContent)).includes('Pokaż wszystkie odjazdy')){await button.click();break;}}
+  await page.waitForFunction(()=>document.querySelectorAll('[data-departure-row]').length>5);
   const directions=await page.$$eval('[data-departure-row] h4',els=>els.map(e=>e.textContent));
   assert.ok(directions.includes('Wola Zgłobieńska, pętla'));assert.ok(directions.includes('Pstrągowa'));assert.ok(!directions.some(s=>s.includes(' p. ')),'known courses use compact legacy labels');
+  await page.reload();await page.waitForSelector('[data-stop-card-id="3731"]');await page.click('[data-stop-card-id="3731"]');await page.waitForSelector('[data-departure-empty]');assert.match(await page.$eval('[data-departure-empty]',e=>e.textContent),/Brak potwierdzonych odjazdów dla tego stanowiska w dostępnych danych/);
+  await page.reload();await page.waitForSelector('[data-stop-card-id="terminal:rzeszow-da:10"]');await page.click('[data-stop-card-id="terminal:rzeszow-da:10"]');await page.waitForSelector('[data-departure-empty]');assert.match(await page.$eval('[data-departure-empty]',e=>e.textContent),/Brak potwierdzonych odjazdów dla tego stanowiska w dostępnych danych/);
   assert.deepEqual(errors,[]);console.log('PASS actual stop cards: platform 4 badges, empty platforms 1/7/10 and compact known-course departure directions.');
  }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,3 +1,4 @@
+import {rzeszowTerminalPlatform} from './stop-label';
 import {readBusCoordinates} from './bus-coordinates';
 import {platformPosition} from './stop-platform-position';
 import type {Stop} from '@/Panel/src/types';
@@ -101,6 +102,7 @@ export function routeCatalogStopIds(stops:Stop[],ids:Array<string|number>,points
 }
 
 export function mapStopColor(stop:Pick<Stop,'name'>){
+  if(rzeszowTerminalPlatform(stop.name)!==null)return '#14b8a6';
   const name=stop.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   if(/^rzeszow\b/.test(name)&&(/\bd\s*\.?\s*a\s*\.?\s*(?:st\b|stanow|$)/.test(name)||/\b(?:dworzec|dworz\.)\s*(?:autobusowy|pks)\b/.test(name)))return '#14b8a6';
   return /^rzeszow(?:\b|\s|,)/.test(name)?'#ff7a00':'#14b8a6';

@@ -4,7 +4,7 @@ import {normalizeJourneyFeed} from './journey-feed-validation';
 import {sameRouteStopName} from './reconcile-route-stops';
 import {warsawTimeMs} from './transit-time';
 import type {StopsMap} from './transport/types';
-import {rzeszowTerminalPlatform} from './stop-label';
+import {rzeszowTerminalPlatform,displayStopCatalogLabel} from './stop-label';
 
 export type PksGtfsFeed=TimetableFeed&{updatedAt?:string;revision?:string;headsigns?:Record<string,string>;managedLines?:string[]};
 export const PKS_GTFS_URL='https://kmrzeszow.live/gtfs-pks/latest.zip';
@@ -93,7 +93,7 @@ export function indexPksGtfs(feed:PksGtfsFeed,base:StopsMap){
   const terminal=platform===null?undefined:known.find(([,s])=>s.areaId==='1937'&&codeKey(s.code||'')===codeKey(platform))?.[0]||
    (platform==='4'?'3720':'terminal:rzeszow-da:'+platform);
   const key=terminal||matched||'gtfs:'+id;
-  if(!stops[key])stops[key]={n:point.name,lat:point.lat,lon:point.lon,areaId:platform===null?'gtfs:'+id:'1937',code:platform??(suffix||'1')};
+  if(!stops[key])stops[key]={n:platform===null?point.name:displayStopCatalogLabel(point.name,platform),lat:point.lat,lon:point.lon,areaId:platform===null?'gtfs:'+id:'1937',code:platform??(suffix||'1')};
   (byStop[key]??=[]).push(id);lines[key]=[];
  }
  const lineSets:Record<string,Set<string>>={};for(const key of Object.keys(byStop))lineSets[key]=new Set();

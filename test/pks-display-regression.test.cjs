@@ -24,6 +24,11 @@ test('real terminal catalog has one card per physical bay and bay 4 badges match
  const points=load('lib/providers/pks-stops.ts').formatPksStops({items},{stops:index.stops});
  const catalogue=load('lib/stops-catalog.ts',overrides).buildStopsCatalog(Object.entries(points).map(([id,s])=>({...s,id,name:s.n})),[],[],'real-pks-display-regression');
  const platform=load('lib/stop-label.ts').rzeszowTerminalPlatform;
+ const terminal=catalogue.filter(s=>s.areaId==='1937');
+ assert.deepEqual(terminal.map(s=>Number(platform(s.name,s.code))),[0,1,2,3,4,5,6,7,8,9,10]);
+ const color=load('lib/map-stop-markers.ts').mapStopColor;
+ for(const stop of terminal)assert.equal(color(stop),'#14b8a6');
+ for(const name of ['Rzeszów D.A. 4','Rzeszów D.A. 10'])assert.equal(color({name}),'#14b8a6');
  const lineFor=load('components/stops-panel/stop-domain.ts',{'@/lib/pks-gtfs-runtime':runtime}).pksLinesForStop;
  for(const code of ['1','4','7','10']){
   const matches=catalogue.filter(s=>platform(s.name,s.code)===code);assert.equal(matches.length,1,'one physical platform '+code);assert.equal(matches[0].areaId,'1937');
@@ -33,6 +38,6 @@ test('real terminal catalog has one card per physical bay and bay 4 badges match
    const departures=gtfs.pksGtfsDepartures(feed,gtfs.pksGtfsTerminalStopIds(feed,'1937',code),date);
    assert.ok(departures.length);assert.ok(badges.length);assert.ok(departures.every(r=>badges.includes(r.line_name)));
    assert.ok(['203','210','228','232','288'].every(line=>badges.includes(line)));
-  }else assert.deepEqual(badges,[],'arrival-only or unassigned bay has no passenger line badges');
+  }else {assert.deepEqual(badges,[],'arrival-only or unassigned bay has no passenger line badges');assert.equal(matches[0].timetableNotice,'Brak potwierdzonych odjazdów dla tego stanowiska w dostępnych danych.');}
  }
 });

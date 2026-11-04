@@ -18,7 +18,6 @@ export function completeRzeszowTerminalPlatforms(stops:Stop[]):Stop[]{
   const completed=[...stops,...missingPlatforms.filter(p=>!codes.has(p.code)).map<Stop>(p=>({
     ...p,name:'Rzeszów D.A. st. '+p.code,type:'bus' as const,areaId:'1937',
     carriers:carrier?[carrier]:[],lines:pksTerminalLines('1937',p.code)||[],isFavorite:false,sourceProviderIds:['pks'],
-    ...(p.code==='7'?{timetableNotice:'Brak potwierdzonych odjazdów dla tego stanowiska w dostępnych danych.'}:{}),
     // Local identities are not invented provider stop-point IDs. Departures
     // use the real terminal area and exact platform code, including empty boards.
     providerStopIds:Object.fromEntries([['pksAreaIds','1937'],['pksCodes',p.code],...(p.id==='3720'?[['pks',p.id]]:[])]),
@@ -27,6 +26,6 @@ export function completeRzeszowTerminalPlatforms(stops:Stop[]):Stop[]{
   return completed.map(stop=>{
     const lines=pksTerminalLines(stop.areaId,stop.code);
     if(lines===null)return stop;
-    return {...stop,lines,...(['4','10'].includes(String(stop.code))?{timetableNotice:undefined}:{})};
+    return {...stop,lines,...(['1','7','10'].includes(String(stop.code))?{timetableNotice:'Brak potwierdzonych odjazdów dla tego stanowiska w dostępnych danych.'}:String(stop.code)==='4'?{timetableNotice:undefined}:{})};
   });
 }
