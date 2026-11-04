@@ -4,6 +4,7 @@ import {normalizeJourneyFeed} from './journey-feed-validation';
 import {sameRouteStopName} from './reconcile-route-stops';
 import {warsawTimeMs} from './transit-time';
 import type {StopsMap} from './transport/types';
+import {rzeszowTerminalPlatform} from './stop-label';
 
 export type PksGtfsFeed=TimetableFeed&{updatedAt?:string;revision?:string;headsigns?:Record<string,string>;managedLines?:string[]};
 export const PKS_GTFS_URL='https://kmrzeszow.live/gtfs-pks/latest.zip';
@@ -58,6 +59,10 @@ export function parsePksGtfs(bytes:Uint8Array,provider='pks',source=PKS_GTFS_URL
  return {...feed,...normalized};
 }
 export function pksGtfsCovers(feed:PksGtfsFeed,date:string){const day=date.replaceAll('-','');return feed.validFrom<=day&&day<=feed.validUntil;}
+export function pksGtfsTerminalStopIds(feed:PksGtfsFeed,areaId?:string,code?:string):string[]|null {
+ if(areaId!=='1937'||!code)return null;
+ return Object.entries(feed.stops).filter(([,point])=>rzeszowTerminalPlatform(point.name)===String(Number(code))).map(([id])=>id);
+}
 export function pksGtfsServiceRuns(feed:PksGtfsFeed,id:string,date:string){
  const day=date.replaceAll('-',''),exception=feed.exceptions[day]?.[id];if(exception)return exception===1;
  const c=feed.calendars[id],weekday=(new Date(date+'T12:00:00Z').getUTCDay()+6)%7;
@@ -84,13 +89,16 @@ export function indexPksGtfs(feed:PksGtfsFeed,base:StopsMap){
    .map(([key,s])=>({key,distance:(s.lat!-point.lat)**2+((s.lon!-point.lon)*.64)**2})).sort((a,b)=>a.distance-b.distance);
   // Require an unambiguous same-platform identity; GTFS IDs are never EINFO IDs.
   const matched=candidates[0]&&(!candidates[1]||candidates[1].distance>candidates[0].distance+1e-9)?candidates[0].key:undefined;
-  const key=matched||'gtfs:'+id;
-  if(!matched)stops[key]={n:point.name,lat:point.lat,lon:point.lon,areaId:'gtfs:'+id,code:suffix||'1'};
+  const platform=rzeszowTerminalPlatform(point.name);
+  const terminal=platform===null?undefined:known.find(([,s])=>s.areaId==='1937'&&codeKey(s.code||'')===codeKey(platform))?.[0]||
+   (platform==='4'?'3720':'terminal:rzeszow-da:'+platform);
+  const key=terminal||matched||'gtfs:'+id;
+  if(!stops[key])stops[key]={n:point.name,lat:point.lat,lon:point.lon,areaId:platform===null?'gtfs:'+id:'1937',code:platform??(suffix||'1')};
   (byStop[key]??=[]).push(id);lines[key]=[];
  }
  const lineSets:Record<string,Set<string>>={};for(const key of Object.keys(byStop))lineSets[key]=new Set();
  const reverse=new Map(Object.entries(byStop).flatMap(([key,ids])=>ids.map(id=>[id,key] as const)));
- for(const trip of feed.trips)for(const call of feed.patterns[trip[4]]){const key=reverse.get(call[0]);if(key&&call[3]!==1)lineSets[key].add(trip[1]);}
+ for(const trip of feed.trips){const pattern=feed.patterns[trip[4]];for(const call of pattern){const key=reverse.get(call[0]);if(key&&call[3]!==1&&call!==pattern.at(-1))lineSets[key].add(trip[1]);}}
  for(const [key,set] of Object.entries(lineSets))lines[key]=[...set].sort((a,b)=>a.localeCompare(b,'pl',{numeric:true}));
  return {stops,byStop,lines};
 }

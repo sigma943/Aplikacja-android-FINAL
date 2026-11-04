@@ -1,5 +1,5 @@
 import {createGtfsRuntime} from './gtfs-runtime';
-import {PKS_GTFS_URL,indexPksGtfs,pksGtfsCovers,type PksGtfsFeed} from './pks-gtfs';
+import {PKS_GTFS_URL,indexPksGtfs,pksGtfsCovers,pksGtfsTerminalStopIds,type PksGtfsFeed} from './pks-gtfs';
 import {warsawDateIso} from './transit-time';
 import bundledStops from '@/public/data/pks-stop-points.json';
 import bundledLines from '@/public/data/pks-stop-lines.json';
@@ -16,6 +16,13 @@ export function pksGtfsIndex(stops?:StopsMap){
  return index;
 }
 export async function withPksGtfsStops(stops:StopsMap){await loadPksGtfs();return pksGtfsIndex(stops)?.stops??stops;}
+export function pksGtfsTerminalLines(areaId?:string,code?:string):string[]|null{
+ const feed=runtime.peek(),indexed=pksGtfsIndex();if(!feed||!indexed)return null;
+ const ids=pksGtfsTerminalStopIds(feed,areaId,code);if(ids===null)return null;
+ const selected=new Set(ids),lines=new Set<string>();
+ for(const [key,stops] of Object.entries(indexed.byStop))if(stops.some(id=>selected.has(id)))(indexed.lines[key]||[]).forEach(line=>lines.add(line));
+ return [...lines].sort((a,b)=>a.localeCompare(b,'pl',{numeric:true}));
+}
 export function pksGtfsLines(){
  const indexed=pksGtfsIndex(),feed=runtime.peek();if(!indexed||!feed)return null;
  if(linesIndex===indexed&&linesResult)return linesResult;
