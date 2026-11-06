@@ -1,7 +1,7 @@
 'use client';
 import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 
-import {displayStopCatalogLabel} from '@/lib/stop-label';
+import {formatBusDelayMinutes} from '@/lib/bus-punctuality';
 import { Clock, ChevronUp } from 'lucide-react';
 import { motion, type MotionStyle } from 'motion/react';
 import LandscapeChrome from './LandscapeChrome';
@@ -23,7 +23,6 @@ export interface MapStopDeparture {
 interface Props {
   preview?:boolean;
   name: string;
-  code?: string;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   transparent: boolean;
@@ -33,7 +32,7 @@ interface Props {
   departures: MapStopDeparture[];
 }
 
-export default function MapStopSheet({ preview=false,name, code, expanded, onExpandedChange, transparent, dark, loading, error, departures }: Props) {
+export default function MapStopSheet({ preview=false,name, expanded, onExpandedChange, transparent, dark, loading, error, departures }: Props) {
   const reduceMotion = useReducedMotion();
   const next = departures[0];
   const visibleError=departures.length&&error?error.split('MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.').join('').trim()||null:error;
@@ -45,7 +44,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
       aria-label="Przystanek na mapie"
       data-map-stop-sheet={preview?undefined:true}
       data-map-detail-kind="stop"
-      data-cosmic-view={preview?undefined:`map-stop:${name}:${code||''}`}
+      data-cosmic-view={preview?undefined:`map-stop:${name}`}
       data-expanded={expanded}
       data-glass={transparent ? 'on' : 'off'}
       data-ui-mode={dark ? 'dark' : 'light'}
@@ -54,7 +53,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
       exit={{ y: '100%', opacity: 0 }}
       transition={reduceMotion ? {duration: 0} : SHEET_SPRING}
       className="map-stop-sheet map-detail-shell absolute bottom-[calc(64px+var(--safe-bottom))] left-2 right-2 z-40 flex min-h-0 flex-col overflow-hidden rounded-[24px] border md:bottom-4 md:left-4 md:right-auto md:w-[380px]"
-      style={{height:drag.height,'--map-cosmos-crop':mapCosmicCrop(`stop:${name}:${code||''}`)} as MotionStyle}
+      style={{height:drag.height,'--map-cosmos-crop':mapCosmicCrop(`stop:${name}`)} as MotionStyle}
     >
       <LandscapeChrome variant="panel"/>
       <motion.button
@@ -67,7 +66,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
       >
         <span className="flex items-center gap-3">
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-base font-bold tracking-tight">{displayStopCatalogLabel(name,code)}</span>
+            <span className="block truncate text-base font-bold tracking-tight">{name}</span>
             <span className="map-detail-muted mt-1 block truncate text-xs">
               {loading ? 'Pobieranie odjazdów…' : next ? `${next.line} · ${next.direction} · ${next.time}` : 'Odjazdy z tego przystanku'}
             </span>
@@ -87,7 +86,7 @@ export default function MapStopSheet({ preview=false,name, code, expanded, onExp
                 <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{departure.direction}</span>
                 <span className={`relative flex shrink-0 flex-col items-end ${departure.delayMinutes !== 0 ? 'pb-[23px]' : ''}`}>
                   <span className="text-sm font-bold tabular-nums">{departure.time}</span>
-                  {departure.delayMinutes !== 0 && <span className={`absolute bottom-0 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${departure.delayMinutes > 0 ? 'bg-rose-500/15 text-rose-400' : 'bg-emerald-500/15 text-emerald-400'}`}>{departure.delayMinutes > 0 ? '+' : ''}{departure.delayMinutes} min</span>}
+                  {departure.delayMinutes !== 0 && <span className={`absolute bottom-0 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${departure.delayMinutes > 0 ? 'bg-rose-500/15 text-rose-400' : 'bg-emerald-500/15 text-emerald-400'}`}>{formatBusDelayMinutes(departure.delayMinutes)} min</span>}
                 </span>
               </div>
             </div>

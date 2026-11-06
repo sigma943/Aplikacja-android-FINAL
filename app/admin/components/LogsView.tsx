@@ -458,7 +458,7 @@ function LogCard({ log }: { log: Log }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3 mb-1">
           <h3 className="text-sm sm:text-base font-bold text-slate-200 group-hover:text-white transition-colors truncate tracking-tight">{log.title}</h3>
-          <div className={cn("text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg border shrink-0",
+          <div data-admin-badge={log.category === 'OPERATOR' ? 'purple' : undefined} className={cn("text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg border shrink-0",
             log.category === 'SYSTEM' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]"
           )}>
             {log.category === 'SYSTEM' ? 'Systemowe' : 'Administracyjne'}

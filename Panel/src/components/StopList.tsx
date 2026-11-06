@@ -1,7 +1,7 @@
 import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import CosmicFilterEffects from '@/components/CosmicFilterEffects';
 import {createStopSearchIndex,searchStops} from '@/lib/stop-search';
-import {displayStopCatalogLabel} from '@/lib/stop-label';
+import {stopCatalogDisplayLabel} from '@/lib/mpk-stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
 import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
@@ -209,6 +209,7 @@ export default function StopList({
   );
 
   const renderStopCard = (stop: Stop, index: number, full = false) => {
+    const displayName = stopCatalogDisplayLabel(stop);
     const isBus = stop.type === 'bus';
     const singleProviderId = stop.carriers.length === 1 ? stop.carriers[0].id : undefined;
     const pksLineSet = new Set(String(stop.providerStopIds?.pksLines || '').split(',').map((line) => line.trim()).filter(Boolean));
@@ -220,7 +221,7 @@ export default function StopList({
         transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 230, damping: 30}}}
         role="button"
         tabIndex={0}
-        aria-label={`Rozkład: ${displayStopCatalogLabel(stop.name,stop.code)}`}
+        aria-label={`Rozkład: ${displayName}`}
         onKeyDown={event => {
           if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
           event.preventDefault();
@@ -247,7 +248,7 @@ export default function StopList({
 
         <div className="min-w-0 flex-1 pr-2">
           <h3 className={`truncate text-[15px] font-semibold transition-colors lg:text-[17px] ${cardTitleClass}`}>
-            {displayStopCatalogLabel(stop.name,stop.code)}
+            {displayName}
           </h3>
           <div className="mt-1 flex flex-col gap-1">
             <div className={`flex min-w-0 flex-wrap items-center text-[12px] font-semibold ${secondaryTextClass}`}>

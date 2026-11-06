@@ -1,8 +1,6 @@
 'use client';
 import './stop-markers.css';
-import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
-
-import {displayStopCatalogLabel} from '@/lib/stop-label';
+import {stopCatalogDisplayLabel} from '@/lib/mpk-stop-label';
 import {readBusCoordinates} from '@/lib/bus-coordinates';
 import {platformPosition,stopPlatformRevision} from '@/lib/stop-platform-position';
 
@@ -34,7 +32,7 @@ function SelectedStopPin({id,catalogId,point,stops,color,rail=false,alignToCatal
 const CatalogStopMarker=memo(function CatalogStopMarker({stop,selected,color,onSelect,platformRevision}:{stop:Stop;selected:boolean;color:string;platformRevision:number;onSelect?:(stop:Stop)=>void}){
   const position=useMemo<[number,number]>(()=>{const point=platformPosition(stop)!;return [point.lat,point.lon];},[stop,platformRevision]);
   const icon=useMemo(()=>L.divIcon({className:'map-catalog-stop',html:mapStopIconHtml(color,selected),iconSize:[40,40],iconAnchor:[20,20]}),[color,selected]);
-  const label=displayStopCatalogLabel(mpkCatalogDisplayName(stop),stop.code);
+  const label=stopCatalogDisplayLabel(stop);
   const handlers=useMemo(()=>({click:(event:L.LeafletMouseEvent)=>{L.DomEvent.stopPropagation(event.originalEvent);onSelect?.({...stop,...platformPosition(stop)});}}),[stop,onSelect]);
   return <Marker position={position} title={label} alt={label} icon={icon} zIndexOffset={selected?4500:-500} eventHandlers={handlers}/>;
 });

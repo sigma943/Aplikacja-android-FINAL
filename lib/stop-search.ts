@@ -1,5 +1,5 @@
 import type {Stop} from '@/Panel/src/types';
-import {displayStopCatalogLabel} from './stop-label';
+import {stopCatalogDisplayLabel} from './mpk-stop-label';
 import {STOP_SEARCH_ALIASES} from './stop-search-aliases';
 
 const ABBREVIATIONS=['da','pks','pkp','skr','osp','psk','sp','mpgk','uw'];
@@ -67,7 +67,7 @@ function descriptorForms(text:string):string[]{
 export function createStopSearchIndex<T extends Stop>(stops:readonly T[],aliases:StopSearchAliases=STOP_SEARCH_ALIASES):StopSearchIndex<T>{
   const owners=new Map<string,number[]>();
   const entries=stops.map((stop,order)=>{
-    const raw=stop.name,official=normalizeStopSearch(raw),displayText=displayStopCatalogLabel(raw,stop.code),display=displayText===raw?official:normalizeStopSearch(displayText);
+    const raw=stop.name,official=normalizeStopSearch(raw),displayText=stopCatalogDisplayLabel(stop),display=displayText===raw?official:normalizeStopSearch(displayText);
     const forms:Form[]=[],seen=new Set<string>();
     const add=(text:string,alias:boolean)=>{if(!text||seen.has(text))return;seen.add(text);forms.push({text,tokens:tokens(text),alias});};
     add(official,false);add(display,false);

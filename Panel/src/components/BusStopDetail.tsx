@@ -1,5 +1,6 @@
 import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
-import {displayStopCatalogLabel} from '@/lib/stop-label';
+import {formatBusDelayMinutes} from '@/lib/bus-punctuality';
+import {stopCatalogDisplayLabel} from '@/lib/mpk-stop-label';
 import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
@@ -215,7 +216,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
 
           {/* Stop Info */}
           <div className="relative z-10">
-            <h1 className={`text-xl sm:text-2xl lg:text-3xl font-semibold mb-2 tracking-tight leading-tight break-words ${headingTextClass}`}>{displayStopCatalogLabel(stop.name,stop.code)}</h1>
+            <h1 className={`text-xl sm:text-2xl lg:text-3xl font-semibold mb-2 tracking-tight leading-tight break-words ${headingTextClass}`}>{stopCatalogDisplayLabel(stop)}</h1>
 
             <div className="flex flex-wrap gap-1">
               {[...stop.carriers].sort((a, b) => {
@@ -398,7 +399,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-400/35'
                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/35'
                              }`}>
-                               {(dep.delayEstimated || dep.realtimeSource === 'position-estimate') ? 'szac. ' : ''}{Number(dep.delayMins) > 0 ? `+${Math.abs(Number(dep.delayMins))} min` : `-${Math.abs(Number(dep.delayMins))} min`}
+                               {(dep.delayEstimated || dep.realtimeSource === 'position-estimate') ? 'szac. ' : ''}{formatBusDelayMinutes(Number(dep.delayMins))} min
                              </span>
                            )}
                         </div>

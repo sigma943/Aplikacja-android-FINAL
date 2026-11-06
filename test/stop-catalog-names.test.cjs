@@ -1,9 +1,9 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),load=require('./load-ts.cjs');
 const {buildStopsCatalog}=load('lib/stops-catalog.ts',{'@/lib/pks-client':{}});
-const {mpkCatalogDisplayName}=load('lib/mpk-stop-label.ts');
+const {stopCatalogDisplayLabel}=load('lib/mpk-stop-label.ts');
 const pks=require('../public/data/pks-stop-points.json').stops;
 const mpk=require('../public/data/mpk-stop-points.json').stops;
-test('Matuszczaka platforms retain shared PKS/MPK identities and PKS list names; MPK names belong only to the map',()=>{
+test('Matuszczaka platforms retain shared PKS/MPK identities while both surfaces display the MPK name',()=>{
  const inputPks=['3794','3795'].map(id=>({...pks[id],id,name:pks[id].n+' '+pks[id].code,lines:['108']}));
  const inputMpk=mpk.filter(s=>['213','256'].includes(String(s.stop_id))).map(s=>({id:String(s.stop_id),name:s.stop_name,lat:Number(s.stop_lat),lon:Number(s.stop_lon),lines:s.lines.split(',').map(s=>s.trim())}));
  const before=JSON.stringify([inputPks,inputMpk]);
@@ -15,9 +15,14 @@ test('Matuszczaka platforms retain shared PKS/MPK identities and PKS list names;
   assert.equal(stop.providerStopIds.mpk_rzeszow,mpkId);
   assert.equal(stop.name,pks[pksId].n+' '+code);
   assert.deepEqual(stop.carriers.map(c=>c.id),['pks','mpk']);assert.ok(stop.lines.includes('108')&&stop.lines.includes('30'));
-  assert.equal(mpkCatalogDisplayName(stop),'Rzeszów Podkarpacka / Matuszczaka '+code);
-  assert.deepEqual(map.find(s=>s.id===stop.id).providerStopIds,stop.providerStopIds);
+  assert.equal(stopCatalogDisplayLabel(stop),'Rzeszów Podkarpacka / Matuszczaka '+code);
+  const mapStop=map.find(s=>s.id===stop.id);
+  assert.deepEqual(mapStop.providerStopIds,stop.providerStopIds);
+  assert.equal(stopCatalogDisplayLabel(mapStop),stopCatalogDisplayLabel(stop));
  }
+ const {createStopSearchIndex,searchStops}=load('lib/stop-search.ts');
+ const index=createStopSearchIndex(list);
+ assert.equal(searchStops(index,'Podkarpacka Matuszczaka 03')[0].id,'3795');
  assert.equal(JSON.stringify([inputPks,inputMpk]),before);
  const standalone=buildStopsCatalog([],inputMpk,[],'mpk-only-list-name');
  assert.equal(standalone.length,2);assert.ok(standalone.every(s=>s.name.startsWith('Rzeszów Podkarpacka / Matuszczaka')));
@@ -25,6 +30,7 @@ test('Matuszczaka platforms retain shared PKS/MPK identities and PKS list names;
 function client(cached,request,writes){return load('lib/providers/mpk-departures-client.ts',{
  '../../public/data/mpk-stop-points.json':{stops:mpk.filter(s=>String(s.stop_id)==='256')},
  '../transport/http':{requestJson:request},
+ '../mpk-gtfs-runtime':{withMpkGtfsStops:async stops=>stops},
  '../transport/cache':{CLIENT_STOP_CACHE_TTL_MS:900000,readPersistentClientCache:()=>cached,writePersistentClientCache:(_,rows)=>writes.push(rows)},
 });}
 const rows=mpk.filter(s=>String(s.stop_id)==='256');
@@ -41,7 +47,7 @@ test('failed or empty MPK API uses the bundled API snapshot without marking it a
  }}finally{global.fetch=original;}
 });
 test('background API refresh notifies both open catalog views',async()=>{
- const original=global.window;const events=[];global.window={dispatchEvent:event=>events.push(event.type)};
+ const original=global.window;const events=[];global.window={addEventListener(){},dispatchEvent:event=>events.push(event.type)};
  try{
   const writes=[],fresh=[{...rows[0],stop_name:'Nowa nazwa z API'}];
   const api=client({savedAt:1,data:rows},async()=>fresh,writes);

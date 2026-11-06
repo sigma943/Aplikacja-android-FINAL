@@ -3,7 +3,7 @@
 import L from 'leaflet';
 
 import {busFrontSvg} from '@/lib/bus-icon-svg';
-import {busDelayMinutes} from '@/lib/bus-punctuality';
+import {busDelayMinutes,formatBusDelayMinutes} from '@/lib/bus-punctuality';
 
 import {type Vehicle} from '@/lib/transport/vehicle';
 
@@ -116,7 +116,7 @@ const createBusIcon = (
     const delayPositionClass = delaySec > 0 ? '-top-[18px] left-[34px]' : '-top-4 -right-3';
     badgeHtml = `
       <div class="absolute ${delayPositionClass} px-1.5 py-0.5 rounded ${delayInfo.bg} ${delayInfo.class} text-[9px] font-black border border-white ${isHighVolume?'':'shadow-sm'} z-50 whitespace-nowrap">
-        ${delaySec > 0 ? '-' : '+'}${Math.abs(busDelayMinutes(delaySec))}
+        ${formatBusDelayMinutes(busDelayMinutes(delaySec))}
       </div>
     `;
   }

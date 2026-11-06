@@ -40,7 +40,7 @@ import {Capacitor} from '@capacitor/core';
 import {Bus, Search, RefreshCw, X, Navigation, Map as MapIcon, Settings, CloudOff, Shield, Check} from 'lucide-react';
 import {motion, AnimatePresence} from 'motion/react';
 import type {Vehicle} from '@/components/BusMap';
-import {mpkCatalogDisplayName} from '@/lib/mpk-stop-label';
+import {stopCatalogDisplayLabel} from '@/lib/mpk-stop-label';
 import OptionsSheet from '@/components/OptionsSheet';
 // Keep selection and its core stop sheet in the same render, including cold starts.
 import MapStopSheet from '@/components/MapStopSheet';
@@ -1391,8 +1391,7 @@ export default function Home() {
                 {activeTab === 'map' && selectedStopId && !selectedBus && (
                   <MapStopSheet
                     key="stop-panel-map"
-                    name={mapStopSource ? mpkCatalogDisplayName(mapStopSource) : selectedExternalStop?.name || stopsList.find(s => s.id === selectedStopId)?.name || 'Przystanek'}
-                    code={selectedExternalStop?.code || stopsList.find(s => s.id === selectedStopId)?.code}
+                    name={stopCatalogDisplayLabel(mapStopSource)}
                     expanded={isStopPanelExpanded}
                     onExpandedChange={setIsStopPanelExpanded}
                     transparent={transparentUI}
