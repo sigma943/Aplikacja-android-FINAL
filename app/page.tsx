@@ -138,8 +138,9 @@ export default function Home() {
   const busDrag=useSheetGesture(isBusPanelExpanded,setIsBusPanelExpanded,busSizes.compact,busSizes.full);
   // The lazy panel reports its header after it actually mounts, including the
   // first open while its chunk is still loading.
-  const onBusHeaderSize=useCallback((compact:number)=>{
-    const full=Math.max(compact,innerWidth>=768?innerHeight*.85:innerHeight*.60-32);
+  const onBusHeaderSize=useCallback((compact:number,contentHeight?:number)=>{
+    const limit=innerWidth>=768?innerHeight*.85:innerHeight*.60-32;
+    const full=Math.max(compact,Math.min(limit,contentHeight??limit));
     setBusSizes(current=>Math.abs(current.compact-compact)<1&&Math.abs(current.full-full)<1?current:{compact,full});
   },[]);
 

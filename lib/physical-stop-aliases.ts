@@ -19,6 +19,14 @@ export function mergePhysicalStopAliases(stops:Stop[]):Stop[]{
   const componentProviders=new Map(stops.map(s=>[s,providers(s)]));
   const componentPoints=new Map(stops.map(s=>[s,[s]]));
   const disjoint=(a:Stop,b:Stop)=>![...componentProviders.get(root(a))!].some(p=>componentProviders.get(root(b))!.has(p));
+  // The operators use different platform numbers for this verified shared stop.
+  const pksMoniuszki=stops.find(stop=>stop.providerStopIds?.pks?.split(',').includes('11462'));
+  const mpkMoniuszki=stops.find(stop=>stop.providerStopIds?.mpk_rzeszow?.split(',').includes('186'));
+  if(pksMoniuszki&&mpkMoniuszki&&disjoint(pksMoniuszki,mpkMoniuszki)){
+    parent.set(mpkMoniuszki,pksMoniuszki);
+    componentProviders.set(pksMoniuszki,new Set([...providers(pksMoniuszki),...providers(mpkMoniuszki)]));
+    componentPoints.set(pksMoniuszki,[pksMoniuszki,mpkMoniuszki]);
+  }
   for(const [key,bucket] of groups){
     if(key.split(' ').length<2||bucket.length<2||bucket.some(s=>/\bd\s*\.?\s*a\b|\bdworzec\b|\bstanowisko\b/i.test(normalizeStopMergeName(s.name))))continue;
     const nearest=(origin:Stop,targetProvider:string)=>{

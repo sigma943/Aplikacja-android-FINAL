@@ -18,7 +18,7 @@ import {displayStopLabel} from '@/lib/stop-label';
 
 interface BusDetailsPanelProps {
   preview?:boolean;
-  onHeaderSize?:(height:number)=>void;
+  onHeaderSize?:(height:number,contentHeight?:number)=>void;
   selectedBusTripFinished?:boolean;
   mpkStopNames?:ReadonlyMap<string,string>;
   selectedBus: Vehicle;
@@ -52,6 +52,11 @@ interface BusDetailsPanelProps {
 
 export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
   const reducedMotion=useJourneyReducedMotion();
+  const metricsRef=useRef<HTMLDivElement>(null);
+  const compactFullHeight=useRef<number|undefined>(undefined);
+  const fitMetrics=!selectedVehicleIsTrain&&['','?','---'].includes(selectedBus.routeShortName?.trim()??'')
+    &&!selectedBusTripFinished&&!selectedBusScheduleLoading&&selectedBusDisplayedStops.length===0;
+  const showDetails=isBusPanelExpanded||busDrag.dragging;
   const carrier=selectedBus.provider==='mpk_rzeszow'?'mpk':selectedBus.provider==='marcel'?'marcel':selectedVehicleIsTrain?'rail':'pks';
   const showsFutureCourse=selectedBus.status==='break'&&Number.isFinite(selectedBus.nextTripStartAtMs)&&selectedBus.nextTripStartAtMs!>Date.now();
 
@@ -61,10 +66,23 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
   useLayoutEffect(()=>{initialSync.current();},[]);
   useLayoutEffect(()=>{
     const header=busHeaderRef.current;if(!header||!onHeaderSize)return;
-    const measure=()=>onHeaderSize(header.offsetHeight);
-    const observer=new ResizeObserver(measure);observer.observe(header);window.addEventListener('resize',measure);measure();
+    const metrics=fitMetrics?metricsRef.current:null;
+    const measure=()=>{
+      const body=metrics?.parentElement;
+      if(!body||!metrics){onHeaderSize(header.offsetHeight,fitMetrics?compactFullHeight.current:undefined);return;}
+      const {marginTop,paddingTop,paddingBottom}=getComputedStyle(body);
+      const shell=header.parentElement!;
+      const {borderTopWidth,borderBottomWidth}=getComputedStyle(shell);
+      const detailsHeight=metrics.offsetHeight+parseFloat(marginTop)+parseFloat(paddingTop)+parseFloat(paddingBottom);
+      compactFullHeight.current=header.offsetHeight+detailsHeight+parseFloat(borderTopWidth)+parseFloat(borderBottomWidth);
+      onHeaderSize(header.offsetHeight,compactFullHeight.current);
+    };
+    const observer=new ResizeObserver(measure);
+    observer.observe(header);
+    if(metrics)observer.observe(metrics);
+    window.addEventListener('resize',measure);measure();
     return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
-  },[busHeaderRef,onHeaderSize]);
+  },[busHeaderRef,onHeaderSize,fitMetrics,showDetails]);
   return (
     <motion.div
                   key="bus-panel-map"
@@ -149,7 +167,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   </motion.div>
 
                   <AnimatePresence initial={false}>
-                    {(isBusPanelExpanded || busDrag.dragging) && (
+                    {showDetails && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
@@ -158,7 +176,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                         className="flex flex-1 flex-col min-h-0 overflow-hidden"
                       >
                         <div className={`p-2.5 md:p-4 flex min-h-0 flex-1 flex-col gap-2.5 md:gap-4 overflow-y-auto mt-1.5 md:mt-2 rounded-t-xl md:rounded-t-2xl relative z-10 ${mapDetailContent}`}>
-                        <div data-vehicle-metrics className={`grid ${selectedBus.provider==='marcel'?'grid-cols-1':'grid-cols-2'} gap-2 md:gap-4 shrink-0`}>
+                        <div ref={metricsRef} data-vehicle-metrics className={`grid ${selectedBus.provider==='marcel'?'grid-cols-1':'grid-cols-2'} gap-2 md:gap-4 shrink-0`}>
                         {selectedBus.provider!=='marcel' && (
                         <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard} ${selectedBusIsWaitingForDeparture ? 'col-span-2' : ''}`}>
                            <div className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5 md:mb-1 ${textSub}`}>

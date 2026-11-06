@@ -46,6 +46,15 @@ test('actual Lisa-Kuli Moniuszki PKS 04 and MPK 02 share one identity and keep d
     assert.equal(map.find(s=>s.providerStopIds.pks==='11461').providerStopIds.mpk_rzeszow,undefined);
   }
 });
+test('verified Moniuszki IDs still share one pin with shifted live coordinates',()=>{
+  const pks=[{...pksAsset['11462'],id:'11462',name:'Rzeszów, Lisa Kuli/Moniuszki 04',lines:['251']}];
+  const mpk=[{...mpkAsset['186'],id:'186',lat:mpkAsset['186'].lat+0.0003,lines:['18']}];
+  const map=buildStopsCatalog(pks,mpk,[],'moniuszki-shifted-live-coordinates',true);
+  assert.equal(map.length,1);
+  assert.equal(map[0].providerStopIds.pks,'11462');
+  assert.equal(map[0].providerStopIds.mpk_rzeszow,'186');
+  assert.deepEqual(map[0].lines,['18','251']);
+});
 test('different operator codes require mutual unique neighbours and never collapse opposite platforms',()=>{
   const pks=[{id:'p1',name:'Rzeszów Testowa / Zielona 04',lat:50.04,lon:22,lines:[]},
     {id:'p2',name:'Rzeszów Testowa / Zielona 03',lat:50.04007,lon:22,lines:[]}];
