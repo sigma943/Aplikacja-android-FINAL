@@ -185,9 +185,8 @@ export function OperatorsView({
 
         {globalSettingsSectionVisible && (
         <button 
-          data-admin-solid-action
           onClick={() => setShowGlobalPermissions(true)}
-          className="ui-accent-solid ui-accent-focus w-full flex items-center justify-between p-5 border rounded-2xl transition-all group mt-8 cursor-pointer active:scale-[0.98]"
+          className="pks-personal-card ui-accent-focus bg-[#111623] hover:bg-white/[0.02] border-white/5 hover:border-white/10 shadow-inner w-full flex items-center justify-between p-5 border rounded-2xl transition-all group mt-8 cursor-pointer active:scale-[0.98]"
         >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl border border-current/20 flex items-center justify-center group-hover:scale-110 transition-transform">

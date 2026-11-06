@@ -55,6 +55,22 @@ test('verified Moniuszki IDs still share one pin with shifted live coordinates',
   assert.equal(map[0].providerStopIds.mpk_rzeszow,'186');
   assert.deepEqual(map[0].lines,['18','251']);
 });
+test('Moniuszki map merges the PKS GTFS platform with the API and MPK platforms',()=>{
+  const {gunzipSync}=require('node:zlib'),{readFileSync}=require('node:fs');
+  const feed=JSON.parse(gunzipSync(readFileSync('public/data/journeys/pks.json.gz')));
+  const {indexPksGtfs}=load('lib/pks-gtfs.ts');
+  const point=pksAsset['11462'];
+  const indexed=indexPksGtfs({...feed,patterns:[[ ['1788',0,0,0] ]],trips:[]},{'11462':point});
+  assert.match(indexed.stops['gtfs:1788'].n,/Moniuszki 02/);
+  const pks=Object.entries(indexed.stops).map(([id,stop])=>({...stop,id,name:stop.n,lines:indexed.lines[id]||[]}));
+  const mpk=[{...mpkAsset['186'],id:'186',lines:['18']}];
+  const map=buildStopsCatalog(pks,mpk,[],'moniuszki-gtfs-api-mpk',true);
+  assert.equal(map.length,1);
+  assert.equal(map[0].id,'11462');
+  assert.deepEqual(new Set(map[0].pksStopPoints.map(p=>p.id)),new Set(['11462','gtfs:1788']));
+  assert.equal(map[0].providerStopIds.mpk_rzeszow,'186');
+  assert.equal(map[0].lat,mpkAsset['186'].lat);
+});
 test('different operator codes require mutual unique neighbours and never collapse opposite platforms',()=>{
   const pks=[{id:'p1',name:'Rzeszów Testowa / Zielona 04',lat:50.04,lon:22,lines:[]},
     {id:'p2',name:'Rzeszów Testowa / Zielona 03',lat:50.04007,lon:22,lines:[]}];

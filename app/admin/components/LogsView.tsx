@@ -421,9 +421,8 @@ export function LogsView({
 
         {visibleCount < filteredLogs.length && (
           <button 
-            data-admin-solid-action
             onClick={() => setVisibleCount(c => c + 5)}
-            className="w-full text-center py-5 ui-accent-solid ui-accent-focus border rounded-2xl text-xs sm:text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 mt-6 shadow-xl active:scale-[0.98] cursor-pointer"
+            className="w-full text-center py-5 pks-personal-card ui-accent-focus bg-[#111623] hover:bg-white/[0.02] border-white/5 hover:border-white/10 shadow-inner border rounded-2xl text-xs sm:text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 mt-6 active:scale-[0.98] cursor-pointer"
           >
             Pokaż więcej wpisów ({filteredLogs.length - visibleCount}) <ChevronDown size={18} className="translate-y-0.5" />
           </button>
