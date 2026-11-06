@@ -4,6 +4,8 @@ import {normalizeJourneyFeed} from './journey-feed-validation';
 import {sameRouteStopName} from './reconcile-route-stops';
 import {warsawTimeMs} from './transit-time';
 import type {StopsMap} from './transport/types';
+import {correctPksStop} from './pks-stop-corrections';
+import {readBusCoordinates} from './bus-coordinates';
 import {rzeszowTerminalPlatform,displayStopCatalogLabel} from './stop-label';
 
 export type PksGtfsFeed=TimetableFeed&{updatedAt?:string;revision?:string;headsigns?:Record<string,string>;managedLines?:string[]};
@@ -73,10 +75,23 @@ const codeKey=(value:string)=>value.replace(/^0+(?=\d)/,'').toLowerCase();
 const stopName=(point:StopsMap[string])=>point.code&&!point.n.toLowerCase().endsWith(' '+point.code.toLowerCase())?point.n+' '+point.code:point.n;
 const comparableName=(name:string)=>name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l')
  .replace(/[()]/g,' ').replace(/^rzeszow[, ]+/,'').replace(/\bpodkar(?:p)?\./g,'podkarpacka ').replace(/\btowarn\.*\b/g,'towarnickiego').replace(/\bmochn\./g,'mochnackiego ');
+// Exact numbered identities can correct a displaced EINFO point. Keep this
+// stricter than the nearby name matcher and require uniqueness in both feeds.
+function numberedIdentity(name:string){
+ const suffix=code(name);if(!suffix)return '';
+ return comparableName(name).replace(/\bglog\./g,'glogowska ').replace(/\bzad\./g,'zadwor ')
+  .replace(/\bpetl\./g,'petla ').replace(/[^a-z0-9]+/g,' ').replace(/\bnz\b/g,' ')
+  .trim().replace(/\s+/g,' ').replace(/\s\d+[a-z]?$/, ' '+codeKey(suffix));
+}
 export function indexPksGtfs(feed:PksGtfsFeed,base:StopsMap){
- const stops:StopsMap=Object.fromEntries(Object.entries(base).filter(([id])=>!id.startsWith('gtfs:'))),byStop:Record<string,string[]>={},lines:Record<string,string[]>={};
+ const stops:StopsMap=Object.fromEntries(Object.entries(base).filter(([id])=>!id.startsWith('gtfs:')).map(([id,stop])=>[id,correctPksStop(stop,id)])),byStop:Record<string,string[]>={},lines:Record<string,string[]>={};
  const known=Object.entries(stops);
  const used=new Set(feed.patterns.flatMap(p=>p.map(c=>c[0])));
+ const apiByIdentity=new Map<string,string[]>(),gtfsByIdentity=new Map<string,string[]>();
+ for(const [index,points] of [[apiByIdentity,known.map(([id,s])=>[id,stopName(s)] as const)],
+   [gtfsByIdentity,[...used].flatMap(id=>feed.stops[id]?[[id,feed.stops[id].name] as const]:[])]] as const){
+  for(const [id,name] of points){const identity=numberedIdentity(name);if(identity)index.set(identity,[...(index.get(identity)||[]),id]);}
+ }
  for(const id of used){
   const point=feed.stops[id];if(!point)continue;
   const suffix=code(point.name);
@@ -92,7 +107,14 @@ export function indexPksGtfs(feed:PksGtfsFeed,base:StopsMap){
   const platform=rzeszowTerminalPlatform(point.name);
   const terminal=platform===null?undefined:known.find(([,s])=>s.areaId==='1937'&&codeKey(s.code||'')===codeKey(platform))?.[0]||
    (platform==='4'?'3720':'terminal:rzeszow-da:'+platform);
-  const key=terminal||matched||'gtfs:'+id;
+  const identity=numberedIdentity(point.name),samePlatform=apiByIdentity.get(identity);
+  const exactId=gtfsByIdentity.get(identity)?.length===1&&samePlatform?.length===1?samePlatform[0]:undefined;
+  const origin=exactId?readBusCoordinates(stops[exactId].lat,stops[exactId].lon):null;
+  const surveyed=readBusCoordinates(point.lat,point.lon);
+  const distance=origin&&surveyed?Math.hypot(origin.lat-surveyed.lat,(origin.lon-surveyed.lon)*.64)*111195:Infinity;
+  const exact=distance<=1200?exactId:undefined;
+  const key=terminal||exact||matched||'gtfs:'+id;
+  if(!terminal&&exact&&surveyed&&distance>120)stops[key]={...stops[key],...surveyed};
   if(!stops[key])stops[key]={n:platform===null?point.name:displayStopCatalogLabel(point.name,platform),lat:point.lat,lon:point.lon,areaId:platform===null?'gtfs:'+id:'1937',code:platform??(suffix||'1')};
   (byStop[key]??=[]).push(id);lines[key]=[];
  }

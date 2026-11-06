@@ -1,13 +1,13 @@
-import type {Departure} from '@/Panel/src/types';
+import type {Departure,Stop} from '@/Panel/src/types';
 import type {Vehicle} from '@/components/BusMap';
 import type {MapStopDeparture} from '@/components/MapStopSheet';
-import {departureFromLiveVehicle} from './vehicle-stop-timing';
+import {stopDeparturesWithLiveVehicles} from './vehicle-stop-timing';
 import {departureCountdown,departureIsPast} from './departure-display';
 import {warsawDateIso} from './transit-time';
 const dayFormatter=new Intl.DateTimeFormat('pl-PL',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Warsaw'});
-export function liveMapStopDepartures(rows:Departure[],vehicles:Vehicle[]):Departure[]{
+export function liveMapStopDepartures(rows:Departure[],vehicles:Vehicle[],stop?:Stop):Departure[]{
   const unique=new Map<string,Departure>();
-  rows.forEach(row=>unique.set(`${row.carrier?.id}:${row.id}`,departureFromLiveVehicle(row,vehicles)));
+  stopDeparturesWithLiveVehicles(rows,vehicles,stop).forEach(row=>unique.set(`${row.carrier?.id}:${row.id}`,row));
   return [...unique.values()];
 }
 

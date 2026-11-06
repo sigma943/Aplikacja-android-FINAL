@@ -1,4 +1,4 @@
-import type {Departure} from '@/Panel/src/types';
+import type {Departure,Stop} from '@/Panel/src/types';
 import type {Vehicle,StopSchedule} from '@/components/BusMap';
 import {transitTimestamp} from './bus-operating-state';
 import {warsawClock,warsawDateIso} from './transit-time';
@@ -67,4 +67,37 @@ export function upcomingTimedVehicleStops(vehicle:Vehicle,nowMs:number,routeGeom
     return remainingGpsBusStops(routeGeometry?.length?{...vehicle,routeGeometry}:vehicle,orderedVehicleStops(timedVehicleStops(vehicle)),nowMs);
   }
   return upcomingVehicleStops(timedVehicleStops(vehicle),nowMs,vehicle.lastStopId);
+}
+
+/** Use only explicitly reported upcoming PKS calls when a board has no row. */
+export function stopDeparturesWithLiveVehicles(rows:Departure[],vehicles:Vehicle[],stop?:Stop,now=Date.now()):Departure[]{
+  const departures=rows.map(row=>departureFromLiveVehicle(row,vehicles));
+  if(!stop)return departures;
+  const ids=new Set((stop.pksStopPoints||[]).map(point=>point.id));
+  for(const id of (stop.providerStopIds?.pks||'').split(','))if(id.trim())ids.add(id.trim());
+  if(!ids.size)return departures;
+  const added=new Set<string>();
+  for(const vehicle of vehicles){
+    const observed=transitTimestamp(vehicle.lastSignalTime);
+    if(vehicle.provider!=='pks'||vehicle.status!=='active'||vehicle.isHistorical||!vehicle.routeShortName||
+      vehicle.routeShortName==='?'||vehicle.journeyUpdate?.status==='canceled'||!Number.isFinite(observed)||
+      observed>now+5000||now-observed>120_000)continue;
+    for(const call of vehicle.liveNextStops||[]){
+      const stopId=String(call.id);
+      if(call.isPast||!ids.has(stopId)||vehicle.journeyUpdate?.stops?.some(update=>update.stopId===stopId&&update.skipped))continue;
+      const row=vehicleStopDeparture(vehicle,call),time=row.realAtMs??row.plannedAtMs;
+      if(time==null||time<now||time>now+3*3600_000)continue;
+      const alreadyListed=rows.some(existing=>{
+        if(existing.carrier?.id!=='pks'||existing.line!==row.line)return false;
+        const planned=existing.plannedAtMs??existing.realAtMs,expected=row.plannedAtMs??time;
+        return planned!=null&&Math.abs(planned-expected)<=60_000;
+      });
+      const id=`live:${vehicle.id}:${row.plannedAtMs??time}`;
+      if(alreadyListed||added.has(id))continue;
+      added.add(id);
+      departures.push({...row,id,vehicleId:vehicle.id,
+        carrier:{id:'pks',name:'PKS Rzeszów',colorClass:''},type:'departure',realtimeSource:'vehicle-feed',realtimeObservedAtMs:observed});
+    }
+  }
+  return departures;
 }

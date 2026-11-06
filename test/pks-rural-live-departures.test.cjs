@@ -40,3 +40,24 @@ test('ambiguous same-time rural courses do not supply an arbitrary identity',asy
   const [row]=await ruralBoard([22836,999]);
   assert.equal(row.journey_id,undefined);
 });
+
+test('a fresh confirmed call fills an empty stop board, but never the opposite side or a duplicate',()=>{
+  const {stopDeparturesWithLiveVehicles}=loadTs('lib/vehicle-stop-timing.ts');
+  const now=Date.parse('2026-11-06T14:36:00Z'),planned=now+180_000;
+  const stop={id:'1353',providerStopIds:{pks:'1353,gtfs:923'}};
+  const call={id:1353,name:'Medynia Głog. Zad. Pętl. 89',planned:new Date(planned).toISOString(),real:null};
+  const bus={id:'120',provider:'pks',operatorName:'PKS Rzeszów',routeShortName:'202',journeyId:811,
+    direction:'Medynia Głogowska, Pawilon',delay:0,status:'active',
+    lastSignalTime:new Date(now-25_000).toISOString(),liveNextStops:[call]};
+  const rows=stopDeparturesWithLiveVehicles([], [bus],stop,now);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].line,'202');
+  assert.equal(rows[0].realAtMs,planned);
+  assert.equal(rows[0].realtimeSource,'vehicle-feed');
+  assert.equal(loadTs('lib/map-stop-departures.ts').formatMapStopDepartures(rows,now)[0].time,'3 min');
+  assert.equal(stopDeparturesWithLiveVehicles(rows,[bus],stop,now).length,1);
+  assert.equal(stopDeparturesWithLiveVehicles([], [bus],{id:'1354',providerStopIds:{pks:'1354'}},now).length,0);
+  assert.equal(stopDeparturesWithLiveVehicles([], [bus],undefined,now).length,0);
+  assert.equal(stopDeparturesWithLiveVehicles([], [{...bus,lastSignalTime:new Date(now-121_000).toISOString()}],stop,now).length,0);
+  assert.equal(stopDeparturesWithLiveVehicles([], [{...bus,liveNextStops:[{...call,isPast:true}]}],stop,now).length,0);
+});

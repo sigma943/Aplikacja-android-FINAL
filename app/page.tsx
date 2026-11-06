@@ -347,7 +347,7 @@ export default function Home() {
   const mapStopActive=activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus;
   const mapToday=useStopDepartures(mapStopSource,0,warsawDateIso(),loadStopDepartures,mapStopActive);
   const mapTomorrow=useStopDepartures(mapStopSource,1,warsawDateIso(1),loadStopDepartures,mapStopActive);
-  const mapLiveDepartures=useMemo(()=>mapStopActive?liveMapStopDepartures([...mapToday.departures,...mapTomorrow.departures],vehicles):[],[mapToday.departures,mapTomorrow.departures,vehicles,mapStopActive]);
+  const mapLiveDepartures=useMemo(()=>mapStopActive?liveMapStopDepartures([...mapToday.departures,...mapTomorrow.departures],vehicles,mapStopSource):[],[mapToday.departures,mapTomorrow.departures,vehicles,mapStopSource,mapStopActive]);
   const mapDepartures=useMemo(()=>formatMapStopDepartures(mapLiveDepartures,now),[mapLiveDepartures,now]);
   const mapDepartureError=[...new Set([...mapToday.warnings,...mapTomorrow.warnings])].join(' ')||null;
 
@@ -1396,7 +1396,7 @@ export default function Home() {
                     onExpandedChange={setIsStopPanelExpanded}
                     transparent={transparentUI}
                     dark={isDark}
-                    loading={mapToday.isLoading && mapTomorrow.isLoading}
+                    loading={!mapDepartures.length && mapToday.isLoading && mapTomorrow.isLoading}
                     error={mapDepartureError}
                     departures={mapDepartures}
                   />

@@ -15,7 +15,7 @@ import { Stop, Departure } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLineStyle } from '../utils/lineStyles';
 import type { Vehicle } from '../../../components/BusMap';
-import { departureFromLiveVehicle } from '../../../lib/vehicle-stop-timing';
+import { stopDeparturesWithLiveVehicles } from '../../../lib/vehicle-stop-timing';
 
 interface BusStopDetailProps {
   stop: Stop;
@@ -82,9 +82,9 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
   const selectedDayIndex = Math.max(0,days.findIndex(d=>d.key===selectedDay));
   const selectedDateKey = warsawDateIso(selectedDayIndex);
   const {departures: scheduledDepartures,warnings,isLoading} = useStopDepartures(stop,selectedDayIndex,selectedDateKey,loadDepartures,active);
-  const departures = useMemo(() => scheduledDepartures
-    .map(departure => departureFromLiveVehicle(departure, vehicles))
-    .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles]);
+  const departures = useMemo(() => stopDeparturesWithLiveVehicles(scheduledDepartures, vehicles,
+    selectedDayIndex===0?stop:undefined)
+    .sort((a, b) => (a.realAtMs ?? a.plannedAtMs ?? 0) - (b.realAtMs ?? b.plannedAtMs ?? 0)), [scheduledDepartures, vehicles, stop, selectedDayIndex]);
   useEffect(()=>{if(active&&selectedDayIndex===0&&!isLoading&&(!warnings.length||departures.length))void syncStopWidgets(stop.id,departures,vehicles,warnings).catch(()=>{});},[stop.id,departures,vehicles,warnings,isLoading,active,selectedDayIndex]);
   const visibleWarnings = warnings.filter(warning => !departures.length || warning !== 'MPK: prognozy na żywo są niedostępne; pokazano dostępny rozkład.');
   const reduceMotion = useReducedMotion();
@@ -318,7 +318,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
              </div>
 
              <motion.div {...cosmicPanel('stop-departures')} data-cosmic-expanded={showAllDepartures} layout={!cosmos} className={`backdrop-blur-2xl rounded-[22px] border overflow-hidden ${departuresCardClass}`}>
-                {isLoading ? (
+                {isLoading && !displayedDepartures.length ? (
                   <div className="space-y-1.5 animate-pulse p-4">
                     {[1, 2, 3, 4].map((i) => (
                       <div key={i} className={`flex items-center justify-between p-3 rounded-xl border ${skeletonRowClass}`}>

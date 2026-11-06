@@ -271,8 +271,9 @@ function mapVehicle(
   const rawSpeed = Number(position.speed);
   const speed = computeObservedSpeedKmh(`pks:${vehicleId}`, lat, lon, Number.isNaN(signalMs) ? now : signalMs, rawSpeed);
   const destination = v.journey?.route?.description || v.journey?.route?.name || v.route_description || v.direction || 'W trasie';
-  const schedule = includeDetails ? buildSchedule(v.next_stop_points, stopsDict) : [];
-  const statusSchedule = includeDetails ? schedule : buildSchedule((v.next_stop_points || []).slice(0,1), {});
+  const nextStops = buildSchedule(v.next_stop_points, stopsDict);
+  const schedule = includeDetails ? nextStops : [];
+  const statusSchedule = includeDetails ? schedule : nextStops.slice(0,1);
   const vehicleStatus = inferVehicleStatus(v, ageSec, speed ?? 0, now, hasLine, statusSchedule);
   const routePath = includeDetails ? buildRoutePath(v.journey?.route) : [];
   const routeStops = routePath.map(id => {const timed=schedule.find(stop=>stop.id===id);const point=stopsDict[String(id)];return {...timed,id,name:point?.n||timed?.name||`Przystanek ${id}`,lat:point?.lat??timed?.lat,lon:point?.lon??timed?.lon,planned:timed?.planned||null,real:timed?.real||null};});
@@ -290,6 +291,7 @@ function mapVehicle(
     delay: typeof v.delay === 'number' ? v.delay : typeof v.deviation === 'number' ? v.deviation * 60 : undefined,
     dataAgeSec: ageSec,
     schedule,
+    liveNextStops:includeDetails?undefined:nextStops,
     routePath,
     routeStops,
     model: v.model,

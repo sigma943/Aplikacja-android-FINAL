@@ -68,5 +68,14 @@
     "lon": 22.163517,
     "erroneousLat": 50.224202,
     "erroneousLon": 22.152987
+  },
+  "1354": {
+    "areaId": "741",
+    "code": "12",
+    "name": "MEDYNIA GŁOG. ZAD. PĘTL.",
+    "lat": 50.180845,
+    "lon": 22.1446565,
+    "erroneousLat": 50.175106,
+    "erroneousLon": 22.141291
   }
 }

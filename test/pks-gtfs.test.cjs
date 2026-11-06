@@ -53,3 +53,24 @@ test('physical terminal bays use the current GTFS; withdrawn managed courses can
   const removed=await api.fetchDeparturesClient('gtfs:removed','gtfs:removed','1','2026-11-04');assert.deepEqual(removed.journeys,[]);
  }finally{if(oldWindow===undefined)delete global.window;else global.window=oldWindow;}
 });
+
+test('Medynia I and Zadwór each keep two platforms and line 202 uses the existing EINFO ID',()=>{
+ const feed=JSON.parse(gunzipSync(fs.readFileSync('public/data/journeys/pks.json.gz')));
+ const base=require('../public/data/pks-stop-points.json').stops;
+ const {indexPksGtfs,pksGtfsDepartures}=load('lib/pks-gtfs.ts');
+ const indexed=indexPksGtfs(feed,base);
+ for(const [api,gtfs] of [['1353','923'],['1346','924'],['1347','925']]){
+  assert.deepEqual(indexed.byStop[api],[gtfs]);
+  assert.equal(indexed.stops['gtfs:'+gtfs],undefined);
+  assert.equal(indexed.stops[api].lat,feed.stops[gtfs].lat);
+  assert.equal(indexed.stops[api].apiLat,base[api].apiLat);
+ }
+ assert.equal(indexed.stops['1354'].lat,50.180845);
+ assert.notEqual(indexed.stops['1354'].lon,indexed.stops['1353'].lon);
+ assert.ok(pksGtfsDepartures(feed,indexed.byStop['1353'],'2026-11-06').some(row=>row.line_name==='202'));
+ const {buildStopsCatalog}=load('lib/stops-catalog.ts',{'@/lib/pks-client':{}});
+ const catalog=buildStopsCatalog(Object.entries(indexed.stops).map(([id,stop])=>({...stop,id,name:stop.n})),[],[],'medynia-physical',true);
+ const {visibleMapStops}=load('lib/map-stop-markers.ts');
+ assert.deepEqual(visibleMapStops(catalog,[22.1409,50.1737,22.1417,50.1755],19).map(s=>s.id).sort(),['1346','1347']);
+ assert.deepEqual(visibleMapStops(catalog,[22.1444,50.1806,22.1452,50.1811],19).map(s=>s.id).sort(),['1353','1354']);
+});

@@ -19,10 +19,11 @@ test('overlapping MPK fleet and selected-vehicle reads share positions and detai
 test('many stale MPK catalog readers issue one background refresh, one cache write and one notification',async()=>{
  const saved=global.window;let calls=0,writes=0,events=0;const job=deferred();
  const rows=[{stop_id:'256',stop_name:'Matuszczaka',stop_lat:50,stop_lon:22}];
- global.window={dispatchEvent:()=>events++};
+ global.window={addEventListener(){},dispatchEvent:()=>events++};
  try{
   const api=load('lib/providers/mpk-departures-client.ts',{
    '../transport/http':{requestJson:()=>{calls++;return job.promise;}},
+   '../mpk-gtfs-runtime':{withMpkGtfsStops:async stops=>stops},
    '../transport/cache':{CLIENT_STOP_CACHE_TTL_MS:1,readPersistentClientCache:()=>({savedAt:1,data:rows}),writePersistentClientCache:()=>writes++},
   });
   const results=await Promise.all(Array.from({length:20},()=>api.fetchMpkRzeszowStopsClient()));
@@ -46,7 +47,7 @@ test('cancelling one MPK catalog consumer does not cancel another',async()=>{
 
 test('minute countdown ticks reuse live associations and preserve original map labels and expiry',()=>{
  let corrections=0;const real=load('lib/vehicle-stop-timing.ts');
- const api=load('lib/map-stop-departures.ts',{'./vehicle-stop-timing':{departureFromLiveVehicle:(...args)=>{corrections++;return real.departureFromLiveVehicle(...args);}}});
+ const api=load('lib/map-stop-departures.ts',{'./vehicle-stop-timing':{stopDeparturesWithLiveVehicles:(...args)=>{corrections++;return real.stopDeparturesWithLiveVehicles(...args);}}});
  const now=Date.parse('2026-10-30T05:20:00Z'),planned=now+120_000;
  const row={id:'one',courseId:'course',line:'108',direction:'Centrum',time:'06:22',carrier:{id:'pks'},plannedAtMs:planned};
  const bus={id:'87',provider:'pks',journeyId:'course',routeShortName:'108',delay:60,status:'active',lastSignalTime:new Date(now).toISOString()};

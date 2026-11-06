@@ -653,7 +653,11 @@ function shouldKeepSameProviderStopsSeparate(left: Stop, right: Stop) {
     const leftIds = providerValueSet(left, provider);
     const rightIds = providerValueSet(right, provider);
     if (leftIds.size && rightIds.size && !setsOverlap(leftIds, rightIds)) {
-      if (provider === 'pks' && setsOverlap(providerValueSet(left, 'pksAreaIds'), providerValueSet(right, 'pksAreaIds'))) continue;
+      if (provider === 'pks' && setsOverlap(providerValueSet(left, 'pksAreaIds'), providerValueSet(right, 'pksAreaIds'))) {
+        const code = (value?:string) => value?.trim().toLowerCase().replace(/^0+(?=\d)/,'');
+        if(left.code&&right.code&&code(left.code)!==code(right.code))return true;
+        continue;
+      }
       return true;
     }
   }
