@@ -3,6 +3,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
 (async()=>{
  const root=process.cwd(),temp=fs.mkdtempSync(path.join(os.tmpdir(),'font-ban-'));let browser,server;
  try{
+  fs.mkdirSync('test/ui-previews',{recursive:true});
   await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'development',devtool:false,plugins:[new webpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],entry:path.join(root,'test/font-ban-fixture.tsx'),output:{path:temp,filename:'fixture.js'},resolve:{extensions:['.tsx','.ts','.js'],alias:{'@':root}},module:{rules:[{test:/\.tsx?$/,use:path.join(root,'test/route-tsx-loader.cjs')},{test:/\.css$/,use:path.join(root,'test/journey-css-loader.cjs')}]},optimization:{minimize:false}});compiler.run((e,stats)=>compiler.close(()=>e||stats.hasErrors()?reject(e||Error(stats.toString({all:false,errors:true}))):resolve()));});
   const css=fs.readdirSync('out/_next/static/css').filter(n=>n.endsWith('.css')).map(n=>fs.readFileSync('out/_next/static/css/'+n)).join('\n');
   server=http.createServer((req,res)=>{if(req.url==='/fixture.js'){res.setHeader('Content-Type','text/javascript; charset=utf-8');return res.end(fs.readFileSync(path.join(temp,'fixture.js')));}res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}'+css+'</style><div id="root"></div><script src="/fixture.js"></script>');});
@@ -24,12 +25,20 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    const payload=await page.evaluate(()=>window.__savedBan),hours=(Date.parse(payload.expiryDate)-Date.now())/3600000;
    assert.ok(hours>({day:23,week:167,month:670,year:8758}[duration])&&hours<({day:25,week:169,month:747,year:8786}[duration]),duration+' deadline has the selected duration');
   }
+  const checkDateField=async mode=>{
+   const field=await page.$eval('#ban-date',e=>({type:e.type,appearance:getComputedStyle(e).appearance,icon:!!e.parentElement.querySelector('svg.lucide-calendar'),durationArrow:!!document.querySelector('[data-ban-duration-toggle] svg.lucide-chevron-down')}));
+   assert.equal(field.type,'datetime-local');assert.equal(field.appearance,'none');assert.equal(field.icon,true);assert.equal(field.durationArrow,true,'the separate duration dropdown arrow remains');
+   await page.screenshot({path:'test/ui-previews/ban-date-'+mode+'.png'});
+  };
+  await page.click('[data-tab="ban"]');await page.waitForSelector('[aria-label="Zablokuj urządzenie"]');await page.click('[data-ban-duration-toggle]');await page.click('[data-ban-duration="custom"]');await page.waitForSelector('#ban-date');await checkDateField('create');
+  await page.$eval('[aria-label="Zablokuj urządzenie"] button',e=>e.click());await page.waitForSelector('[aria-label="Zablokuj urządzenie"]',{hidden:true});
   await page.click('[data-tab="bans"]');await page.click('[aria-label="Edytuj blokadę: Testowy telefon"]');await page.waitForSelector('[aria-label="Edytuj blokadę"]');
-  assert.equal(await page.$eval('[aria-label="Powód blokady"]',e=>e.value),'Zapisany powód');assert.ok(await page.$('[data-ban-custom-date]'));
+  assert.equal(await page.$eval('[aria-label="Powód blokady"]',e=>e.value),'Zapisany powód');assert.ok(await page.$('[data-ban-custom-date]'));await checkDateField('edit');
   await page.click('[aria-label="Powód blokady"]');await page.keyboard.down('Control');await page.keyboard.press('KeyA');await page.keyboard.up('Control');await page.keyboard.type('Nowy powód');
   await page.evaluate(()=>[...document.querySelectorAll('button')].find(e=>e.textContent.includes('Ban permanentny')).click());
   await page.click('[data-ban-submit]');await page.waitForSelector('[aria-label="Edytuj blokadę"]',{hidden:true});
   assert.deepEqual(await page.evaluate(()=>({reason:window.__savedBan.reason,expiry:window.__savedBan.expiryDate,silent:window.__savedBan.silent})),{reason:'Nowy powód',expiry:'',silent:true});
+  if(process.env.BAN_DATE_ONLY==='1'){assert.deepEqual(errors,[]);console.log('PASS: create/edit ban date appearance, calendar icon, duration arrow and save behavior');return;}
   await page.click('[data-tab="devices"]');await page.waitForSelector('input[placeholder="Szukaj..."]');assert.equal(await page.$eval('input[placeholder="Szukaj..."]',e=>getComputedStyle(e).paddingLeft),'32px');
   await page.evaluate(()=>[...document.querySelectorAll('[title="Zmień nazwę urządzenia"]')].find(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden').click());await page.waitForSelector('input[placeholder="np. Telefon Tomka"]');assert.equal(await page.evaluate(()=>document.activeElement.matches('input,textarea')),false,'rename does not auto-open the keyboard');
   await page.evaluate(()=>[...document.querySelector('input[placeholder="np. Telefon Tomka"]').parentElement.querySelectorAll('button')].find(e=>e.textContent.trim()==='Anuluj').click());await page.waitForSelector('input[placeholder="np. Telefon Tomka"]',{hidden:true});
@@ -55,9 +64,9 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[data-nav-role="owner"]');assert.ok(await page.$('[data-test-navigation] [data-nav-item="journeys"]'));
   await page.click('[data-tab="access"]');await page.waitForSelector('[aria-label="Edycja uprawnień"]');
   const access='[aria-label="Edycja uprawnień"] button';
-  assert.equal(await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Włącz połączenia')).querySelector('[role="switch"]').getAttribute('aria-checked')),'false');
-  await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Włącz połączenia')).click());
-  assert.equal(await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Włącz połączenia')).querySelector('[role="switch"]').getAttribute('aria-checked')),'true');
+  assert.equal(await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Wyłącz połączenia')).querySelector('[role="switch"]').getAttribute('aria-checked')),'true');
+  await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Wyłącz połączenia')).click());
+  assert.equal(await page.$$eval(access,n=>n.find(e=>e.textContent.includes('Wyłącz połączenia')).querySelector('[role="switch"]').getAttribute('aria-checked')),'false');
   await page.screenshot({path:'test/ui-previews/journeys-device-access.png'});
   await page.$$eval(access,n=>n.find(e=>e.textContent.trim()==='Zapisz zmiany').click());
   await page.waitForFunction(()=>Boolean(window.__savedAccess));assert.equal(await page.evaluate(()=>window.__savedAccess.journeys),true);assert.equal(await page.evaluate(()=>window.__savedAccess.disableJourneys),false);

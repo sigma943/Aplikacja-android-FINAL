@@ -45,7 +45,7 @@ test('calendar exceptions and previous service day retain a real after-midnight 
  assert.equal(connections.length,1);assert.equal(connections[0].departure,warsawTimeMs('2026-10-20','01:00'));
 });
 test('real PKS 301 finds its complete direct course to Rzeszow D.A. without any departure-board API',()=>{
- const feed=JSON.parse(strFromU8(gunzipSync(fs.readFileSync('public/data/journeys/pks.json.gz'))));
+ const feed=JSON.parse(strFromU8(gunzipSync(fs.readFileSync('test/fixtures/pks-timetable-2026-10-19.json.gz'))));
  const from={...stop('journey:pks:566'),...feed.stops['566']},to=load('lib/pks-terminal-identity.ts').pksTerminalStop('58',feed.stops['58'],[]);
  const o={...options,maxTransfers:0,at:warsawTimeMs('2026-10-19','09:30')};
  const result=scanJourneys(from,to,feedConnections(feed,[],'2026-10-19',o),o);

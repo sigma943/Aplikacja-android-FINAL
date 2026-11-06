@@ -16,7 +16,7 @@ module.exports = function loadTs(relativePath, overrides = {}, extraExports = ''
     }
   }
   if (moduleCache.has(filename)) return moduleCache.get(filename).exports;
-  const source = fs.readFileSync(filename, 'utf8') + extraExports;
+  const source = (fs.readFileSync(filename, 'utf8') + extraExports).replace(/\bimport\.meta\.url\b/g,JSON.stringify(require('node:url').pathToFileURL(filename).href));
   const output = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
   }}).outputText;

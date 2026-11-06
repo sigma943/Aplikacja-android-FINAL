@@ -28,3 +28,5 @@ android/app/src/main/assets/public/
 # Expanded from the checked-in compressed timetable sources at build time.
 public/data/journeys/pks.json
 public/data/journeys/mpk.json
+
+/public/data/bus-road-network.json

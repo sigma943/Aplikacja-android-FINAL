@@ -54,7 +54,8 @@ export function feedConnections(feed:TimetableFeed,catalog:Stop[],date:string,op
    for(let i=1;i<pattern.length;i++){
     const a=pattern[i-1],b=pattern[i],from=mapped.get(a[0]),to=mapped.get(b[0]),departure=clock(start+a[2]),arrival=clock(start+b[1]);
     if(!from||!to||!Number.isFinite(departure)||arrival<departure||departure<earliest||arrival>latest)continue;
-    connections.push({from,to,departure,arrival,course:`${provider}:${id}:${serviceDate}`,line,provider,pickup:a[3]!==1,dropoff:b[4]!==1,sourceFromStopId:a[0],sourceToStopId:b[0],fromSequence:a[5],toSequence:b[5]});
+    const sourceFrom=feed.stops[a[0]],sourceTo=feed.stops[b[0]];
+    connections.push({from,to,departure,arrival,course:`${provider}:${id}:${serviceDate}`,line,provider,pickup:a[3]!==1,dropoff:b[4]!==1,sourceFromStopId:a[0],sourceToStopId:b[0],sourceFromPoint:sourceFrom?[sourceFrom.lat,sourceFrom.lon]:undefined,sourceToPoint:sourceTo?[sourceTo.lat,sourceTo.lon]:undefined,fromSequence:a[5],toSequence:b[5]});
    }
   }
  }

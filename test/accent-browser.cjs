@@ -1120,7 +1120,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Dodaj'&&!el.disabled));
     await button('Dodaj');
     await page.waitForFunction(()=>document.querySelector('[aria-label="Adres API"]').value==='');
-    await page.click('[aria-label="Nazwa endpointu"]',{clickCount:3});await page.type('[aria-label="Nazwa endpointu"]','Backup UI');
+    await page.click('[aria-label="Nazwa źródła API"]',{clickCount:3});await page.type('[aria-label="Nazwa źródła API"]','Backup UI');
     await page.type('[aria-label="Adres API"]','https://backup.example');
     await button('Testuj ponownie');
     await page.waitForFunction(()=>window.__maintenanceCalls.some(call=>call.name==='testMaintenanceEndpoint'&&call.data.url==='https://backup.example'));
@@ -1129,10 +1129,10 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Ustaw jako aktywny'&&!el.disabled));
     await button('Ustaw jako aktywny');
     await page.waitForFunction(()=>window.__maintenanceCalls.some(call=>call.name==='setActiveMaintenanceEndpoint'&&call.data.endpointId==='created-endpoint'));
-    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Przywróć poprzedni endpoint'&&!el.disabled));
-    await button('Przywróć poprzedni endpoint');
-    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Wyłącz endpoint'&&!el.disabled));
-    await button('Wyłącz endpoint');
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Przywróć poprzednie źródło API'&&!el.disabled));
+    await button('Przywróć poprzednie źródło API');
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Wyłącz źródło API'&&!el.disabled));
+    await button('Wyłącz źródło API');
     await page.waitForFunction(()=>[...document.querySelectorAll('label')].some(el=>el.textContent.includes('Endpoint włączony')&&!el.querySelector('input').checked));
     await page.evaluate(()=>[...document.querySelectorAll('label')].find(el=>el.textContent.includes('Endpoint włączony')).querySelector('input').click());
     await button('Zapisz zmiany');
@@ -1262,12 +1262,12 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('#widget-transparency');
     assert.equal(await page.$eval('[aria-label="Miękkie tło widżetu"]',el=>el.checked),false);
     await page.$eval('[aria-label="Miękkie tło widżetu"]',el=>el.click());
-    await page.waitForFunction(()=>document.querySelector('[data-widget-preview]').style.background.includes('radial-gradient'));
+    await page.waitForFunction(()=>document.querySelector('[data-widget-background]').style.background.includes('radial-gradient'));
     await page.focus('#widget-soft-background-strength');await page.keyboard.press('End');
     await page.waitForFunction(()=>document.querySelector('#widget-soft-background-strength').value==='100');
     await screenshot('widget-soft-background');
     await page.focus('#widget-transparency');await page.keyboard.press('End');
-    await page.waitForFunction(()=>(document.querySelector('[data-widget-preview]').style.background.match(/rgba\([^)]*, 0\)/g)||[]).length===2);
+    await page.waitForFunction(()=>document.querySelector('[data-widget-background]').style.opacity==='0');
     assert.equal(await page.$eval('[data-widget-preview]',el=>getComputedStyle(el).opacity),'1','full transparency affects background, not text');
     await page.focus('#widget-transparency');await page.keyboard.press('Home');
     await page.waitForFunction(()=>document.querySelector('#widget-transparency').value==='0');

@@ -1,7 +1,7 @@
 import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import CosmicFilterEffects from '@/components/CosmicFilterEffects';
 import {createStopSearchIndex,searchStops} from '@/lib/stop-search';
-import {displayStopCatalogLabel} from '@/lib/stop-label';
+import {stopCatalogDisplayLabel} from '@/lib/mpk-stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
 import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef } from 'react';
 import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
@@ -209,6 +209,7 @@ export default function StopList({
   );
 
   const renderStopCard = (stop: Stop, index: number, full = false) => {
+    const displayName = stopCatalogDisplayLabel(stop);
     const isBus = stop.type === 'bus';
     const singleProviderId = stop.carriers.length === 1 ? stop.carriers[0].id : undefined;
     const pksLineSet = new Set(String(stop.providerStopIds?.pksLines || '').split(',').map((line) => line.trim()).filter(Boolean));
@@ -220,7 +221,7 @@ export default function StopList({
         transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 230, damping: 30}}}
         role="button"
         tabIndex={0}
-        aria-label={`Rozkład: ${displayStopCatalogLabel(stop.name,stop.code)}`}
+        aria-label={`Rozkład: ${displayName}`}
         onKeyDown={event => {
           if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
           event.preventDefault();
@@ -247,7 +248,7 @@ export default function StopList({
 
         <div className="min-w-0 flex-1 pr-2">
           <h3 className={`truncate text-[15px] font-semibold transition-colors lg:text-[17px] ${cardTitleClass}`}>
-            {displayStopCatalogLabel(stop.name,stop.code)}
+            {displayName}
           </h3>
           <div className="mt-1 flex flex-col gap-1">
             <div className={`flex min-w-0 flex-wrap items-center text-[12px] font-semibold ${secondaryTextClass}`}>
@@ -256,7 +257,7 @@ export default function StopList({
               </span>
             </div>
             {isBus && stop.lines.length > 0 && <StopLineBadges lines={stop.lines} providerId={singleProviderId} pksLineSet={pksLineSet} providers={stop.lineProviders} />}
-            {isBus && stop.timetableNotice && stop.lines.length===0 && <span className={`text-[11px] leading-relaxed ${secondaryTextClass}`}>Brak przypisanych linii PKS</span>}
+            {isBus && (stop.timetableNotice || stop.areaId==='1937') && stop.lines.length===0 && <span className={`text-[11px] leading-relaxed ${secondaryTextClass}`}>Brak przypisanych linii PKS</span>}
           </div>
         </div>
 
@@ -309,6 +310,7 @@ export default function StopList({
         <div className="ui-accent-search group relative">
           <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchIconClass}`} size={18} />
           <input
+            data-milk-search
             type="text"
             placeholder="Wpisz nazwę, np. Babica, Rejtana..."
             className={`ui-accent-input w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none backdrop-blur-2xl transition-all focus:ring-2 lg:py-3.5 lg:text-[15px] ${searchInputClass}`}
@@ -336,7 +338,7 @@ export default function StopList({
         data-stop-list-scroll
         ref={listScrollRef}
         style={{overflowAnchor: 'none'}}
-        className={`min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] pt-3 custom-scrollbar lg:px-6 ${
+        className={`min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[calc(var(--safe-bottom)+9.5rem)] pt-3 custom-scrollbar lg:px-6 ${
           isFullScreen
             ? 'grid w-full max-w-[1540px] content-start gap-2.5 px-3 pt-3 md:grid-cols-2 lg:mx-auto lg:gap-3 lg:px-6 lg:pt-4 xl:grid-cols-3'
             : 'flex w-full flex-col gap-2.5'
@@ -381,7 +383,7 @@ export default function StopList({
                 <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
-                {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak wyników dla podanej nazwy.'}
+                <p className="scene-message">{favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak wyników dla podanej nazwy.'}</p>
               </div>
             )}
           </>
@@ -417,6 +419,7 @@ export default function StopList({
             <div className="ui-accent-search group relative">
               <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchIconClass}`} size={18} />
               <input
+                data-milk-search
                 type="text"
                 placeholder="Wpisz nazwę, np. Babica, Rejtana..."
                 className={`ui-accent-input w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none transition-all focus:ring-2 ${
@@ -449,7 +452,7 @@ export default function StopList({
             {renderCarrierFilters(true)}
           </div>
 
-          <motion.div ref={listScrollRef} data-stop-list-scroll layoutScroll style={{overflowAnchor: 'none'}} className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
+          <motion.div ref={listScrollRef} data-stop-list-scroll layoutScroll style={{overflowAnchor: 'none'}} className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-[calc(var(--safe-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
             <VirtualStopCards stops={slicedFullStops} scroll={listScrollRef} render={(stop,index)=>renderStopCard(stop,index,true)} onVisible={onVisibleStopsChange}/>
 
             {fullFilteredStops.length > visibleFullCount && (
@@ -470,7 +473,7 @@ export default function StopList({
                 <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
-                {favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak pasujących przystanków dla tej nazwy.'}
+                <p className="scene-message">{favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak pasujących przystanków dla tej nazwy.'}</p>
               </div>
             )}
           </motion.div>

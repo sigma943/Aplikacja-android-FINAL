@@ -1,3 +1,6 @@
+import {sharedInflight} from '../shared-inflight';
+import {withMpkGtfsStops,loadMpkGtfs} from '../mpk-gtfs-runtime';
+import {pksGtfsCovers,pksGtfsServiceRuns} from '../pks-gtfs';
 import mpkStopSnapshot from '../../public/data/mpk-stop-points.json';
 import {isMpkPassengerLine} from '../mpk-passenger-lines';
 
@@ -18,27 +21,27 @@ function validMpkStops(value: unknown): value is MpkRzeszowStop[] {
   return Array.isArray(value) && value.length > 0 && value.every(stop => stop &&
     (typeof stop.stop_id === 'string' || typeof stop.stop_id === 'number') && typeof stop.stop_name === 'string' && stop.stop_name.trim());
 }
-async function fetchMpkRzeszowStopsFromNetwork(options?: { signal?: AbortSignal }) {
-  const rows = await requestJson<unknown>(MPK_RZESZOW_STOPS_URL, {signal:options?.signal,headers:{Accept:'application/json'}});
+const fetchMpkRzeszowStopsFromNetwork=sharedInflight(async (signal)=>{
+  const rows = await requestJson<unknown>(MPK_RZESZOW_STOPS_URL, {signal,headers:{Accept:'application/json'}});
   if (!validMpkStops(rows)) throw new Error('Empty or invalid MPK stop catalog');
-  return rows;
-}
-function saveMpkStops(rows:MpkRzeszowStop[]) {
   writePersistentClientCache(MPK_STOPS_CACHE_KEY,rows);
+  return rows;
+});
+let mpkBackgroundRefresh:Promise<void>|undefined;
+function notifyMpkStopsUpdated() {
   if(typeof window!=='undefined')window.dispatchEvent(new Event(MPK_STOPS_UPDATED_EVENT));
 }
-export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSignal; forceRefresh?: boolean }) {
+async function fetchMpkBaseStops(options?: { signal?: AbortSignal; forceRefresh?: boolean }) {
   const stored = readPersistentClientCache<MpkRzeszowStop[]>(MPK_STOPS_CACHE_KEY);
   const cached = stored && validMpkStops(stored.data) ? stored : null;
   const isFresh = cached && Date.now()-cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
   if(cached && !options?.forceRefresh) {
-    if(!isFresh)void fetchMpkRzeszowStopsFromNetwork().then(saveMpkStops).catch(()=>undefined);
+    if(!isFresh&&!mpkBackgroundRefresh)mpkBackgroundRefresh=fetchMpkRzeszowStopsFromNetwork().then(notifyMpkStopsUpdated).catch(()=>undefined).finally(()=>{mpkBackgroundRefresh=undefined;});
     return cached.data;
   }
   try {
-    const fresh = await fetchMpkRzeszowStopsFromNetwork(options);
+    const fresh = await fetchMpkRzeszowStopsFromNetwork(options?.signal);
     // The caller publishes this result; notify only background cache refreshes.
-    writePersistentClientCache(MPK_STOPS_CACHE_KEY,fresh);
     return fresh;
   } catch(error) {
     if(options?.signal?.aborted)throw error;
@@ -48,6 +51,13 @@ export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSigna
     // Do not cache the bundled fallback as a fresh API response: retry the live endpoint later.
     return mpkStopSnapshot.stops;
   }
+}
+
+let observingGtfs=false;
+export async function fetchMpkRzeszowStopsClient(options?:{signal?:AbortSignal;forceRefresh?:boolean}){
+ if(typeof window!=='undefined'&&!observingGtfs){observingGtfs=true;window.addEventListener('pks-live:mpk-gtfs-updated',()=>{mpkServicesCache.clear();mpkCalendarPromise=undefined;});}
+ const stops=await fetchMpkBaseStops(options);
+ return typeof window==='undefined'?stops:withMpkGtfsStops(stops);
 }
 
 let mpkCalendarPromise: Promise<MpkCalendar> | undefined;
@@ -60,6 +70,13 @@ async function mpkServiceIdsForDate(dateIso: string) {
     if (dateIso === warsawDateIso()) {
       const live = await requestJson<{ service_ids?: Array<string | number>; date_used?: string }>('https://www.mpkrzeszow.pl/get_current_service.php').catch(() => null);
       if (live?.date_used === dateIso.replace(/-/g, '') && live.service_ids?.length) return live.service_ids.map(String);
+    }
+    if(typeof window!=='undefined'){
+      const feed=await loadMpkGtfs();
+      if(feed&&pksGtfsCovers(feed,dateIso)){
+        const ids=[...new Set(feed.trips.map(trip=>trip[2]))].filter(id=>pksGtfsServiceRuns(feed,id,dateIso));
+        if(ids.length)return ids;
+      }
     }
     mpkCalendarPromise ??= withRequestDeadline(async (signal) => {
       const response = await fetch('/data/mpk-service-calendar.json', { signal });

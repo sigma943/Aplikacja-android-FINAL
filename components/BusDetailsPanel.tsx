@@ -18,7 +18,7 @@ import {displayStopLabel} from '@/lib/stop-label';
 
 interface BusDetailsPanelProps {
   preview?:boolean;
-  onHeaderSize?:(height:number)=>void;
+  onHeaderSize?:(height:number,contentHeight?:number)=>void;
   selectedBusTripFinished?:boolean;
   mpkStopNames?:ReadonlyMap<string,string>;
   selectedBus: Vehicle;
@@ -52,7 +52,13 @@ interface BusDetailsPanelProps {
 
 export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusTripFinished=false,mpkStopNames,selectedBus, busDrag, busHeaderRef, isBusPanelExpanded, setIsBusPanelExpanded, transparentUI, isDark, mapDetailPanel, mapDetailContent, mapDetailCard, mapDetailDivider, mapDetailLine, selectedBusHeaderStyle, selectedVehicleIsTrain, selectedBusStatusLabel, selectedBusGpsSignalClock, breakCountdownLabel, selectedBusIsWaitingForDeparture, selectedBusScheduleLoading, selectedBusDisplayedStops, selectedStopId, selectedVehicleColor, textSub, textMain, themeColor, openVehicleRouteStop, formatScheduleStopName}: BusDetailsPanelProps) {
   const reducedMotion=useJourneyReducedMotion();
+  const metricsRef=useRef<HTMLDivElement>(null);
+  const fitMetrics=!selectedVehicleIsTrain&&['','?','---'].includes(selectedBus.routeShortName?.trim()??'')
+    &&!selectedBusTripFinished&&selectedBusDisplayedStops.length===0;
+  const showDetails=isBusPanelExpanded||busDrag.dragging;
+  // Keep compact metrics measurable before the first click or drag.
   const carrier=selectedBus.provider==='mpk_rzeszow'?'mpk':selectedBus.provider==='marcel'?'marcel':selectedVehicleIsTrain?'rail':'pks';
+  const showsFutureCourse=selectedBus.status==='break'&&Number.isFinite(selectedBus.nextTripStartAtMs)&&selectedBus.nextTripStartAtMs!>Date.now();
 
   // A removed motion element can interrupt its shared height animation. A new
   // panel must start from its requested size, not that intermediate value.
@@ -60,10 +66,22 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
   useLayoutEffect(()=>{initialSync.current();},[]);
   useLayoutEffect(()=>{
     const header=busHeaderRef.current;if(!header||!onHeaderSize)return;
-    const measure=()=>onHeaderSize(header.offsetHeight);
-    const observer=new ResizeObserver(measure);observer.observe(header);window.addEventListener('resize',measure);measure();
+    const metrics=fitMetrics?metricsRef.current:null;
+    const measure=()=>{
+      const body=metrics?.parentElement;
+      if(!body||!metrics){onHeaderSize(header.offsetHeight);return;}
+      const {marginTop,paddingTop,paddingBottom}=getComputedStyle(body);
+      const shell=header.parentElement!;
+      const {borderTopWidth,borderBottomWidth}=getComputedStyle(shell);
+      const detailsHeight=metrics.offsetHeight+parseFloat(marginTop)+parseFloat(paddingTop)+parseFloat(paddingBottom);
+      onHeaderSize(header.offsetHeight,header.offsetHeight+detailsHeight+parseFloat(borderTopWidth)+parseFloat(borderBottomWidth));
+    };
+    const observer=new ResizeObserver(measure);
+    observer.observe(header);
+    if(metrics)observer.observe(metrics);
+    window.addEventListener('resize',measure);measure();
     return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
-  },[busHeaderRef,onHeaderSize]);
+  },[busHeaderRef,onHeaderSize,fitMetrics]);
   return (
     <motion.div
                   key="bus-panel-map"
@@ -79,7 +97,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   animate={{ y: 0, opacity: 1 }}
                   exit={reducedMotion?{y:0,opacity:1}:{y:"100%",opacity:.5}}
                   transition={reducedMotion?{duration:0}:SHEET_SPRING}
-                  className={`absolute bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
+                  className={`absolute bottom-[calc(64px+var(--safe-bottom))] left-0 right-0 md:bottom-4 md:left-4 md:right-auto md:w-[400px] rounded-t-3xl md:rounded-3xl border-t border-l border-r md:border z-50 overflow-hidden flex flex-col max-h-[calc(60vh-32px)] md:max-h-[85vh] md:mb-0 ${mapDetailPanel}`}
                 >
 
                   <LandscapeChrome variant="panel"/>
@@ -105,7 +123,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                      </div>
                      <div data-vehicle-direction className="pr-12 relative z-20 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm md:text-[17px] font-medium leading-tight opacity-100 drop-shadow-sm">
                        <h2 className="min-w-0">
-                         {selectedVehicleIsTrain ? 'Relacja' : 'Kierunek'}: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
+                         {selectedVehicleIsTrain ? 'Relacja' : showsFutureCourse ? 'Następny kurs' : 'Kierunek'}: <span className="font-bold">{normalizeVehicleText(selectedBus.direction) || 'Nieustalony'}</span>
                        </h2>
                        {selectedBus.provider === 'marcel' && selectedBusStatusLabel && (
                          <span data-vehicle-status={selectedBus.status} className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] md:text-[11px] font-black leading-none tracking-wide ${selectedBus.status === 'break' ? 'bg-amber-400 text-slate-950' : selectedBus.status === 'cached' ? 'bg-white/20 text-white' : selectedBus.status === 'technical' ? (isDark ? 'bg-indigo-500/80 text-white' : 'bg-indigo-100 text-indigo-900') : 'bg-white/[0.18] text-white'}`}>
@@ -148,16 +166,18 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                   </motion.div>
 
                   <AnimatePresence initial={false}>
-                    {(isBusPanelExpanded || busDrag.dragging) && (
+                    {(fitMetrics||showDetails) && (
                       <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
+                        initial={fitMetrics?false:{ height: 0, opacity: 0 }}
+                        animate={fitMetrics?undefined:{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={reducedMotion?{duration:0}:{type:"spring",stiffness:400,damping:35}}
-                        className="flex flex-1 flex-col min-h-0 overflow-hidden"
+                        aria-hidden={!showDetails}
+                        className={`flex flex-1 flex-col min-h-0 overflow-hidden ${showDetails?'':'invisible'}`}
                       >
                         <div className={`p-2.5 md:p-4 flex min-h-0 flex-1 flex-col gap-2.5 md:gap-4 overflow-y-auto mt-1.5 md:mt-2 rounded-t-xl md:rounded-t-2xl relative z-10 ${mapDetailContent}`}>
-                        <div data-vehicle-metrics className="grid grid-cols-2 gap-2 md:gap-4 shrink-0">
+                        <div ref={metricsRef} data-vehicle-metrics className={`grid ${selectedBus.provider==='marcel'?'grid-cols-1':'grid-cols-2'} gap-2 md:gap-4 shrink-0`}>
+                        {selectedBus.provider!=='marcel' && (
                         <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard} ${selectedBusIsWaitingForDeparture ? 'col-span-2' : ''}`}>
                            <div className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5 md:mb-1 ${textSub}`}>
                               <Navigation className="w-3 h-3 md:w-3.5 md:h-3.5" /> Prędkość
@@ -172,6 +192,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                                   : 'Brak danych'}
                            </span>
                         </div>
+                        )}
 
                         {!selectedBusIsWaitingForDeparture && (
                         <div className={`flex flex-col justify-center p-2.5 md:p-3 rounded-xl md:rounded-2xl border ${mapDetailCard}`}>
@@ -210,7 +231,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                       </div>
 
                       {selectedBusTripFinished&&<div role="status" data-next-departure className={`p-3 rounded-xl border ${mapDetailCard}`}><div className={`flex items-center gap-2 text-sm ${textMain}`}><Clock size={17}/>{breakCountdownLabel?`Kolejny odjazd za ${breakCountdownLabel}`:'Obliczanie czasu do kolejnego odjazdu…'}</div></div>}
-                      {!selectedBusTripFinished&&(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
+                      {!selectedBusTripFinished&&!fitMetrics&&(selectedBusScheduleLoading || selectedBusDisplayedStops.length > 0) && (
                        <div data-vehicle-stops className={`flex flex-col gap-2 mt-1 border-t pt-4 ${mapDetailDivider}`}>
                           <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${textSub}`}>
                             <MapPin className="w-4 h-4" /> {selectedVehicleIsTrain ? 'Wszystkie przystanki trasy' : 'Następne przystanki'}
@@ -220,7 +241,7 @@ export default function BusDetailsPanel({onHeaderSize,preview=false,selectedBusT
                              {selectedBusScheduleLoading ? (
                                 [0, 1, 2].map((idx) => (
                                   <div key={`mpk-stops-loading-${idx}`} className="flex items-start gap-4 py-2 relative z-10 px-2 -mx-2">
-                                     <div className="w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm animate-pulse" style={{ backgroundColor: themeColor, borderColor: isDark ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.85)' }}></div>
+                                     <div data-vehicle-loading-marker className="w-5 h-5 rounded-full border-4 shrink-0 mt-0.5 shadow-sm animate-pulse" style={{ backgroundColor: themeColor, borderColor: isDark ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.85)' }}></div>
                                      <div className={`flex flex-col flex-1 pb-2 border-b ${mapDetailDivider}`}>
                                         <div className={`h-3.5 w-36 rounded-full animate-pulse ${isDark ? 'bg-white/12' : 'bg-slate-200'}`}></div>
                                         <div className={`mt-2 h-2.5 w-16 rounded-full animate-pulse ${isDark ? 'bg-white/8' : 'bg-slate-100'}`}></div>

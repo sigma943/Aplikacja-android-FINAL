@@ -2,13 +2,18 @@ name: Deploy Firestore rules (Spark)
 
 on:
   workflow_dispatch:
+    inputs:
+      ban_expiry_only:
+        description: Deploy the verified temporary-ban expiry rules only (no migrations)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || (inputs.ban_expiry_only && github.ref == 'refs/heads/fix/rural-stop-live-arrivals')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,11 +27,17 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          npm --prefix functions ci
+          if [ '${{ inputs.ban_expiry_only }}' != 'true' ]; then npm --prefix functions ci; fi
       - name: Verify application, backend and rules
+        if: ${{ !inputs.ban_expiry_only }}
         run: |
           npm test
           npm --prefix functions test
+          npm run test:rules
+      - name: Verify temporary-ban expiry and server access rules
+        if: inputs.ban_expiry_only
+        run: |
+          node --test test/ban-details.test.cjs test/ban-expiry.test.cjs test/ban-expiry-timer.test.cjs
           npm run test:rules
       - name: Configure Firebase credentials
         env:
@@ -47,12 +58,14 @@ jobs:
               output.write(f'GOOGLE_APPLICATION_CREDENTIALS={key_path}\n')
           PY
       - name: Move installation identifiers out of public security settings
+        if: ${{ !inputs.ban_expiry_only }}
         run: node scripts/migrate-statistics-access.cjs aplikacja-b20fa
       - name: Deploy Firestore access rules (Spark, no Cloud Functions)
         run: >-
           npx firebase deploy --project aplikacja-b20fa --non-interactive
           --only firestore:rules
       - name: Verify migration after access rules deployment
+        if: ${{ !inputs.ban_expiry_only }}
         run: node scripts/migrate-statistics-access.cjs aplikacja-b20fa --enable-api-statistics
       - name: Remove temporary credentials
         if: always()

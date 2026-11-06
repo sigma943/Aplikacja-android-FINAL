@@ -1,6 +1,7 @@
 'use client';
 
 import {createContext, useContext, useEffect, useState} from 'react';
+import {useBanExpiry} from '@/lib/use-ban-expiry';
 import {isNewLoginBlocked,loginExempt,newLoginsEnabled} from '@/lib/login-policy';
 import {preloadMapCode} from '@/lib/map-startup-code';
 import {Capacitor, registerPlugin} from '@capacitor/core';
@@ -588,6 +589,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       ).catch(() => {});
     }
   }, [autoBanUnverified, device, user?.uid]);
+
+  useBanExpiry(user&&device?[{id:user.uid,...device}]:[],user?.uid);
 
   const isBanned = device?.status === 'banned';
   const isPrivilegedDevice = device?.role === 'owner' || device?.role === 'admin';

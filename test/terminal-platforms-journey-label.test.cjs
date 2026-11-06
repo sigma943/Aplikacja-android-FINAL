@@ -8,7 +8,7 @@ const {feedConnections,scanJourneys}=load('lib/journey-timetable.ts');
 const {warsawTimeMs}=load('lib/transit-time.ts');
 const {pksTerminalStop}=load('lib/pks-terminal-identity.ts');
 test('physical GTFS platform 4 is not renamed to API group 1',()=>{
- const feed=require('../public/data/journeys/pks.json'),official=require('./fixtures/pks-terminal-platform-1-2026-10-20.json');
+ const feed=JSON.parse(require('node:zlib').gunzipSync(require('node:fs').readFileSync('test/fixtures/pks-timetable-2026-10-19.json.gz'))),official=require('./fixtures/pks-terminal-platform-1-2026-10-20.json');
  const options={at:warsawTimeMs(official.date,'00:00'),day:official.date,arriveBy:false,maxTransfers:0,walkMeters:0,transferMinutes:5,providers:['pks'],sort:'fastest'};
  const old=JSON.stringify(feed.stops['61']);
  const physical4=pksTerminalStop('61',feed.stops['61'],[]);

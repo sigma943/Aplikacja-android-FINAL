@@ -12,3 +12,8 @@ export function busPunctuality(delaySeconds: number, onTimeColor = 'text-white')
   const colorClass = status === 'on_time' ? onTimeColor : status === 'early' ? 'text-emerald-500' : 'text-rose-500';
   return { minutes, status, colorClass };
 }
+
+/** Presentation only. Positive timetable deviation means the bus is late. */
+export function formatBusDelayMinutes(minutes: number) {
+  return minutes === 0 ? '0' : `${minutes > 0 ? '-' : '+'}${Math.abs(minutes)}`;
+}

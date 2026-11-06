@@ -32,6 +32,8 @@ export interface Vehicle {
   dataAgeSec?: number;
   scheduleSource?: 'mybus';
   schedule?: StopSchedule[];
+  /** Remaining timed calls from the current PKS vehicle snapshot. */
+  liveNextStops?: StopSchedule[];
   routeStops?: StopSchedule[];
   routePath?: number[];
   routeGeometry?: [number, number][];
