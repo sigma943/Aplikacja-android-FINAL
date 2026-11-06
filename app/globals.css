@@ -530,7 +530,7 @@ html[data-personal-card-style='soft'] :is(.transit-card,.transit-stop-card,.map-
 html[data-personal-card-style='outlined'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { border-width:2px !important; border-color:var(--pks-accent-text) !important; box-shadow:none !important; }
 html[data-personal-card-style='flat'] :is(.transit-card,.transit-stop-card,.map-detail-row,.pks-option-card,.personal-group,[data-interface-card],.pks-personal-card,.widget-settings-card,.widget-personalization) { border-color:transparent !important; box-shadow:none !important; }
 html[data-personal-button-style='solid'] button.ui-accent-soft { background:var(--pks-accent) !important; color:var(--pks-accent-on) !important; border-color:transparent !important; }
-html[data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-solid) { background:transparent !important; color:var(--pks-accent-text) !important; border:1px solid var(--pks-accent-text) !important; }
+html[data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-solid):not([data-admin-solid-action]) { background:transparent !important; color:var(--pks-accent-text) !important; border:1px solid var(--pks-accent-text) !important; }
 /* Utility actions use the same material as search fields and surrounding panels.
    Primary action buttons retain their separate accent/outline preferences. */
 @layer personal-button-controls {
@@ -1258,7 +1258,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
  html[data-landscape-theme='on'][data-personal-control-radius='true'] .connections-view :is(button,input,select) { border-radius:var(--personal-control-radius)!important; }
  html[data-landscape-theme='on'][data-panel-glow='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.connections-card) { background-image:var(--personal-glow-image),var(--personal-pattern-image)!important; }
  html[data-landscape-theme='on'][data-personal-button-style='solid'] button.ui-accent-soft { background:var(--pks-accent)!important;color:var(--pks-accent-on)!important; }
- html[data-landscape-theme='on'][data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-solid) { background:transparent!important;color:var(--landscape-accent)!important;border:1px solid var(--landscape-accent)!important; }
+ html[data-landscape-theme='on'][data-personal-button-style='outline'] button:is(.ui-accent-soft,.ui-accent-solid):not([data-admin-solid-action]) { background:transparent!important;color:var(--landscape-accent)!important;border:1px solid var(--landscape-accent)!important; }
  html[data-landscape-theme='on'][data-personal-nav='block'] [data-nav-item][aria-current='page'] { color:var(--pks-accent-on)!important; }
  html[data-landscape-theme='on'][data-personal-contrast='strong'] { --landscape-muted:var(--landscape-ink)!important; }
  html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.pks-personal-card,.pks-navigation,.pks-map-search-panel,.map-detail-shell,input,textarea,select,[class*='text-slate-'],[class*='text-gray-'],[class*='text-white'],.map-detail-title,.map-detail-muted,[data-map-brand],[data-nav-item]) { transition-property:transform,opacity,scale,height!important; }

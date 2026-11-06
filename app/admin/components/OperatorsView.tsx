@@ -185,16 +185,17 @@ export function OperatorsView({
 
         {globalSettingsSectionVisible && (
         <button 
+          data-admin-solid-action
           onClick={() => setShowGlobalPermissions(true)}
-          className="w-full flex items-center justify-between p-5 bg-[#111623] border border-white/5 border-t-white/10 rounded-2xl hover:bg-white/5 transition-all group mt-8 cursor-pointer active:scale-[0.98]"
+          className="ui-accent-solid ui-accent-focus w-full flex items-center justify-between p-5 border rounded-2xl transition-all group mt-8 cursor-pointer active:scale-[0.98]"
         >
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Settings className="text-slate-400 group-hover:text-white transition-colors" size={20} />
+            <div className="w-10 h-10 rounded-xl border border-current/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Settings size={20} />
             </div>
-            <span className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors uppercase tracking-widest">Ustawienia globalne</span>
+            <span className="text-sm font-bold uppercase tracking-widest">Ustawienia globalne</span>
           </div>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500 group-hover:text-white transition-colors"><path d="m9 18 6-6-6-6"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         )}
 

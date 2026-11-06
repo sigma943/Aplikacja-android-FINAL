@@ -160,8 +160,9 @@ export function BansView({
 
         {visibleCount < filteredBans.length && (
           <button
+            data-admin-solid-action
             onClick={() => setVisibleCount((c) => c + 3)}
-            className="w-full text-center py-5 bg-[#111623] border border-white/5 hover:border-white/10 rounded-2xl text-sm font-black uppercase tracking-widest text-slate-400 hover:text-white transition-all flex items-center justify-center gap-3 mt-4 active:scale-[0.98] cursor-pointer shadow-xl"
+            className="w-full text-center py-5 ui-accent-solid ui-accent-focus border rounded-2xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 mt-4 active:scale-[0.98] cursor-pointer shadow-xl"
           >
             Pokaż więcej banów ({filteredBans.length - visibleCount}) <ChevronDown size={18} />
           </button>
