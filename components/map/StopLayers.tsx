@@ -39,14 +39,14 @@ const CatalogStopMarker=memo(function CatalogStopMarker({stop,selected,color,onS
   return <Marker position={position} title={label} alt={label} icon={icon} zIndexOffset={selected?4500:-500} eventHandlers={handlers}/>;
 });
 
-function CatalogStopsLayer({stops,selected,selectedColor,onSelect,routeStopIds}:{stops:Stop[];routeStopIds?:ReadonlySet<string>;selected?:string|null;selectedColor?:string;onSelect?:(stop:Stop)=>void}) {
+function CatalogStopsLayer({stops,selected,onSelect,routeStopIds}:{stops:Stop[];routeStopIds?:ReadonlySet<string>;selected?:string|null;onSelect?:(stop:Stop)=>void}) {
   const map=useMap();
   const [revision,setRevision]=useState(0);
   useMapEvents({moveend:()=>setRevision(value=>value+1),zoomend:()=>setRevision(value=>value+1)});
   const platformRevision=stopPlatformRevision();
   const visible=useMemo(()=>{const bounds=map.getBounds();return visibleMapStops(stops,[bounds.getWest(),bounds.getSouth(),bounds.getEast(),bounds.getNorth()],map.getZoom(),selected);},[map,stops,selected,revision,platformRevision]);
   return <>{visible.map(stop=><CatalogStopMarker key={stop.id} platformRevision={platformRevision} stop={stop} selected={stop.id===selected||Boolean(routeStopIds?.has(stop.id))}
-    color={stop.id===selected&&selectedColor?selectedColor:mapStopColor(stop)} onSelect={onSelect}/>)}</>;
+    color={mapStopColor(stop)} onSelect={onSelect}/>)}</>;
 }
 
 function RouteStopsLayer({

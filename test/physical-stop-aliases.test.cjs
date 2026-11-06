@@ -137,3 +137,31 @@ test('Lisa-Kuli Jagiellonska 118 and Mochnackiego 440 stay separate on list, map
   const leg=connections.find(c=>c.line==='35'&&c.from.providerStopIds?.mpk_rzeszow==='440');assert.ok(leg);assert.match(leg.from.name,/Mochnackiego/);assert.notEqual(leg.from.id,jag.id);
  }
 });
+
+test('the full bundled catalog reconciles shared platforms across carriers and PKS data sources',()=>{
+  const {gunzipSync}=require('node:zlib'),{readFileSync}=require('node:fs');
+  const feed=JSON.parse(gunzipSync(readFileSync('public/data/journeys/pks.json.gz')));
+  const {indexPksGtfs}=load('lib/pks-gtfs.ts');
+  const indexed=indexPksGtfs(feed,pksAsset);
+  const pks=Object.entries(indexed.stops).map(([id,stop])=>({
+    ...stop,id,name:stop.code&&!/\d(?:\s*nż)?$/i.test(stop.n)?stop.n+' '+stop.code:stop.n,
+    lines:indexed.lines[id]||[],
+  }));
+  const mpk=require('../public/data/mpk-stop-points.json').stops.map(stop=>({
+    id:String(stop.stop_id),name:stop.stop_name,lat:Number(stop.stop_lat),lon:Number(stop.stop_lon),lines:stop.lines.split(','),
+  }));
+  const map=buildStopsCatalog(pks,mpk,[],'shared-platforms-full-feeds',true);
+  const {canonicalMapStopId,mapStopColor}=load('lib/map-stop-markers.ts');
+  for(const [apiId,gtfsId,mpkId] of [['5319','117','214'],['3904','172',null],['3903','173',null],['7614','270',null],['7615','271',null]]){
+    const stop=map.find(row=>row.id===apiId);
+    assert.ok(stop?.providerStopIds.mpk_rzeszow,apiId);
+    assert.equal(canonicalMapStopId(map,'gtfs:'+gtfsId,'pks'),apiId);
+    if(mpkId)assert.equal(canonicalMapStopId(map,mpkId,'mpk_rzeszow'),apiId);
+    assert.ok(stop.pksStopPoints.some(point=>point.id==='gtfs:'+gtfsId));
+  }
+  assert.equal(mapStopColor(map.find(row=>row.id==='7614')),'#14b8a6');
+  assert.equal(mapStopColor(map.find(row=>row.id==='5319')),'#ff7a00');
+  assert.ok(map.some(row=>row.id==='5320'),'opposite Wetlińska platform stays separate');
+  assert.ok(map.some(row=>row.id==='11058'),'opposite Rudna Wielka platform stays separate');
+  assert.notEqual(canonicalMapStopId(map,'118','mpk_rzeszow'),'11461','nearby Jagiellońska stays distinct');
+});

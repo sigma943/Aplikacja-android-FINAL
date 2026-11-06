@@ -175,9 +175,10 @@ function BusMap({
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const highlightedStop = highlightedStopId ? routeStopsData[highlightedStopId] : undefined;
   const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider,highlightedStop);
-  const selectedStopColor = selectedVehicle?.provider === 'pkp_intercity' ? themeColor
-    : selectedVehicle ? selectedRouteColor
-    : highlightedStop ? mapStopColor({name: highlightedStop.n}) : themeColor;
+  const selectedCatalogStop=highlightedStopId?mapStops.find(stop=>stop.id===selectedCatalogStopId):undefined;
+  const selectedStopColor=selectedVehicle?.provider==='pkp_intercity'?themeColor
+    : selectedCatalogStop?mapStopColor(selectedCatalogStop)
+    : highlightedStop?mapStopColor({name:highlightedStop.n}):themeColor;
   const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
   const routeDirection = normalizeRouteCachePart(
     selectedVehicle?.direction ||
@@ -428,7 +429,7 @@ function BusMap({
         />
 
         <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} alignToCatalog={selectedVehicle?.provider!=='pkp_intercity'} stops={mapStops} color={selectedStopColor}/>
-        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} routeStopIds={routeCatalogIds} selected={selectedCatalogStopId} selectedColor={selectedVehicle?selectedStopColor:undefined} onSelect={onMapStopClick}/>}
+        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} routeStopIds={routeCatalogIds} selected={selectedCatalogStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
@@ -445,7 +446,7 @@ function BusMap({
               stopIds={visibleRouteStopIds}
               highlightedStopId={highlightedStopId}
               catalogSelected={selectedCatalogStopId}
-              selectedRouteColor={themeColor}
+              selectedRouteColor={selectedStopColor}
               onStopClick={onStopClick}
             />
           )}

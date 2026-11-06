@@ -89,14 +89,15 @@ module.exports=function buildAccentFixture(){
 import {useState,useMemo,useEffect} from 'react';import dynamic from 'next/dynamic';
 const BusMap=dynamic(()=>import('@/components/BusMap'),{ssr:false});
 export default function Page(){
- const [provider,setProvider]=useState('marcel'),[show,setShow]=useState(true),[tick,setTick]=useState(0);
+ const [provider,setProvider]=useState('marcel'),[show,setShow]=useState(true),[tick,setTick]=useState(0),[rural,setRural]=useState(false),[selected,setSelected]=useState(true);
+ const city=rural?'Boguchwała':'Rzeszów';
  useEffect(()=>{const timer=setInterval(()=>setTick(value=>value+1),100);return()=>clearInterval(timer);},[]);
  useEffect(()=>{(window as any).fixtureMapTicks=tick;},[tick]);
  const id=provider==='mpk_rzeszow'?200:100;
- const point=useMemo(()=>({id,name:provider==='marcel'?'Rzeszów - TestMap 03':'Rzeszów TestMap 03',lat:provider==='marcel'?50.04004:50.04,lon:provider==='marcel'?22.00004:22,planned:null,real:null}),[id,provider]);
+ const point=useMemo(()=>({id,name:city+(provider==='marcel'?' - ':' ')+'TestMap 03',lat:provider==='marcel'?50.04004:50.04,lon:provider==='marcel'?22.00004:22,planned:null,real:null}),[id,provider,city]);
  const vehicle=useMemo(()=>({id:'selection-test',provider,name:'Test bus',routeShortName:'M',lat:50.042,lon:22.002,routeStops:[point]}),[provider,point]);
- const stops:any[]=useMemo(()=>[{id:'catalog-platform',name:'Rzeszów TestMap 03',type:'bus',lat:50.04,lon:22,carriers:[],lines:[],isFavorite:false,providerStopIds:{pks:'100',mpk_rzeszow:'200',marcel:'stable-03'}}],[]);
- return <div style={{height:'100vh'}}><div style={{position:'fixed',top:0,left:0,zIndex:20000}}>{['marcel','pks','mpk_rzeszow'].map(value=><button key={value} data-test-provider={value} onClick={()=>setProvider(value)}>{value}</button>)}<button data-test-icons onClick={()=>setShow(value=>!value)}>Icons</button></div><BusMap vehicles={[]} selectedVehicle={vehicle} highlightedStopId={String(id)} mapStops={show?stops:[]}/></div>;
+ const stops:any[]=useMemo(()=>[{id:'catalog-platform',name:city+' TestMap 03',type:'bus',lat:50.04,lon:22,carriers:[],lines:[],isFavorite:false,providerStopIds:{pks:'100',mpk_rzeszow:'200',marcel:'stable-03'}}],[city]);
+ return <div style={{height:'100vh'}}><div style={{position:'fixed',top:0,left:0,zIndex:20000}}>{['marcel','pks','mpk_rzeszow'].map(value=><button key={value} data-test-provider={value} onClick={()=>setProvider(value)}>{value}</button>)}<button data-test-icons onClick={()=>setShow(value=>!value)}>Icons</button><button data-test-rural onClick={()=>setRural(v=>!v)}>Rural</button><button data-test-highlight onClick={()=>setSelected(v=>!v)}>Highlight</button></div><BusMap vehicles={[]} selectedVehicle={selected?vehicle:undefined} highlightedStopId={selected?String(id):undefined} mapStops={show?stops:[]}/></div>;
 }`);
   fs.mkdirSync(path.join(fixture,'app/cosmos-fixture'));
   fs.writeFileSync(path.join(fixture,'app/cosmos-fixture/page.tsx'),`'use client';
