@@ -1016,7 +1016,13 @@ html[data-cosmic-theme='on'] .map-detail-shell .map-detail-row {
 }
 
 /* Content-sized rows must never shrink when their glass gets a paint clip. */
-[data-stop-list-scroll] { grid-auto-rows:max-content; }
+/* The stop cards scroll inside the tab without passing edge gestures to the page. */
+html:has(.pks-theme-root[data-cosmic-tab='stops']),
+html:has(.pks-theme-root[data-cosmic-tab='stops']) body {
+  overflow:clip;
+  overscroll-behavior-y:none;
+}
+[data-stop-list-scroll] { grid-auto-rows:max-content; overscroll-behavior-y:none; }
 .transit-stop-card { min-height:min-content; }
 
 [data-cosmic-nav-stars] { display:none; position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:-1; opacity:.72; }
@@ -1144,7 +1150,7 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 .pks-theme-root[data-ui-theme=dark-cosmos] .journey-view{background:linear-gradient(#060b1680,#060b1680),var(--theme-decoration);background-size:cover;background-attachment:local;}
 
 /* Shared stop lists use the active app artwork in both preview and full mode. */
-[data-stop-list-mode]{isolation:isolate}
+.transit-view[data-stop-list-mode]{isolation:isolate;overflow:clip}
 [data-stop-list-mode]>:not([data-filter-cosmos]){position:relative;z-index:1}
 html[data-cosmic-theme='on'] [data-stop-list-mode] [data-full-stop-list]{background:transparent!important}
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-stop-list-mode]{background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}

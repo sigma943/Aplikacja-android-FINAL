@@ -289,7 +289,7 @@ export default function StopList({
   };
 
   return (
-    <motion.div key={isFullListOpen ? "full" : "preview"} initial={reduceMotion ? false : {opacity: 0, y: isFullListOpen ? 18 : -10}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.52, ease: [0.25, 0.1, 0.25, 1]}} data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-x-hidden ${shellClass}`}>
+    <motion.div key={isFullListOpen ? "full" : "preview"} initial={reduceMotion ? false : {opacity: 0, y: isFullListOpen ? 18 : -10}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.52, ease: [0.25, 0.1, 0.25, 1]}} data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col ${shellClass}`}>
 
       <CosmicFilterEffects/>
       {!isFullListOpen && <>
@@ -338,7 +338,7 @@ export default function StopList({
         data-stop-list-scroll
         ref={listScrollRef}
         style={{overflowAnchor: 'none'}}
-        className={`min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[calc(var(--safe-bottom)+9.5rem)] pt-3 custom-scrollbar lg:px-6 ${
+        className={`min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[calc(var(--safe-bottom)+9.5rem)] pt-3 custom-scrollbar lg:px-6 ${
           isFullScreen
             ? 'grid w-full max-w-[1540px] content-start gap-2.5 px-3 pt-3 md:grid-cols-2 lg:mx-auto lg:gap-3 lg:px-6 lg:pt-4 xl:grid-cols-3'
             : 'flex w-full flex-col gap-2.5'

@@ -3,6 +3,7 @@ package pl.pkslive.app;
 import android.os.Bundle;
 import android.os.Build;
 import android.content.res.Configuration;
+import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import androidx.core.graphics.Insets;
@@ -31,6 +32,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(SystemBarsPlugin.class);
     registerPlugin(GoogleMapsHttpPlugin.class);
     super.onCreate(savedInstanceState);
+    if(bridge!=null) bridge.getWebView().setOverScrollMode(View.OVER_SCROLL_NEVER);
     PhoneOrientation.apply(this);
     WindowCompat.setDecorFitsSystemWindows(getWindow(),false);
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
