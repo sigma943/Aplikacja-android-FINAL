@@ -1,10 +1,38 @@
 import {createGtfsRuntime} from './gtfs-runtime';
-import {MPK_GTFS_URL,pksGtfsCovers} from './pks-gtfs';
+import {MPK_GTFS_URL,pksGtfsCovers,pksGtfsServiceRuns,type PksGtfsFeed} from './pks-gtfs';
 import {warsawDateIso} from './transit-time';
 import {isMpkPassengerLine} from './mpk-passenger-lines';
-import type {MpkRzeszowStop} from './transport/types';
+import type {MpkRzeszowScheduleEntry,MpkRzeszowStop} from './transport/types';
 const runtime=createGtfsRuntime({provider:'mpk',url:MPK_GTFS_URL,proxy:'/api/mpk/gtfs',event:'pks-live:mpk-gtfs-updated'});
 export const loadMpkGtfs=runtime.load,refreshMpkGtfs=runtime.refresh,peekMpkGtfs=runtime.peek,mpkGtfsUpdateStatus=runtime.status;
+
+/** undefined means the snapshot cannot answer for this stop/day. An empty
+ * array is a valid timetable and must not revive a service on a holiday. */
+export function mpkGtfsStopSchedule(feed:PksGtfsFeed,stopId:string,date:string):MpkRzeszowScheduleEntry[]|undefined{
+ if(!pksGtfsCovers(feed,date)||!Object.hasOwn(feed.stops,stopId))return;
+ const patterns=new Map<number,{offsets:number[];destination:string}>();
+ for(const [index,pattern] of feed.patterns.entries()){
+  if(!pattern.length)continue;
+  const offsets=pattern.filter((call,index)=>index<pattern.length-1&&call[0]===stopId&&call[3]!==1).map(call=>call[2]);
+  if(offsets.length)patterns.set(index,{offsets,destination:pattern[pattern.length-1][0]});
+ }
+ const active=new Map<string,boolean>();
+ const scheduled:Array<{seconds:number;entry:MpkRzeszowScheduleEntry}>=[];
+ for(const [trip,line,service,start,patternId] of feed.trips){
+  const pattern=patterns.get(patternId);
+  if(!pattern||!isMpkPassengerLine(line))continue;
+  if(!active.has(service))active.set(service,pksGtfsServiceRuns(feed,service,date));
+  if(!active.get(service))continue;
+  const destination=feed.stops[pattern.destination]?.name;
+  for(const offset of pattern.offsets){
+   const seconds=start+offset;
+   const departure_time=[Math.floor(seconds/3600),Math.floor(seconds%3600/60),seconds%60].map(value=>String(value).padStart(2,'0')).join(':');
+   scheduled.push({seconds,entry:{line,trip_id:trip,trip_headsign:feed.headsigns?.[trip]||destination,departure_time}});
+  }
+ }
+ return scheduled.sort((a,b)=>a.seconds-b.seconds).map(row=>row.entry);
+}
+
 let indexedFeed:ReturnType<typeof runtime.peek>=null,lines:Record<string,string[]>={};
 export async function withMpkGtfsStops(stops:MpkRzeszowStop[]):Promise<MpkRzeszowStop[]>{
  const feed=await loadMpkGtfs();if(!feed||!pksGtfsCovers(feed,warsawDateIso()))return stops;

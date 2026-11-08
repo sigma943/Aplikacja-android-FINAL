@@ -1,6 +1,5 @@
 import {sharedInflight} from '../shared-inflight';
-import {withMpkGtfsStops,loadMpkGtfs} from '../mpk-gtfs-runtime';
-import {pksGtfsCovers,pksGtfsServiceRuns} from '../pks-gtfs';
+import {withMpkGtfsStops,loadMpkGtfs,mpkGtfsStopSchedule} from '../mpk-gtfs-runtime';
 import mpkStopSnapshot from '../../public/data/mpk-stop-points.json';
 import {isMpkPassengerLine} from '../mpk-passenger-lines';
 
@@ -71,13 +70,8 @@ async function mpkServiceIdsForDate(dateIso: string) {
       const live = await requestJson<{ service_ids?: Array<string | number>; date_used?: string }>('https://www.mpkrzeszow.pl/get_current_service.php').catch(() => null);
       if (live?.date_used === dateIso.replace(/-/g, '') && live.service_ids?.length) return live.service_ids.map(String);
     }
-    if(typeof window!=='undefined'){
-      const feed=await loadMpkGtfs();
-      if(feed&&pksGtfsCovers(feed,dateIso)){
-        const ids=[...new Set(feed.trips.map(trip=>trip[2]))].filter(id=>pksGtfsServiceRuns(feed,id,dateIso));
-        if(ids.length)return ids;
-      }
-    }
+    // These IDs belong to the legacy timetable endpoint, independently of
+    // the current GTFS export (which can use a different calendar namespace).
     mpkCalendarPromise ??= withRequestDeadline(async (signal) => {
       const response = await fetch('/data/mpk-service-calendar.json', { signal });
       if (!response.ok) throw new Error('MPK calendar HTTP ' + response.status);
@@ -132,6 +126,12 @@ export async function fetchMpkRzeszowDeparturesClient(
     ? requestJson<unknown>(`https://www.mpkrzeszow.pl/przystanki/departures.php?${new URLSearchParams({ stopId, hide_last_stop: '1' })}`, { signal: options?.signal }).then(payload => mpkBoardEntries(payload))
     : Promise.resolve([]);
   const schedulePromise = (async () => {
+    if(typeof window!=='undefined'){
+      const feed=await loadMpkGtfs();
+      options?.signal?.throwIfAborted();
+      const rows=feed?mpkGtfsStopSchedule(feed,stopId,dateIso):undefined;
+      if(rows!==undefined)return rows;
+    }
     const serviceIds = await mpkServiceIdsForDate(dateIso);
     const data = await requestJson<{ schedule?: Record<string, MpkRzeszowScheduleEntry[]> }>(
       `${MPK_RZESZOW_STOP_SCHEDULE_URL}?${new URLSearchParams({ stop_id: String(stopId), service_id: serviceIds.join(',') })}`,
