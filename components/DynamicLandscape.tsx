@@ -6,7 +6,7 @@ import {DEFAULT_LANDSCAPE_LOCATION,astronomyAt,interpolateAstronomy,type Astrono
 import {landscapeOptics,landscapeViewport,type LandscapeViewport} from '@/lib/landscape-optics';
 import {landscapePalette,isLandscapeDay} from '@/lib/landscape-palette';
 import {WATER_QUALITY,type WaterQuality} from '@/lib/landscape-water-gpu';
-import {cloudDensity} from '@/lib/landscape-clouds';
+import {cloudCoverage} from '@/lib/landscape-clouds';
 import {LandscapeRenderer} from '@/lib/landscape-renderer';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {landscapeMotionPolicy,landscapeFrameBudget,landscapeDrawInterval} from '@/lib/landscape-motion';
@@ -160,7 +160,10 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       const mask=document.createElement('canvas');mask.width=850;mask.height=1850;
       const context=mask.getContext('2d',{willReadFrequently:true})!;context.drawImage(clouds,0,0,850,1850);
       const pixels=context.getImageData(0,0,850,1850),rgba=pixels.data,alpha=new Uint8ClampedArray(850*1850);
-      for(let i=0;i<alpha.length;i++)alpha[i]=rgba[i*4+3]=Math.round(rgba[i*4+3]*cloudDensity((i%850)/850,Math.floor(i/850)/1850));
+      for(let i=0;i<alpha.length;i++){
+        const channel=i*4+3;
+        alpha[i]=rgba[channel]=Math.round(255*cloudCoverage(rgba[channel]/255,(i%850)/850,Math.floor(i/850)/1850));
+      }
       context.putImageData(pixels,0,0);
       renderer.setAssets({terrain,clouds:mask,water,geometry,perspective,moon,sceneDepth,terrainNormal,cloudAlpha:alpha});element.dataset.assetsReady='true';draw();
     }).catch(()=>{if(alive)element.dataset.renderError='landscape-assets';});

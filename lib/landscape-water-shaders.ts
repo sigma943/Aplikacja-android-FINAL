@@ -395,13 +395,10 @@ void main(){
    float open=(1.-texture(uTerrain,q).a)*(1.-texture(uClouds,cloudUV).a);
    float decay=exp(-fraction*1.6);visibility+=open*decay;weight+=decay;
   }
-  // Broad, feathered bundles alongside fine shafts. Their moving contrast
-  // comes from real cloud visibility; the envelope never introduces hard spokes.
-  float angle=atan(delta.y,delta.x);
-  float fan=.55+.28*pow(.5+.5*sin(angle*11.+.9),6.)+.17*pow(.5+.5*sin(angle*23.-.4),10.);
+  // Only the sampled occluders shape the angular contrast.
   float reach=mix(3.8,2.1,clamp((rayStrength-1.)/3.,0.,1.));
-  float radial=visibility/max(weight,.001)*exp(-distance*reach)*(1.-exp(-distance*18.))*fan;
-  shafts+=radial*uSunIntensity*.24*(1.-smoothstep(.25,.8,uSunAltitude));
+  float radial=visibility/max(weight,.001)*exp(-distance*reach)*(1.-exp(-distance*18.));
+  shafts+=radial*uSunIntensity*.15*(1.-smoothstep(.25,.8,uSunAltitude));
  }
  // Exponential exposure keeps increasing smoothly without a flat intensity cap.
  shafts=1.-exp(-max(0.,shafts)*rayStrength);

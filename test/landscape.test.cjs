@@ -200,10 +200,14 @@ test('both bodies rise vertically at their actual apparent horizon and stay insi
   for(let h=0;h<24;h++){const body=a.astronomyAt(ms+h*3600000,place)[kind];if(a.apparentLandscapeAltitude(body,kind)>0){const p=a.projectCelestial(body,kind);assert.equal(p.x,kind==='sun'?.50:.78);assert.ok(p.y>.06);}}
  }
 });
-test('cloud thinning preserves silhouettes with roughly a quarter less coverage',()=>{
- const {cloudDensity}=load('lib/landscape-clouds.ts');let sum=0,min=1,max=0;
- for(let y=0;y<50;y++)for(let x=0;x<100;x++){const n=cloudDensity(x/100,y/100);assert.ok(n>=0&&n<=1);sum+=n;min=Math.min(min,n);max=Math.max(max,n);}
- assert.ok(sum/5000>.70&&sum/5000<.8);assert.ok(min>=.66-1e-12&&max<=.84+1e-12,'never carve a new edge through a cloud');assert.ok(max-min>.1);
+test('horizon cloud bank has clear gaps while high clouds keep their cores',()=>{
+ const {cloudCoverage}=load('lib/landscape-clouds.ts');
+ const samples=(alpha,y)=>Array.from({length:100},(_,x)=>cloudCoverage(alpha,x/100,y));
+ const high=samples(1,.14),horizon=samples(1,.36);
+ assert.ok(high.every(value=>value>=.67&&value<=.84+1e-12));
+ assert.ok(horizon.some(value=>value<.25)&&horizon.some(value=>value>.6));
+ assert.ok(samples(.25,.36).every(value=>value<.05),'thin edges blend into open sky');
+ assert.ok(samples(0,.36).every(value=>value===0));
 });
 
 test('simultaneous sunset and moonrise have separate tracks and a gentle twilight handover',()=>{

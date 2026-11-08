@@ -1,14 +1,36 @@
 import {solarShaftStrength} from './landscape-optics';
+import {smoothstep} from './landscape-astronomy';
 
 const TAU=Math.PI*2;
-const rays=[
-  [.037,.019,.66],[.102,.025,.84],[.181,.035,1],[.275,.022,.75],
-  [.369,.031,.94],[.462,.014,.69],[.578,.018,.43],[.715,.019,.38],[.886,.026,.55],
-] as const;
+const ANGULAR_SAMPLES=96;
+const cloudSamples=[[.018,4],[.032,4],[.05,3],[.074,3],[.105,2],[.145,2],[.195,1]] as const;
 
 export function godRaysOpacity(altitude:number,intensity:number,strength:number){
   const gain=strength<=1?strength:1+3*(strength-1)**2;
   return Math.min(.34,Math.sqrt(intensity)*gain*(.04+.29*solarShaftStrength(altitude)));
+}
+
+export function godRaysProfile(
+  sun:{x:number;y:number},aspect:number,transmission:(x:number,y:number)=>number,
+){
+  const visibility=Array.from({length:ANGULAR_SAMPLES},(_,index)=>{
+    const angle=index/ANGULAR_SAMPLES*TAU;
+    const dx=Math.cos(angle)/aspect,dy=Math.sin(angle);
+    let total=0,weights=0;
+    for(const [distance,weight] of cloudSamples){
+      total+=weight*transmission(sun.x+dx*distance,sun.y+dy*distance);
+      weights+=weight;
+    }
+    return total/weights;
+  });
+  const at=(index:number)=>visibility[(index+ANGULAR_SAMPLES)%ANGULAR_SAMPLES];
+  const ambient=visibility.reduce((sum,value)=>sum+value,0)/ANGULAR_SAMPLES;
+  return visibility.map((_,index)=>{
+    const open=(at(index-1)+2*at(index)+at(index+1))/4;
+    const surrounding=(at(index-8)+at(index-4)+at(index+4)+at(index+8))/4;
+    const contrast=.4*(open-ambient)+.6*(open-surrounding);
+    return smoothstep(.006,.14,contrast);
+  });
 }
 
 /** One screen-space field shared by scenery and UI. Cloud openings shape its
@@ -20,23 +42,19 @@ export function paintGodRays(
 ){
   const x=sun.x*width,y=sun.y*height,reach=Math.hypot(width,height)*.91;
   const color=sun.color.map(value=>Math.round(value*255)).join(',');
+  const profile=godRaysProfile(sun,width/height,transmission);
+  if(!profile.some(Boolean))return;
   const light=c.createConicGradient(0,x,y);
-  light.addColorStop(0,'transparent');
-  for(const [turn,spread,weight] of rays){
-    const angle=turn*TAU,dx=Math.cos(angle),dy=Math.sin(angle);
-    const open=transmission(sun.x+dx*reach*.09/width,sun.y+dy*reach*.09/height);
-    const alpha=opacity*weight*(.12+.88*open);
-    light.addColorStop(turn-spread,'transparent');
-    light.addColorStop(turn-spread*.32,`rgba(${color},${alpha*.65})`);
-    light.addColorStop(turn,`rgba(${color},${alpha})`);
-    light.addColorStop(turn+spread,'transparent');
+  for(let index=0;index<=profile.length;index++){
+    const alpha=opacity*profile[index%profile.length];
+    light.addColorStop(index/profile.length,`rgba(${color},${alpha})`);
   }
-  light.addColorStop(1,'transparent');
   c.fillStyle=light;c.fillRect(0,0,width,height);
   const falloff=c.createRadialGradient(x,y,0,x,y,reach);
-  falloff.addColorStop(0,'#fff9');
-  falloff.addColorStop(.1,'#fff');
-  falloff.addColorStop(.52,'#fff8');
+  falloff.addColorStop(0,'#fff6');
+  falloff.addColorStop(.08,'#fffd');
+  falloff.addColorStop(.30,'#fff9');
+  falloff.addColorStop(.63,'#fff3');
   falloff.addColorStop(1,'#fff0');
   c.globalCompositeOperation='destination-in';
   c.fillStyle=falloff;c.fillRect(0,0,width,height);
