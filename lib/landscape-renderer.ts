@@ -59,6 +59,10 @@ export class LandscapeRenderer{
   getGpuMs(){return this.gpu?.getGpuMs()??0;}
   diagnostics(){return {quality:this.quality,effects:{...this.effects},presentation:this.directWater?'direct-gpu':'composited',backgroundFrames:this.backgroundFrames,coveredFrames:this.coveredFrames,sceneCovered:this.sceneCovered,lighting:this.lighting,gpu:this.gpu?.diagnostics()};}
   sunScreen(){const sun=this.lighting?.sun;return sun?{x:(sun.x*WIDTH*this.scale+this.offsetX)/this.width,y:(sun.y*HEIGHT*this.scale+this.offsetY)/this.height}:null;}
+  sunRayTransmission(x:number,y:number){
+    return this.cloudTransmission((x*this.width-this.offsetX)/(WIDTH*this.scale),
+      (y*this.height-this.offsetY)/(HEIGHT*this.scale),cloudOffset(this.ambientSeconds));
+  }
   resize(w:number,h:number,dpr:number){
     const density=Math.min(dpr,3,Math.sqrt(3600000/(w*h)));
     this.width=this.canvas.width=Math.round(w*density);this.height=this.canvas.height=Math.round(h*density);

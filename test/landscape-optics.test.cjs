@@ -1,11 +1,19 @@
 const test=require('node:test'),assert=require('node:assert/strict'),load=require('./load-ts.cjs');
 const {glassFresnel,solarShaftStrength,landscapeOptics,landscapeViewport}=load('lib/landscape-optics.ts');
+const {godRaysOpacity}=load('lib/landscape-god-rays.ts');
 const state=degrees=>({sun:{altitude:degrees*Math.PI/180,azimuth:0}});
 test('Fresnel rises at grazing angles; shafts favour low sun and fade at night and noon',()=>{
  assert.equal(glassFresnel(1),.04);assert.equal(glassFresnel(0),1);
  assert.ok(glassFresnel(.1)>glassFresnel(.7));
  assert.equal(solarShaftStrength(-15*Math.PI/180),0);assert.equal(solarShaftStrength(40*Math.PI/180),0);
  assert.ok(solarShaftStrength(1*Math.PI/180)>.9);
+});
+test('God Rays favour low sun and follow visibility and the existing intensity slider',()=>{
+ const low=Math.PI/180;
+ assert.ok(godRaysOpacity(low,.5,1)>godRaysOpacity(low*40,.5,1)*4);
+ assert.equal(godRaysOpacity(low,0,1),0);
+ assert.equal(godRaysOpacity(low,.5,0),0);
+ assert.ok(godRaysOpacity(low,.5,2)>godRaysOpacity(low,.5,1));
 });
 test('glass reflections follow transparency, sunlight and the glass toggle',()=>{
  const strength=(alt,opacity,glass)=>Number(landscapeOptics(state(alt),opacity,glass)['--landscape-reflection-strength']);

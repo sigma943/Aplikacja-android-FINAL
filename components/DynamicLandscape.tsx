@@ -11,6 +11,7 @@ import {LandscapeRenderer} from '@/lib/landscape-renderer';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {landscapeMotionPolicy,landscapeFrameBudget,landscapeDrawInterval} from '@/lib/landscape-motion';
 import {LANDSCAPE_SETTINGS_EVENT,readLandscapeSettings} from '@/lib/landscape-settings';
+import {godRaysOpacity,paintGodRays} from '@/lib/landscape-god-rays';
 
 const PowerPolicy=registerPlugin<{
   getStatus():Promise<{limited:boolean;critical?:boolean}>;
@@ -22,6 +23,7 @@ type DebugWindow=Window&{__landscapeCapture?:()=>HTMLCanvasElement;__landscapeRe
 /** This component owns its draw loop. Astronomy never updates application React state. */
 export default function DynamicLandscape({active,glass=true,sceneCovered=false}:{active:boolean;glass?:boolean;sceneCovered?:boolean}){
   const canvas=useRef<HTMLCanvasElement>(null);
+  const raysCanvas=useRef<HTMLCanvasElement>(null);
   const covered=useRef(sceneCovered),refreshScene=useRef<(()=>void)|null>(null);
   useEffect(()=>{covered.current=sceneCovered;refreshScene.current?.();},[sceneCovered]);
   useLayoutEffect(()=>{
@@ -29,7 +31,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     const element=canvas.current,root=document.documentElement;
     const renderer=new LandscapeRenderer(element,true),media=matchMedia('(prefers-reduced-motion: reduce)');
     const worker=new Worker(new URL('../lib/landscape.worker.ts',import.meta.url));
-    let lastGlass=0;
+    let lastGlass=0,lastRays=-Infinity;
     let alive=true,sceneVisible=true,nativeActive=true,limited=false,critical=false,requestId=0;
     let solarDay:boolean|undefined;
     let samples:{a:AstronomyState;b:AstronomyState}|null=null;
@@ -79,6 +81,38 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     };
     const refreshFilter=()=>paintFilter();
     window.addEventListener('pks-landscape-window',refreshFilter);
+    const paintRays=(mono:number)=>{
+      const target=raysCanvas.current,sun=renderer.lighting?.sun,origin=renderer.sunScreen();
+      if(!target)return;
+      const opacity=sun&&settings.godRays&&!light&&!critical?godRaysOpacity(sun.altitude,sun.intensity,settings.rays/100):0;
+      if(!sun||!origin||opacity<.008){target.hidden=true;return;}
+      if(mono-lastRays<250)return;
+      lastRays=mono;
+      const size=Math.min(1,480/Math.max(element.width,element.height));
+      const width=Math.max(1,Math.round(element.width*size)),height=Math.max(1,Math.round(element.height*size));
+      if(target.width!==width||target.height!==height){target.width=width;target.height=height;}
+      const context=target.getContext('2d');
+      if(!context)return;
+      target.hidden=false;
+      const rect=covered.current?target.getBoundingClientRect():null;
+      if(rect&&(!rect.width||!rect.height)){target.hidden=true;return;}
+      context.clearRect(0,0,width,height);
+      context.save();
+      if(rect){
+        // On the map, transmit light through the UI without tinting map tiles.
+        const sx=width/rect.width,sy=height/rect.height;
+        context.beginPath();
+        for(const panel of element.parentElement!.querySelectorAll<HTMLElement>('.pks-map-search-panel,.pks-navigation,.map-detail-shell,[data-map-control]')){
+          const box=panel.getBoundingClientRect();
+          if(!box.width||!box.height||panel.closest('[hidden],[inert],[data-navigation-preview]'))continue;
+          const radius=parseFloat(getComputedStyle(panel).borderTopLeftRadius)||0;
+          context.roundRect((box.left-rect.left)*sx,(box.top-rect.top)*sy,box.width*sx,box.height*sy,radius*sx);
+        }
+        context.clip();
+      }
+      paintGodRays(context,width,height,{...origin,color:sun.color},opacity,(x,y)=>renderer.sunRayTransmission(x,y));
+      context.restore();
+    };
     const draw=()=>{
       clearTimeout(drawTimer);cancelAnimationFrame(frameRequest);if(!visible()||!alive)return;
       const mono=performance.now(),wall=Date.now(),motionPolicy=policy();
@@ -96,6 +130,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
           lastGlass=mono;updatePalette(state);
         }
         paintFilter();
+        paintRays(mono);
         if(recordingCanvas&&recordingContext){
           if(recordingCanvas.width!==element.width||recordingCanvas.height!==element.height){recordingCanvas.width=element.width;recordingCanvas.height=element.height;}
           renderer.copyWindow(recordingContext,0,0,element.width,element.height,element.width,element.height,true);
@@ -148,10 +183,12 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
         const next=landscapeViewport(viewport,{width:rect.width,height},editing);
         if(!viewport||next.width!==viewport.width||next.height!==viewport.height)renderer.resize(next.width,next.height,devicePixelRatio||1);
         viewport=next;element.style.height=next.height+'px';element.dataset.keyboard=String(next.keyboard);
+        if(raysCanvas.current)raysCanvas.current.style.height=element.style.height;
+        lastRays=-Infinity;
       }
       draw();
     };
-    const restart=()=>{readPreferences();cancelAnimationFrame(frameRequest);nextFrame=0;fpsStart=performance.now();fpsFrames=0;if(samples)updatePalette(samples.a);clearTimeout(drawTimer);clearTimeout(modelTimer);root.dataset.landscapeMotion=visible()&&policy().animate?'on':'off';if(visible()){lastGlass=0;updateModel();draw();}else renderer.suspend();};
+    const restart=()=>{readPreferences();lastRays=-Infinity;cancelAnimationFrame(frameRequest);nextFrame=0;fpsStart=performance.now();fpsFrames=0;if(samples)updatePalette(samples.a);clearTimeout(drawTimer);clearTimeout(modelTimer);root.dataset.landscapeMotion=visible()&&policy().animate?'on':'off';if(visible()){lastGlass=0;updateModel();draw();}else renderer.suspend();};
     refreshScene.current=restart;
     const intersection=new IntersectionObserver(entries=>{const next=entries.some(entry=>entry.isIntersecting);if(next!==sceneVisible){sceneVisible=next;restart();}});intersection.observe(element);
     const observer=new ResizeObserver(resize);observer.observe(element.parentElement!);
@@ -205,5 +242,5 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       delete root.dataset.landscapeFilterBackground;delete root.dataset.landscapeTheme;delete root.dataset.landscapePeriod;delete root.dataset.landscapeGlass;for(const key of paletteKeys)root.style.removeProperty(key);
     };
   },[active,glass]);
-  return active?<canvas ref={canvas} data-landscape-stage aria-hidden="true"/>:null;
+  return active?<><canvas ref={canvas} data-landscape-stage aria-hidden="true"/><canvas ref={raysCanvas} data-landscape-god-rays hidden aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-[5001] w-full"/></>:null;
 }
