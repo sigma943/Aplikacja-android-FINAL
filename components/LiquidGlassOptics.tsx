@@ -3,16 +3,16 @@
 import {useEffect,useState} from 'react';
 
 const lenses=[
-  {id:'nav',width:144,height:32,radius:11,scale:.12},
-  {id:'filter',width:144,height:52,radius:9,scale:.10},
-  {id:'control',width:32,height:32,radius:11,scale:.22},
+  {id:'nav',width:144,height:32,radius:11,bevel:6,scale:.28},
+  {id:'filter',width:144,height:52,radius:9,bevel:5,scale:.19},
+  {id:'control',width:32,height:32,radius:11,bevel:6,scale:.42},
 ] as const;
 
 let cachedTextures:string[]|undefined;
 
-// The red and green channels encode horizontal and vertical offsets.
-// The center stays neutral, with refraction confined to the rounded bevel.
-function bevelTexture({width,height,radius}:typeof lenses[number]){
+// Red and green encode refraction. Blue encodes the light reflected by
+// the same curved surface, so the glint follows the corners of the lens.
+function bevelTexture({width,height,radius,bevel}:typeof lenses[number]){
   const canvas=document.createElement('canvas');
   canvas.width=width;
   canvas.height=height;
@@ -25,12 +25,17 @@ function bevelTexture({width,height,radius}:typeof lenses[number]){
       const dx=px-Math.max(radius,Math.min(width-radius,px));
       const dy=py-Math.max(radius,Math.min(height-radius,py));
       const distance=Math.hypot(dx,dy);
-      const depth=(radius-distance)/4;
-      const strength=depth>0&&depth<1?Math.sin(Math.PI*depth)*118:0;
+      const depth=(radius-distance)/bevel;
+      const curve=depth>=0&&depth<1?1-depth:0;
+      const slope=curve/Math.sqrt(Math.max(.04,1-curve*curve));
+      const bend=124*slope/(1+slope);
+      const nx=dx/(distance||1),ny=dy/(distance||1);
+      const light=.58*nx+.82*ny;
+      const glint=curve*curve*(.16+.84*Math.pow(Math.abs(light),4));
       const i=(y*width+x)*4;
-      image.data[i]=128-strength*(height/width)*dx/(distance||1);
-      image.data[i+1]=128-strength*dy/(distance||1);
-      image.data[i+2]=128;
+      image.data[i]=128-bend*(height/width)*nx;
+      image.data[i+1]=128-bend*ny;
+      image.data[i+2]=255*glint;
       image.data[i+3]=255;
     }
   }
@@ -51,7 +56,9 @@ export default function LiquidGlassOptics(){
         {lenses.map(({id,scale},index)=>(
           <filter key={id} id={`pks-liquid-${id}`} x="0%" y="0%" width="100%" height="100%" primitiveUnits="objectBoundingBox" colorInterpolationFilters="sRGB">
             <feImage href={textures[index]} x="0%" y="0%" width="100%" height="100%" preserveAspectRatio="none" result="bevel"/>
-            <feDisplacementMap in="SourceGraphic" in2="bevel" scale={scale} xChannelSelector="R" yChannelSelector="G"/>
+            <feDisplacementMap in="SourceGraphic" in2="bevel" scale={scale} xChannelSelector="R" yChannelSelector="G" result="refracted"/>
+            <feColorMatrix in="bevel" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 1 0 0" result="reflection"/>
+            <feBlend in="reflection" in2="refracted" mode="screen"/>
           </filter>
         ))}
       </defs>

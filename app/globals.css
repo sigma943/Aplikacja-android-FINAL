@@ -10,20 +10,18 @@
 @layer liquid-glass {
   @supports (backdrop-filter:url(#pks-liquid-nav)) {
     .pks-theme-root[data-liquid-glass]:has(> [data-liquid-glass-optics]) {
-      --liquid-tint:86%;
-      --liquid-rim:color-mix(in srgb,var(--pks-accent,#7184ac) 26%,#ffffff80);
-      --liquid-edge-shadow:#182c4e38;
+      --liquid-tint:58%;
+      --liquid-edge-shadow:#182c4e40;
     }
     .pks-theme-root[data-liquid-glass='dark'] {
-      --liquid-rim:color-mix(in srgb,var(--pks-accent,#a2b7dd) 35%,#ffffff32);
+      --liquid-tint:68%;
       --liquid-edge-shadow:#0007;
     }
     .pks-theme-root[data-liquid-glass][data-ui-theme='dark-oled'] {
-      --liquid-tint:95%;
+      --liquid-tint:80%;
     }
     .pks-theme-root[data-liquid-glass][data-ui-theme='light-warm'] {
-      --liquid-rim:#f8e7cba0;
-      --liquid-tint:92%;
+      --liquid-tint:65%;
     }
 
     .pks-theme-root[data-liquid-glass]:has(> [data-liquid-glass-optics]) :is(
@@ -35,7 +33,7 @@
     ) {
       position:relative;
       background-color:color-mix(in srgb,var(--landscape-solid,var(--ui-raised,#1b2937)) var(--liquid-tint),transparent)!important;
-      backdrop-filter:var(--liquid-lens)!important;
+      backdrop-filter:blur(2.5px) var(--liquid-lens)!important;
       transition-property:opacity,transform,scale!important;
 
       &::after {
@@ -44,8 +42,12 @@
         inset:0;
         pointer-events:none;
         border-radius:inherit;
-        box-shadow:inset 0 1px 0 var(--liquid-rim),inset 1px 0 0 var(--liquid-rim),inset 0 -2px 3px var(--liquid-edge-shadow);
+        box-shadow:inset 0 -2px 3px var(--liquid-edge-shadow);
       }
+    }
+    html[data-cosmic-theme='on'] .pks-theme-root[data-liquid-glass]:has(> [data-liquid-glass-optics])
+      [data-map-toolbar] .pks-map-search-panel > [data-filter-cosmos] {
+      opacity:.35;
     }
     .pks-navigation { --liquid-lens:url(#pks-liquid-nav); }
     .pks-map-search-panel { --liquid-lens:url(#pks-liquid-filter); }
