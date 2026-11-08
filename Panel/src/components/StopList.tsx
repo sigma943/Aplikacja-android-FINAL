@@ -1,10 +1,11 @@
 import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import CosmicFilterEffects from '@/components/CosmicFilterEffects';
+import ListExpansionButton from '@/components/ListExpansionButton';
 import {createStopSearchIndex,searchStops} from '@/lib/stop-search';
 import {stopCatalogDisplayLabel} from '@/lib/mpk-stop-label';
 import {useAppBack} from '../../../lib/use-app-back';
 import React, { useEffect, useDeferredValue, useMemo, useState, useLayoutEffect, useRef } from 'react';
-import { Search, X, Bus, Train, Star, ChevronDown, MapPin } from 'lucide-react';
+import { Search, X, Bus, Train, Star, MapPin } from 'lucide-react';
 import { Stop } from '../types';
 import { getLineStyle } from '../utils/lineStyles';
 import { motion } from 'motion/react';
@@ -338,7 +339,7 @@ export default function StopList({
         data-stop-list-scroll
         ref={listScrollRef}
         style={{overflowAnchor: 'none'}}
-        className={`min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pb-[calc(var(--safe-bottom)+9.5rem)] pt-3 custom-scrollbar lg:px-6 ${
+        className={`min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pt-3 custom-scrollbar lg:px-6 ${
           isFullScreen
             ? 'grid w-full max-w-[1540px] content-start gap-2.5 px-3 pt-3 md:grid-cols-2 lg:mx-auto lg:gap-3 lg:px-6 lg:pt-4 xl:grid-cols-3'
             : 'flex w-full flex-col gap-2.5'
@@ -361,21 +362,15 @@ export default function StopList({
             {displayStops.map((stop, index) => renderStopCard(stop, index))}
 
             {filteredStops.length > 30 && (
-              <div className="col-span-full mb-8 mt-6 flex w-full justify-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    previewScrollRef.current = listScrollRef.current?.scrollTop || 0;
-                    onSearchStateChange?.({previewScrollTop: previewScrollRef.current, fullScrollTop: 0});
-                    setFullInputValue(inputValue);
-                    setVisibleFullCountValue(40);
-                    setIsFullListOpen(true);
-                  }}
-                  className="cursor-pointer rounded-2xl border ui-accent-soft px-6 py-3.5 text-xs font-extrabold uppercase tracking-wider ui-accent-text transition-colors "
-                >
-                  Pokaż wszystkie ({filteredStops.length})
-                </button>
-              </div>
+              <ListExpansionButton className="col-span-full" onClick={() => {
+                previewScrollRef.current = listScrollRef.current?.scrollTop || 0;
+                onSearchStateChange?.({previewScrollTop: previewScrollRef.current, fullScrollTop: 0});
+                setFullInputValue(inputValue);
+                setVisibleFullCountValue(40);
+                setIsFullListOpen(true);
+              }}>
+                Pokaż wszystkie ({filteredStops.length})
+              </ListExpansionButton>
             )}
 
             {filteredStops.length === 0 && (
@@ -452,20 +447,13 @@ export default function StopList({
             {renderCarrierFilters(true)}
           </div>
 
-          <motion.div ref={listScrollRef} data-stop-list-scroll layoutScroll style={{overflowAnchor: 'none'}} className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-[calc(var(--safe-bottom)+9.5rem)] py-4 custom-scrollbar lg:px-6">
+          <motion.div ref={listScrollRef} data-stop-list-scroll layoutScroll style={{overflowAnchor: 'none'}} className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pt-4 custom-scrollbar lg:px-6">
             <VirtualStopCards stops={slicedFullStops} scroll={listScrollRef} render={(stop,index)=>renderStopCard(stop,index,true)} onVisible={onVisibleStopsChange}/>
 
             {fullFilteredStops.length > visibleFullCount && (
-              <div className="mb-6 mt-4 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setVisibleFullCountValue((count) => count + 40)}
-                  className="group flex w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-2xl border ui-accent-soft px-6 py-3.5 text-center text-xs font-black uppercase tracking-wider ui-accent-text transition-colors "
-                >
-                  <span>Pokaż więcej (+{fullFilteredStops.length - visibleFullCount} pozostałych)</span>
-                  <ChevronDown size={14} className="ui-accent-text transition-transform group-hover:translate-y-0.5" />
-                </button>
-              </div>
+              <ListExpansionButton onClick={() => setVisibleFullCountValue((count) => count + 40)}>
+                Pokaż więcej (+{fullFilteredStops.length - visibleFullCount} pozostałych)
+              </ListExpansionButton>
             )}
 
             {fullFilteredStops.length === 0 && (

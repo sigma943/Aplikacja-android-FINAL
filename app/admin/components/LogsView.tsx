@@ -1,5 +1,6 @@
 import {useJourneyReducedMotion} from '@/lib/journey-motion';
 import {useAppBack} from '@/lib/use-app-back';
+import ListExpansionButton from '@/components/ListExpansionButton';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, ChevronDown, Calendar, RefreshCcw, LogIn, MonitorOff, ShieldAlert, UserCog, PowerOff, MapPin, Menu, Trash2, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -420,12 +421,9 @@ export function LogsView({
         </div>
 
         {visibleCount < filteredLogs.length && (
-          <button 
-            onClick={() => setVisibleCount(c => c + 5)}
-            className="w-full text-center py-5 pks-personal-card ui-accent-focus bg-[#111623] hover:bg-white/[0.02] border-white/5 hover:border-white/10 shadow-inner border rounded-2xl text-xs sm:text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 mt-6 active:scale-[0.98] cursor-pointer"
-          >
-            Pokaż więcej wpisów ({filteredLogs.length - visibleCount}) <ChevronDown size={18} className="translate-y-0.5" />
-          </button>
+          <ListExpansionButton className="mt-6" onClick={() => setVisibleCount(c => c + 5)}>
+            Pokaż więcej wpisów ({filteredLogs.length - visibleCount})
+          </ListExpansionButton>
         )}
       </div>
     </div>

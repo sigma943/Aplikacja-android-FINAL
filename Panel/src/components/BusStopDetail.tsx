@@ -1,13 +1,14 @@
 import {useJourneyReducedMotion as useReducedMotion} from '@/lib/journey-motion';
 import {formatBusDelayMinutes} from '@/lib/bus-punctuality';
 import {stopCatalogDisplayLabel} from '@/lib/mpk-stop-label';
+import ListExpansionButton from '@/components/ListExpansionButton';
 import {readBusCoordinates} from '../../../lib/bus-coordinates';
 import {syncStopWidgets} from '../../../lib/stop-widget';
 import GenerateStopWidget from '../../../components/widgets/GenerateStopWidget';
 import {useForegroundRefresh} from '../../../lib/use-foreground-refresh';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {readAppTheme,resolveAppTheme} from '../../../lib/app-theme';
-import { ArrowLeft, MapPin, LayoutGrid, Star, Navigation, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, MapPin, LayoutGrid, Star, Navigation, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStopDepartures, type DepartureLoader } from './useStopDepartures';
 import { warsawDateIso, warsawTimeMs } from '../../../lib/transit-time';
 import { departureIsPast, departureCountdown } from '../../../lib/departure-display';
@@ -416,17 +417,11 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
                 )}
 
                 {!showAllDepartures && activeDepartures.length > 5 && (
-                  <button 
-                    onClick={() => setShowAllDepartures(true)}
-                    className={`w-full py-4 text-xs font-bold flex items-center justify-center gap-2 border-t transition-colors uppercase tracking-wider cursor-pointer ${
-                      isDarkTheme
-                        ? 'text-slate-400 hover:text-white border-white/[0.04] hover:bg-white/[0.02]'
-                        : 'text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-100/70'
-                    }`}
-                  >
-                    Pokaż wszystkie odjazdy ({activeDepartures.length})
-                    <ChevronDown size={14} />
-                  </button>
+                  <div className="p-3">
+                    <ListExpansionButton onClick={() => setShowAllDepartures(true)}>
+                      Pokaż wszystkie odjazdy ({activeDepartures.length})
+                    </ListExpansionButton>
+                  </div>
                 )}
                   </>
                 )}
