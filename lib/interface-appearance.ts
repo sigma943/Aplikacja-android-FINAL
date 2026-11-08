@@ -19,6 +19,7 @@ export const NAV_ITEMS=['map','stops','journeys','admin','options'] as const;
 export type NavItem=typeof NAV_ITEMS[number];
 export interface InterfaceAppearance {
   statusBarOverlay:boolean;
+  liquidGlass:boolean;
   landscapeAccentEnabled:boolean; landscapeDayAccent:string; landscapeNightAccent:string;
   startScreen:'map'|'journeys'|'stops'|'admin';navOrder:NavItem[];departureView:'simple'|'detailed';
   markerSize:number;markerLabel:'line'|'carrier'|'icon';
@@ -40,6 +41,7 @@ export interface InterfaceAppearance {
 }
 export const DEFAULT_INTERFACE_APPEARANCE:InterfaceAppearance={
   statusBarOverlay:true,
+  liquidGlass:false,
   landscapeAccentEnabled:false,landscapeDayAccent:'',landscapeNightAccent:'',
   startScreen:'map',navOrder:[...NAV_ITEMS],departureView:'detailed',markerSize:100,markerLabel:'line',
   panelRadius:24,cardRadius:20,controlRadius:12,borderStrength:12,shadowStrength:30,
@@ -63,6 +65,7 @@ export function normalizeInterfaceAppearance(input:unknown):InterfaceAppearance{
   const flag=(key:keyof InterfaceAppearance)=>typeof v[key]==='boolean'?v[key] as boolean:d[key] as boolean;
   return {
     statusBarOverlay:flag('statusBarOverlay'),
+    liquidGlass:flag('liquidGlass'),
     landscapeAccentEnabled:flag('landscapeAccentEnabled'),
     landscapeDayAccent:typeof v.landscapeDayAccent==='string'&&/^#[\da-f]{6}$/i.test(v.landscapeDayAccent)?normalizeUiAccent(v.landscapeDayAccent):'',
     landscapeNightAccent:typeof v.landscapeNightAccent==='string'&&/^#[\da-f]{6}$/i.test(v.landscapeNightAccent)?normalizeUiAccent(v.landscapeNightAccent):'',

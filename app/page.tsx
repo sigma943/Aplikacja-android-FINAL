@@ -27,6 +27,7 @@ import {BackScope, useAppBack} from '@/lib/use-app-back';
 import {loadStopDepartures} from '@/lib/stop-departures';
 import {uiAccentVariables,normalizeUiAccent} from '@/lib/ui-accent';
 import {MapHeader,BottomNavigation,StopTabIcon} from '@/components/ApplicationChrome';
+import LiquidGlassOptics from '@/components/LiquidGlassOptics';
 import {applyScheduledProfile} from '@/lib/personalization-profiles';
 import {panelGlowStrength} from '@/lib/panel-glow';
 import {DEFAULT_INTERFACE_APPEARANCE,INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance,activeInterfaceAccent,vehicleHeaderStyle,type InterfaceAppearance} from '@/lib/interface-appearance';
@@ -1125,8 +1126,10 @@ export default function Home() {
 
   // We force Google map Style, but we will apply a CSS invert filter for dark mode in the JSX if isDark
 
+  const liquidGlass=interfaceAppearance.liquidGlass&&!lightEffects;
   return (
-    <div data-options-open={isSettingsOpen?'true':undefined} data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(activeThemeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+    <div data-liquid-glass={liquidGlass?(isDark?'dark':'light'):undefined} data-options-open={isSettingsOpen?'true':undefined} data-ui-theme={actualTheme} data-cosmic-tab={activeTab} style={{...(appearanceReady?uiAccentVariables(activeThemeColor,isDark):{}),'--theme-decoration':themeDecoration(actualTheme)} as React.CSSProperties} className={`pks-theme-root ${lightEffects ? 'pks-light-effects' : ''} fixed inset-0 w-full ${bgMain} ${textMain} font-sans overflow-hidden flex flex-col ${isOled ? 'theme-oled' : ''} ${isWarm ? 'theme-warm' : ''}`}>
+      {liquidGlass&&<LiquidGlassOptics/>}
       <div data-native-status-background aria-hidden="true"/>
       <DynamicLandscape active={actualTheme==='dark-mountains'} glass={transparentUI} sceneCovered={activeTab==='map'}/>
       <style>{`

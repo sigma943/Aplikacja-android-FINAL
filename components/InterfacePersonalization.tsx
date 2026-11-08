@@ -32,7 +32,7 @@ export default function InterfacePersonalization(p:Props){
   const set=<K extends keyof InterfaceAppearance>(key:K,next:InterfaceAppearance[K])=>p.onChange({...v,[key]:next});
   const selected=(active:boolean)=>`personal-choice ui-accent-focus ${active?'ui-accent-soft':'bg-current/[.035] border-current/10'}`;
   const slider=(key:NumericKey,label:string,min:number,max:number,step:number,unit='')=><label className="personal-slider"><span className="flex items-center justify-between gap-3"><span>{label}</span><output>{v[key]}{unit}</output></span><input aria-label={label} type="range" min={min} max={max} step={step} value={v[key]} onChange={e=>set(key,Number(e.target.value))}/></label>;
-  const toggle=(label:string,on:boolean,change:(value:boolean)=>void,description?:string)=><label className="personal-toggle"><span><span className="block font-medium">{label}</span>{description&&<span className="mt-1 block text-[11px] opacity-60">{description}</span>}</span><input aria-label={label} type="checkbox" role="switch" checked={on} onChange={e=>change(e.target.checked)}/></label>;
+  const toggle=(label:string,on:boolean,change:(value:boolean)=>void,description?:string,disabled=false)=><label className="personal-toggle"><span><span className="block font-medium">{label}</span>{description&&<span className="mt-1 block text-[11px] opacity-60">{description}</span>}</span><input aria-label={label} type="checkbox" role="switch" checked={on} disabled={disabled} onChange={e=>change(e.target.checked)}/></label>;
   const choices=<K extends keyof InterfaceAppearance>(key:K,label:string,options:[InterfaceAppearance[K],string][]) => <fieldset className="personal-field"><legend>{label}</legend><div className="personal-choices">{options.map(([next,name])=><button key={String(next)} type="button" aria-pressed={v[key]===next} onClick={()=>set(key,next)} className={selected(v[key]===next)}>{name}</button>)}</div></fieldset>;
   const group=(id:string,title:string,subtitle:string,icon:ReactNode,children:ReactNode,keywords:string,open=false)=>{
     if(!matches(`${title} ${subtitle} ${keywords}`))return null;
@@ -41,7 +41,7 @@ export default function InterfacePersonalization(p:Props){
   };
   const reset=()=>{localStorage.setItem(SCHEDULE_KEY,JSON.stringify({...readSchedule(),enabled:false}));window.dispatchEvent(new Event('pks-profiles-changed'));p.onChange({...DEFAULT_INTERFACE_APPEARANCE});p.setTheme('dark-oled');p.setAccent('#00A3A2');p.setGlass(true);p.setGlow(false);p.setGlowStrength(40);};
   const preset=(next:InterfacePreset)=>{
-    try{p.onChange({...next.appearance,statusBarOverlay:v.statusBarOverlay});p.setTheme(next.theme);p.setAccent(next.accent);p.setGlass(next.glass);p.setGlow(next.glow);p.setGlowStrength(next.glowStrength);}catch{p.setTheme('system');}
+    try{p.onChange({...next.appearance,statusBarOverlay:v.statusBarOverlay,liquidGlass:v.liquidGlass});p.setTheme(next.theme);p.setAccent(next.accent);p.setGlass(next.glass);p.setGlow(next.glow);p.setGlowStrength(next.glowStrength);}catch{p.setTheme('system');}
   };
   const colorPicker=(label:string,color:string,onChange:(value:string)=>void,customLabel:string,inputLabel:string,prefix:string)=><>
     <fieldset className="personal-field"><legend>{label}</legend><div className="grid grid-cols-4 gap-2">{accents.map(([name,next])=><button type="button" key={name} aria-label={`${prefix}: ${({'Turkus':'Turkusowy','Fiolet':'Fioletowy','Róż':'Różowy','Bursztyn':'Bursztynowy'} as Record<string,string>)[name]||name}`} aria-pressed={color.toLowerCase()===next} onClick={()=>onChange(next)} className={`${selected(color.toLowerCase()===next)} flex flex-col items-center gap-2`}><span className="flex h-6 w-6 items-center justify-center rounded-full" style={{background:next}}>{color.toLowerCase()===next&&<Check size={14} style={{color:name==='Bursztyn'?'#172536':'white'}}/>}</span><span className="text-[10px]">{name}</span></button>)}</div></fieldset>
@@ -67,8 +67,9 @@ export default function InterfacePersonalization(p:Props){
       {choices('cardStyle','Styl kart',[['original','Standardowy'],['soft','Barwione'],['outlined','Wyraźna ramka'],['flat','Bez ramek']])}
       {choices('buttonStyle','Styl przycisków',[['original','Standardowy'],['solid','Wypełnione'],['outline','Obrys']])}
       {toggle('Tło pod paskiem powiadomień',v.statusBarOverlay,on=>set('statusBarOverlay',on),'Pokazuje tło bieżącego widoku pod godziną i ikonami systemu, również po otwarciu opcji.')}
+      {toggle('Płynne szkło',v.liquidGlass&&!p.lightEffects,on=>set('liquidGlass',on),p.lightEffects?'Niedostępne przy włączonych lekkich efektach.':'Załamanie tła na krawędziach dolnego menu i paneli mapy.',p.lightEffects)}
       {p.theme==='dark-mountains'&&<LandscapeAccentOptions value={v} onChange={p.onChange} accent={p.accent} dark={dark}/>}
-    </>,'akcent własny kolor jasny ciemny amoled aurora pasek powiadomień godzina mapa ekran horyzont dzień noc')}
+    </>,'akcent własny kolor jasny ciemny amoled aurora pasek powiadomień godzina mapa ekran horyzont dzień noc płynne szkło liquid glass')}
     {cosmicVisible&&<CosmicThemeOptions searchOpen={Boolean(search)} disabled={p.lightEffects||v.reducedMotion}/>}
     {landscapeVisible&&<LandscapeThemeOptions searchOpen={Boolean(search)}/>}
     {group('texture','Wzór tła','Subtelna faktura na wszystkich panelach',<Layers size={19}/>,<>{choices('panelPattern','Faktura paneli',[['none','Gładkie'],['grid','Siatka'],['dots','Kropki'],['diagonal','Ukośne linie']])}{v.panelPattern!=='none'&&slider('patternStrength','Widoczność faktury',5,30,1,'%')}</>,'wzór faktura siatka kropki ukośne linie tło')}

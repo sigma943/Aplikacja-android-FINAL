@@ -1,6 +1,13 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {normalizeInterfaceAppearance,interfaceAppearanceVariables,DEFAULT_INTERFACE_APPEARANCE}=require('./load-ts.cjs')('lib/interface-appearance.ts');
+test('liquid glass is opt-in for new and existing appearance settings',()=>{
+ assert.equal(DEFAULT_INTERFACE_APPEARANCE.liquidGlass,false);
+ assert.equal(normalizeInterfaceAppearance({glassOpacity:70}).liquidGlass,false);
+ assert.equal(normalizeInterfaceAppearance({liquidGlass:'true'}).liquidGlass,false);
+ const saved=JSON.stringify(normalizeInterfaceAppearance({liquidGlass:true}));
+ assert.equal(normalizeInterfaceAppearance(JSON.parse(saved)).liquidGlass,true);
+});
 test('damaged saved personalization cannot make panels unreadable or inject CSS',()=>{
  const value=normalizeInterfaceAppearance({glassOpacity:-100,textScale:800,iconSize:0,panelRadius:Infinity,glowColor:'url(javascript:bad)',fontFamily:'bad',navLabels:'false',density:'unknown',shadowStrength:NaN});
  assert.equal(value.glassOpacity,20);assert.equal(value.textScale,120);assert.equal(value.iconSize,18);
