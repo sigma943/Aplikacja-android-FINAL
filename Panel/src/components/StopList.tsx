@@ -111,6 +111,7 @@ export default function StopList({
   const [localVisibleFullCount, setLocalVisibleFullCount] = useState(40);
   const inputValue = searchState?.inputValue ?? localInputValue;
   const fullInputValue = searchState?.fullInputValue ?? localFullInputValue;
+  const currentInputValue = isFullListOpen ? fullInputValue : inputValue;
   const carrierFilter = searchState?.carrierFilter ?? localCarrierFilter;
   const visibleFullCount = searchState?.visibleFullCount ?? localVisibleFullCount;
   const setInputValue = (value: string) => {
@@ -129,6 +130,14 @@ export default function StopList({
     const next = typeof value === 'function' ? value(visibleFullCount) : value;
     setLocalVisibleFullCount(next);
     onSearchStateChange?.({ visibleFullCount: next });
+  };
+  const updateSearch = (value: string) => {
+    if (isFullListOpen) {
+      setFullInputValue(value);
+      setVisibleFullCountValue(40);
+    } else {
+      setInputValue(value);
+    }
   };
   const deferredInputValue = useDeferredValue(inputValue);
   const deferredFullInputValue = useDeferredValue(fullInputValue);
@@ -155,12 +164,12 @@ export default function StopList({
   const displayStops = useMemo(() => filteredStops.slice(0, 30), [filteredStops]);
   const slicedFullStops = useMemo(() => fullFilteredStops.slice(0, visibleFullCount), [fullFilteredStops, visibleFullCount]);
   const visibleStops = isFullListOpen ? slicedFullStops : displayStops;
+  const matchingStops = isFullListOpen ? fullFilteredStops : filteredStops;
   const visibleKey = visibleStops.map(stop=>stop.id).join('|');
   const visibleRef = React.useRef(visibleStops);
   visibleRef.current = visibleStops;
   useEffect(() => { if(!isFullListOpen)onVisibleStopsChange?.(visibleRef.current); }, [visibleKey,onVisibleStopsChange,isFullListOpen]);
   const shellClass = isDarkTheme ? 'text-slate-200' : 'text-slate-800';
-  const headerClass = 'transit-surface';
   const searchInputClass = isDarkTheme
     ? 'border-white/12 bg-[#0e1622]/34 text-white shadow-black/18 placeholder:text-slate-400/75 '
     : 'border-slate-300/90 bg-white/90 text-slate-900 placeholder:text-slate-500 ';
@@ -182,8 +191,8 @@ export default function StopList({
     setIsFullListOpen(false);
   };
 
-  const renderCarrierFilters = (compact = false) => (
-    <div className={`flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 no-scrollbar ${compact ? 'mt-3' : 'mt-4'}`}>
+  const carrierFilters = (
+    <div className="mt-4 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 no-scrollbar">
       {CARRIER_FILTERS.map((filter) => {
         const isActive = carrierFilter === filter.id;
         return (
@@ -209,15 +218,15 @@ export default function StopList({
     </div>
   );
 
-  const renderStopCard = (stop: Stop, index: number, full = false) => {
+  const renderStopCard = (stop: Stop) => {
     const displayName = stopCatalogDisplayLabel(stop);
     const isBus = stop.type === 'bus';
     const singleProviderId = stop.carriers.length === 1 ? stop.carriers[0].id : undefined;
     const pksLineSet = new Set(String(stop.providerStopIds?.pksLines || '').split(',').map((line) => line.trim()).filter(Boolean));
     return (
       <motion.div
-        key={`${full ? 'full' : 'list'}-${stop.id}`}
-        layout={full ? false : 'position'}
+        key={stop.id}
+        layout={isFullListOpen ? false : 'position'}
         data-stop-card-id={stop.id}
         transition={{layout: reduceMotion ? {duration: 0} : {type: 'spring', stiffness: 230, damping: 30}}}
         role="button"
@@ -229,9 +238,7 @@ export default function StopList({
           rememberScroll();
           onStopSelect(stop);
         }}
-        className={`ui-accent-focus group flex w-full max-w-full min-w-0 shrink-0 cursor-pointer items-center border transition-colors duration-150 ${cardClass} ${
-          full ? 'rounded-[20px] p-3.5' : 'rounded-[20px] p-3.5 lg:p-4'
-        }`}
+        className={`ui-accent-focus group flex w-full max-w-full min-w-0 shrink-0 cursor-pointer items-center rounded-[20px] border p-3.5 transition-colors duration-150 lg:p-4 ${cardClass}`}
         onClick={() => {
           rememberScroll();
           onStopSelect(stop);
@@ -276,7 +283,7 @@ export default function StopList({
         >
           <motion.span className="block" animate={reduceMotion ? undefined : {scale: stop.isFavorite ? [1, 1.3, 1] : 1, rotate: stop.isFavorite ? [0, -12, 8, 0] : 0}} transition={{duration: 0.35}}>
             <Star
-              size={full ? 18 : 20}
+              size={20}
               className={
                 stop.isFavorite
                   ? 'ui-accent-fill'
@@ -293,19 +300,27 @@ export default function StopList({
     <motion.div key={isFullListOpen ? "full" : "preview"} initial={reduceMotion ? false : {opacity: 0, y: isFullListOpen ? 18 : -10}} animate={{opacity: 1, y: 0}} transition={{duration: reduceMotion ? 0 : 0.52, ease: [0.25, 0.1, 0.25, 1]}} data-stop-list-mode={isFullListOpen ? "full" : "preview"} data-ui-mode={isDarkTheme ? "dark" : "light"} className={`transit-view relative flex h-full min-h-0 min-w-0 max-w-full flex-col ${shellClass}`}>
 
       <CosmicFilterEffects/>
-      {!isFullListOpen && <>
-      <div data-stop-list-header data-cosmic-panel className={`relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5 ${headerClass}`}>
+      <div data-stop-list-header data-cosmic-panel className="transit-surface relative z-10 mx-3 mt-3 min-w-0 shrink-0 overflow-x-hidden rounded-[24px] border px-3.5 pb-3 pt-3.5 backdrop-blur-2xl backdrop-saturate-150 lg:mx-6 lg:px-5 lg:pt-5">
         <div className="mb-3.5 flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="ui-accent-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"><MapPin size={20} /></span>
             <div className="min-w-0">
               <h1 className={`font-semibold tracking-tight ${isFullScreen ? 'text-xl lg:text-2xl' : 'text-lg'} ${cardTitleClass}`}>Przystanki</h1>
-              <p className={`mt-0.5 text-[11px] ${secondaryTextClass}`}>Rozkłady i odjazdy na żywo</p>
+              <p className={`mt-0.5 text-[11px] ${secondaryTextClass}`}>
+                {isFullListOpen ? `Pełna lista (${matchingStops.length})` : 'Rozkłady i odjazdy na żywo'}
+              </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className={`hidden rounded-full p-2 transition-all lg:flex ${isDarkTheme ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
-            <X size={20} />
-          </button>
+          {(isFullListOpen || onClose) && (
+            <button
+              type="button"
+              onClick={isFullListOpen ? handleCloseFullList : onClose}
+              aria-label={isFullListOpen ? 'Zamknij pełną listę przystanków' : 'Zamknij listę przystanków'}
+              className={`shrink-0 cursor-pointer rounded-full p-2 transition-all ${isFullListOpen ? 'flex' : 'hidden lg:flex'} ${isDarkTheme ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
 
         <div className="ui-accent-search group relative">
@@ -315,13 +330,13 @@ export default function StopList({
             type="text"
             placeholder="Wpisz nazwę, np. Babica, Rejtana..."
             className={`ui-accent-input w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none backdrop-blur-2xl transition-all focus:ring-2 lg:py-3.5 lg:text-[15px] ${searchInputClass}`}
-            value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
+            value={currentInputValue}
+            onChange={(event) => updateSearch(event.target.value)}
           />
-          {inputValue && (
+          {currentInputValue && (
             <button
               type="button"
-              onClick={() => setInputValue('')}
+              onClick={() => updateSearch('')}
               className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 transition-colors ${
                 isDarkTheme ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
               }`}
@@ -331,22 +346,23 @@ export default function StopList({
             </button>
           )}
         </div>
-        {renderCarrierFilters()}
+        {carrierFilters}
       </div>
 
       <motion.div
         layoutScroll
         data-stop-list-scroll
+        data-full-stop-list={isFullListOpen || undefined}
         ref={listScrollRef}
         style={{overflowAnchor: 'none'}}
-        className={`min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pt-3 custom-scrollbar lg:px-6 ${
-          isFullScreen
-            ? 'grid w-full max-w-[1540px] content-start gap-2.5 px-3 pt-3 md:grid-cols-2 lg:mx-auto lg:gap-3 lg:px-6 lg:pt-4 xl:grid-cols-3'
-            : 'flex w-full flex-col gap-2.5'
+        className={`min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 pt-3 custom-scrollbar lg:px-6 ${
+          isFullScreen && !isFullListOpen
+            ? 'grid max-w-[1540px] content-start gap-2.5 md:grid-cols-2 lg:mx-auto lg:gap-3 lg:pt-4 xl:grid-cols-3'
+            : 'flex flex-col gap-2.5'
         }`}
       >
-        {notice}
-        {isLoading ? (
+        {!isFullListOpen && notice}
+        {isLoading && !isFullListOpen ? (
           Array.from({ length: isFullScreen ? 6 : 4 }).map((_, index) => (
             <div key={`stop-skeleton-${index}`} className={`flex h-[89px] items-center rounded-[22px] border p-4 ${isDarkTheme ? 'border-white/[0.03] bg-[#0d1622]/30' : 'border-slate-200 bg-white/85'}`}>
               <div className={`mr-4 h-11 w-11 shrink-0 rounded-xl ${isDarkTheme ? 'bg-white/5' : 'bg-slate-100'}`} />
@@ -359,9 +375,16 @@ export default function StopList({
           ))
         ) : (
           <>
-            {displayStops.map((stop, index) => renderStopCard(stop, index))}
+            {isFullListOpen ? (
+              <VirtualStopCards stops={slicedFullStops} scroll={listScrollRef} render={renderStopCard} onVisible={onVisibleStopsChange}/>
+            ) : displayStops.map(renderStopCard)}
 
-            {filteredStops.length > 30 && (
+            {isFullListOpen && matchingStops.length > visibleFullCount && (
+              <ListExpansionButton onClick={() => setVisibleFullCountValue((count) => count + 40)}>
+                Pokaż więcej (+{matchingStops.length - visibleFullCount} pozostałych)
+              </ListExpansionButton>
+            )}
+            {!isFullListOpen && matchingStops.length > 30 && (
               <ListExpansionButton className="col-span-full" onClick={() => {
                 previewScrollRef.current = listScrollRef.current?.scrollTop || 0;
                 onSearchStateChange?.({previewScrollTop: previewScrollRef.current, fullScrollTop: 0});
@@ -369,104 +392,21 @@ export default function StopList({
                 setVisibleFullCountValue(40);
                 setIsFullListOpen(true);
               }}>
-                Pokaż wszystkie ({filteredStops.length})
+                Pokaż wszystkie ({matchingStops.length})
               </ListExpansionButton>
             )}
 
-            {filteredStops.length === 0 && (
+            {matchingStops.length === 0 && (
               <div className={`mt-16 px-4 text-center text-[15px] text-slate-500 ${isFullScreen ? 'col-span-full' : ''}`}>
                 <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                   <Search size={20} />
                 </div>
-                <p className="scene-message">{favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak wyników dla podanej nazwy.'}</p>
+                <p className="scene-message">{favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':isFullListOpen?'Brak pasujących przystanków dla tej nazwy.':'Brak wyników dla podanej nazwy.'}</p>
               </div>
             )}
           </>
         )}
       </motion.div>
-      </>}
-
-      {isFullListOpen && (
-        <div
-          data-full-stop-list
-          className={`flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden backdrop-blur-2xl backdrop-saturate-150 ${
-            isDarkTheme ? 'bg-[#050b12]/96' : 'bg-white/96'
-          }`}
-        >
-          <div data-cosmic-panel className={`flex min-w-0 shrink-0 items-center justify-between border-b px-4 pb-4 pt-6 backdrop-blur-xl lg:px-6 ${isDarkTheme ? 'border-white/[0.06] bg-[#0d1622]/96' : 'border-slate-200/85 bg-white/98'}`}>
-            <div className="min-w-0 pr-3">
-              <h2 className={`text-lg font-black lg:text-xl ${isDarkTheme ? 'text-white' : 'text-slate-900'}` }>Pełna Lista Przystanków</h2>
-              <p className={`mt-0.5 text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}` }>Wszystkie pasujące punkty komunikacyjne ({fullFilteredStops.length})</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleCloseFullList}
-              aria-label="Zamknij pełną listę przystanków"
-              className={`cursor-pointer rounded-full p-2.5 transition-all ${
-                isDarkTheme ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
-              }`}
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <div data-cosmic-panel className={`shrink-0 border-b px-4 py-4 backdrop-blur-xl lg:px-6 ${isDarkTheme ? 'border-white/[0.03] bg-[#08111c]/96' : 'border-slate-200/85 bg-white/96'}`}>
-            <div className="ui-accent-search group relative">
-              <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchIconClass}`} size={18} />
-              <input
-                data-milk-search
-                type="text"
-                placeholder="Wpisz nazwę, np. Babica, Rejtana..."
-                className={`ui-accent-input w-full rounded-2xl border py-3 pl-11 pr-4 text-[14px] font-medium shadow-lg outline-none transition-all focus:ring-2 ${
-                  isDarkTheme
-                    ? 'border-white/10 bg-[#0e1622]/90 text-white placeholder:text-slate-500 '
-                    : 'border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 '
-                }`}
-                value={fullInputValue}
-                onChange={(event) => {
-                  setFullInputValue(event.target.value);
-                  setVisibleFullCountValue(40);
-                }}
-              />
-              {fullInputValue && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFullInputValue('');
-                    setVisibleFullCountValue(40);
-                  }}
-                  className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 transition-colors ${
-                    isDarkTheme ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
-                  }`}
-                  aria-label="Wyczysc wyszukiwanie"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-            {renderCarrierFilters(true)}
-          </div>
-
-          <motion.div ref={listScrollRef} data-stop-list-scroll layoutScroll style={{overflowAnchor: 'none'}} className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pt-4 custom-scrollbar lg:px-6">
-            <VirtualStopCards stops={slicedFullStops} scroll={listScrollRef} render={(stop,index)=>renderStopCard(stop,index,true)} onVisible={onVisibleStopsChange}/>
-
-            {fullFilteredStops.length > visibleFullCount && (
-              <ListExpansionButton onClick={() => setVisibleFullCountValue((count) => count + 40)}>
-                Pokaż więcej (+{fullFilteredStops.length - visibleFullCount} pozostałych)
-              </ListExpansionButton>
-            )}
-
-            {fullFilteredStops.length === 0 && (
-              <div className="mt-16 px-4 text-center text-[15px] text-slate-500">
-                <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${isDarkTheme ? 'border-white/5 bg-slate-900 text-slate-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
-                  <Search size={20} />
-                </div>
-                <p className="scene-message">{favoritesOnly?'Brak ulubionych przystanków pasujących do filtrów.':'Brak pasujących przystanków dla tej nazwy.'}</p>
-              </div>
-            )}
-          </motion.div>
-        </div>
-      )}
     </motion.div>
   );
 }

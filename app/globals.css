@@ -1166,9 +1166,7 @@ html:has(.pks-status-screen) :is([data-cosmic-stage],[data-cosmic-effects]) { di
 /* Shared stop lists use the active app artwork in both preview and full mode. */
 .transit-view[data-stop-list-mode]{isolation:isolate;overflow:clip}
 [data-stop-list-mode]>:not([data-filter-cosmos]){position:relative;z-index:1}
-html[data-cosmic-theme='on'] [data-stop-list-mode] [data-full-stop-list]{background:transparent!important}
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-stop-list-mode]{background-image:var(--theme-decoration);background-size:320px 180px;background-repeat:repeat}
-.pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-full-stop-list]{background:transparent!important}
 
 /* A reversible performance mode: keep saved visual preferences untouched. */
 /* Layered important overrides also win over the more specific cosmic glass rules. */
@@ -1219,7 +1217,7 @@ html[data-personal-light-effects='on'][data-personal-card-radius='true'] .admin-
   --pks-accent-text:var(--landscape-accent)!important;
   color:var(--landscape-ink)!important;color-scheme:var(--landscape-color-scheme)!important;
  }
- html[data-landscape-theme='on'] :is(.pks-glass-frame,.pks-panel-scope,.transit-view,.connections-view,.journey-view,[data-statistics-view],[data-cosmic-canvas],[data-full-stop-list],[data-admin-viewport]) {
+ html[data-landscape-theme='on'] :is(.pks-glass-frame,.pks-panel-scope,.transit-view,.connections-view,.journey-view,[data-statistics-view],[data-cosmic-canvas],[data-admin-viewport]) {
   background:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
  }
  html[data-landscape-theme='on'] :is(.transit-surface,.transit-card,.pks-options-sheet,.map-detail-shell,.pks-map-search-panel,.pks-navigation,.admin-topbar,.admin-device-card,.pks-personal-card,[data-interface-panel],[data-interface-card],.connections-card,.connections-picker,.connections-map-sheet,.connections-map-toolbar,.connections-map-modal,.personal-font-list) {
@@ -1826,7 +1824,7 @@ body :is([contenteditable="true"],[contenteditable=""]) * { -webkit-user-select:
 /* Non-map tabs share one theme canvas. Glass belongs to their cards, not the
    hidden map underneath. Artwork themes keep their existing scene layers. */
 .pks-theme-root[data-ui-theme]:not([data-ui-theme='dark-cosmos']):not([data-ui-theme='dark-mountains']) [data-native-view],
-.pks-theme-root[data-ui-theme]:not([data-ui-theme='dark-cosmos']):not([data-ui-theme='dark-mountains']) [data-native-view] :is(.transit-view,[data-full-stop-list],.connections-view:not(.connections-picker-host),[data-admin-viewport],[data-admin-view-canvas],[data-statistics-view]) {
+.pks-theme-root[data-ui-theme]:not([data-ui-theme='dark-cosmos']):not([data-ui-theme='dark-mountains']) [data-native-view] :is(.transit-view,.connections-view:not(.connections-picker-host),[data-admin-viewport],[data-admin-view-canvas],[data-statistics-view]) {
   background-color:var(--ui-canvas) !important;
 }
 .pks-theme-root:is([data-ui-theme='dark-forest'],[data-ui-theme='light-sky'],[data-ui-theme='light-pink']) [data-native-view]
