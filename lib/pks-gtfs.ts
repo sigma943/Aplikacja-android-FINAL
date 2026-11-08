@@ -70,30 +70,50 @@ export function pksGtfsServiceRuns(feed:PksGtfsFeed,id:string,date:string){
  const c=feed.calendars[id],weekday=(new Date(date+'T12:00:00Z').getUTCDay()+6)%7;
  return Boolean(c&&c.start<=day&&day<=c.end&&c.days[weekday]==='1');
 }
-const code=(name:string)=>/(?:\s|^)(\d+[A-Za-z]?)\s*(?:nż)?$/i.exec(name)?.[1]||'';
+const code=(name:string)=>/(?:\s|^)(\d+[A-Za-z]?)\s*(?:nż\.?)?$/i.exec(name.trim())?.[1]||'';
 const codeKey=(value:string)=>value.replace(/^0+(?=\d)/,'').toLowerCase();
-const stopName=(point:StopsMap[string])=>point.code&&!point.n.toLowerCase().endsWith(' '+point.code.toLowerCase())?point.n+' '+point.code:point.n;
+const stopName=(point:StopsMap[string])=>point.code&&codeKey(code(point.n))!==codeKey(point.code)?point.n.trim()+' '+point.code:point.n;
 const comparableName=(name:string)=>name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l')
  .replace(/[()]/g,' ').replace(/^rzeszow[, ]+/,'').replace(/\bpodkar(?:p)?\./g,'podkarpacka ').replace(/\btowarn\.*\b/g,'towarnickiego').replace(/\bmochn\./g,'mochnackiego ');
+const platformAbbreviations:Record<string,string>={
+ przyst:'przystanek',szk:'szkola',przedszk:'przedszkole',skrz:'skrzyzowanie',skrzyz:'skrzyzowanie',
+ kosc:'kosciol',osr:'osrodek',os:'osiedle',przych:'przychodnia',cment:'cmentarz',szp:'szpital',
+ mlecz:'mleczarnia',leczn:'lecznica',zlewn:'zlewnia',spoldz:'spoldzielnia',
+ glog:'glogowsk',zad:'zadwor',petl:'petla',rafal:'rafalowska',lach:'lachowka',jarz:'jarzabki',
+};
 // Exact numbered identities can correct a displaced EINFO point. Keep this
 // stricter than the nearby name matcher and require uniqueness in both feeds.
 function numberedIdentity(name:string){
  const suffix=code(name);if(!suffix)return '';
- return comparableName(name).replace(/\bglog\./g,'glogowska ').replace(/\bzad\./g,'zadwor ')
-  .replace(/\bpetl\./g,'petla ').replace(/[^a-z0-9]+/g,' ').replace(/\bnz\b/g,' ')
+ return comparableName(name).replace(/\b([a-z]+)\./g,(word,stem)=>Object.hasOwn(platformAbbreviations,stem)?platformAbbreviations[stem]+' ':word)
+  .replace(/\bglogowsk(?:a|ie|i|e)\b/g,'glogowsk').replace(/[^a-z0-9]+/g,' ').replace(/\bnz\b/g,' ')
   .trim().replace(/\s+/g,' ').replace(/\s\d+[a-z]?$/, ' '+codeKey(suffix));
 }
+const areaPosition=(point:StopsMap[string])=>point.areaId&&readBusCoordinates(point.lat,point.lon)?`${point.areaId}:${point.lat}:${point.lon}`:'';
 export function indexPksGtfs(feed:PksGtfsFeed,base:StopsMap){
  const stops:StopsMap=Object.fromEntries(Object.entries(base).filter(([id])=>!id.startsWith('gtfs:')).map(([id,stop])=>[id,correctPksStop(stop,id)])),byStop:Record<string,string[]>={},lines:Record<string,string[]>={};
  const known=Object.entries(stops);
- const used=new Set(feed.patterns.flatMap(p=>p.map(c=>c[0])));
- const apiByIdentity=new Map<string,string[]>(),gtfsByIdentity=new Map<string,string[]>();
- for(const [index,points] of [[apiByIdentity,known.map(([id,s])=>[id,stopName(s)] as const)],
-   [gtfsByIdentity,[...used].flatMap(id=>feed.stops[id]?[[id,feed.stops[id].name] as const]:[])]] as const){
-  for(const [id,name] of points){const identity=numberedIdentity(name);if(identity)index.set(identity,[...(index.get(identity)||[]),id]);}
+ const used=[...new Set(feed.patterns.flatMap(p=>p.map(c=>c[0])))].sort();
+ const colocatedCodes=new Map<string,Set<string>>();
+ for(const [,stop] of known){
+  const position=areaPosition(stop);if(!position||!stop.code)continue;
+  const codes=colocatedCodes.get(position)||new Set<string>();codes.add(codeKey(stop.code));colocatedCodes.set(position,codes);
  }
+ // Repeated GTFS records can serve different trips at one numbered platform.
+ const groups=new Map<string,string[]>();
  for(const id of used){
   const point=feed.stops[id];if(!point)continue;
+  const identity=numberedIdentity(point.name);
+  const key=identity&&readBusCoordinates(point.lat,point.lon)?`platform:${identity}:${point.lat}:${point.lon}`:`id:${id}`;
+  const ids=groups.get(key)||[];ids.push(id);groups.set(key,ids);
+ }
+ const apiByIdentity=new Map<string,string[]>(),gtfsByIdentity=new Map<string,string[]>();
+ for(const [index,points] of [[apiByIdentity,known.map(([id,s])=>[id,stopName(s)] as const)],
+   [gtfsByIdentity,[...groups.values()].map(([id])=>[id,feed.stops[id].name] as const)]] as const){
+  for(const [id,name] of points){const identity=numberedIdentity(name);if(identity)index.set(identity,[...(index.get(identity)||[]),id]);}
+ }
+ for(const ids of groups.values()){
+  const id=ids[0],point=feed.stops[id];
   const suffix=code(point.name);
   const candidates=known.filter(([key,s])=>{
    if(key.startsWith('gtfs:')||s.lat===undefined||s.lon===undefined||Math.abs(s.lat-point.lat)>=.002||Math.abs(s.lon-point.lon)>=.003||suffix&&s.code&&codeKey(suffix)!==codeKey(s.code))return false;
@@ -114,15 +134,21 @@ export function indexPksGtfs(feed:PksGtfsFeed,base:StopsMap){
   const distance=origin&&surveyed?Math.hypot(origin.lat-surveyed.lat,(origin.lon-surveyed.lon)*.64)*111195:Infinity;
   const exact=distance<=1200?exactId:undefined;
   const key=terminal||exact||matched||'gtfs:'+id;
-  if(!terminal&&exact&&surveyed&&distance>120)stops[key]={...stops[key],...surveyed};
+  if(!terminal&&exact&&surveyed&&(distance>120||(colocatedCodes.get(areaPosition(stops[key]))?.size||0)>1)){
+   stops[key]={...stops[key],...surveyed};
+  }
   if(!stops[key])stops[key]={n:platform===null?point.name:displayStopCatalogLabel(point.name,platform),lat:point.lat,lon:point.lon,areaId:platform===null?'gtfs:'+id:'1937',code:platform??(suffix||'1')};
-  (byStop[key]??=[]).push(id);lines[key]=[];
+  (byStop[key]??=[]).push(...ids);lines[key]=[];
  }
  const lineSets:Record<string,Set<string>>={};for(const key of Object.keys(byStop))lineSets[key]=new Set();
  const reverse=new Map(Object.entries(byStop).flatMap(([key,ids])=>ids.map(id=>[id,key] as const)));
  for(const trip of feed.trips){const pattern=feed.patterns[trip[4]];for(const call of pattern){const key=reverse.get(call[0]);if(key&&call[3]!==1&&call!==pattern.at(-1))lineSets[key].add(trip[1]);}}
  for(const [key,set] of Object.entries(lineSets))lines[key]=[...set].sort((a,b)=>a.localeCompare(b,'pl',{numeric:true}));
- return {stops,byStop,lines};
+ for(const [key,ids] of Object.entries(byStop)){
+  const gtfsAliases=ids.map(id=>'gtfs:'+id).filter(id=>id!==key);
+  if(gtfsAliases.length)stops[key]={...stops[key],gtfsAliases};
+ }
+ return {stops,byStop,lines,canonicalByGtfsId:reverse};
 }
 export function pksGtfsDepartures(feed:PksGtfsFeed,ids:string[],date:string){
  const selected=new Set(ids),rows:Array<Record<string,any>>=[];

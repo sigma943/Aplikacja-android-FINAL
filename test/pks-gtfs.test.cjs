@@ -74,3 +74,44 @@ test('Medynia I and Zadwór each keep two platforms and line 202 uses the existi
  assert.deepEqual(visibleMapStops(catalog,[22.1409,50.1737,22.1417,50.1755],19).map(s=>s.id).sort(),['1346','1347']);
  assert.deepEqual(visibleMapStops(catalog,[22.1444,50.1806,22.1452,50.1811],19).map(s=>s.id).sort(),['1353','1354']);
 });
+
+test('Babica rail stop has one marker and the correct 251 board per side after formatting API names',()=>{
+ const feed=JSON.parse(gunzipSync(fs.readFileSync('public/data/journeys/pks.json.gz')));
+ const snapshot=require('../public/data/pks-stop-points.json');
+ const {formatPksStops,snapshotStopItems}=load('lib/providers/pks-stops.ts');
+ const base=formatPksStops({items:snapshotStopItems(snapshot)},snapshot);
+ const indexed=api.indexPksGtfs(feed,base);
+ const {buildStopsCatalog}=load('lib/stops-catalog.ts',{'@/lib/pks-client':{}});
+ const {visibleMapStops,canonicalMapStopId}=load('lib/map-stop-markers.ts');
+ const {stopIdentityIds}=load('lib/stop-identity.ts');
+ const rows=Object.entries(indexed.stops).map(([id,stop])=>({...stop,id,name:stop.n}));
+ const list=buildStopsCatalog(rows,[],[],'babica-rail');
+ const map=buildStopsCatalog(rows,[],[],'babica-rail',true);
+ assert.deepEqual(visibleMapStops(map,[21.9015,49.9317,21.9021,49.9321],19).map(s=>s.id).sort(),['9620','9621']);
+ for(const [id,gtfs] of [['9620','359'],['9621','360']]){
+  assert.deepEqual(indexed.byStop[id],[gtfs]);
+  assert.equal(indexed.stops[id].lat,feed.stops[gtfs].lat);
+  assert.equal(indexed.stops[id].apiLat,base[id].lat);
+  assert.ok(api.pksGtfsDepartures(feed,indexed.byStop[id],'2026-11-06').some(row=>row.line_name==='251'));
+  assert.equal(canonicalMapStopId(map,'gtfs:'+gtfs,'pks'),id);
+  assert.ok(stopIdentityIds(list.find(stop=>stop.id===id)).includes('gtfs:'+gtfs));
+ }
+});
+
+test('the catalog resolves other expanded abbreviations and groups identical GTFS points without dropping trips',()=>{
+ const feed=JSON.parse(gunzipSync(fs.readFileSync('public/data/journeys/pks.json.gz')));
+ const base=require('../public/data/pks-stop-points.json').stops;
+ const indexed=api.indexPksGtfs(feed,base);
+ for(const [id,gtfs] of [['6182','651'],['6183','650'],['7196','844'],['7197','845'],['1502','689']]){
+  assert.deepEqual(indexed.byStop[id],[gtfs]);
+  assert.equal(indexed.stops['gtfs:'+gtfs],undefined);
+ }
+ for(const [canonical,ids] of [['gtfs:892',['892','894']],['gtfs:801',['801','947']],['1222',['1470','1473']]]){
+  assert.deepEqual(indexed.byStop[canonical],ids);
+  assert.ok(ids.every(id=>indexed.canonicalByGtfsId.get(id)===canonical));
+  assert.ok(ids.filter(id=>'gtfs:'+id!==canonical).every(id=>!indexed.stops['gtfs:'+id]));
+  const rows=api.pksGtfsDepartures(feed,ids,'2026-11-06');
+  assert.ok(rows.length);
+  assert.equal(rows.length,ids.reduce((count,id)=>count+api.pksGtfsDepartures(feed,[id],'2026-11-06').length,0));
+ }
+});

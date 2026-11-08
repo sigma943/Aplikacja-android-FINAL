@@ -17,7 +17,7 @@ import {useMapStops} from '@/lib/use-map-stops';
 import {useStopDepartures} from '@/Panel/src/components/useStopDepartures';
 import {liveMapStopDepartures,formatMapStopDepartures} from '@/lib/map-stop-departures';
 import {refreshMapStopSource} from '@/lib/map-stop-source';
-import {marcelCourseStopIndexKey,marcelCourseStopMatchKey} from '@/components/stops-panel/stop-domain';
+import {marcelCourseStopIndexKey,marcelCourseStopMatchKey,type RawStop} from '@/components/stops-panel/stop-domain';
 import {useTabTransition} from '@/lib/use-tab-transition';
 import {useLatestCallback} from '@/lib/use-latest-callback';
 import {useForegroundRefresh} from '@/lib/use-foreground-refresh';
@@ -216,7 +216,7 @@ export default function Home() {
     if (activeTab === 'stops' && isStopsTabDisabled) setActiveTab('map');
     if(activeTab==='journeys'&&isJourneysTabDisabled)setActiveTab(isMapTabDisabled?'stops':'map');
   }, [activeTab, canOpenAdminEmbed, isMapTabDisabled, isStopsTabDisabled,isJourneysTabDisabled]);
-  const [stopsList, setStopsList] = useState<{id: string, name: string, areaId?: string, code?: string, apiLat?: number | null, apiLon?: number | null, lat?: number, lon?: number}[]>([]);
+  const [stopsList, setStopsList] = useState<RawStop[]>([]);
   const [stopsLoadError, setStopsLoadError] = useState(false);
   const stopsLoadPendingRef = useRef(false);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
@@ -835,6 +835,7 @@ export default function Home() {
            name: val.n, 
            areaId: val.areaId, 
            code: val.code,
+           gtfsAliases: val.gtfsAliases,
            apiLat: val.apiLat,
            apiLon: val.apiLon,
            lat: val.lat,

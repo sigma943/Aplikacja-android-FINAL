@@ -157,7 +157,9 @@ async function fetchLegacyDepartures(stopId: string, areaId?: string, code?: str
 export async function fetchDeparturesClient(stopId:string,areaId?:string,code?:string,dateIso?:string){
  if(typeof window==='undefined')return fetchLegacyDepartures(stopId,areaId,code,dateIso);
  const feed=await loadPksGtfs(),days=dateIso?[dateIso]:[warsawDateIso(),warsawDateIso(1)];
- let ids=pksGtfsIndex()?.byStop[stopId];
+ const index=pksGtfsIndex();
+ const canonical=stopId.startsWith('gtfs:')?index?.canonicalByGtfsId?.get(stopId.slice(5)):undefined;
+ let ids=index?.byStop[canonical||stopId];
  if(!ids&&feed)ids=pksGtfsTerminalStopIds(feed,areaId,code)??undefined;
  if(!feed||!days.every(day=>pksGtfsCovers(feed,day)))return fetchLegacyDepartures(stopId,areaId,code,dateIso);
  const legacy=stopId.startsWith('gtfs:')&&areaId!=='1937'?null:await fetchLegacyDepartures(stopId,areaId,code,dateIso).catch(()=>null);

@@ -87,6 +87,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         name: string;
         areaId?: string;
         code?: string;
+        gtfsAliases?: string[];
         lat?: number;
         lon?: number;
         provider: string;
@@ -95,7 +96,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
     ) => {
       target.providerStopIds = {
         ...(target.providerStopIds || {}),
-        [raw.provider]: mergeCsvValues(target.providerStopIds?.[raw.provider], String(raw.id)),
+        [raw.provider]: mergeCsvValues(target.providerStopIds?.[raw.provider], [raw.id,...(raw.gtfsAliases||[])].join(',')),
         [`${raw.provider}Names`]: mergeDebugNames(target.providerStopIds?.[`${raw.provider}Names`], raw.name),
       };
       if (raw.provider === 'pks') {
@@ -123,6 +124,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
       name: string;
       areaId?: string;
       code?: string;
+      gtfsAliases?: string[];
       apiLat?: number | null;
       apiLon?: number | null;
       lat?: number;
@@ -151,7 +153,7 @@ export function buildStopsCatalog(stops: RawStop[], mpkStops: Array<{id:string;n
         lon: raw.lon,
         sourceProviderIds: [raw.provider],
         providerStopIds: {
-          [raw.provider]: String(raw.id),
+          [raw.provider]: [raw.id,...(raw.gtfsAliases||[])].join(','),
           [`${raw.provider}Names`]: displayName,
           ...(raw.provider === 'pks' ? { pksAreaIds: String(raw.areaId || ''), pksCodes: String(raw.code || '') } : {}),
         },
