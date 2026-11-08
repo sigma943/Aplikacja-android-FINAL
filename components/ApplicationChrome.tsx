@@ -22,6 +22,7 @@ type HeaderProps={mapGlassPanel:string;mapGlassInput:string;themeColor:string;tr
 export function MapHeader({mapGlassPanel,mapGlassInput,themeColor,transparentUI,isDark,isManualRefreshing,showAlertDot,error,isOffline,textSub,filterRoute,setFilterRoute,handleManualRefresh,closeMapPanelsForSearch}:HeaderProps){return (
 <div data-map-search-panel className={`pks-map-search-panel ${mapGlassPanel} rounded-[1.4rem] border p-3 md:p-4 flex flex-col gap-3 pointer-events-auto w-full md:w-96 transition-all`}>
 
+                <canvas data-horyzont-glass="filter" aria-hidden="true" hidden width={1} height={1}/>
                 <CosmicFilterEffects/>
                 <LandscapeChrome variant="filter"/>
                 <div data-map-brand className="relative z-[1] flex items-center justify-between font-extrabold text-xl tracking-tight" style={{ color: themeColor }}>
@@ -79,6 +80,7 @@ export function BottomNavigation({preview=false,order=NAV_ITEMS,activeTab,classN
  const reducedMotion=useJourneyReducedMotion();
  const items={journeys:{label:'Połączenia',Icon:JourneyIcon,disabled:isJourneysTabDisabled,onClick:onJourneys},map:{label:'Mapa',Icon:MapIcon,disabled:isMapTabDisabled,onClick:onMap},stops:{label:'Przystanki',Icon:StopTabIcon,disabled:isStopsTabDisabled,onClick:onStops},admin:{label:'Admin',Icon:Shield,disabled:false,onClick:onAdmin},options:{label:'Opcje',Icon:Settings,disabled:false,onClick:onOptions}};
  return <div data-navigation-preview={preview||undefined} className={`relative isolate pointer-events-auto flex h-16 w-full items-center justify-around border-t transition-colors ${className}`}>
+  {!preview&&<canvas data-horyzont-glass="navigation" aria-hidden="true" hidden width={1} height={1}/>}
   <LandscapeChrome variant="navigation"/>
   <svg data-cosmic-nav-stars viewBox="0 0 393 64" preserveAspectRatio="none" aria-hidden="true">
    <g fill="#bfeaff"><path d="M25 5l1.2 3.8L30 10l-3.8 1.2L25 15l-1.2-3.8L20 10l3.8-1.2Z"/><circle cx="163" cy="8" r=".8"/></g>

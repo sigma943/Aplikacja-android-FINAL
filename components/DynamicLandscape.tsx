@@ -11,7 +11,8 @@ import {LandscapeRenderer} from '@/lib/landscape-renderer';
 import {INTERFACE_APPEARANCE_KEY,normalizeInterfaceAppearance} from '@/lib/interface-appearance';
 import {landscapeMotionPolicy,landscapeFrameBudget,landscapeDrawInterval} from '@/lib/landscape-motion';
 import {LANDSCAPE_SETTINGS_EVENT,readLandscapeSettings} from '@/lib/landscape-settings';
-import {godRaysOpacity,paintGodRays} from '@/lib/landscape-god-rays';
+import {godRaysOpacity,godRaysProfile,paintGodRays} from '@/lib/landscape-god-rays';
+import {GLASS_QUALITY,LandscapeGlass,type GlassPanel} from '@/lib/landscape-glass';
 
 const PowerPolicy=registerPlugin<{
   getStatus():Promise<{limited:boolean;critical?:boolean}>;
@@ -29,9 +30,15 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
   useLayoutEffect(()=>{
     if(!active||!canvas.current)return;
     const element=canvas.current,root=document.documentElement;
+    const container=element.parentElement!;
     const renderer=new LandscapeRenderer(element,true),media=matchMedia('(prefers-reduced-motion: reduce)');
     const worker=new Worker(new URL('../lib/landscape.worker.ts',import.meta.url));
     let lastGlass=0,lastRays=-Infinity;
+    let lastOptics=-Infinity,lastProfile=-Infinity;
+    let optics:LandscapeGlass|undefined;
+    let rayProfile=[0],rayTexture=new Uint8Array(1);
+    const scenery=document.createElement('canvas'),rayField=document.createElement('canvas');
+    let glassPanels:GlassPanel[]=[];
     let alive=true,sceneVisible=true,nativeActive=true,limited=false,critical=false,requestId=0;
     let solarDay:boolean|undefined;
     let samples:{a:AstronomyState;b:AstronomyState}|null=null;
@@ -81,36 +88,110 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     };
     const refreshFilter=()=>paintFilter();
     window.addEventListener('pks-landscape-window',refreshFilter);
-    const paintRays=(mono:number)=>{
-      const target=raysCanvas.current,sun=renderer.lighting?.sun,origin=renderer.sunScreen();
-      if(!target)return;
-      const opacity=sun&&settings.godRays&&!light&&!critical?godRaysOpacity(sun.altitude,sun.intensity,settings.rays/100):0;
-      if(!sun||!origin||opacity<.008){target.hidden=true;return;}
-      if(mono-lastRays<250)return;
-      lastRays=mono;
+    const hideGlass=()=>{
+      for(const panel of glassPanels){panel.canvas.hidden=true;panel.canvas.width=panel.canvas.height=1;}
+      glassPanels=[];
+    };
+    const releaseGlass=()=>{
+      hideGlass();optics?.dispose();optics=undefined;scenery.width=scenery.height=1;
+    };
+    const panelBox=(panel:HTMLElement,frame:DOMRect)=>{
+      const box=panel.getBoundingClientRect();
+      if(!box.width||!box.height||panel.closest('[hidden],[inert],[data-navigation-preview]')||
+        box.bottom<=frame.top||box.top>=frame.bottom||box.right<=frame.left||box.left>=frame.right)return null;
+      const radius=parseFloat(getComputedStyle(panel).borderTopLeftRadius)||0;
+      return {x:box.left-frame.left,y:box.top-frame.top,width:box.width,height:box.height,radius:Math.min(radius,box.width/2,box.height/2)};
+    };
+    const paintLight=(mono:number,animated:boolean)=>{
+      const target=raysCanvas.current,lighting=renderer.lighting,origin=renderer.sunScreen();
+      if(!target||!lighting||!origin)return;
+      const opacity=settings.godRays&&!light&&!critical?godRaysOpacity(lighting.sun.altitude,lighting.sun.intensity,settings.rays/100):0;
+      const hasRays=opacity>=.008;
+      const useOptics=glass&&!light&&!critical&&appearance.glassOpacity<100;
+      const quality=settings.glassQuality,mode=GLASS_QUALITY[quality];
+      const opticalFrame=useOptics&&mono-lastOptics>=mode.interval-.5;
+      const raysFrame=hasRays&&mono-lastRays>=250;
+      const hadGlass=glassPanels.length>0;
+      if(!hasRays)target.hidden=true;
+      if(!opticalFrame&&!raysFrame)return;
+      const frame=element.getBoundingClientRect();
+      if(!frame.width||!frame.height)return;
+      if(hasRays&&mono-lastProfile>=(useOptics&&animated?Math.max(32,mode.interval):250)){
+        lastProfile=mono;
+        rayProfile=godRaysProfile(origin,frame.width/frame.height,(x,y)=>renderer.sunRayTransmission(x,y));
+        rayTexture=Uint8Array.from(rayProfile,value=>Math.round(value*255));
+      }
+      if(opticalFrame){
+        lastOptics=mono;
+        const panels:GlassPanel[]=[];
+        for(const canvas of container.querySelectorAll<HTMLCanvasElement>('[data-horyzont-glass]')){
+          const kind=canvas.dataset.horyzontGlass;
+          if(kind==='filter'&&settings.filterBackground==='sky')continue;
+          const box=panelBox(canvas.parentElement!,frame);
+          if(!box)continue;
+          panels.push({...box,canvas,bevel:kind==='navigation'?12:kind==='filter'?9:8});
+        }
+        for(const panel of glassPanels)if(!panels.some(next=>next.canvas===panel.canvas)){
+          panel.canvas.hidden=true;panel.canvas.width=panel.canvas.height=1;
+        }
+        glassPanels=[];
+        if(panels.length){
+          optics??=new LandscapeGlass();
+          if(optics.available){
+            const scale=element.width/frame.width*mode.scale;
+            let scene:HTMLCanvasElement|null=null;
+            if(!covered.current&&element.dataset.assetsReady==='true'){
+              const width=Math.max(1,Math.round(element.width*mode.scale)),height=Math.max(1,Math.round(element.height*mode.scale));
+              if(scenery.width!==width)scenery.width=width;
+              if(scenery.height!==height)scenery.height=height;
+              const context=scenery.getContext('2d',{alpha:false});
+              if(context){renderer.copyWindow(context,0,0,element.width,element.height,width,height,true);scene=scenery;}
+            }
+            const reflectionGain=settings.reflections<=100?settings.reflections/100:1+3*(settings.reflections/100-1)**2;
+            const strength=Math.min(1,(100-appearance.glassOpacity)/28);
+            if(optics.draw({width:frame.width,height:frame.height,scale,quality,panels,scene,profile:rayTexture,origin,lighting,
+              sunlight:Math.min(1,lighting.sun.intensity*reflectionGain),rays:hasRays?opacity:0,strength})){
+              glassPanels=panels.filter(panel=>!panel.canvas.hidden);
+            }else for(const panel of panels)panel.canvas.hidden=true;
+          }else for(const panel of panels)panel.canvas.hidden=true;
+        }
+      }
+      if(!hasRays||(!raysFrame&&!hadGlass&&!glassPanels.length))return;
       const size=Math.min(1,480/Math.max(element.width,element.height));
       const width=Math.max(1,Math.round(element.width*size)),height=Math.max(1,Math.round(element.height*size));
-      if(target.width!==width||target.height!==height){target.width=width;target.height=height;}
-      const context=target.getContext('2d');
-      if(!context)return;
-      target.hidden=false;
-      const rect=covered.current?target.getBoundingClientRect():null;
-      if(rect&&(!rect.width||!rect.height)){target.hidden=true;return;}
-      context.clearRect(0,0,width,height);
-      context.save();
-      if(rect){
-        // On the map, transmit light through the UI without tinting map tiles.
-        const sx=width/rect.width,sy=height/rect.height;
+      if(raysFrame||rayField.width!==width||rayField.height!==height){
+        lastRays=mono;
+        if(rayField.width!==width)rayField.width=width;
+        if(rayField.height!==height)rayField.height=height;
+        const context=rayField.getContext('2d')!;
+        context.clearRect(0,0,width,height);context.save();
+        paintGodRays(context,width,height,{...origin,color:lighting.sun.color},opacity,rayProfile);
+        context.restore();
+      }
+      if(target.width!==width)target.width=width;
+      if(target.height!==height)target.height=height;
+      const context=target.getContext('2d')!;
+      target.hidden=false;context.clearRect(0,0,width,height);context.save();
+      const sx=width/frame.width,sy=height/frame.height;
+      if(covered.current){
+        // On the map, transmit light through the chrome without tinting map tiles.
         context.beginPath();
-        for(const panel of element.parentElement!.querySelectorAll<HTMLElement>('.pks-map-search-panel,.pks-navigation,.map-detail-shell,[data-map-control]')){
-          const box=panel.getBoundingClientRect();
-          if(!box.width||!box.height||panel.closest('[hidden],[inert],[data-navigation-preview]'))continue;
-          const radius=parseFloat(getComputedStyle(panel).borderTopLeftRadius)||0;
-          context.roundRect((box.left-rect.left)*sx,(box.top-rect.top)*sy,box.width*sx,box.height*sy,radius*sx);
+        for(const panel of container.querySelectorAll<HTMLElement>('.pks-map-search-panel,.pks-navigation,.map-detail-shell,[data-map-control]')){
+          const box=panelBox(panel,frame);
+          if(box)context.roundRect(box.x*sx,box.y*sy,box.width*sx,box.height*sy,box.radius*sx);
         }
         context.clip();
       }
-      paintGodRays(context,width,height,{...origin,color:sun.color},opacity,(x,y)=>renderer.sunRayTransmission(x,y));
+      context.drawImage(rayField,0,0);
+      // The local lenses already transmit the beam beneath their labels.
+      context.globalCompositeOperation='destination-out';
+      for(const panel of glassPanels){
+        context.save();
+        const scroll=panel.canvas.closest('.transit-view')?.getBoundingClientRect();
+        if(scroll){context.beginPath();context.rect((scroll.x-frame.x)*sx,(scroll.y-frame.y)*sy,scroll.width*sx,scroll.height*sy);context.clip();}
+        context.beginPath();context.roundRect(panel.x*sx,panel.y*sy,panel.width*sx,panel.height*sy,panel.radius*sx);context.fill();
+        context.restore();
+      }
       context.restore();
     };
     const draw=()=>{
@@ -130,7 +211,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
           lastGlass=mono;updatePalette(state);
         }
         paintFilter();
-        paintRays(mono);
+        paintLight(mono,motionPolicy.animate);
         if(recordingCanvas&&recordingContext){
           if(recordingCanvas.width!==element.width||recordingCanvas.height!==element.height){recordingCanvas.width=element.width;recordingCanvas.height=element.height;}
           renderer.copyWindow(recordingContext,0,0,element.width,element.height,element.width,element.height,true);
@@ -187,11 +268,11 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
         if(!viewport||next.width!==viewport.width||next.height!==viewport.height)renderer.resize(next.width,next.height,devicePixelRatio||1);
         viewport=next;element.style.height=next.height+'px';element.dataset.keyboard=String(next.keyboard);
         if(raysCanvas.current)raysCanvas.current.style.height=element.style.height;
-        lastRays=-Infinity;
+        lastRays=lastOptics=lastProfile=-Infinity;
       }
       draw();
     };
-    const restart=()=>{readPreferences();lastRays=-Infinity;cancelAnimationFrame(frameRequest);nextFrame=0;fpsStart=performance.now();fpsFrames=0;if(samples)updatePalette(samples.a);clearTimeout(drawTimer);clearTimeout(modelTimer);root.dataset.landscapeMotion=visible()&&policy().animate?'on':'off';if(visible()){lastGlass=0;updateModel();draw();}else renderer.suspend();};
+    const restart=()=>{readPreferences();lastRays=lastOptics=lastProfile=-Infinity;cancelAnimationFrame(frameRequest);nextFrame=0;fpsStart=performance.now();fpsFrames=0;if(samples)updatePalette(samples.a);clearTimeout(drawTimer);clearTimeout(modelTimer);root.dataset.landscapeMotion=visible()&&policy().animate?'on':'off';if(light||critical||!glass||appearance.glassOpacity>=100)releaseGlass();if(visible()){lastGlass=0;updateModel();draw();}else renderer.suspend();};
     refreshScene.current=restart;
     const intersection=new IntersectionObserver(entries=>{const next=entries.some(entry=>entry.isIntersecting);if(next!==sceneVisible){sceneVisible=next;restart();}});intersection.observe(element);
     const observer=new ResizeObserver(resize);observer.observe(element.parentElement!);
@@ -235,7 +316,7 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
     return()=>{
       refreshScene.current=null;
       window.removeEventListener('pks-landscape-window',refreshFilter);
-      alive=false;cancelAnimationFrame(frameRequest);renderer.dispose();clearTimeout(drawTimer);clearTimeout(modelTimer);worker.terminate();observer.disconnect();intersection.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);document.removeEventListener('focusin',resize);
+      alive=false;cancelAnimationFrame(frameRequest);releaseGlass();renderer.dispose();clearTimeout(drawTimer);clearTimeout(modelTimer);worker.terminate();observer.disconnect();intersection.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);document.removeEventListener('focusin',resize);
       document.removeEventListener('visibilitychange',restart);window.removeEventListener(LANDSCAPE_SETTINGS_EVENT,restart);window.removeEventListener('focus',restart);
       window.removeEventListener('pks-interface-appearance',restart);window.removeEventListener('storage',restart);window.removeEventListener('pks-landscape-location',restart);media.removeEventListener('change',restart);
       for(const listener of listeners)void listener.then(handle=>handle.remove());

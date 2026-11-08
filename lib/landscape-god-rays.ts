@@ -38,11 +38,10 @@ export function godRaysProfile(
 export function paintGodRays(
   c:CanvasRenderingContext2D,width:number,height:number,
   sun:{x:number;y:number;color:readonly number[]},opacity:number,
-  transmission:(x:number,y:number)=>number,
+  profile:readonly number[],
 ){
   const x=sun.x*width,y=sun.y*height,reach=Math.hypot(width,height)*.91;
   const color=sun.color.map(value=>Math.round(value*255)).join(',');
-  const profile=godRaysProfile(sun,width/height,transmission);
   if(!profile.some(Boolean))return;
   const light=c.createConicGradient(0,x,y);
   for(let index=0;index<=profile.length;index++){

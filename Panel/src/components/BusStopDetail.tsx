@@ -186,6 +186,7 @@ export default function BusStopDetail({ stop, onBack, toggleFavorite, loadDepart
         <div {...cosmicPanel('stop-header')} className={`relative mx-3 mt-3 rounded-[24px] border p-3.5 lg:mx-8 lg:p-5 overflow-hidden backdrop-blur-2xl ${headerShellClass}`}>
           {/* Subtle background gradient */}
           <div className={`absolute top-0 right-0 w-full h-full ${headerGradientClass}`}></div>
+          <canvas data-horyzont-glass="stop" aria-hidden="true" hidden width={1} height={1}/>
 
           {/* Top bar */}
           <div className="flex justify-between items-center mb-3 relative z-10 w-full">

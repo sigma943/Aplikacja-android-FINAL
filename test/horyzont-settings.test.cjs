@@ -2,8 +2,10 @@ const test=require('node:test'),assert=require('node:assert/strict'),load=requir
 const settings=load('lib/landscape-settings.ts');
 test('Horyzont settings reject invalid data and bound every numeric effect',()=>{
  assert.deepEqual(settings.normalizeLandscapeSettings(null),settings.DEFAULT_LANDSCAPE_SETTINGS);
- assert.deepEqual(settings.normalizeLandscapeSettings({quality:'medium',bloom:Infinity,reflections:-20,rays:999,waveSpeed:0,exposure:4}),{quality:'medium',filterBackground:'sky',bloom:100,reflections:0,rays:200,waveSpeed:0,exposure:50,godRays:true});
+ assert.deepEqual(settings.normalizeLandscapeSettings({quality:'medium',bloom:Infinity,reflections:-20,rays:999,waveSpeed:0,exposure:4}),{quality:'medium',glassQuality:'balanced',filterBackground:'sky',bloom:100,reflections:0,rays:200,waveSpeed:0,exposure:50,godRays:true});
  assert.equal(settings.normalizeLandscapeSettings({godRays:false}).godRays,false);
+ for(const glassQuality of ['eco','balanced','ultra'])assert.equal(settings.normalizeLandscapeSettings({glassQuality}).glassQuality,glassQuality);
+ assert.equal(settings.normalizeLandscapeSettings({glassQuality:'invalid'}).glassQuality,'balanced');
 });
 test('Horyzont settings survive reload and notify the live renderer',()=>{
  const before={localStorage:global.localStorage,window:global.window},data=new Map(),events=[];

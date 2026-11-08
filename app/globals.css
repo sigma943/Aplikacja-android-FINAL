@@ -66,6 +66,19 @@
   --ui-edge: rgb(15 23 42 / 10%);
   background: var(--ui-canvas);
 }
+[data-horyzont-glass] {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  border-radius:inherit;
+  pointer-events:none;
+}
+html:not([data-landscape-theme='on']) [data-horyzont-glass],
+html[data-landscape-glass='off'] [data-horyzont-glass],
+html[data-landscape-filter-background='sky'] [data-horyzont-glass='filter'] {
+  display:none!important;
+}
 .pks-theme-root[data-ui-theme='dark'] {
   --ui-canvas: #101a26;
   --ui-surface: #1b2937;
