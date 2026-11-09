@@ -120,8 +120,10 @@ try{
  const terminal='.map-catalog-stop[title="Rzeszów D.A. st. 5"]';
  try{await page.waitForSelector(terminal);}catch(error){console.error('Terminal map diagnostics',await page.evaluate(()=>{let camera;try{camera=localStorage.getItem('mks_map_state');}catch(e){camera=String(e);}return {url:location.href,document:document.documentURI,camera,text:document.body?.textContent?.slice(0,500),titles:[...document.querySelectorAll('.map-catalog-stop')].map(el=>el.title)};}));throw error;}
  assert.equal(await page.$$('.map-stop-platform').then(rows=>rows.length),0,'icons have no platform badge');
- await page.click(terminal);await page.waitForSelector('.map-stop-ring.is-selected');
+ assert.equal(await page.$(terminal+' .map-stop-ring.is-selected'),null);
+ await page.click(terminal);
  await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]')?.textContent.includes('Rzeszów D.A. st. 5'));
+ assert.equal(await page.$('.map-stop-ring.is-selected, .stop-highlight-pin'),null,'a direct terminal tap opens the sheet without highlighting');
  assert.equal(await page.$$('.map-stop-platform').then(rows=>rows.length),0);
  await page.screenshot({path:path.resolve('test/ui-previews/map-terminal-platforms.png')});
  await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
@@ -129,8 +131,11 @@ try{
  await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id] h3')].some(el=>el.textContent==='Rzeszów D.A. st. 5'));
  assert.ok(await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id] h3')].some(el=>el.textContent==='Rzeszów D.A. st. 2')));
  await page.screenshot({path:path.resolve('test/ui-previews/list-terminal-platforms.png')});
- await page.$eval('input[placeholder*="Babica"]',el=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(el,'');el.dispatchEvent(new Event('input',{bubbles:true}));});
- await button('Mapa');
+ await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id] h3')].find(el=>el.textContent==='Rzeszów D.A. st. 5').click());
+ await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Pokaż na mapie'));
+ await button('Pokaż na mapie');
+ await page.waitForSelector(terminal+' .map-stop-ring.is-selected');
+ assert.equal(await page.$$('.map-stop-ring.is-selected').then(rows=>rows.length),1,'only the requested platform is highlighted');
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.03651,lng:21.99752},zoom:19})));
  await page.reload({waitUntil:'domcontentloaded'});
  await page.waitForSelector('.map-catalog-stop[title*="Moniuszki" i]');

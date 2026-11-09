@@ -94,17 +94,25 @@ export function routeMapStopPoint(stops:Stop[],id:string,point:StopData,provider
  const position=stop?platformPosition(stop):null;
  return position?{...point,...position}:point;
 }
-/** Visual route membership only: never selects a stop or opens its details. */
+/** Catalog stops to emphasize on the selected vehicle's route. */
 export function routeCatalogStopIds(stops:Stop[],ids:Array<string|number>,points:Record<string,StopData>,provider='pks'){
  const wanted=new Set(ids.map(id=>String(id).replace(/^(pks|mpk_rzeszow):/,'')));
  const catalog=provider==='marcel'?stops:stops.filter(stop=>String(stop.providerStopIds?.[provider]||'').split(',').some(id=>wanted.has(id.trim())));
- return new Set(ids.flatMap(id=>{const raw=points[String(id)],canonical=raw?routeMapCatalogStopId(catalog,String(id),raw,provider):undefined;return canonical?[canonical]:[];}));
+ const highlighted=new Set(catalog.filter(stop=>canHighlightMapStop(stop)).map(stop=>stop.id));
+ return new Set(ids.flatMap(id=>{const raw=points[String(id)],canonical=raw?routeMapCatalogStopId(catalog,String(id),raw,provider):undefined;return canonical&&highlighted.has(canonical)?[canonical]:[];}));
+}
+
+function isRzeszowTerminalName(name:string){
+  return rzeszowTerminalPlatform(name)!==null||/^Rzesz[oó]w\b.*(?:\bd\s*\.?\s*a\s*\.?\s*(?:st\b|stanow|$)|\b(?:dworzec|dworz\.)\s*(?:autobusowy|pks)\b)/iu.test(name);
+}
+
+export function canHighlightMapStop(stop:{name?:string;areaId?:string},fromStopsTab=false){
+  return fromStopsTab||(stop.areaId!=='1937'&&!isRzeszowTerminalName(stop.name??''));
 }
 
 export function mapStopColor(stop:Pick<Stop,'name'>){
-  if(rzeszowTerminalPlatform(stop.name)!==null)return '#14b8a6';
+  if(isRzeszowTerminalName(stop.name))return '#14b8a6';
   const name=stop.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  if(/^rzeszow\b/.test(name)&&(/\bd\s*\.?\s*a\s*\.?\s*(?:st\b|stanow|$)/.test(name)||/\b(?:dworzec|dworz\.)\s*(?:autobusowy|pks)\b/.test(name)))return '#14b8a6';
   return /^rzeszow(?:\b|\s|,)/.test(name)?'#ff7a00':'#14b8a6';
 }
 export function visibleMapStops(stops:Stop[],bbox:[number,number,number,number],zoom:number,selected?:string|null){

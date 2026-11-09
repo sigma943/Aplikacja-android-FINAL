@@ -19,3 +19,17 @@ test('automatic route glow uses only unambiguous provider IDs and leaves input u
  assert.deepEqual([...routeCatalogStopIds([stop,{...stop,id:'duplicate'}],['1'],{'1':point},'pks')],[]);
  assert.deepEqual([...routeCatalogStopIds([stop],['1'],{'1':point},'pkp_intercity')],[]);
 });
+
+test('Rzeszów D.A. never glows along a vehicle route and can be highlighted explicitly from the stop tab',()=>{
+ const {canHighlightMapStop,routeCatalogStopIds}=load('lib/map-stop-markers.ts');
+ const terminal={...stop,id:'3731',name:'Rzeszów D.A. st. 1',areaId:'1937',providerStopIds:{pks:'3731'}};
+ const terminalPoint={...point,n:'RZESZÓW D.A.'};
+ assert.deepEqual([...routeCatalogStopIds([stop,terminal],['1','3731'],{'1':point,'3731':terminalPoint},'pks')],['shared']);
+ assert.deepEqual(routeMapStopPoint([terminal],'3731',terminalPoint,'pks'),{...terminalPoint,lat:terminal.lat,lon:terminal.lon});
+ for(const candidate of [terminal,{areaId:'1937'},{name:terminalPoint.n},{name:'Rzeszów, Dworzec Autobusowy 02'}]){
+  assert.equal(canHighlightMapStop(candidate),false);
+  assert.equal(canHighlightMapStop(candidate,true),true);
+ }
+ assert.equal(canHighlightMapStop({name:'Boguchwała D.A. 1'}),true);
+ assert.equal(canHighlightMapStop({name:'Rzeszów, Dworzec Główny PKP 01'}),true);
+});

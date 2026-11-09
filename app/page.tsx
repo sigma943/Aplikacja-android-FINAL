@@ -220,7 +220,9 @@ export default function Home() {
   const [stopsList, setStopsList] = useState<RawStop[]>([]);
   const [stopsLoadError, setStopsLoadError] = useState(false);
   const stopsLoadPendingRef = useRef(false);
-  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [stopSelection, setStopSelection] = useState<{id:string;fromStopsTab:boolean}|null>(null);
+  const selectedStopId=stopSelection?.id??null;
+  const setSelectedStopId=useCallback((id:string|null,fromStopsTab=false)=>setStopSelection(id===null?null:{id,fromStopsTab}),[]);
   const [selectedExternalStop, setSelectedExternalStop] = useState<StopsPanelStop | null>(null);
   const mapStops=useMapStops(showMapStops,stopsList,activeTab==='map'&&Boolean(selectedStopId)&&!selectedBus&&activeProviders.includes('marcel'));
   const [isStopPanelExpanded, setIsStopPanelExpanded] = useState(false);
@@ -244,7 +246,7 @@ export default function Home() {
       setSelectedStopId(null);
       setSelectedExternalStop(null);
     }
-  }, [selectedBus, selectedStopId]);
+  }, [selectedBus, selectedStopId, setSelectedStopId]);
 
   useEffect(() => {
     activeProvidersRef.current = activeProviders;
@@ -1037,10 +1039,10 @@ export default function Home() {
       external.providerStopIds={marcelMatchKeys:marcelCourseStopMatchKey(courseStop),marcelCityMatchKeys:marcelCourseStopIndexKey(courseStop)};
     }
     setSelectedExternalStop(external);setSelectedStopId(stopId);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);
-  },[selectedBus,stopsList]);
-  const selectMapCatalogStop=useCallback((stop:StopsPanelStop)=>{mapStopReturnTab.current=null;setSelectedBus(null);setSelectedExternalStop(stop);setSelectedStopId(stop.id);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);},[]);
+  },[selectedBus,stopsList,setSelectedStopId]);
+  const selectMapCatalogStop=useCallback((stop:StopsPanelStop)=>{mapStopReturnTab.current=null;setSelectedBus(null);setSelectedExternalStop(stop);setSelectedStopId(stop.id);setIsStopPanelExpanded(false);setIsTransportPanelOpen(false);},[setSelectedStopId]);
   const onMapCenterComplete=useCallback(()=>setMapCenter(null),[]);
-  const onMapClick=useCallback(()=>{setSelectedBus(null);setSelectedBusDetailsLoading(false);setSelectedStopId(null);setSelectedExternalStop(null);setIsTransportPanelOpen(false);},[]);
+  const onMapClick=useCallback(()=>{setSelectedBus(null);setSelectedBusDetailsLoading(false);setSelectedStopId(null);setSelectedExternalStop(null);setIsTransportPanelOpen(false);},[setSelectedStopId]);
   const selectedBusHeaderStyle=vehicleHeaderStyle(selectedVehicleColor,transparentUI,isDark);
   const showAlertDot = Boolean(error || isOffline);
 
@@ -1107,7 +1109,7 @@ export default function Home() {
       setSelectedStopId(null);
       setSelectedExternalStop(null);
     }
-  }, [draftProviders, hiddenProvidersSet, selectedBus]);
+  }, [draftProviders, hiddenProvidersSet, selectedBus, setSelectedStopId]);
 
   const handleVehicleClick = useCallback((v: Vehicle) => {
     if (!v) return;
@@ -1120,7 +1122,7 @@ export default function Home() {
     setIsSettingsOpen(false);
     setIsTransportPanelOpen(false);
     loadVehicleDetails(v);
-  }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider]);
+  }, [loadVehicleDetails, selectedBus?.id, selectedBus?.provider, setSelectedStopId]);
 
   const tabTransitionRef=useTabTransition(activeTab,!interfaceAppearance.reducedMotion);
 
@@ -1252,6 +1254,7 @@ export default function Home() {
                forcedCenter={mapCenter}
                onCenterComplete={onMapCenterComplete}
                highlightedStopId={selectedStopId}
+               highlightTerminalStop={stopSelection?.fromStopsTab}
                onStopClick={openVehicleRouteStop}
                onMapClick={onMapClick}
                 onViewportChange={handleMapViewportChange}
@@ -1453,7 +1456,7 @@ export default function Home() {
                   }
                   setSelectedBus(null);
                   setSelectedExternalStop(stop);
-                  setSelectedStopId(stop.id);
+                  setSelectedStopId(stop.id,true);
                   setIsStopPanelExpanded(false);
                   setActiveTab('map');
                }}
