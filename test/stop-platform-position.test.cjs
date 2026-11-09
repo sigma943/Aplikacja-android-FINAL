@@ -27,6 +27,26 @@ test('the packaged catalog contains only named validated passenger platforms',()
   for(const p of catalog.points){assert.ok(p.name&&p.id);assert.ok(p.lat>=48&&p.lat<=56&&p.lon>=14&&p.lon<=25);}
 });
 
+test('Rzeszów terminal bay 1 uses the passenger platform on the map only',()=>{
+  const {platformPosition,positionWithPlatforms}=load('lib/stop-platform-position.ts');
+  const {visibleMapStops}=load('lib/map-stop-markers.ts');
+  const snapshot=require('../public/data/pks-stop-points.json').stops;
+  const osm=require('../public/data/stop-platforms.json').points;
+  const {lat,lon}=osm.find(point=>point.id==='node/13030199581');
+  const point={lat,lon};
+  const original=snapshot['3731'];
+  const bay={...original,id:'3731',type:'bus',name:'Rzeszów D.A. st. 1'};
+  const bayTwo={...snapshot['3723'],id:'3723',type:'bus',name:'Rzeszów D.A. st. 2'};
+  const resolve=createPlatformResolver(osm);
+  assert.deepEqual(platformPosition(original),point,'raw source code is recognized before OSM loads');
+  assert.deepEqual(positionWithPlatforms(bay,resolve),point);
+  assert.deepEqual(platformPosition({...bay,...point}),point);
+  assert.deepEqual(visibleMapStops([bay,bayTwo],[22.004,50.04235,22.0044,50.0425],16).map(stop=>[stop.id,stop.lat,stop.lon]),[['3731',lat,lon]]);
+  assert.deepEqual(positionWithPlatforms(bayTwo,resolve),resolve(bayTwo)||{lat:bayTwo.lat,lon:bayTwo.lon});
+  assert.deepEqual(platformPosition({...bay,lat:50.3}),{lat:50.3,lon:bay.lon});
+  assert.deepEqual({lat:original.lat,lon:original.lon},{lat:50.042104,lon:22.002738},'source and routing coordinates are untouched');
+});
+
 test('named Mochnackiego platforms accept the provider abbreviation but never the opposite code',()=>{
   const point={id:'platform/03',name:'Lisa-Kuli / Mochnackiego 03',lat:50.035944,lon:21.99708};
   const resolve=createPlatformResolver([point]);
@@ -165,12 +185,13 @@ test('Lisa-Kuli Mochnackiego 03 retains its verified position on the catalog and
   }
 });
 
-test('all 1795 PKS stops outside the reviewed registry retain the pre-regression positions',()=>{
+test('all 1794 other PKS stops outside the reviewed registry retain their previous positions',()=>{
   const {positionWithPlatforms}=load('lib/stop-platform-position.ts');
   const {readBusCoordinates}=load('lib/bus-coordinates.ts');
   const {formatPksStops,snapshotStopItems}=load('lib/providers/pks-stops.ts');
   const snapshot=require('../public/data/pks-stop-points.json');
   const reviewed=new Set(require('../lib/reviewed-map-platforms.json').points.map(p=>p.id.slice(4)));
+  reviewed.add('3731'); // The separately tested Rzeszów terminal bay 1.
   const osm=createPlatformResolver(require('../public/data/stop-platforms.json').points);
   let checked=0;
   for(const [id,stop] of Object.entries(formatPksStops({items:snapshotStopItems(snapshot)},snapshot))){
@@ -180,5 +201,5 @@ test('all 1795 PKS stops outside the reviewed registry retain the pre-regression
     checked++;
   }
   assert.equal(checked,Object.keys(snapshot.stops).length-reviewed.size);
-  assert.equal(checked,1795);
+  assert.equal(checked,1794);
 });
