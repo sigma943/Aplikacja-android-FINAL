@@ -5,9 +5,9 @@ import {stopDeparturesWithLiveVehicles} from './vehicle-stop-timing';
 import {departureCountdown,departureIsPast} from './departure-display';
 import {warsawDateIso} from './transit-time';
 const dayFormatter=new Intl.DateTimeFormat('pl-PL',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Warsaw'});
-export function liveMapStopDepartures(rows:Departure[],vehicles:Vehicle[],stop?:Stop):Departure[]{
+export function liveMapStopDepartures(rows:Departure[],vehicles:Vehicle[],stop?:Stop,now=Date.now()):Departure[]{
   const unique=new Map<string,Departure>();
-  stopDeparturesWithLiveVehicles(rows,vehicles,stop).forEach(row=>unique.set(`${row.carrier?.id}:${row.id}`,row));
+  stopDeparturesWithLiveVehicles(rows,vehicles,stop,now).forEach(row=>unique.set(`${row.carrier?.id}:${row.id}`,row));
   return [...unique.values()];
 }
 
@@ -28,5 +28,5 @@ export function formatMapStopDepartures(rows:Departure[],now:number):MapStopDepa
 }
 
 export function mapStopDepartureRows(rows:Departure[],vehicles:Vehicle[],now:number):MapStopDeparture[]{
-  return formatMapStopDepartures(liveMapStopDepartures(rows,vehicles),now);
+  return formatMapStopDepartures(liveMapStopDepartures(rows,vehicles,undefined,now),now);
 }

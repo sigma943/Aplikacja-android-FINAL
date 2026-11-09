@@ -21,7 +21,7 @@ import {resolvePksRouteStops} from './official-bus-routes';
 
 import {busOperatingState, transitTimestamp} from './bus-operating-state';
 
-import type {Vehicle} from '@/lib/transport/vehicle';
+import type {StopSchedule,Vehicle} from '@/lib/transport/vehicle';
 import {warsawDateIso, warsawTimeMs} from './transit-time';
 
 import {type ShapePoint, type StopPointIndex, type TransportProviderId, type PkpQueryViewport, type RouteGeometryClientRequest, type RouteGeometryClientResponse, type TransportApiVehicle, type TransportApiVehiclesResponse} from './transport/types';
@@ -188,13 +188,15 @@ function formatStopName(rawName: string | undefined) {
   return rawName.trim();
 }
 
-function buildSchedule(nextStopPoints: any[] | undefined, stopsDict: StopPointIndex) {
-  return (nextStopPoints || []).map((sp: any) => {
+function buildSchedule(nextStopPoints: any[] | undefined, stopsDict: StopPointIndex, path: number[]): StopSchedule[] {
+  return (nextStopPoints || []).map((sp: any, index, points) => {
     const stopId = Number(sp.stop_point_id ?? sp.stopPointId ?? sp.id);
     const plannedRaw = sp.planned_departure_time ?? sp.timetable_time ?? sp.planned;
     const realRaw = sp.real_departure_time ?? sp.real;
     const lat = Number(sp.location?.lat ?? sp.lat ?? sp.latitude);
     const lon = Number(sp.location?.lon ?? sp.location?.lng ?? sp.lon ?? sp.lng ?? sp.long ?? sp.longitude);
+    const finalCall = index===points.length-1&&stopId===path.at(-1)
+      &&(sp.index==null||Number(sp.index)===path.length-1);
     return {
       id: stopId,
       name: formatStopName(sp.name || stopsDict[String(stopId)]?.n || `Przystanek ${stopId}`),
@@ -202,6 +204,7 @@ function buildSchedule(nextStopPoints: any[] | undefined, stopsDict: StopPointIn
       real: Number.isFinite(transitTimestamp(realRaw)) ? new Date(transitTimestamp(realRaw)).toISOString() : null,
       lat: Number.isFinite(lat) ? lat : stopsDict[String(stopId)]?.lat,
       lon: Number.isFinite(lon) ? lon : stopsDict[String(stopId)]?.lon,
+      timeType: path.length>1 ? finalCall?'arrival':'departure' : undefined,
     };
   });
 }
@@ -228,10 +231,9 @@ function buildRoutePath(route: any): number[] {
   return fromLinks;
 }
 
-function inferVehicleStatus(v: any,ageSec: number,speed: number,now: number,hasLine: boolean,schedule: ReturnType<typeof buildSchedule>) {
+function inferVehicleStatus(v: any,speed: number,now: number,hasLine: boolean,schedule: StopSchedule[],path:number[]) {
   if(!hasLine)return {status:'inactive' as const,statusText:'Pojazd bez przypisanej linii',nextTripStartAtMs:undefined,nextTripFirstStopId:undefined};
   if(v.journey?.route?.is_technical)return {status:'technical' as const,statusText:'Przejazd techniczny',nextTripStartAtMs:undefined,nextTripFirstStopId:undefined};
-  const path=buildRoutePath(v.journey?.route);
   const firstId=path[0];
   const pointNumber=Number(v.position?.last_stop_point_number);
   const distance=Number(v.position?.last_stop_point_distance);
@@ -271,11 +273,12 @@ function mapVehicle(
   const rawSpeed = Number(position.speed);
   const speed = computeObservedSpeedKmh(`pks:${vehicleId}`, lat, lon, Number.isNaN(signalMs) ? now : signalMs, rawSpeed);
   const destination = v.journey?.route?.description || v.journey?.route?.name || v.route_description || v.direction || 'W trasie';
-  const nextStops = buildSchedule(v.next_stop_points, stopsDict);
+  const path = buildRoutePath(v.journey?.route);
+  const nextStops = buildSchedule(v.next_stop_points, stopsDict, path);
   const schedule = includeDetails ? nextStops : [];
   const statusSchedule = includeDetails ? schedule : nextStops.slice(0,1);
-  const vehicleStatus = inferVehicleStatus(v, ageSec, speed ?? 0, now, hasLine, statusSchedule);
-  const routePath = includeDetails ? buildRoutePath(v.journey?.route) : [];
+  const vehicleStatus = inferVehicleStatus(v, speed ?? 0, now, hasLine, statusSchedule, path);
+  const routePath = includeDetails ? path : [];
   const routeStops = routePath.map(id => {const timed=schedule.find(stop=>stop.id===id);const point=stopsDict[String(id)];return {...timed,id,name:point?.n||timed?.name||`Przystanek ${id}`,lat:point?.lat??timed?.lat,lon:point?.lon??timed?.lon,planned:timed?.planned||null,real:timed?.real||null};});
 
   return {
@@ -296,7 +299,7 @@ function mapVehicle(
     routeStops,
     model: v.model,
     lastStopDistance: typeof position.last_stop_point_distance === 'number' ? position.last_stop_point_distance : undefined,
-    lastStopId: Number(position.last_stop_point_number)>0 ? buildRoutePath(v.journey?.route)[Number(position.last_stop_point_number)-1] : undefined,
+    lastStopId: Number(position.last_stop_point_number)>0 ? path[Number(position.last_stop_point_number)-1] : undefined,
     lastSignalTime: Number.isFinite(signalMs) ? new Date(signalMs).toISOString() : undefined,
     previousTripEndedAtMs: Number.isFinite(vehicleStatus.nextTripStartAtMs) ? now : undefined,
     nextTripStartAtMs: vehicleStatus.nextTripStartAtMs,

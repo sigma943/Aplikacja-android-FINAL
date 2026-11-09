@@ -157,14 +157,16 @@ async function fetchLegacyDepartures(stopId: string, areaId?: string, code?: str
 export async function fetchDeparturesClient(stopId:string,areaId?:string,code?:string,dateIso?:string){
  if(typeof window==='undefined')return fetchLegacyDepartures(stopId,areaId,code,dateIso);
  const feed=await loadPksGtfs(),days=dateIso?[dateIso]:[warsawDateIso(),warsawDateIso(1)];
+ if(!feed||!days.every(day=>pksGtfsCovers(feed,day)))return fetchLegacyDepartures(stopId,areaId,code,dateIso);
  const index=pksGtfsIndex();
  const canonical=stopId.startsWith('gtfs:')?index?.canonicalByGtfsId?.get(stopId.slice(5)):undefined;
  let ids=index?.byStop[canonical||stopId];
- if(!ids&&feed)ids=pksGtfsTerminalStopIds(feed,areaId,code)??undefined;
- if(!feed||!days.every(day=>pksGtfsCovers(feed,day)))return fetchLegacyDepartures(stopId,areaId,code,dateIso);
+ if(!ids&&stopId.startsWith('gtfs:')&&feed.stops[stopId.slice(5)])ids=[stopId.slice(5)];
+ ids??=pksGtfsTerminalStopIds(feed,areaId,code)??undefined;
+ if(!ids)return stopId.startsWith('gtfs:')?{journeys:[],warning:undefined}:fetchLegacyDepartures(stopId,areaId,code,dateIso);
  const legacy=stopId.startsWith('gtfs:')&&areaId!=='1937'?null:await fetchLegacyDepartures(stopId,areaId,code,dateIso).catch(()=>null);
  const managed=new Set(feed.managedLines||feed.trips.map(t=>t[1]));
- const scheduled=days.flatMap(day=>pksGtfsDepartures(feed,ids||[],day));
+ const scheduled=days.flatMap(day=>pksGtfsDepartures(feed,ids,day));
  const rows=mergePksDirectionLabels(scheduled,legacy?.journeys||[]);
  rows.push(...(legacy?.journeys||[]).filter((row:any)=>!managed.has(String(row.line_name))));
  return {journeys:rows.filter(row=>dateIso||Date.parse(row.timetable_time)>=Date.now()-900_000&&Date.parse(row.timetable_time)<=Date.now()+86400_000).sort((a,b)=>Date.parse(a.timetable_time)-Date.parse(b.timetable_time)),warning:undefined};
