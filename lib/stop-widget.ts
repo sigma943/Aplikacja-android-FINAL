@@ -8,7 +8,7 @@ import {normalizeWidgetRefreshMinutes} from './widget-refresh';
 import {normalizeWidgetAppearance, type WidgetAppearance} from './widget-appearance';
 export interface StopWidgetConfig {stop: Stop; lines: string[] | null; size: 'small'|'medium'|'large'; theme: 'system'|'light'|'dark'; glass?:boolean; appearance?: Partial<WidgetAppearance>; refreshMinutes?: number; refreshMode?: 'always'|'battery-saver'|'off'}
 export function widgetDepartures(departures: Departure[], vehicles: Vehicle[], lines: string[] | null, now=Date.now(),limit=16) {
-  return departures.map(d=>departureFromLiveVehicle(d,vehicles,now)).map(d=>({...d,plannedAtMs:d.plannedAtMs??warsawTimeMs(warsawDateIso(0,new Date(now)),d.time)}))
+  return departures.map(d=>departureFromLiveVehicle(d,vehicles)).map(d=>({...d,plannedAtMs:d.plannedAtMs??warsawTimeMs(warsawDateIso(0,new Date(now)),d.time)}))
     .filter(d=>(lines===null||lines.includes(d.line))&&!departureIsPast(d,now,d.plannedAtMs))
     .sort((a,b)=>(a.realAtMs??a.plannedAtMs)-(b.realAtMs??b.plannedAtMs)).slice(0,limit);
 }

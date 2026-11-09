@@ -36,7 +36,6 @@ export function departureFromLiveVehicle(departure:Departure,vehicles:Vehicle[],
       (vehicle.dataAgeSec??0)>120||(vehicle.status&&vehicle.status!=='active')||vehicle.routeShortName!==departure.line||
       vehicle.journeyUpdate?.status==='canceled')return false;
     const signal=transitTimestamp(vehicle.lastSignalTime);
-    if(Number.isFinite(signal)&&(signal>now+5000||now-signal>120_000))return false;
     if(departure.stopId&&vehicle.journeyUpdate?.stops?.some(update=>update.stopId===departure.stopId&&update.skipped))return false;
     if(warsawDateIso(0,new Date(departure.plannedAtMs!))!==warsawDateIso(0,new Date(Number.isFinite(signal)?signal:now)))return false;
     if(departure.courseId)return [vehicle.journeyId,vehicle.tripId].some(id=>String(id??'')===departure.courseId);

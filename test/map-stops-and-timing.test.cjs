@@ -8,7 +8,7 @@ const stop={id:2083,name:'Baryczka',planned:new Date(planned).toISOString(),real
 for(const delay of [-180,0,180])test(`PKS stop board, map stop sheet and vehicle timetable agree for ${delay}s`,()=>{
   const bus={...vehicle,delay,routeStops:[stop]};
   const row={id:'course42',courseId:'42',stopId:'2083',line:'108',carrier:{id:'pks'},plannedAtMs:planned,realAtMs:planned+60_000,realtimeSource:'stop-board'};
-  const board=departureFromLiveVehicle(row,[bus],now);const panel=vehicleStopDeparture(bus,stop);
+  const board=departureFromLiveVehicle(row,[bus]);const panel=vehicleStopDeparture(bus,stop);
   assert.equal(board.realAtMs,panel.realAtMs);
   assert.equal(board.delayMins,panel.delayMins);
   assert.equal(departureCountdown(board,now),departureCountdown(panel,now));
@@ -17,11 +17,11 @@ for(const delay of [-180,0,180])test(`PKS stop board, map stop sheet and vehicle
 test('PKS live correction never borrows another course or stale/inactive bus',()=>{
   const row={id:'42',courseId:'42',stopId:'2083',line:'108',carrier:{id:'pks'},plannedAtMs:planned};
   for(const change of [{journeyId:43},{dataAgeSec:121},{status:'break'},{routeShortName:'288'}])
-    assert.equal(departureFromLiveVehicle(row,[{...vehicle,delay:60,...change}],now),row);
+    assert.equal(departureFromLiveVehicle(row,[{...vehicle,delay:60,...change}]),row);
   const tomorrow={...row,plannedAtMs:planned+24*3600_000};
-  assert.equal(departureFromLiveVehicle(tomorrow,[{...vehicle,delay:180,lastSignalTime:new Date(now).toISOString()}],now),tomorrow);
+  assert.equal(departureFromLiveVehicle(tomorrow,[{...vehicle,delay:180,lastSignalTime:new Date(now).toISOString()}]),tomorrow);
   const withoutCourse={...row,courseId:undefined};
-  assert.equal(departureFromLiveVehicle(withoutCourse,[{...vehicle,delay:60,routeStops:[{...stop,id:999}]}],now),withoutCourse);
+  assert.equal(departureFromLiveVehicle(withoutCourse,[{...vehicle,delay:60,routeStops:[{...stop,id:999}]}]),withoutCourse);
 });
 test('delayed stops stay upcoming until their corrected time; early stops disappear after departure',()=>{
   const passedPlan={...stop,planned:new Date(now-60_000).toISOString(),real:null};
