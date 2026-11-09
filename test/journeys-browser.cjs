@@ -18,7 +18,14 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
    for(const variant of variants)for(const chrome of ['modern','classic'])for(const width of [320,393]){
     const safe=width===393?'24px':'0px';await page.setViewport({width,height:851,deviceScaleFactor:1});
     await page.goto(origin+'/?'+new URLSearchParams({'picker-nav':'1','picker-theme':variant.theme,sun:String(variant.sun??30),chrome,safe,glass:width===320?'off':'on'}),{waitUntil:'domcontentloaded'});
-    await page.waitForSelector('[data-journey-from]');await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker] [data-stop-card-id]');
+    await page.waitForSelector('[data-journey-from]');
+    if(variant.theme==='dark-mountains'&&variant.sun>=0){
+     const formText=await page.$$eval('.connections-form :is(.connections-location small,.connections-location strong,.connections-segment button,.connections-datetime :is(small,input),.connections-preferences span,.connections-preferences small)',elements=>elements.map(el=>{const style=getComputedStyle(el);return {text:el.textContent||el.value,stroke:parseFloat(style.webkitTextStrokeWidth),shadow:style.textShadow,weight:Number(style.fontWeight),color:style.color};}));
+     assert.equal(formText.length,12);
+     assert.ok(formText.every(label=>label.stroke===0&&label.shadow==='none'&&label.weight>=600),JSON.stringify(formText));
+     assert.equal(formText.find(label=>label.text==='Przyjazd').color,'rgb(16, 36, 45)');
+    }
+    await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker] [data-stop-card-id]');
     const filterPaint=await page.evaluate(()=>{const styles=root=>[...document.querySelectorAll(root+' [data-stop-list-header] button[aria-pressed]')].map(b=>{const s=getComputedStyle(b);return {label:b.textContent.trim(),font:s.fontSize,weight:s.fontWeight,height:b.getBoundingClientRect().height,padding:s.padding,bg:s.backgroundColor,ink:s.color,radius:s.borderRadius};});return {actual:styles('[data-journey-picker]'),expected:styles('[data-filter-reference]')};});assert.deepEqual(filterPaint.actual,filterPaint.expected,JSON.stringify({variant,chrome,width,filterPaint}));
     const list=await page.evaluate(()=>{const picker=document.querySelector('[data-journey-picker]'),scroll=picker.querySelector('[data-stop-list-scroll]'),card=picker.querySelector('[data-stop-card-id]'),css=getComputedStyle(card),rect=picker.getBoundingClientRect();return {bottom:rect.bottom,padding:parseFloat(getComputedStyle(scroll).paddingBottom),cardPadding:parseFloat(css.paddingLeft),cardRadius:parseFloat(css.borderRadius),overflow:picker.scrollWidth>picker.clientWidth};});
     if(list.padding<152||list.cardPadding!==14)await screenshot('picker-layout-failure');

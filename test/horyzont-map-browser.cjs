@@ -42,6 +42,16 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   for(const [period,iso] of [['day','2026-10-26T12:00:00+01:00'],['night','2026-10-26T20:07:00+01:00']]){
    await page.evaluate(iso=>{window.__landscapePreview({iso,rate:0,quality:'low',seconds:0});localStorage.setItem('mks_interface_appearance_v1',JSON.stringify({glassOpacity:20}));window.dispatchEvent(new Event('pks-interface-appearance'));},iso);
    await page.waitForFunction(period=>document.documentElement.dataset.landscapePeriod===period,{},period);
+   const panelText=await page.evaluate(()=>{
+    const admin=document.createElement('section');admin.dataset.adminViewport='';
+    admin.innerHTML='<div class="admin-device-card">Urządzenie</div><div data-interface-card>Ustawienia</div>';
+    const stops=document.createElement('section');stops.className='transit-view';
+    stops.innerHTML='<article class="transit-card"><p>Przystanek</p></article>';
+    document.body.append(admin,stops);
+    try{return [...document.querySelectorAll('[data-opacity-probes] :is(.pks-options-sheet,.map-detail-shell),.admin-device-card,[data-admin-viewport] [data-interface-card],.transit-view .transit-card p')].map(el=>{const style=getComputedStyle(el);return {text:el.textContent,shadow:style.textShadow,stroke:parseFloat(style.webkitTextStrokeWidth)};});}
+    finally{admin.remove();stops.remove();}
+   });
+   assert.ok(panelText.length>=5&&panelText.every(label=>label.shadow==='none'&&label.stroke===0),JSON.stringify({period,panelText}));
    await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-adjustable-card]')).backgroundColor.endsWith('0.2)'));
    await page.evaluate(()=>{const host=document.createElement('div');host.id='transmission-probe';host.style.cssText='position:fixed;top:0;left:0;width:160px;height:80px;z-index:30000;background:linear-gradient(to right,#000 50%,#fff 50%);isolation:isolate';const card=document.createElement('div');card.className='transit-card';card.style.cssText='position:absolute;inset:0;border:0;border-radius:0;box-shadow:none';host.append(card);document.body.append(host);});
    const probe=await page.$eval('#transmission-probe',e=>({x:scrollX,y:scrollY,filter:getComputedStyle(e.firstElementChild).backdropFilter,fill:getComputedStyle(e.firstElementChild).backgroundColor}));
