@@ -1,5 +1,6 @@
 import {readBusCoordinates} from './bus-coordinates';
 import reviewedPlatforms from './reviewed-map-platforms.json';
+import {rzeszowTerminalPlatform} from './stop-label';
 
 export type PlatformPoint={id:string;name:string;code?:string;lat:number;lon:number;roadBoundary?:number[][]};
 type StopPoint={name?:string;n?:string;code?:string;lat?:number;lon?:number;apiLat?:number|null;apiLon?:number|null};
@@ -54,17 +55,23 @@ export function createPlatformResolver(points:PlatformPoint[],requireRoadside=fa
 // Reviewed points from the displayed basemap take precedence over the OSM catalog.
 // Match the full platform name/code and proximity on every surface, including routes.
 const resolveReviewed=createPlatformResolver(reviewedPlatforms.points,true);
+// The provider point for bay 1 is across the terminal from OSM node 13030199581.
+const rzeszowBayOne={lat:50.0424079,lon:22.004247};
 let resolve=createPlatformResolver([]);
 let loading:Promise<void>|null=null;
 let revision=0;
 export function stopPlatformRevision(){return revision;}
 /** A confirmed platform wins; retain the established catalog geometry otherwise. */
 export function positionWithPlatforms(stop:StopPoint,resolver:ReturnType<typeof createPlatformResolver>){
+  const origin=readBusCoordinates(stop.lat,stop.lon);
+  if(origin&&rzeszowTerminalPlatform(stop.name||stop.n,stop.code)==='1'&&distance(origin,rzeszowBayOne)<=120){
+    return {...rzeszowBayOne};
+  }
   const platform=resolveReviewed(stop)||resolver(stop);
   if(platform)return platform;
   // lat/lon already includes verified GTFS and precise MPK platform coordinates.
   // Replacing it with raw apiLat/apiLon undoes those corrections (e.g. Lisa-Kuli 03).
-  return readBusCoordinates(stop.lat,stop.lon);
+  return origin;
 }
 type CachedPosition={name:string;code?:string;lat?:number;lon?:number;revision:number;point:{lat:number;lon:number}|null};
 // Weak keys release discarded catalogs/routes. Compare every resolver input so

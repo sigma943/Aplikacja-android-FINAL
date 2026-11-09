@@ -12,7 +12,7 @@ const corrections: Record<string, {areaId: string; code: string; name: string; l
 };
 
 export function correctPksStop<T extends PksStopRecord>(stop: T, id: string): T {
-  const coordinate = (coordinateOverrides as Record<string, typeof coordinateOverrides['3801']>)[id];
+  const coordinate = (coordinateOverrides as Record<string, Omit<typeof coordinateOverrides['3801'], 'gtfsStopId'>>)[id];
   if (coordinate && stop.areaId === coordinate.areaId && stop.code === coordinate.code) {
     const normalize = (value: string) => value.toLowerCase().normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, ' ').trim();

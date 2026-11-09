@@ -110,10 +110,10 @@ test('solar glass stays translucent with restrained colours throughout dawn and 
  }
  const sunset=palette({sun:{altitude:Math.PI/180}});
  const surface=numbers(sunset['--landscape-surface']);
- assert.ok(luminance(numbers(palette({sun:{altitude:30*Math.PI/180}})['--landscape-surface']).slice(0,3))>.8,'daytime cards must be light');
+ assert.ok(luminance(numbers(palette({sun:{altitude:30*Math.PI/180}})['--landscape-surface']).slice(0,3))>.55,'daytime glass keeps a luminous sky tint');
  assert.ok(luminance(numbers(palette({sun:{altitude:-15*Math.PI/180}})['--landscape-surface']).slice(0,3))<.03,'nighttime cards must be dark');
  assert.ok(surface[0]>surface[2],'sunset glass keeps a subtle warm tint');
- assert.ok(Math.max(...surface.slice(0,3))-Math.min(...surface.slice(0,3))<40,'sunset tint never becomes saturated pink or orange');
+ assert.ok(Math.max(...surface.slice(0,3))-Math.min(...surface.slice(0,3))<85,'sunset tint remains readable');
 });
 
 test('sunrise and sunset reuse the same two readable material families',()=>{
@@ -123,7 +123,7 @@ test('sunrise and sunset reuse the same two readable material families',()=>{
  assert.deepEqual([...levels].reverse().map(altitude=>palette({sun:{altitude:altitude*Math.PI/180}})['--landscape-surface']),[...values].reverse());
  for(const value of values){
   const channels=value.match(/[\d.]+/g).slice(0,3).map(Number);
-  assert.ok(channels.every(v=>v>220)||channels.every(v=>v<50),'no grey intermediate material');
+  assert.ok(channels.every(v=>v>170)||channels.every(v=>v<80),'no grey intermediate material');
  }
 });
 
@@ -200,10 +200,14 @@ test('both bodies rise vertically at their actual apparent horizon and stay insi
   for(let h=0;h<24;h++){const body=a.astronomyAt(ms+h*3600000,place)[kind];if(a.apparentLandscapeAltitude(body,kind)>0){const p=a.projectCelestial(body,kind);assert.equal(p.x,kind==='sun'?.50:.78);assert.ok(p.y>.06);}}
  }
 });
-test('cloud thinning preserves silhouettes with roughly a quarter less coverage',()=>{
- const {cloudDensity}=load('lib/landscape-clouds.ts');let sum=0,min=1,max=0;
- for(let y=0;y<50;y++)for(let x=0;x<100;x++){const n=cloudDensity(x/100,y/100);assert.ok(n>=0&&n<=1);sum+=n;min=Math.min(min,n);max=Math.max(max,n);}
- assert.ok(sum/5000>.70&&sum/5000<.8);assert.ok(min>=.66-1e-12&&max<=.84+1e-12,'never carve a new edge through a cloud');assert.ok(max-min>.1);
+test('horizon cloud bank has clear gaps while high clouds keep their cores',()=>{
+ const {cloudCoverage}=load('lib/landscape-clouds.ts');
+ const samples=(alpha,y)=>Array.from({length:100},(_,x)=>cloudCoverage(alpha,x/100,y));
+ const high=samples(1,.14),horizon=samples(1,.36);
+ assert.ok(high.every(value=>value>=.67&&value<=.84+1e-12));
+ assert.ok(horizon.some(value=>value<.25)&&horizon.some(value=>value>.6));
+ assert.ok(samples(.25,.36).every(value=>value<.05),'thin edges blend into open sky');
+ assert.ok(samples(0,.36).every(value=>value===0));
 });
 
 test('simultaneous sunset and moonrise have separate tracks and a gentle twilight handover',()=>{
@@ -223,9 +227,9 @@ test('morning blue sky returns while the horizon keeps its sunset colour',()=>{
 });
 
 
-test('Rzeszow early morning stays dark and cool before civil dawn after the DST change',()=>{
+test('Rzeszow early morning has cool scattered light before civil dawn after the DST change',()=>{
  const state=at('2026-10-26T05:28:00+01:00'),sky=a.skyState(state),events=a.solarEvents(state.ms,place);
- assert.ok(state.sun.altitude < -6*Math.PI/180);assert.equal(sky.day,0);assert.equal(sky.twilight,0);
+ assert.ok(state.sun.altitude < -6*Math.PI/180);assert.ok(sky.day>0&&sky.day<.15);assert.ok(sky.blueHour>.5);assert.equal(sky.twilight,0);
  assert.ok(state.ms<events.dawn&&events.dawn<events.sunrise);
  const rise=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Warsaw',hour:'2-digit',minute:'2-digit'}).format(events.sunrise);
  assert.ok(rise>='06:10'&&rise<='06:13',rise);

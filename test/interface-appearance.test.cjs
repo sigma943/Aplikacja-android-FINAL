@@ -1,6 +1,13 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {normalizeInterfaceAppearance,interfaceAppearanceVariables,DEFAULT_INTERFACE_APPEARANCE}=require('./load-ts.cjs')('lib/interface-appearance.ts');
+test('liquid glass is opt-in for new and existing appearance settings',()=>{
+ assert.equal(DEFAULT_INTERFACE_APPEARANCE.liquidGlass,false);
+ assert.equal(normalizeInterfaceAppearance({glassOpacity:70}).liquidGlass,false);
+ assert.equal(normalizeInterfaceAppearance({liquidGlass:'true'}).liquidGlass,false);
+ const saved=JSON.stringify(normalizeInterfaceAppearance({liquidGlass:true}));
+ assert.equal(normalizeInterfaceAppearance(JSON.parse(saved)).liquidGlass,true);
+});
 test('damaged saved personalization cannot make panels unreadable or inject CSS',()=>{
  const value=normalizeInterfaceAppearance({glassOpacity:-100,textScale:800,iconSize:0,panelRadius:Infinity,glowColor:'url(javascript:bad)',fontFamily:'bad',navLabels:'false',density:'unknown',shadowStrength:NaN});
  assert.equal(value.glassOpacity,20);assert.equal(value.textScale,120);assert.equal(value.iconSize,18);
@@ -58,4 +65,11 @@ test('chrome choice defaults to modern, persists classic and rejects unknown val
  const attrs=new Map(),root={setAttribute:(k,v)=>attrs.set(k,v),removeAttribute:k=>attrs.delete(k),style:{setProperty(){},removeProperty(){}}};
  const cleanup=require('./load-ts.cjs')('lib/interface-appearance.ts').applyInterfaceAppearance(root,normalizeInterfaceAppearance({chromeStyle:'classic'}),true,'#00a3a2',false);
  assert.equal(attrs.get('data-personal-chrome'),'classic');cleanup();assert.equal(attrs.has('data-personal-chrome'),false);
+});
+
+test('status bar overlay preference survives saving and invalid legacy values are normalized',()=>{
+ assert.equal(normalizeInterfaceAppearance({}).statusBarOverlay,true);
+ const value=normalizeInterfaceAppearance({statusBarOverlay:false});
+ assert.equal(normalizeInterfaceAppearance(JSON.parse(JSON.stringify(value))).statusBarOverlay,false);
+ assert.equal(normalizeInterfaceAppearance({statusBarOverlay:'false'}).statusBarOverlay,true);
 });

@@ -10,8 +10,30 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Page error:',e.message);});
   await page.setViewport({width:393,height:851,deviceScaleFactor:1,isMobile:true,hasTouch:true});await page.setRequestInterception(true);page.on('request',r=>r.url().startsWith(origin)?r.continue():r.abort());
-  await page.evaluateOnNewDocument(()=>{const schedule=window.setTimeout;window.setTimeout=((fn,ms,...args)=>schedule(fn,ms===30000?90:ms,...args));});
+  await page.evaluateOnNewDocument(()=>{const schedule=window.setTimeout;window.setTimeout=((fn,ms,...args)=>schedule(fn,ms===30000&&!location.search.includes('refinement')?90:ms,...args));});
   await page.evaluateOnNewDocument(()=>Object.defineProperty(navigator,'geolocation',{value:{getCurrentPosition:resolve=>resolve({coords:{latitude:50.04,longitude:22}})}}));
+  if(process.env.JOURNEY_REFINEMENT_ONLY){
+   for(const includeMarcel of [false,true]){
+    await page.goto(origin+'/?refinement',{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('.connections-recent>button:first-child');await page.click('.connections-recent>button:first-child');
+    await page.click('.connections-preferences');
+    if(!includeMarcel)await page.click('.connections-provider-options [data-provider="marcel"]');
+    await page.click('.connections-primary');await page.waitForSelector('[data-journey-refining]');
+    const hint=await page.$eval('[data-journey-refining]',n=>n.textContent);
+    assert.equal(/Marcel/.test(hint),includeMarcel,'message respects selected carriers');
+    assert.equal(await page.evaluate(()=>window.__preferences.providers.includes('marcel')),includeMarcel);
+    await page.click('.connections-result');await page.waitForSelector('.connections-detail');
+    await page.$eval('.connections-stop-details summary',n=>n.click());
+    await page.waitForSelector('.connections-stop-details[open]');
+    await page.evaluate(()=>{window.__openCard=document.querySelector('[data-journey-result]');window.__openStops=document.querySelector('.connections-stop-details');window.__finishEnrichment();});
+    await page.waitForSelector('[data-journey-refining]',{hidden:true});
+    assert.equal(await page.$eval('.connections-result',n=>n.getAttribute('aria-expanded')),'true','walking enrichment keeps result expanded');
+    assert.ok(await page.evaluate(()=>window.__openCard===document.querySelector('[data-journey-result]')),'same card retained');
+    assert.ok(await page.evaluate(()=>window.__openStops===document.querySelector('.connections-stop-details')&&window.__openStops.open),'intermediate stops remain open when walking is inserted');
+    assert.equal(await page.$$eval('.connections-stage-number',n=>n.length),3,'refined walking leg displayed');
+   }
+   assert.deepEqual(errors,[]);console.log('PASS: selected-carrier refinement message and expanded journey/stops survive walking enrichment');return;
+  }
   await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForSelector('.connections-recent-delete .lucide-trash2');
   assert.equal(await page.$$eval('.connections-recent',nodes=>nodes.length),5,'history restores only five recent searches');
   assert.equal(await page.$('.connections-intro'),null);

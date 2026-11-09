@@ -120,8 +120,10 @@ try{
  const terminal='.map-catalog-stop[title="Rzeszów D.A. st. 5"]';
  try{await page.waitForSelector(terminal);}catch(error){console.error('Terminal map diagnostics',await page.evaluate(()=>{let camera;try{camera=localStorage.getItem('mks_map_state');}catch(e){camera=String(e);}return {url:location.href,document:document.documentURI,camera,text:document.body?.textContent?.slice(0,500),titles:[...document.querySelectorAll('.map-catalog-stop')].map(el=>el.title)};}));throw error;}
  assert.equal(await page.$$('.map-stop-platform').then(rows=>rows.length),0,'icons have no platform badge');
- await page.click(terminal);await page.waitForSelector('.map-stop-ring.is-selected');
+ assert.equal(await page.$(terminal+' .map-stop-ring.is-selected'),null);
+ await page.click(terminal);
  await page.waitForFunction(()=>document.querySelector('[data-map-stop-sheet]')?.textContent.includes('Rzeszów D.A. st. 5'));
+ assert.equal(await page.$('.map-stop-ring.is-selected, .stop-highlight-pin'),null,'a direct terminal tap opens the sheet without highlighting');
  assert.equal(await page.$$('.map-stop-platform').then(rows=>rows.length),0);
  await page.screenshot({path:path.resolve('test/ui-previews/map-terminal-platforms.png')});
  await button('Przystanki');await page.waitForSelector('input[placeholder*="Babica"]');
@@ -129,8 +131,11 @@ try{
  await page.waitForFunction(()=>[...document.querySelectorAll('[data-stop-card-id] h3')].some(el=>el.textContent==='Rzeszów D.A. st. 5'));
  assert.ok(await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id] h3')].some(el=>el.textContent==='Rzeszów D.A. st. 2')));
  await page.screenshot({path:path.resolve('test/ui-previews/list-terminal-platforms.png')});
- await page.$eval('input[placeholder*="Babica"]',el=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(el,'');el.dispatchEvent(new Event('input',{bubbles:true}));});
- await button('Mapa');
+ await page.evaluate(()=>[...document.querySelectorAll('[data-stop-card-id] h3')].find(el=>el.textContent==='Rzeszów D.A. st. 5').click());
+ await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(el=>el.textContent.trim()==='Pokaż na mapie'));
+ await button('Pokaż na mapie');
+ await page.waitForSelector(terminal+' .map-stop-ring.is-selected');
+ assert.equal(await page.$$('.map-stop-ring.is-selected').then(rows=>rows.length),1,'only the requested platform is highlighted');
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.03651,lng:21.99752},zoom:19})));
  await page.reload({waitUntil:'domcontentloaded'});
  await page.waitForSelector('.map-catalog-stop[title*="Moniuszki" i]');
@@ -246,23 +251,36 @@ try{
  // All three operators replace the pin with the selected catalog icon at close zoom.
  await page.evaluate(()=>localStorage.setItem('mks_map_state',JSON.stringify({center:{lat:50.04,lng:22},zoom:17})));
  await page.goto(origin+'/map-selection-fixture/',{waitUntil:'domcontentloaded'});
- for(const [provider,color] of [['marcel','rgb(104, 196, 74)'],['pks','rgb(20, 184, 166)'],['mpk_rzeszow','rgb(255, 122, 0)']]){
-  await page.click(`[data-test-provider="${provider}"]`);
-  await page.waitForFunction(expected=>{const ring=document.querySelector('.map-stop-ring.is-selected');return ring&&getComputedStyle(ring).backgroundColor===expected;},{},color);
-  assert.equal(await page.$$('.stop-highlight-pin').then(rows=>rows.length),0,provider+' has no duplicate pin');
-  await page.click('[data-test-icons]');
-  await page.waitForSelector('.map-catalog-stop',{hidden:true});
-  await page.waitForFunction(expected=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color===expected;},{},color);
-  await page.click('[data-test-icons]');
-  await page.waitForSelector('.map-stop-ring.is-selected');await page.waitForSelector('.stop-highlight-pin',{hidden:true});
+ for(const color of ['rgb(255, 122, 0)','rgb(20, 184, 166)']){
+  if(color==='rgb(20, 184, 166)')await page.click('[data-test-rural]');
+  for(const provider of ['marcel','pks','mpk_rzeszow']){
+    await page.click(`[data-test-provider="${provider}"]`);
+    await page.click('[data-test-highlight]');
+    await page.waitForSelector('.map-stop-ring.is-selected',{hidden:true});
+    assert.equal(await page.$eval('.map-stop-ring',ring=>getComputedStyle(ring).backgroundColor),color);
+    await page.click('[data-test-highlight]');
+    await page.waitForFunction(expected=>{const ring=document.querySelector('.map-stop-ring.is-selected');return ring&&getComputedStyle(ring).backgroundColor===expected;},{},color);
+    assert.equal(await page.$$('.stop-highlight-pin').then(rows=>rows.length),0,provider+' has no duplicate pin');
+    await page.click('[data-test-icons]');
+    await page.waitForFunction(expected=>{const dot=document.querySelector('.map-route-stop-fallback .map-stop-ring.is-selected');return dot&&getComputedStyle(dot).backgroundColor===expected;},{},color);
+    assert.equal(await page.$('.stop-highlight-pin'),null,provider+' keeps a dot at close zoom without the catalog');
+    await page.click('[data-test-icons]');
+    await page.waitForSelector('.map-route-stop-fallback',{hidden:true});
+    await page.waitForSelector('.map-stop-ring.is-selected');
+  }
  }
  await page.click('[data-test-provider="marcel"]');
  const zoomKey=async key=>{await page.$eval('.leaflet-container',(el,key)=>{el.focus();el.dispatchEvent(new KeyboardEvent('keydown',{key,keyCode:key==='-'?189:187,which:key==='-'?189:187,bubbles:true}));},key);await new Promise(resolve=>setTimeout(resolve,400));};
  await zoomKey('-');await zoomKey('-');
  await page.waitForSelector('.map-catalog-stop',{hidden:true});
- await page.waitForFunction(()=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color==='rgb(104, 196, 74)';});
+ for(const [provider,color] of [['marcel','rgb(104, 196, 74)'],['pks','rgb(20, 184, 166)'],['mpk_rzeszow','rgb(255, 122, 0)']]){
+   await page.click(`[data-test-provider="${provider}"]`);
+   await page.waitForFunction(expected=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color===expected;},{},color);
+ }
  await zoomKey('+');await zoomKey('+');
  await page.waitForSelector('.map-stop-ring.is-selected');await page.waitForSelector('.stop-highlight-pin',{hidden:true});
+ assert.equal(await page.$eval('.map-stop-ring.is-selected',e=>getComputedStyle(e).backgroundColor),'rgb(20, 184, 166)','a rural stop stays turquoise even on an MPK route');
+ await page.click('[data-test-provider="marcel"]');
  // Re-render the parent clock repeatedly without moving an unchanged Leaflet marker.
  const idleTicks=await page.evaluate(()=>{window.idleMarkerMutations=0;const marker=document.querySelector('.map-catalog-stop');window.idleMarkerObserver=new MutationObserver(records=>{window.idleMarkerMutations+=records.length;});window.idleMarkerObserver.observe(marker,{attributes:true,attributeFilter:['style']});return window.fixtureMapTicks;});
  await page.waitForFunction(start=>window.fixtureMapTicks>=start+5,{},idleTicks);

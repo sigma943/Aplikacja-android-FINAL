@@ -1,3 +1,5 @@
+import {sharedInflight} from '../shared-inflight';
+import {withMpkGtfsStops,loadMpkGtfs,mpkGtfsStopSchedule} from '../mpk-gtfs-runtime';
 import mpkStopSnapshot from '../../public/data/mpk-stop-points.json';
 import {isMpkPassengerLine} from '../mpk-passenger-lines';
 
@@ -18,27 +20,27 @@ function validMpkStops(value: unknown): value is MpkRzeszowStop[] {
   return Array.isArray(value) && value.length > 0 && value.every(stop => stop &&
     (typeof stop.stop_id === 'string' || typeof stop.stop_id === 'number') && typeof stop.stop_name === 'string' && stop.stop_name.trim());
 }
-async function fetchMpkRzeszowStopsFromNetwork(options?: { signal?: AbortSignal }) {
-  const rows = await requestJson<unknown>(MPK_RZESZOW_STOPS_URL, {signal:options?.signal,headers:{Accept:'application/json'}});
+const fetchMpkRzeszowStopsFromNetwork=sharedInflight(async (signal)=>{
+  const rows = await requestJson<unknown>(MPK_RZESZOW_STOPS_URL, {signal,headers:{Accept:'application/json'}});
   if (!validMpkStops(rows)) throw new Error('Empty or invalid MPK stop catalog');
-  return rows;
-}
-function saveMpkStops(rows:MpkRzeszowStop[]) {
   writePersistentClientCache(MPK_STOPS_CACHE_KEY,rows);
+  return rows;
+});
+let mpkBackgroundRefresh:Promise<void>|undefined;
+function notifyMpkStopsUpdated() {
   if(typeof window!=='undefined')window.dispatchEvent(new Event(MPK_STOPS_UPDATED_EVENT));
 }
-export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSignal; forceRefresh?: boolean }) {
+async function fetchMpkBaseStops(options?: { signal?: AbortSignal; forceRefresh?: boolean }) {
   const stored = readPersistentClientCache<MpkRzeszowStop[]>(MPK_STOPS_CACHE_KEY);
   const cached = stored && validMpkStops(stored.data) ? stored : null;
   const isFresh = cached && Date.now()-cached.savedAt < CLIENT_STOP_CACHE_TTL_MS;
   if(cached && !options?.forceRefresh) {
-    if(!isFresh)void fetchMpkRzeszowStopsFromNetwork().then(saveMpkStops).catch(()=>undefined);
+    if(!isFresh&&!mpkBackgroundRefresh)mpkBackgroundRefresh=fetchMpkRzeszowStopsFromNetwork().then(notifyMpkStopsUpdated).catch(()=>undefined).finally(()=>{mpkBackgroundRefresh=undefined;});
     return cached.data;
   }
   try {
-    const fresh = await fetchMpkRzeszowStopsFromNetwork(options);
+    const fresh = await fetchMpkRzeszowStopsFromNetwork(options?.signal);
     // The caller publishes this result; notify only background cache refreshes.
-    writePersistentClientCache(MPK_STOPS_CACHE_KEY,fresh);
     return fresh;
   } catch(error) {
     if(options?.signal?.aborted)throw error;
@@ -48,6 +50,13 @@ export async function fetchMpkRzeszowStopsClient(options?: { signal?: AbortSigna
     // Do not cache the bundled fallback as a fresh API response: retry the live endpoint later.
     return mpkStopSnapshot.stops;
   }
+}
+
+let observingGtfs=false;
+export async function fetchMpkRzeszowStopsClient(options?:{signal?:AbortSignal;forceRefresh?:boolean}){
+ if(typeof window!=='undefined'&&!observingGtfs){observingGtfs=true;window.addEventListener('pks-live:mpk-gtfs-updated',()=>{mpkServicesCache.clear();mpkCalendarPromise=undefined;});}
+ const stops=await fetchMpkBaseStops(options);
+ return typeof window==='undefined'?stops:withMpkGtfsStops(stops);
 }
 
 let mpkCalendarPromise: Promise<MpkCalendar> | undefined;
@@ -61,6 +70,8 @@ async function mpkServiceIdsForDate(dateIso: string) {
       const live = await requestJson<{ service_ids?: Array<string | number>; date_used?: string }>('https://www.mpkrzeszow.pl/get_current_service.php').catch(() => null);
       if (live?.date_used === dateIso.replace(/-/g, '') && live.service_ids?.length) return live.service_ids.map(String);
     }
+    // These IDs belong to the legacy timetable endpoint, independently of
+    // the current GTFS export (which can use a different calendar namespace).
     mpkCalendarPromise ??= withRequestDeadline(async (signal) => {
       const response = await fetch('/data/mpk-service-calendar.json', { signal });
       if (!response.ok) throw new Error('MPK calendar HTTP ' + response.status);
@@ -115,6 +126,12 @@ export async function fetchMpkRzeszowDeparturesClient(
     ? requestJson<unknown>(`https://www.mpkrzeszow.pl/przystanki/departures.php?${new URLSearchParams({ stopId, hide_last_stop: '1' })}`, { signal: options?.signal }).then(payload => mpkBoardEntries(payload))
     : Promise.resolve([]);
   const schedulePromise = (async () => {
+    if(typeof window!=='undefined'){
+      const feed=await loadMpkGtfs();
+      options?.signal?.throwIfAborted();
+      const rows=feed?mpkGtfsStopSchedule(feed,stopId,dateIso):undefined;
+      if(rows!==undefined)return rows;
+    }
     const serviceIds = await mpkServiceIdsForDate(dateIso);
     const data = await requestJson<{ schedule?: Record<string, MpkRzeszowScheduleEntry[]> }>(
       `${MPK_RZESZOW_STOP_SCHEDULE_URL}?${new URLSearchParams({ stop_id: String(stopId), service_id: serviceIds.join(',') })}`,

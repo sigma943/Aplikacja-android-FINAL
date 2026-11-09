@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),puppeteer=require('puppeteer');
+const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
+(async()=>{const root=process.cwd(),temp=fs.mkdtempSync(path.join(os.tmpdir(),'road-network-'));let server,browser,networkRequests=0;
+ try{
+ await new Promise((resolve,reject)=>{const compiler=webpack.webpack({mode:'development',devtool:false,entry:path.join(root,'test/bus-road-network-fixture.ts'),output:{path:temp,filename:'fixture.js',publicPath:'/'},resolve:{extensions:['.ts','.js'],alias:{'@':root}},module:{rules:[{test:/\.ts$/,use:path.join(root,'test/route-tsx-loader.cjs')}]}});compiler.run((error,stats)=>compiler.close(()=>error||stats.hasErrors()?reject(error||Error(stats.toString({all:false,errors:true}))):resolve()));});
+ server=http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost');if(url.pathname==='/'){res.setHeader('Content-Type','text/html');return res.end('<script src="/fixture.js"></script>');}let file;if(url.pathname==='/data/bus-road-network.json'){networkRequests++;file=path.join(root,'public/data/bus-road-network.json');}else file=path.join(temp,path.basename(url.pathname));if(!fs.existsSync(file)){res.statusCode=404;return res.end();}res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':'application/json');res.end(fs.readFileSync(file));});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});const page=await browser.newPage(),origin='http://127.0.0.1:'+server.address().port;await page.goto(origin);await page.waitForFunction(()=>typeof window.route==='function');
+ const load=require('./load-ts.cjs'),snapshot=require('../public/data/pks-stop-points.json'),{formatPksStops,snapshotStopItems}=load('lib/providers/pks-stops.ts'),dict=formatPksStops({items:snapshotStopItems(snapshot)},snapshot);
+ const fixture=require('./fixtures/pks-fleet-routes.json').find(v=>v.tripId===4103),stops=fixture.stopIds.flatMap(id=>dict[id].lat?[[dict[id].lat,dict[id].lon]]:[]);
+ const route=await page.evaluate(stops=>window.route(stops),stops);assert.ok(load('lib/bus-road-geometry.ts').routedRoadRouteMatchesStops(route,stops));assert.ok(route.length>1000);
+ assert.deepEqual(await page.evaluate(stops=>window.route(stops),stops),route);assert.equal(networkRequests,1,'worker asset and resolved stop pattern are cached');
+ console.log('PASS complete changed PKS pattern resolves through the real browser worker without routing servers');
+ }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
+})().catch(error=>{console.error(error);process.exit(1);});

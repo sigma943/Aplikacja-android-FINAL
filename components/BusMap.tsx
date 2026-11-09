@@ -9,14 +9,14 @@ import {loadStopPlatforms} from '@/lib/stop-platform-position';
 import {memo, startTransition, useEffect, useState, useRef, useCallback, useMemo} from 'react';
 import {MapContainer, TileLayer, ZoomControl, Pane} from 'react-leaflet';
 import RouteLines from './map/RouteLines';
-import {timedVehicleStops} from '@/lib/vehicle-stop-timing';
+import {timedVehicleStops,upcomingTimedVehicleStops} from '@/lib/vehicle-stop-timing';
 import type {Stop} from '@/Panel/src/types';
-import {canonicalMapStopId, mapStopColor} from '@/lib/map-stop-markers';
+import {canHighlightMapStop, canonicalMapStopId, mapStopColor, routeCatalogStopIds} from '@/lib/map-stop-markers';
 
 import {routeGeometryKey} from '@/lib/route-geometry-key';
-import {officialBusRoute} from '@/lib/official-bus-routes';
+import {officialBusRoute,officialBusStopPoints} from '@/lib/official-bus-routes';
+import {mpkRouteForPaint} from '@/lib/map/mpk-route-paint';
 import {roadRouteMatchesStops, cleanRoadJunctionLoops, validRoadPoint} from '@/lib/bus-road-geometry';
-import {upcomingVehicleStops} from '@/lib/vehicle-upcoming-stops';
 
 import {withRequestDeadline} from '@/lib/request-deadline';
 import {loadRouteWithRetry} from '@/lib/route-load-retry';
@@ -32,11 +32,14 @@ import {MapSizeSync, MapStateTracker, MapCenterer, MapClickListener} from '@/com
 import {VehicleMarkerLayer} from '@/components/map/VehicleMarkers';
 import {SelectedStopPin, CatalogStopsLayer, RouteStopsLayer} from '@/components/map/StopLayers';
 
+const EMPTY_ROUTE_POINTS:[number,number][]=[];
+
 const ROAD_ROUTE_GEOMETRY_CACHE_VERSION = 'road-v16-complete-course-recovery';
 
 const RAIL_ROUTE_GEOMETRY_CACHE_VERSION = 'rail-v1';
 
 interface BusMapProps {
+  onReady?:()=>void;
   active?:boolean;
   clockMs?:number;
   mapStops?: Stop[];
@@ -51,12 +54,14 @@ interface BusMapProps {
   forcedCenter?: [number, number] | null;
   onCenterComplete?: () => void;
   highlightedStopId?: string | null;
+  highlightTerminalStop?: boolean;
   onStopClick?: (stopId: string) => void;
   onMapClick?: () => void;
   onViewportChange?: (payload: { bbox: [number, number, number, number]; center: [number, number]; zoom: number }) => void;
 }
 
 function BusMap({
+  onReady,
   active=true,
   clockMs,
   mapStops = [],
@@ -71,6 +76,7 @@ function BusMap({
   forcedCenter = null,
   onCenterComplete,
   highlightedStopId,
+  highlightTerminalStop,
   onStopClick,
   onMapClick,
   onViewportChange,
@@ -103,7 +109,7 @@ function BusMap({
   }, []);
 
   const selectedVehicle = selectedVehicleOverride || vehicles.find(v => v.id === selectedVehicleId);
-  const [,setPlatformRevision]=useState(0);
+  const [platformRevision,setPlatformRevision]=useState(0);
   const needsPlatforms=mapStops.length>0||Boolean((selectedVehicle||highlightedStopId)&&selectedVehicle?.provider!=='pkp_intercity');
   useEffect(()=>{
     if(!needsPlatforms)return;
@@ -143,11 +149,7 @@ function BusMap({
     const routeStops = (selectedVehicle?.routeStops || []).map((s: any) => s.id);
     if (routeStops.length > 0) return dedupeStableStopIds(routeStops);
     return dedupeStableStopIds((selectedVehicle?.schedule || []).map((s: any) => s.id));
-  }, [selectedVehicle]);
-  const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
-    ? routeStopIds
-    : upcomingVehicleStops(routeStopsSource, clockMs||Date.now(), selectedVehicle?.lastStopId).map(stop => String(stop.id));
-  const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
+  }, [selectedVehicle?.routePath,selectedVehicle?.routeStops,selectedVehicle?.schedule]);
   const routeGeometryStops = useMemo<RouteGeometryStop[]>(() => {
     const next: RouteGeometryStop[] = [];
     for (let index = 0; index < routeStopIds.length; index += 1) {
@@ -171,12 +173,17 @@ function BusMap({
       ? { ...vehicle, delay: selectedVehicle.delay } : vehicle),
   [vehicles, selectedVehicle?.provider, selectedVehicle?.id, selectedVehicle?.delay]);
   const routeStopsHash = useMemo(() => hashRouteGeometryStops(routeGeometryStops), [routeGeometryStops]);
+  const routeCoordinatesKey=useMemo(()=>JSON.stringify(routeGeometryStops.map(stop=>[stop.id,stop.lat,stop.lon])),[routeGeometryStops]);
   const selectedRouteColor = getVehicleColor(selectedVehicle);
   const highlightedStop = highlightedStopId ? routeStopsData[highlightedStopId] : undefined;
   const selectedCatalogStopId=canonicalMapStopId(mapStops,highlightedStopId,selectedVehicle?.provider,highlightedStop);
-  const selectedStopColor = selectedVehicle?.provider === 'pkp_intercity' ? themeColor
-    : selectedVehicle ? selectedRouteColor
-    : highlightedStop ? mapStopColor({name: highlightedStop.n}) : themeColor;
+  const selectedCatalogStop=highlightedStopId?mapStops.find(stop=>stop.id===selectedCatalogStopId):undefined;
+  const showStopHighlight=selectedVehicle?.provider==='pkp_intercity'||canHighlightMapStop(selectedCatalogStop??{name:highlightedStop?.n},highlightTerminalStop);
+  const mapHighlightedStopId=showStopHighlight?highlightedStopId:null;
+  const mapSelectedCatalogStopId=showStopHighlight?selectedCatalogStopId:null;
+  const selectedStopColor=selectedVehicle?.provider==='pkp_intercity'?themeColor
+    : selectedCatalogStop?mapStopColor(selectedCatalogStop)
+    : highlightedStop?mapStopColor({name:highlightedStop.n}):themeColor;
   const routeLine = normalizeRouteCachePart(selectedVehicle?.routeShortName || selectedVehicle?.routeId || selectedVehicle?.name || '');
   const routeDirection = normalizeRouteCachePart(
     selectedVehicle?.direction ||
@@ -186,14 +193,29 @@ function BusMap({
   );
   const routeMode = selectedVehicle?.provider === 'pkp_intercity' ? 'rail' : 'road';
   const routeGeometryVersion = routeMode === 'rail' ? RAIL_ROUTE_GEOMETRY_CACHE_VERSION : ROAD_ROUTE_GEOMETRY_CACHE_VERSION;
-  const routeKey = selectedVehicle
-    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops, String(selectedVehicle.tripId || selectedVehicle.journeyId || selectedVehicle.serviceId || selectedVehicle.brigadeName || selectedVehicle.routeId || 'default'))
-    : '';
+  const routeVariant=String(selectedVehicle?.tripId || selectedVehicle?.journeyId || selectedVehicle?.serviceId || selectedVehicle?.brigadeName || selectedVehicle?.routeId || 'default');
+  const routeKey = useMemo(()=>selectedVehicle
+    ? routeGeometryKey(routeMode, selectedVehicle.provider || 'pks', routeLine, routeDirection, routeGeometryStops,routeVariant)
+    : '',[Boolean(selectedVehicle),routeMode,selectedVehicle?.provider,routeLine,routeDirection,routeCoordinatesKey,routeVariant]);
   // Both the rendered identity and persisted geometry distinguish courses.
   const routeCourse = String(selectedVehicle?.tripId || selectedVehicle?.journeyId || '');
   const routeIdentity=selectedVehicle?`${selectedVehicle.provider||'pks'}:${selectedVehicle.id}:${routeKey}:${routeCourse}`:'';
-  const suppliedRouteKey=JSON.stringify(selectedVehicle?.routeGeometry||[]);
-  const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:[];
+  const suppliedRouteKey=useMemo(()=>JSON.stringify(selectedVehicle?.routeGeometry||[]),[selectedVehicle?.routeGeometry]);
+  const currentGeometry=selectedVehicle&&selectedVehicleIdentityRef.current===routeIdentity?snappedRoute:EMPTY_ROUTE_POINTS;
+  const visibleRouteStopIds = selectedVehicle?.type === 'train' || selectedVehicle?.provider === 'pkp_intercity'
+    ? routeStopIds
+    : selectedVehicle ? upcomingTimedVehicleStops(selectedVehicle, clockMs||Date.now(),currentGeometry).map(stop => String(stop.id)) : [];
+  const visibleRouteStopIdsKey = useMemo(() => visibleRouteStopIds.join(','), [visibleRouteStopIds]);
+  const routeCatalogIds=useMemo(()=>selectedVehicle?routeCatalogStopIds(mapStops,visibleRouteStopIds,routeStopsData,selectedVehicle.provider):new Set<string>(),[mapStops,visibleRouteStopIdsKey,routeStopsData,selectedVehicle?.provider,Boolean(selectedVehicle),platformRevision]);
+  const [mpkShapePins,setMpkShapePins]=useState<Array<[number,number]>>([]);
+  useEffect(()=>{
+    if(selectedVehicle?.provider!=='mpk_rzeszow')return;
+    let active=true;
+    void officialBusStopPoints('mpk_rzeszow').then(pins=>{if(active)setMpkShapePins(pins);}).catch(()=>{});
+    return()=>{active=false;};
+  },[selectedVehicle?.provider]);
+  const paintedGeometry=useMemo(()=>mpkRouteForPaint(currentGeometry,selectedVehicle?.provider,[...mpkShapePins,...routeGeometryStops.map(stop=>[stop.lat,stop.lon] as [number,number])]),[currentGeometry,selectedVehicle?.provider,mpkShapePins,routeCoordinatesKey]);
+
 
   useEffect(() => {
     activeRouteRequestIdRef.current += 1;
@@ -213,6 +235,9 @@ function BusMap({
       startTransition(() => setSnappedRoute([]));
     }
     selectedVehicleIdentityRef.current = currentIdentity;
+    // Preserve a previously validated course while a refresh recovers offline.
+    const previousCourse=refinedRouteByVehicleRef.current.get(currentIdentity);
+    if(previousCourse?.length)startTransition(()=>setSnappedRoute(previousCourse));
 
     const suppliedGeometry=selectedVehicle.routeGeometry;
     if(suppliedGeometry&&suppliedGeometry.length>1&&suppliedGeometry.every(validRoadPoint)&&(routeGeometryStops.length<2||roadRouteMatchesStops(suppliedGeometry,routeGeometryStops.map(s=>[s.lat,s.lon]),180))){
@@ -228,7 +253,7 @@ function BusMap({
       const loadBundledRoute = async()=>routeMode === 'road'
         ? selectedVehicle.provider==='marcel'
           ? await bundledMarcelRoute(routeGeometryStops.map(stop=>[stop.lat,stop.lon])).catch(()=>[])
-          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon]),{completePattern:!!selectedVehicle.routePath?.length&&routeGeometryStops.length===routeStopIds.length}).catch(()=>[])
+          : await officialBusRoute(selectedVehicle.provider||'pks',selectedVehicle.tripId||selectedVehicle.journeyId,routeStopIds,routeGeometryStops.map(stop => [stop.lat,stop.lon]),{completePattern:!!selectedVehicle.routePath?.length,coordinateStopIds:routeGeometryStops.map(stop=>stop.id!)}).catch(()=>[])
         : [];
       const localRoute = await preferredLocalRoute({
         mode: routeMode,
@@ -320,7 +345,6 @@ function BusMap({
 
   return (
     <div ref={mapContainerRef} className={`h-full w-full relative z-0 style-map ${vehicles.length > 35 ? 'is-high-volume' : ''}`}>
-      {routeError===routeIdentity&&selectedVehicle&&currentGeometry.length<2&&<div role="status" data-vehicle-route-error className="absolute top-40 left-3 right-3 z-[1000] rounded-xl border bg-slate-900 p-3 text-sm text-white">Nie udało się wczytać przebiegu trasy. Przystanki i pozycja autobusu pozostają dostępne.<button className="ml-2 underline" onClick={()=>{setRouteError('');setRouteAttempt(v=>v+1);}}>Ponów</button></div>}
       <style>{`
         /* Hide zoom controls on mobile */
         @media (max-width: 768px) {
@@ -389,6 +413,7 @@ function BusMap({
         }
       `}</style>
       <MapContainer
+        whenReady={onReady}
         center={initMapState.center}
         zoom={initMapState.zoom}
         scrollWheelZoom={true}
@@ -408,12 +433,12 @@ function BusMap({
           maxZoom={19}
         />
 
-        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} alignToCatalog={selectedVehicle?.provider==='marcel'} stops={mapStops} color={selectedStopColor}/>
-        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} selected={selectedCatalogStopId} selectedColor={selectedVehicle?selectedStopColor:undefined} onSelect={onMapStopClick}/>}
+        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={mapHighlightedStopId} catalogId={mapSelectedCatalogStopId} point={highlightedStop} alignToCatalog={selectedVehicle?.provider!=='pkp_intercity'} stops={mapStops} color={selectedStopColor} routeColor={selectedVehicle&&selectedVehicle.provider!=='pkp_intercity'?selectedRouteColor:undefined}/>
+        {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} routeStopIds={routeCatalogIds} selected={mapSelectedCatalogStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}
         <Pane name="routeLinePane" style={{ zIndex: 430 }}>
-          <RouteLines positions={currentGeometry} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
+          <RouteLines positions={paintedGeometry} identity={`${selectedVehicleId}:${routeKey}`} color={selectedRouteColor}/>
         </Pane>
 
         {/* Draw Route Stops */}
@@ -424,8 +449,9 @@ function BusMap({
               stopsData={routeStopsData}
               catalogStops={mapStops}
               stopIds={visibleRouteStopIds}
-              highlightedStopId={highlightedStopId}
-              selectedRouteColor={themeColor}
+              highlightedStopId={mapHighlightedStopId}
+              catalogSelected={mapSelectedCatalogStopId}
+              selectedRouteColor={selectedStopColor}
               onStopClick={onStopClick}
             />
           )}

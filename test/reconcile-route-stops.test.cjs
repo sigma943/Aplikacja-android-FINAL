@@ -32,3 +32,25 @@ test('the real PKS 312 pattern repairs shifted interior points and its missing o
  for(const id of [9737,9739]){const i=stopIds.indexOf(id);assert.deepEqual([fixed[i].lat,fixed[i].lon],[target[i].lat,target[i].lon]);}
  assert.equal(roadRouteMatchesStops(require('../public/data/bus-routes/pks/658.json'),fixed.map(s=>[s.lat,s.lon]),180),true);
 });
+
+test('PKS 203 / 119: shifted Lutoryż loop with different catalog numbers recovers the full course offline',async()=>{
+ const fs=require('node:fs'),f=require('./fixtures/pks-203-119-2026-10-27.json');
+ const snapshot=require('../public/data/pks-stop-points.json').stops,index=require('../public/data/bus-routes/pks.json');
+ const live=f.stopIds.map(id=>({...snapshot[id],id,name:snapshot[id].n+' '+snapshot[id].code}));
+ const official=index.patterns[index.tripPatterns[f.tripId]].map(id=>index.stops[id]);
+ const shape=require('../public/data/bus-routes/pks/348.json');
+ assert.equal(roadRouteMatchesStops(shape,live.map(s=>[s.lat,s.lon]),180),false);
+ const reconciled=reconcileRouteStopCoordinates(live,official);
+ const fixed=reconciled.map((s,i)=>({...s,lat:s.lat??official[i].lat,lon:s.lon??official[i].lon})),loop=f.stopIds.indexOf(5974);
+ assert.deepEqual([fixed[loop].lat,fixed[loop].lon],[49.962533,21.894218]);
+ assert.equal(roadRouteMatchesStops(shape,fixed.map(s=>[s.lat,s.lon]),180),true);
+ const {correctPksStop}=load('lib/pks-stop-corrections.ts');
+ const corrected=correctPksStop({...snapshot['5974'],n:'Lutoryż, Pętla 1'},'5974');
+ assert.deepEqual([corrected.lat,corrected.lon],[49.962533,21.894218]);
+ const moved={...snapshot['5974'],lat:50};assert.equal(correctPksStop(moved,'5974'),moved);
+ const previous=global.fetch;global.fetch=async url=>new Response(fs.readFileSync('public'+url));
+ try {const route=await load('lib/official-bus-routes.ts').officialBusRoute('pks',f.tripId,f.stopIds,fixed.map(s=>[s.lat,s.lon]),{completePattern:true,coordinateStopIds:f.stopIds});assert.ok(route.length>100);}
+ finally {global.fetch=previous;}
+ const ambiguous=live.map(s=>({...s}));ambiguous[loop-1].name=live[loop].name;
+ assert.equal(reconcileRouteStopCoordinates(ambiguous,official)[loop],ambiguous[loop]);
+});

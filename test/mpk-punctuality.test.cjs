@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const loadTs = require('./load-ts.cjs');
 const { mpkBoardEntries } = loadTs('lib/mpk-departures.ts');
-const { busPunctuality } = loadTs('lib/bus-punctuality.ts');
+const { busPunctuality, formatBusDelayMinutes } = loadTs('lib/bus-punctuality.ts');
 const stops = loadTs('components/stops-panel/stop-domain.ts', {
   '@/Panel/src/components/StopList': {}, '@/Panel/src/components/BusStopDetail': {},
   '@/lib/pks-client': { fetchVehicleDetailsClient: async () => null },
@@ -30,6 +30,8 @@ test('MPK 913 has the same six-minute delay on the map, stop board and route sch
     assert.equal(panel.delay, 360);
     assert.equal(departure.delayMins, vehicle.delay / 60);
     assert.equal(departure.status, 'delayed');
+    assert.equal(formatBusDelayMinutes(departure.delayMins), '-6');
+    assert.equal(formatBusDelayMinutes(-6), '+6');
     assert.equal(busPunctuality(vehicle.delay).status, 'delayed');
     assert.equal(busPunctuality(vehicle.delay).minutes, 6);
     assert.equal(busPunctuality(vehicle.delay).colorClass, 'text-rose-500');

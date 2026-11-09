@@ -101,6 +101,21 @@ service cloud.firestore {
              data.banDetails.get('reason', '').size() <= 160;
     }
 
+    // Parse the existing UTC ISO deadline, including legacy second precision.
+    // request.time is the server clock; changing the phone clock cannot lift a ban.
+    function banDeadlinePassed(data) {
+      let details = data.get('banDetails', {});
+      return data.get('status', '') == 'banned' && details is map &&
+             details.get('expiresAt', '') is string && utcBanDeadlinePassed(details.get('expiresAt', ''));
+    }
+
+    function utcBanDeadlinePassed(expiry) {
+      return expiry.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{3})?Z$') &&
+             request.time >= timestamp.date(int(expiry[0:4]), int(expiry[5:7]), int(expiry[8:10])) +
+               duration.time(int(expiry[11:13]), int(expiry[14:16]), int(expiry[17:19]),
+                 expiry.size() == 24 ? int(expiry[20:23]) * 1000000 : 0);
+    }
+
     function incomingPermEnabled(key) {
       return incoming().permissions is map && incoming().permissions.get(key, false) == true;
     }
@@ -352,6 +367,14 @@ service cloud.firestore {
             !incoming().diff(existing()).affectedKeys().hasAny(['deviceName']) ||
             (incoming().deviceName is string && incoming().deviceName.size() <= 120)
           )
+        ) ||
+
+        // An expired temporary ban may clear only its own block fields.
+        (
+          isOwner(deviceId) && banDeadlinePassed(existing()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'banDetails', 'verified']) &&
+          incoming().status == 'active' && incoming().get('banDetails', null) == null &&
+          incoming().verified == true
         ) ||
 
         // Own auto-ban when global verification enforcement is enabled.

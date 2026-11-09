@@ -43,7 +43,7 @@ export function useMapStops(enabled:boolean,pks:RawStop[],loadMarcel=false){
       const publishMarcel=(rows:CatalogSnapshot['marcel'])=>{if(!active)return;marcel=rows;marcelSnapshot.current=rows;apply(raw,mpk,marcel);};
       // Fetch the shared timetable catalog only when a stop's departures are opened.
       // PKS/MPK markers and their departures remain available while it loads.
-      if(loadMarcel)void getMarcelStopsIndex(selectedDateIso(0),{onPartial:publishMarcel}).then(publishMarcel).catch(()=>{});
+      if(loadMarcel)void getMarcelStopsIndex(selectedDateIso(0),{signal:controller.signal,onPartial:publishMarcel}).then(publishMarcel).catch(()=>{});
       mpk=await fetchMpkRzeszowStopsClient({signal:controller.signal}).then(rows=>rows.map(stop=>({id:String(stop.stop_id),
         name:ensureMpkCityPrefix(stop.stop_name,Number(stop.stop_lat),Number(stop.stop_lon)),lat:readBusCoordinates(stop.stop_lat,stop.stop_lon)?.lat,lon:readBusCoordinates(stop.stop_lat,stop.stop_lon)?.lon,
         lines:String(stop.lines||'').split(',').map(line=>line.trim()).filter(Boolean)}))).catch(()=>cached?.mpk||[]);
@@ -57,8 +57,9 @@ export function useMapStops(enabled:boolean,pks:RawStop[],loadMarcel=false){
     const updated=()=>{const cached=peekStopsCatalogCache();if(active&&cached)apply(cached.pks,cached.mpk,marcelSnapshot.current.length?marcelSnapshot.current:cached.marcel);};
     const mpkUpdated=()=>{void refresh();};
     window.addEventListener('pks-live:mpk-stops-updated',mpkUpdated);
+    window.addEventListener('pks-live:mpk-gtfs-updated',mpkUpdated);
     window.addEventListener('pks-live:catalog-updated',updated);
-    return()=>{active=false;window.clearTimeout(scheduled);controller.abort();window.removeEventListener('pks-live:catalog-updated',updated);window.removeEventListener('pks-live:mpk-stops-updated',mpkUpdated);};
+    return()=>{active=false;window.clearTimeout(scheduled);controller.abort();window.removeEventListener('pks-live:catalog-updated',updated);window.removeEventListener('pks-live:mpk-stops-updated',mpkUpdated);window.removeEventListener('pks-live:mpk-gtfs-updated',mpkUpdated);};
   },[enabled,pks,loadMarcel]);
   return enabled?stops:EMPTY_MAP_STOPS;
 }

@@ -8,6 +8,9 @@ import {mpkServicesOnDate} from '../mpk-departures';
 
 import {requestEinfoJson} from '../transport/http';
 import {pksPhysicalPlatform} from '../pks-terminal-timetable';
+import {loadPksGtfs,pksGtfsIndex} from '../pks-gtfs-runtime';
+import {pksGtfsCovers,pksGtfsDepartures,pksGtfsTerminalStopIds} from '../pks-gtfs';
+import {mergePksDirectionLabels} from '../pks-direction-labels';
 
 function isJourneyRunning(legends: string[], dateIso: string) {
   if (!legends || legends.length === 0) return true;
@@ -103,7 +106,7 @@ export function fetchPksTimetableClient(areaId: string, day: string) {
   return promise;
 }
 
-export async function fetchDeparturesClient(stopId: string, areaId?: string, code?: string, dateIso?: string) {
+async function fetchLegacyDepartures(stopId: string, areaId?: string, code?: string, dateIso?: string) {
   const today = warsawDateIso();
   const days = dateIso ? [dateIso] : [today, warsawDateIso(1)];
   const boardId=areaId==='1937'&&code==='4'?'3731':areaId==='1937'&&code==='10'?'3744':stopId;
@@ -132,14 +135,41 @@ export async function fetchDeparturesClient(stopId: string, areaId?: string, cod
   }
   const journeys = [...live];
   for (const journey of scheduled) {
-    const duplicate = live.some((row: any) => row.line_name === journey.line_name && row.route_description === journey.route_description && row.timetable_time === journey.timetable_time);
-    if (!duplicate) journeys.push(journey);
+    const duplicates = live.filter((row: any) => row.line_name === journey.line_name && row.route_description === journey.route_description && row.timetable_time === journey.timetable_time);
+    if (!duplicates.length) journeys.push(journey);
+    else {
+      // Rural boards often omit both deviation and journey_id. Retain the
+      // timetable's course identity so live vehicle telemetry can correct it.
+      // Only a unique scheduled course may supply the missing identity.
+      const matches = scheduled.filter(row => row.line_name === journey.line_name && row.route_description === journey.route_description && row.timetable_time === journey.timetable_time);
+      if (new Set(matches.map(row => String(row.journey_id ?? '')).filter(Boolean)).size === 1) {
+        for (const row of duplicates) row.journey_id ??= journey.journey_id;
+      }
+    }
   }
   return {journeys: journeys.filter((journey: any) => {
     const ms = Date.parse(journey.timetable_time);
     return Number.isFinite(ms) && (dateIso ? warsawDateIso(0,new Date(ms)) === dateIso : ms >= Date.now()-900_000 && ms <= Date.now()+86400_000);
   }).sort((a: any,b: any) => Date.parse(a.timetable_time)-Date.parse(b.timetable_time)),
   warning: failedTables || (hasTimetable && board.status === 'rejected') ? 'PKS: część danych niedostępna; pokazano dostępny rozkład.' : undefined};
+}
+
+export async function fetchDeparturesClient(stopId:string,areaId?:string,code?:string,dateIso?:string){
+ if(typeof window==='undefined')return fetchLegacyDepartures(stopId,areaId,code,dateIso);
+ const feed=await loadPksGtfs(),days=dateIso?[dateIso]:[warsawDateIso(),warsawDateIso(1)];
+ if(!feed||!days.every(day=>pksGtfsCovers(feed,day)))return fetchLegacyDepartures(stopId,areaId,code,dateIso);
+ const index=pksGtfsIndex();
+ const canonical=stopId.startsWith('gtfs:')?index?.canonicalByGtfsId?.get(stopId.slice(5)):undefined;
+ let ids=index?.byStop[canonical||stopId];
+ if(!ids&&stopId.startsWith('gtfs:')&&feed.stops[stopId.slice(5)])ids=[stopId.slice(5)];
+ ids??=pksGtfsTerminalStopIds(feed,areaId,code)??undefined;
+ if(!ids)return stopId.startsWith('gtfs:')?{journeys:[],warning:undefined}:fetchLegacyDepartures(stopId,areaId,code,dateIso);
+ const legacy=stopId.startsWith('gtfs:')&&areaId!=='1937'?null:await fetchLegacyDepartures(stopId,areaId,code,dateIso).catch(()=>null);
+ const managed=new Set(feed.managedLines||feed.trips.map(t=>t[1]));
+ const scheduled=days.flatMap(day=>pksGtfsDepartures(feed,ids,day));
+ const rows=mergePksDirectionLabels(scheduled,legacy?.journeys||[]);
+ rows.push(...(legacy?.journeys||[]).filter((row:any)=>!managed.has(String(row.line_name))));
+ return {journeys:rows.filter(row=>dateIso||Date.parse(row.timetable_time)>=Date.now()-900_000&&Date.parse(row.timetable_time)<=Date.now()+86400_000).sort((a,b)=>Date.parse(a.timetable_time)-Date.parse(b.timetable_time)),warning:undefined};
 }
 
 export {isJourneyRunning};

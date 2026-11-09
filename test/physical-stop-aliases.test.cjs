@@ -46,6 +46,31 @@ test('actual Lisa-Kuli Moniuszki PKS 04 and MPK 02 share one identity and keep d
     assert.equal(map.find(s=>s.providerStopIds.pks==='11461').providerStopIds.mpk_rzeszow,undefined);
   }
 });
+test('verified Moniuszki IDs still share one pin with shifted live coordinates',()=>{
+  const pks=[{...pksAsset['11462'],id:'11462',name:'Rzeszów, Lisa Kuli/Moniuszki 04',lines:['251']}];
+  const mpk=[{...mpkAsset['186'],id:'186',lat:mpkAsset['186'].lat+0.0003,lines:['18']}];
+  const map=buildStopsCatalog(pks,mpk,[],'moniuszki-shifted-live-coordinates',true);
+  assert.equal(map.length,1);
+  assert.equal(map[0].providerStopIds.pks,'11462');
+  assert.equal(map[0].providerStopIds.mpk_rzeszow,'186');
+  assert.deepEqual(map[0].lines,['18','251']);
+});
+test('Moniuszki map merges the PKS GTFS platform with the API and MPK platforms',()=>{
+  const {gunzipSync}=require('node:zlib'),{readFileSync}=require('node:fs');
+  const feed=JSON.parse(gunzipSync(readFileSync('public/data/journeys/pks.json.gz')));
+  const {indexPksGtfs}=load('lib/pks-gtfs.ts');
+  const point=pksAsset['11462'];
+  const indexed=indexPksGtfs({...feed,patterns:[[ ['1788',0,0,0] ]],trips:[]},{'11462':point});
+  assert.match(indexed.stops['gtfs:1788'].n,/Moniuszki 02/);
+  const pks=Object.entries(indexed.stops).map(([id,stop])=>({...stop,id,name:stop.n,lines:indexed.lines[id]||[]}));
+  const mpk=[{...mpkAsset['186'],id:'186',lines:['18']}];
+  const map=buildStopsCatalog(pks,mpk,[],'moniuszki-gtfs-api-mpk',true);
+  assert.equal(map.length,1);
+  assert.equal(map[0].id,'11462');
+  assert.deepEqual(new Set(map[0].pksStopPoints.map(p=>p.id)),new Set(['11462','gtfs:1788']));
+  assert.equal(map[0].providerStopIds.mpk_rzeszow,'186');
+  assert.equal(map[0].lat,mpkAsset['186'].lat);
+});
 test('different operator codes require mutual unique neighbours and never collapse opposite platforms',()=>{
   const pks=[{id:'p1',name:'Rzeszów Testowa / Zielona 04',lat:50.04,lon:22,lines:[]},
     {id:'p2',name:'Rzeszów Testowa / Zielona 03',lat:50.04007,lon:22,lines:[]}];
@@ -111,4 +136,32 @@ test('Lisa-Kuli Jagiellonska 118 and Mochnackiego 440 stay separate on list, map
   const connections=feedConnections(feed,list,'2026-10-20',{at:0,arriveBy:false,maxTransfers:1,walkMeters:500,transferMinutes:5,providers:['mpk'],sort:'fastest',day:'2026-10-20'});
   const leg=connections.find(c=>c.line==='35'&&c.from.providerStopIds?.mpk_rzeszow==='440');assert.ok(leg);assert.match(leg.from.name,/Mochnackiego/);assert.notEqual(leg.from.id,jag.id);
  }
+});
+
+test('the full bundled catalog reconciles shared platforms across carriers and PKS data sources',()=>{
+  const {gunzipSync}=require('node:zlib'),{readFileSync}=require('node:fs');
+  const feed=JSON.parse(gunzipSync(readFileSync('public/data/journeys/pks.json.gz')));
+  const {indexPksGtfs}=load('lib/pks-gtfs.ts');
+  const indexed=indexPksGtfs(feed,pksAsset);
+  const pks=Object.entries(indexed.stops).map(([id,stop])=>({
+    ...stop,id,name:stop.code&&!/\d(?:\s*nż)?$/i.test(stop.n)?stop.n+' '+stop.code:stop.n,
+    lines:indexed.lines[id]||[],
+  }));
+  const mpk=require('../public/data/mpk-stop-points.json').stops.map(stop=>({
+    id:String(stop.stop_id),name:stop.stop_name,lat:Number(stop.stop_lat),lon:Number(stop.stop_lon),lines:stop.lines.split(','),
+  }));
+  const map=buildStopsCatalog(pks,mpk,[],'shared-platforms-full-feeds',true);
+  const {canonicalMapStopId,mapStopColor}=load('lib/map-stop-markers.ts');
+  for(const [apiId,gtfsId,mpkId] of [['5319','117','214'],['3904','172',null],['3903','173',null],['7614','270',null],['7615','271',null]]){
+    const stop=map.find(row=>row.id===apiId);
+    assert.ok(stop?.providerStopIds.mpk_rzeszow,apiId);
+    assert.equal(canonicalMapStopId(map,'gtfs:'+gtfsId,'pks'),apiId);
+    if(mpkId)assert.equal(canonicalMapStopId(map,mpkId,'mpk_rzeszow'),apiId);
+    assert.ok(stop.pksStopPoints.some(point=>point.id==='gtfs:'+gtfsId));
+  }
+  assert.equal(mapStopColor(map.find(row=>row.id==='7614')),'#14b8a6');
+  assert.equal(mapStopColor(map.find(row=>row.id==='5319')),'#ff7a00');
+  assert.ok(map.some(row=>row.id==='5320'),'opposite Wetlińska platform stays separate');
+  assert.ok(map.some(row=>row.id==='11058'),'opposite Rudna Wielka platform stays separate');
+  assert.notEqual(canonicalMapStopId(map,'118','mpk_rzeszow'),'11461','nearby Jagiellońska stays distinct');
 });

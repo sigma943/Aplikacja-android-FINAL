@@ -541,3 +541,110 @@ test('journeys opt-in is owner-managed and cannot be self-granted or delegated',
  await assertFails(setDoc(doc(fresh,'installations','fresh-install'),{installationId:'fresh-install',role:'user',permissions:granted,status:'active',verified:false,updatedBy:'fresh-user'}));
  const adminGrant=buildDevicePermissions('admin',{journeys:true});await assertFails(updateDoc(doc(admin,'devices','admin'),{permissions:adminGrant}));await assertSucceeds(updateDoc(doc(owner,'devices','admin'),{permissions:adminGrant}));
 });
+
+for(const precision of ['milliseconds','seconds'])test(`expired temporary ban clears device and saved installation atomically (${precision})`,async()=>{
+ const sdk=require('firebase/firestore');
+ const expiry=new Date(Date.now()-60000).toISOString().replace(precision==='seconds'?/[.]\d{3}Z$/:/$^/,'Z');
+ const saved={...device('user','user-install'),status:'banned',banDetails:{reason:'One day',expiresAt:expiry}};
+ await env.withSecurityRulesDisabled(async context=>{
+  const db=context.firestore();await setDoc(doc(db,'devices','user'),saved);
+  await setDoc(doc(db,'installations','user-install'),{...saved,updatedBy:'owner'});
+ });
+ const db=env.authenticatedContext('user').firestore();
+ const {expireDeviceBan}=loadTs('lib/expire-device-ban.ts');
+ assert.equal(await expireDeviceBan(db,'user','user'),true);
+ const current=(await getDoc(doc(db,'devices','user'))).data(),profile=(await getDoc(doc(db,'installations','user-install'))).data();
+ for(const row of [current,profile]){assert.equal(row.status,'active');assert.equal(row.verified,true);assert.equal(row.banDetails,undefined);assert.equal(row.role,'user');assert.deepEqual(row.permissions,saved.permissions);}
+ assert.equal(await expireDeviceBan(db,'user','user'),false,'duplicate/resumed expiry is idempotent');
+});
+
+for(const expiry of ['', 'invalid-date',new Date(Date.now()+86400000).toISOString()])test(`self-unban rejects a permanent, invalid or still-active deadline: ${expiry}`,async()=>{
+ const sdk=require('firebase/firestore');
+ await env.withSecurityRulesDisabled(async context=>updateDoc(doc(context.firestore(),'devices','user'),{status:'banned',banDetails:{expiresAt:expiry}}));
+ const db=env.authenticatedContext('user').firestore();
+ await assertFails(updateDoc(doc(db,'devices','user'),{status:'active',verified:true,banDetails:sdk.deleteField()}));
+ // The phone cannot forge an expired date in the same write.
+ await assertFails(updateDoc(doc(db,'devices','user'),{status:'active',verified:true,banDetails:{expiresAt:'2000-01-01T00:00:00.000Z'}}));
+});
+
+test('expired self-unban cannot promote a device, rewrite permissions, admission or other identities',async()=>{
+ const sdk=require('firebase/firestore'),banDetails={expiresAt:'2000-01-01T00:00:00.000Z'};
+ await env.withSecurityRulesDisabled(async context=>{
+  await updateDoc(doc(context.firestore(),'devices','user'),{status:'banned',banDetails});
+  await setDoc(doc(context.firestore(),'devices','other'),{...device('user','other-install'),status:'banned',banDetails});
+ });
+ const db=env.authenticatedContext('user').firestore(),patch={status:'active',verified:true,banDetails:sdk.deleteField()};
+ for(const extra of [{role:'owner'},{permissions:buildDevicePermissions('owner')},{installationId:'another'},{loginApproved:true}])await assertFails(updateDoc(doc(db,'devices','user'),{...patch,...extra}));
+ await assertFails(updateDoc(doc(db,'devices','other'),patch));
+});
+
+test('an authorised admin can expire old bans without client self-unban access',async()=>{
+ await env.withSecurityRulesDisabled(async context=>updateDoc(doc(context.firestore(),'devices','user'),{status:'banned',banDetails:{expiresAt:'2000-01-01T00:00:00.000Z'}}));
+ const {expireDeviceBan}=loadTs('lib/expire-device-ban.ts');
+ assert.equal(await expireDeviceBan(env.authenticatedContext('admin').firestore(),'user','admin'),true);
+});
+
+// Exercise the production profile writer, including Firestore's nested merge semantics.
+function installationProfileWriter(db, actorId) {
+ const ts=require('typescript'),source=ts.createSourceFile('AdminDashboard.tsx',fs.readFileSync('app/admin/AdminDashboard.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ let initializer;
+ const visit=node=>{if(ts.isVariableDeclaration(node)&&node.name.getText(source)==='syncInstallationProfile')initializer=node.initializer.getText(source);ts.forEachChild(node,visit);};
+ visit(source);assert.ok(initializer);
+ const body=ts.transpile('return ('+initializer+');',{target:ts.ScriptTarget.ES2022});
+ return new Function('db','user','doc','setDoc','serverTimestamp','deleteField',body)(db,{uid:actorId},doc,setDoc,firebaseSdk.serverTimestamp,firebaseSdk.deleteField);
+}
+for(const role of ['user','admin'])test(`owner revokes journeys and saves other ${role} permissions despite stale installation flags`,async()=>{
+ const id=role+'-install',permissions=buildDevicePermissions(role,{journeys:true});
+ await env.withSecurityRulesDisabled(async context=>{
+  const db=context.firestore();await updateDoc(doc(db,'devices',role),{permissions});
+  await setDoc(doc(db,'installations',id),{...device(role,id,{...permissions,disableJourneys:true,statistics:true}),updatedBy:'owner',deviceName:'Keep this name',firstLogin:'Keep this date'});
+ });
+ const db=env.authenticatedContext('owner').firestore(),sync=installationProfileWriter(db,'owner');
+ for(const next of [buildDevicePermissions(role,{ban:false}),buildDevicePermissions(role,{journeys:true}),buildDevicePermissions(role,{journeys:true,disableMap:true})]){
+  const batch=writeBatch(db);batch.update(doc(db,'devices',role),{permissions:next});
+  await sync(id,role,next,undefined,{verified:role==='admin'},batch,role);
+  await assertSucceeds(batch.commit());
+  const profile=(await getDoc(doc(db,'installations',id))).data();
+  assert.deepEqual(profile.permissions,next);assert.equal(profile.deviceName,'Keep this name');assert.equal(profile.firstLogin,'Keep this date');
+ }
+});
+test('expired ban clears on the banned client even when its saved profile has stale permissions',async()=>{
+ const saved={...device('user','user-install',{journeys:true}),status:'banned',banDetails:{expiresAt:'2000-01-01T00:00:00.000Z'}};
+ await env.withSecurityRulesDisabled(async context=>{
+  const db=context.firestore();await setDoc(doc(db,'devices','user'),saved);
+  await setDoc(doc(db,'installations','user-install'),{...saved,permissions:{...saved.permissions,statistics:true,disableJourneys:true},updatedBy:'owner',deviceName:'Keep this name'});
+ });
+ const db=env.authenticatedContext('user').firestore();
+ const {expireDeviceBan}=loadTs('lib/expire-device-ban.ts');
+ await assertSucceeds(expireDeviceBan(db,'user','user'));
+ const profile=(await getDoc(doc(db,'installations','user-install'))).data();
+ assert.equal((await getDoc(doc(db,'devices','user'))).data().status,'active');
+ assert.equal(profile.status,'active');assert.deepEqual(profile.permissions,saved.permissions);assert.equal(profile.deviceName,'Keep this name');
+});
+
+function fullRoleSave(db,target,statisticsAccess={}) {
+ const ts=require('typescript'),source=ts.createSourceFile('AdminDashboard.tsx',fs.readFileSync('app/admin/AdminDashboard.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ const names=['permissionsMatch','syncInstallationProfile','stageStatisticsAccess','handleUpdateUser','saveOperatorPatch'],found={};
+ const visit=node=>{if(ts.isVariableDeclaration(node)&&names.includes(node.name.getText(source)))found[node.name.getText(source)]=node.initializer.getText(source);ts.forEachChild(node,visit);};visit(source);
+ const alerts=[],toasts=[];const deps={...firebaseSdk,...loadTs('lib/admin/rbac.ts'),...loadTs('lib/admin/statistics-access.ts'),db,user:{uid:'owner'},currentDevice:{role:'owner'},canChangeRolesUi:true,selectedDeviceForRole:{...target,name:'Windows'},devicesData:[target],statisticsAccess,assertNotSelf:()=>true,alert:m=>alerts.push(m),addToast:(...args)=>toasts.push(args),setSelectedDeviceForRole:()=>{},formatDeviceLabel:()=> 'Windows',writeAuditLog:payload=>firebaseSdk.addDoc(collection(db,'admin_logs'),{...payload,actorId:'owner',createdAt:firebaseSdk.serverTimestamp()})};
+ const body=ts.transpile(names.map(name=>'const '+name+'='+found[name]+';').join('\n')+'return {handleUpdateUser,saveOperatorPatch};',{target:ts.ScriptTarget.ES2022});
+ return {...new Function(...Object.keys(deps),body)(...Object.values(deps)),alerts,toasts};
+}
+for(const editor of ['modal','operators'])for(const flag of ['journeys','shield','disableMap','statistics','combined','unchanged'])test(`full owner ${editor} save with legacy Windows data: ${flag}`,async()=>{
+ const target={id:'windows',...device('admin','windows-install'),loginApproved:false,identityVersion:3};
+ await env.withSecurityRulesDisabled(async context=>{const db=context.firestore();await setDoc(doc(db,'devices',target.id),target);await setDoc(doc(db,'installations',target.installationId),{...target,updatedBy:'owner'});});
+ const db=env.authenticatedContext('owner').firestore(),run=fullRoleSave(db,target);
+ const perms={...buildDevicePermissions('admin'),disableJourneys:false,journeys:false,statistics:true,...(['combined','unchanged'].includes(flag)?{}:{[flag]:flag==='statistics'?false:true})};
+ if(flag==='combined'){perms.statistics=false;perms.shield=true;}
+ if(editor==='modal')await run.handleUpdateUser('Admin','ADMIN',perms,'',true);else await run.saveOperatorPatch(target.id,'ADMIN',perms);
+ assert.deepEqual(run.alerts,[]);if(editor==='modal')assert.ok(run.toasts.length);
+ const stored=(await getDoc(doc(db,'devices',target.id))).data();
+ const expected=buildDevicePermissions('admin',perms);
+ assert.deepEqual(stored.permissions,expected);
+ assert.deepEqual((await getDoc(doc(db,'installations',target.installationId))).data().permissions,expected);
+ assert.equal(stored.loginApproved,false,'role editor does not change admission');
+ if(flag==='statistics'||flag==='combined')assert.equal((await getDoc(doc(db,'admin_settings','statistics_access'))).data().statisticsAccess[target.installationId],false);
+ // Saving the same form again must also succeed after the first real change.
+ const repeated=fullRoleSave(db,{...stored,id:target.id},flag==='statistics'||flag==='combined'?{[target.installationId]:false}:{});
+ if(editor==='modal')await repeated.handleUpdateUser('Admin','ADMIN',perms,'',true);else await repeated.saveOperatorPatch(target.id,'ADMIN',perms);assert.deepEqual(repeated.alerts,[]);
+});

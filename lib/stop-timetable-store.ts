@@ -69,7 +69,13 @@ export class StopTimetableStore {
     });
     if (!available && final) throw new Error(warnings.join(' ') || 'Brak źródła rozkładu dla tego przystanku.');
     const unique = new Map<string,Departure>();
-    rows.forEach(row => unique.set(row.carrier?.id+':'+row.id,row));
+    for(const row of rows){
+      const key=row.carrier?.id+':'+row.id;
+      // Merged PKS platforms can have a live board under one ID and a static
+      // timetable under another. A later static row must keep the prediction.
+      if(row.carrier?.id==='pks'&&!row.realtimeSource&&unique.get(key)?.realtimeSource)continue;
+      unique.set(key,row);
+    }
     return {departures:[...unique.values()].sort((a,b)=>(a.realAtMs??a.plannedAtMs??0)-(b.realAtMs??b.plannedAtMs??0)),warnings,updatedAt:Date.now()};
   }
 }

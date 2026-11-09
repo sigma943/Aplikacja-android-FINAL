@@ -26,7 +26,8 @@ test('Marcel badges warm visible courses with two requests, return positions imm
   const notifications=[];
   const unsubscribe=api.subscribeMarcelCourseDelays(id=>notifications.push(id));
   const first=await api.fetchVehiclesClient(true,['marcel'],options);
-  assert.equal(first.length,4);assert.ok(first.every(v=>v.delay===undefined));assert.equal(courseCalls.length,2);
+  assert.equal(first.length,4);assert.ok(first.every(v=>v.delay===undefined));assert.equal(courseCalls.length,0,'fleet polling alone must not warm hidden map badges');
+  api.warmMarcelBadgeCourses(first,options.pkpViewport.bbox);await new Promise(resolve=>setImmediate(resolve));assert.equal(courseCalls.length,2);
   while(gates.length){gates.splice(0).forEach(release=>release());await new Promise(resolve=>setImmediate(resolve));}
   assert.equal(maxActive,2);assert.equal(courseCalls.length,3);assert.ok(!courseCalls.some(url=>url.includes('/kurs/4?')));
   // No click or second fleet poll: the original marker data gets its badge

@@ -27,7 +27,7 @@ test('lighting has no discontinuity at sunset or arbitrary warm colour threshold
  }
 });
 test('water budgets remain bounded with three distinct frame and pixel limits',()=>{
- assert.deepEqual(Object.values(WATER_QUALITY).map(v=>v.fps),[30,24,15]);
+ assert.deepEqual(Object.values(WATER_QUALITY).map(v=>v.fps),[60,30,15]);
  assert.ok(WATER_QUALITY.low.pixels<WATER_QUALITY.medium.pixels&&WATER_QUALITY.medium.pixels<WATER_QUALITY.high.pixels);
 });
 test('solar material adds no CSS solar gradients; shafts are supplied by GPU',()=>{
@@ -62,4 +62,12 @@ test('GPU uploads retain float32 precision while skipping repeated and unused un
   assert.deepEqual(calls[3].values,[Math.fround(.67),Math.fround(.81),1]);
   assert.equal(locations.filter(name=>name==='unused').length,1);
  }finally{global.document=documentBefore;}
+});
+
+test('changing rays invalidates the sun layer even with stopped ambient time',()=>{
+ const {LandscapeRenderer}=load('lib/landscape-renderer.ts');
+ const renderer=Object.create(LandscapeRenderer.prototype);
+ renderer.effects={bloom:1,reflections:1,rays:1,waveSpeed:1,exposure:1};renderer.lastBackground=72;
+ renderer.setEffects({...renderer.effects});assert.equal(renderer.lastBackground,72);
+ renderer.setEffects({...renderer.effects,rays:2});assert.equal(renderer.lastBackground,-Infinity);
 });
