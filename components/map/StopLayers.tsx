@@ -9,14 +9,19 @@ import {Marker, useMap, CircleMarker, useMapEvents} from 'react-leaflet';
 import L from 'leaflet';
 
 import type {Stop} from '@/Panel/src/types';
-import {mapStopColor, mapStopIconHtml, visibleMapStops, routeMapStopPoint, routeMapCatalogStopId} from '@/lib/map-stop-markers';
+import {MAP_STOPS_MIN_ZOOM,mapStopColor,mapStopIconHtml,mapStopPinHtml,visibleMapStops,routeMapStopPoint,routeMapCatalogStopId} from '@/lib/map-stop-markers';
 
 import {type Vehicle, type StopData} from '@/lib/transport/vehicle';
 
-function SelectedStopPin({id,catalogId,point,stops,color,rail=false,alignToCatalog=false}:{id?:string|null;catalogId?:string|null;point?:StopData;stops:Stop[];color:string;rail?:boolean;alignToCatalog?:boolean}) {
+function SelectedStopPin({id,catalogId,point,stops,color,routeColor,rail=false,alignToCatalog=false}:{id?:string|null;catalogId?:string|null;point?:StopData;stops:Stop[];color:string;routeColor?:string;rail?:boolean;alignToCatalog?:boolean}) {
   const map=useMap();const [revision,setRevision]=useState(0);
   useMapEvents({zoomend:()=>setRevision(v=>v+1),moveend:()=>setRevision(v=>v+1)});
-  const icon=useMemo(()=>L.divIcon({className:'stop-highlight-pin',html:`<svg class="map-stop-pin" width="38" height="48" viewBox="0 0 38 48" style="color:${color};filter:drop-shadow(0 3px 4px #0005)"><path d="M19 2C9.6 2 3 8.8 3 18c0 10.8 16 27 16 27s16-16.2 16-27C35 8.8 28.4 2 19 2Z" fill="currentColor" stroke="white" stroke-width="2.5"/><circle cx="19" cy="18" r="6.5" fill="white"/></svg>`,iconSize:[38,48],iconAnchor:[19,46]}),[color]);
+  const zoom=map.getZoom();
+  const routeDot=Boolean(routeColor)&&zoom>=MAP_STOPS_MIN_ZOOM;
+  const pinColor=zoom<MAP_STOPS_MIN_ZOOM?(routeColor||color):color;
+  const icon=useMemo(()=>L.divIcon(routeDot
+    ? {className:'map-catalog-stop map-route-stop-fallback',html:mapStopIconHtml(color,true),iconSize:[40,40],iconAnchor:[20,20]}
+    : {className:'stop-highlight-pin',html:mapStopPinHtml(pinColor),iconSize:[38,48],iconAnchor:[19,46]}),[color,pinColor,routeDot]);
   const platformRevision=stopPlatformRevision();
   const catalogVisible=useMemo(()=>{
     if(!id)return false;
@@ -88,6 +93,7 @@ function RouteStopsLayer({
 
   if (!selectedVehicle) return null;
 
+  const closeRoadStops=selectedVehicle.provider!=='pkp_intercity'&&zoom>=MAP_STOPS_MIN_ZOOM;
   const baseRadius = zoom <= 11 ? 4.5 : zoom <= 13 ? 5.1 : zoom <= 14 ? 5.8 : 6.5;
 
   return (
@@ -101,6 +107,9 @@ function RouteStopsLayer({
         const catalogId=routeDisplay.catalogIds.get(String(stopId));
         if(catalogId&&visibleCatalogIds.has(catalogId))return null;
         const isHighlighted = String(stopId) === highlightedStopId;
+        // The selected stop already has an icon at this scale, even without the catalog layer.
+        if(closeRoadStops&&isHighlighted)return null;
+        const stopColor=closeRoadStops?mapStopColor({name:stop.n}):'#ffffff';
 
         return (
           <CircleMarker
@@ -108,11 +117,13 @@ function RouteStopsLayer({
             pane="routeStopsPane"
             center={[stop.lat, stop.lon]}
             radius={isHighlighted ? baseRadius + 2.3 : baseRadius}
-            color={isHighlighted ? selectedRouteColor : 'rgba(12,18,28,0.9)'}
-            fillColor="#ffffff"
-            fillOpacity={1}
-            weight={isHighlighted ? 4.6 : 2.8}
-            pathOptions={{ pane: 'routeStopsPane', className: 'mks-route-stop-marker' }}
+            pathOptions={{
+              className:'mks-route-stop-marker',
+              color:isHighlighted?selectedRouteColor:'rgba(12,18,28,0.9)',
+              fillColor:stopColor,
+              fillOpacity:1,
+              weight:isHighlighted?4.6:2.8,
+            }}
             eventHandlers={{
               click: (e) => {
                 L.DomEvent.stopPropagation(e as any);

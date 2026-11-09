@@ -428,7 +428,7 @@ function BusMap({
           maxZoom={19}
         />
 
-        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} alignToCatalog={selectedVehicle?.provider!=='pkp_intercity'} stops={mapStops} color={selectedStopColor}/>
+        <SelectedStopPin rail={selectedVehicle?.provider==='pkp_intercity'} id={highlightedStopId} catalogId={selectedCatalogStopId} point={highlightedStop} alignToCatalog={selectedVehicle?.provider!=='pkp_intercity'} stops={mapStops} color={selectedStopColor} routeColor={selectedVehicle&&selectedVehicle.provider!=='pkp_intercity'?selectedRouteColor:undefined}/>
         {mapStops.length>0 && <CatalogStopsLayer stops={mapStops} routeStopIds={routeCatalogIds} selected={selectedCatalogStopId} onSelect={onMapStopClick}/>}
 
         {/* Draw Route Line */}

@@ -257,19 +257,25 @@ try{
     await page.waitForFunction(expected=>{const ring=document.querySelector('.map-stop-ring.is-selected');return ring&&getComputedStyle(ring).backgroundColor===expected;},{},color);
     assert.equal(await page.$$('.stop-highlight-pin').then(rows=>rows.length),0,provider+' has no duplicate pin');
     await page.click('[data-test-icons]');
-    await page.waitForSelector('.map-catalog-stop',{hidden:true});
-    await page.waitForFunction(expected=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color===expected;},{},color);
+    await page.waitForFunction(expected=>{const dot=document.querySelector('.map-route-stop-fallback .map-stop-ring.is-selected');return dot&&getComputedStyle(dot).backgroundColor===expected;},{},color);
+    assert.equal(await page.$('.stop-highlight-pin'),null,provider+' keeps a dot at close zoom without the catalog');
     await page.click('[data-test-icons]');
-    await page.waitForSelector('.map-stop-ring.is-selected');await page.waitForSelector('.stop-highlight-pin',{hidden:true});
+    await page.waitForSelector('.map-route-stop-fallback',{hidden:true});
+    await page.waitForSelector('.map-stop-ring.is-selected');
   }
  }
  await page.click('[data-test-provider="marcel"]');
  const zoomKey=async key=>{await page.$eval('.leaflet-container',(el,key)=>{el.focus();el.dispatchEvent(new KeyboardEvent('keydown',{key,keyCode:key==='-'?189:187,which:key==='-'?189:187,bubbles:true}));},key);await new Promise(resolve=>setTimeout(resolve,400));};
  await zoomKey('-');await zoomKey('-');
  await page.waitForSelector('.map-catalog-stop',{hidden:true});
- await page.waitForFunction(()=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color==='rgb(20, 184, 166)';});
+ for(const [provider,color] of [['marcel','rgb(104, 196, 74)'],['pks','rgb(20, 184, 166)'],['mpk_rzeszow','rgb(255, 122, 0)']]){
+   await page.click(`[data-test-provider="${provider}"]`);
+   await page.waitForFunction(expected=>{const pin=document.querySelector('.stop-highlight-pin .map-stop-pin');return pin&&getComputedStyle(pin).color===expected;},{},color);
+ }
  await zoomKey('+');await zoomKey('+');
  await page.waitForSelector('.map-stop-ring.is-selected');await page.waitForSelector('.stop-highlight-pin',{hidden:true});
+ assert.equal(await page.$eval('.map-stop-ring.is-selected',e=>getComputedStyle(e).backgroundColor),'rgb(20, 184, 166)','a rural stop stays turquoise even on an MPK route');
+ await page.click('[data-test-provider="marcel"]');
  // Re-render the parent clock repeatedly without moving an unchanged Leaflet marker.
  const idleTicks=await page.evaluate(()=>{window.idleMarkerMutations=0;const marker=document.querySelector('.map-catalog-stop');window.idleMarkerObserver=new MutationObserver(records=>{window.idleMarkerMutations+=records.length;});window.idleMarkerObserver.observe(marker,{attributes:true,attributeFilter:['style']});return window.fixtureMapTicks;});
  await page.waitForFunction(start=>window.fixtureMapTicks>=start+5,{},idleTicks);
