@@ -174,9 +174,9 @@ export default function DynamicLandscape({active,glass=true,sceneCovered=false}:
       target.hidden=false;context.clearRect(0,0,width,height);context.save();
       const sx=width/frame.width,sy=height/frame.height;
       if(covered.current){
-        // On the map, transmit light through the chrome without tinting map tiles.
+        // Keep the carrier-coloured vehicle sheet out of the sunbeam overlay.
         context.beginPath();
-        for(const panel of container.querySelectorAll<HTMLElement>('.pks-map-search-panel,.pks-navigation,.map-detail-shell,[data-map-control]')){
+        for(const panel of container.querySelectorAll<HTMLElement>('.pks-map-search-panel,.pks-navigation,.map-detail-shell[data-map-detail-kind="stop"],[data-map-control]')){
           const box=panelBox(panel,frame);
           if(box)context.roundRect(box.x*sx,box.y*sy,box.width*sx,box.height*sy,box.radius*sx);
         }
