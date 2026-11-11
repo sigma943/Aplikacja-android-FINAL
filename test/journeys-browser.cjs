@@ -12,6 +12,58 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   page.on('request',r=>{if(!r.url().startsWith(origin)&&!r.url().startsWith('blob:')&&!r.url().startsWith('data:')&&!r.url().startsWith('https://mt1.google.com/')&&!r.url().startsWith('https://routing.openstreetmap.de/routed-foot/'))external.push(r.url());});
   await page.setViewport({width:393,height:851,deviceScaleFactor:1});fs.mkdirSync('test/ui-previews',{recursive:true});
   const screenshot=name=>page.screenshot({path:'test/ui-previews/journeys-'+name+'.png'});
+  if(process.env.JOURNEY_PICKER_ONLY){
+   await page.goto(origin,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>!document.querySelector('.connections-primary').disabled);
+   await page.focus('[aria-label="Data podróży"]');assert.equal(await page.$eval('[aria-label="Data podróży"]',e=>getComputedStyle(e).outlineStyle),'none');
+   await page.click('.connections-preferences');await page.click('[data-journey-to]');
+   await page.waitForSelector('[data-journey-picker] .connections-picker-actions');
+   assert.doesNotMatch(await page.$eval('[data-journey-picker] .connections-picker-actions',e=>e.textContent),/Twoja lokalizacja/);
+   for(const width of [320,393,430]){
+    await page.setViewport({width,height:851,deviceScaleFactor:1});
+    const covered=await page.evaluate(()=>{const host=document.querySelector('.connections-picker-host'),rect=host.getBoundingClientRect(),picker=document.querySelector('[data-journey-picker]').getBoundingClientRect();return {bottom:rect.bottom,pickerBottom:picker.bottom,hit:Boolean(document.elementFromPoint(innerWidth/2,innerHeight-70)?.closest('.connections-picker-host')),overflow:host.scrollWidth>innerWidth};});
+    assert.equal(covered.bottom,851);assert.equal(covered.pickerBottom,787);assert.equal(covered.hit,true);assert.equal(covered.overflow,false);
+   }
+   await page.setViewport({width:393,height:851,deviceScaleFactor:1});
+   await page.evaluate(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(success){success({coords:{latitude:50.0412,longitude:21.9991}});}}}));
+   await page.keyboard.press('Escape');await page.click('[data-journey-from]');
+   await page.click('[data-journey-picker] .connections-use-location');await page.waitForFunction(()=>document.querySelector('[data-journey-from]').textContent.includes('Twoja lokalizacja'));
+   await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location');
+   await page.waitForSelector('.connections-place-leaflet');
+   assert.equal(await page.$('.connections-place-leaflet canvas'),null,'catalog stops are hidden at the initial distant zoom');
+   assert.equal(await page.$('.connections-place-map .leaflet-marker-icon'),null,'map picker has no vehicle or stop bus icons');
+   const mapRect=await page.$eval('.connections-place-leaflet',e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};});
+   await page.mouse.click(mapRect.x+mapRect.w*.2,mapRect.y+mapRect.h*.35);
+   await page.waitForFunction(()=>document.querySelector('.connections-place-confirm strong').textContent==='Punkt na mapie');
+   await page.waitForSelector('.connections-picked-pin .map-stop-pin');
+   assert.equal(await page.$('.connections-place-map .leaflet-marker-icon:not(.connections-picked-pin)'),null);
+   for(const [accent,expectedColor] of [['#8b5cf6','rgb(139, 92, 246)'],['#ff7a00','rgb(255, 122, 0)']]){
+    await page.evaluate(value=>document.documentElement.style.setProperty('--pks-accent',value),accent);
+    const pin=await page.$eval('.connections-picked-pin svg',e=>getComputedStyle(e).color);
+    const selectedAccent=await page.$eval('.connections-picker-host',e=>getComputedStyle(e).getPropertyValue('--cn-accent').trim());
+    assert.equal(pin,expectedColor);assert.equal(selectedAccent,accent);
+   }
+   // Leaflet ignores another zoom while an animated zoom is in progress.
+   // Shift-click requests 13 -> 16 in one action; wait for the actual tile zoom.
+   await page.keyboard.down('Shift');
+   try{await page.click('.connections-place-map .leaflet-control-zoom-in');}finally{await page.keyboard.up('Shift');}
+   await page.waitForFunction(()=>[...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].some(tile=>/[?&]z=16(?:&|$)/.test(tile.src)));
+   await page.waitForSelector('.connections-place-map .map-catalog-stop .map-stop-ring').catch(async error=>{
+    await screenshot('picker-markers-failure');
+    console.error('Picker diagnostics',await page.evaluate(()=>({tiles:[...new Set([...document.querySelectorAll('.connections-place-leaflet img.leaflet-tile')].map(tile=>(/[?&]z=(\d+)/.exec(tile.src)||[])[1]))],errors:document.querySelector('.connections-place-map')?.textContent})),errors);throw error;
+   });
+   const colors=await page.$$eval('.connections-place-map .map-stop-ring',nodes=>nodes.map(e=>e.style.getPropertyValue('--stop-color')));
+   assert.ok(colors.every(c=>['#14b8a6','#ff7a00'].includes(c)));
+   await screenshot('map-picker-point');await page.click('.connections-place-confirm button');
+   await page.waitForFunction(()=>document.querySelector('[data-journey-to]').textContent.includes('Punkt na mapie'));
+   await page.click('[data-journey-to]');await page.click('[data-journey-picker] .connections-use-location');await page.waitForSelector('.connections-place-leaflet');
+   await page.keyboard.press('Escape');await page.waitForSelector('[data-journey-picker] input');assert.equal(await page.$('.connections-place-leaflet'),null);
+   await page.keyboard.press('Escape');assert.equal(await page.$('[data-journey-picker]'),null);assert.deepEqual(errors,[]);
+   await page.goto(origin+'/?map-case=curve',{waitUntil:'domcontentloaded'});await page.waitForSelector('.journey-map .leaflet-tile-pane');
+   const inlineFilter=await page.$eval('.journey-map .leaflet-tile-pane',e=>getComputedStyle(e).filter);assert.notEqual(inlineFilter,'none');
+   await page.click('[aria-label="Powiększ mapę"]');await page.waitForSelector('.connections-map-modal .leaflet-tile-pane');
+   assert.equal(await page.$eval('.connections-map-modal .leaflet-tile-pane',e=>getComputedStyle(e).filter),inlineFilter);
+   console.log('PASS: origin-only location, full picker coverage at 320/393/430px, map point selection, no bus icons and back navigation');return;
+  }
   if(!process.env.JOURNEY_MAP_ONLY){
   await page.goto(origin,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForFunction(()=>document.querySelector('.connections-primary')&&!document.querySelector('.connections-primary').disabled,{timeout:20000}).catch(async error=>{console.log('Initial screen',await page.$eval('body',e=>e.innerText),'errors',errors,'external',external);await screenshot('failure');throw error;});
   await screenshot('dark');await page.click('[data-journey-from]');await page.waitForSelector('[data-journey-picker] input[placeholder*="Babica"]');
@@ -35,7 +87,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.$eval('[aria-label="Godzina podróży"]',e=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'09:30');e.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.click('.connections-primary');await page.waitForSelector('[data-journey-result]');assert.ok(await page.$('.connections-leg-badges [data-provider="mpk"]'),'full MPK timetables also produce real connections');
   await page.click('[data-journey-result] .connections-result');await page.waitForSelector('.connections-detail');
-  await page.click('.connections-map-button');await page.waitForSelector('.journey-map .leaflet-container');await page.waitForFunction(()=>document.querySelectorAll('.journey-map path').length>=3);
+  await page.click('.connections-map-button:last-child');await page.waitForSelector('.journey-map .leaflet-container');await page.waitForFunction(()=>document.querySelectorAll('.journey-map path').length>=3);
   await screenshot('mpk-map');assert.deepEqual(errors,[]);
   await page.click('[data-journey-from]');await page.keyboard.press('Escape');assert.equal(await page.$('[data-journey-picker]'),null,'Escape closes the picker');
   for(const width of [320,430]){await page.setViewport({width,height:851,deviceScaleFactor:1});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no overflow at '+width+'px');}
@@ -49,7 +101,7 @@ const webpack=require('next/dist/compiled/webpack/webpack');webpack.init();
   await page.click('[data-journey-from]');await page.click('.connections-use-location');await page.waitForFunction(()=>document.querySelector('[data-journey-from]').textContent.includes('Twoja lokalizacja'));
   await page.click('.connections-primary');await page.waitForFunction(()=>[...document.querySelectorAll('.connections-result-meta')].some(n=>n.textContent.includes('Całą trasę pieszo')),{timeout:30000});
   assert.ok(await page.$('.connections-leg-badges [data-provider="mpk"]'),'location also finds nearby bus departures');
-  await page.evaluate(()=>[...document.querySelectorAll('[data-journey-result]')].find(n=>n.textContent.includes('Całą trasę pieszo')).querySelector('button').click());await page.click('.connections-map-button');
+  await page.evaluate(()=>[...document.querySelectorAll('[data-journey-result]')].find(n=>n.textContent.includes('Całą trasę pieszo')).querySelector('button').click());await page.click('.connections-map-button:last-child');
   await page.waitForSelector('.connections-walking-path',{timeout:20000});assert.equal(await page.$eval('.connections-walking-path',e=>e.getAttribute('stroke')),'#fff');assert.equal(await page.$eval('.connections-walking-path',e=>e.getAttribute('stroke-dasharray')),'5 10');assert.ok(await page.$('.connections-walk-marker'));
   assert.ok(await page.$eval('.connections-walking-path',e=>e.getAttribute('d').split('L').length>3),'walking route follows real streets and paths');
   const history=await page.evaluate(()=>JSON.parse(localStorage.getItem('pks-live:journey-recents')));assert.equal(history[0].from.lat,undefined,'location coordinates are not persisted');

@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx cross-env NODE_ENV=production next build",
-    "build:android:web": "npx cross-env NODE_ENV=production next build && node scripts/prepare-android-web.mjs",
+    "build": "node scripts/prepare-journey-assets.mjs && npx cross-env NODE_ENV=production next build",
+    "build:android:web": "node scripts/prepare-journey-assets.mjs && npx cross-env NODE_ENV=production next build && node scripts/prepare-android-web.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "node --test test/*.test.cjs",
